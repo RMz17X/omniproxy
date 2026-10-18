@@ -15,8 +15,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, listKeys, removeKey, removeKeyById, snapshot, storageMode } from "./pool.ts";
+import { addKey, keyId, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, snapshot, storageMode } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
+import { probeKey } from "./probe.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { chatCompletions, models } from "./openai.ts";
 
@@ -113,11 +114,15 @@ app.post("/admin/keys", async (c) => {
   const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
   if (clean.length === 0) return c.json({ error: { message: "No keys supplied." } }, 400);
 
+  const ids: string[] = [];
   let added = 0;
   for (const k of clean) {
-    if (await addKey(k)) added++;
+    if (await addKey(k)) {
+      added++;
+      ids.push(keyId(k));
+    }
   }
-  return c.json({ ok: true, received: clean.length, added, pool: await snapshot() });
+  return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
 });
 
 app.delete("/admin/keys", async (c) => {
@@ -138,6 +143,97 @@ app.delete("/admin/keys", async (c) => {
   }
   await removeKey(body.key);
   return c.json({ ok: true, pool: await snapshot() });
+});
+
+/**
+ * Probe one key against Google and fold the verdict back into the pool.
+ *
+ * The console asks for an id (it never holds raw keys); curl may pass a raw
+ * key to vet it before adding. A probe is the only path that revives a parked
+ * key, so a recovering key does not have to wait out a stale cooldown.
+ */
+app.post("/admin/keys/test", async (c) => {
+  let body: { id?: string; key?: string; model?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+
+  let raw = "";
+  let id = typeof body.id === "string" ? body.id : "";
+  if (id) {
+    const resolved = await rawKeyById(id);
+    if (!resolved) return c.json({ error: { message: "No key with that id." } }, 404);
+    raw = resolved;
+  } else if (typeof body.key === "string" && body.key.trim()) {
+    raw = body.key.trim();
+    id = keyId(raw);
+  } else {
+    return c.json({ error: { message: "`id` or `key` is required." } }, 400);
+  }
+
+  const model = typeof body.model === "string" && body.model ? body.model : undefined;
+  const result = await probeKey(raw, model);
+
+  // Fold the verdict into pool state only for keys the pool actually holds.
+  const held = id ? Boolean(await rawKeyById(id)) : false;
+  let applied = "none";
+  if (held) {
+    if (result.status === "ok") {
+      await markHealthy(raw);
+      applied = "revived";
+    } else if (result.status === "rate_limited") {
+      await mark429(raw, Math.max(cfg.cooldownMs, result.retryAfterMs));
+      applied = "cooling";
+    } else if (result.status === "zero_quota" || result.status === "invalid") {
+      await markInvalid(raw);
+      applied = "retired";
+    } else if (result.status === "server_error") {
+      await mark429(raw, cfg.serverErrCooldownMs);
+      applied = "cooling";
+    }
+  }
+
+  return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
+});
+
+/** Bounded-concurrency probe of the whole pool; the console's "test all". */
+app.post("/admin/keys/test-all", async (c) => {
+  const keys = await listKeys();
+  const target = keys.filter((k) => k.status !== "dead");
+  const limit = 4;
+  const results: { id: string; key: string; probe: unknown; applied: string }[] = [];
+  let cursor = 0;
+
+  const worker = async () => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= target.length) return;
+      const k = target[i];
+      const raw = await rawKeyById(k.id);
+      if (!raw) continue;
+      const probe = await probeKey(raw);
+      let applied = "none";
+      if (probe.status === "ok") {
+        await markHealthy(raw);
+        applied = "revived";
+      } else if (probe.status === "rate_limited") {
+        await mark429(raw, Math.max(cfg.cooldownMs, probe.retryAfterMs));
+        applied = "cooling";
+      } else if (probe.status === "zero_quota" || probe.status === "invalid") {
+        await markInvalid(raw);
+        applied = "retired";
+      } else if (probe.status === "server_error") {
+        await mark429(raw, cfg.serverErrCooldownMs);
+        applied = "cooling";
+      }
+      results.push({ id: k.id, key: k.key, probe, applied });
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
 });
 
 app.notFound((c) =>

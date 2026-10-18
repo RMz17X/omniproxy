@@ -3326,6 +3326,19 @@ async function removeKeyById(id) {
   if (!hit) return false;
   return removeKey(hit.key);
 }
+async function rawKeyById(id) {
+  const all = await states();
+  const hit = all.find((s) => keyId(s.key) === id);
+  return hit ? hit.key : null;
+}
+async function markHealthy(key) {
+  const st = local.get(key) ?? decode(key, null);
+  st.invalid = false;
+  st.failures = 0;
+  st.cooldownUntil = 0;
+  st.lastUsed = now();
+  await persist(st, [["SREM", DEAD_KEY, key]]);
+}
 async function listKeys() {
   const all = await states();
   const t = now();
@@ -3337,7 +3350,8 @@ async function listKeys() {
     cooldownLeftMs: Math.max(0, s.cooldownUntil - t),
     lastUsed: s.lastUsed,
     invalid: s.invalid,
-    status: s.invalid ? "dead" : s.cooldownUntil > t ? "cooling" : "ready"
+    status: s.invalid ? "dead" : s.cooldownUntil > t ? "cooling" : "ready",
+    cooldownUntil: s.cooldownUntil
   }));
 }
 async function snapshot() {
@@ -3424,238 +3438,295 @@ var ADMIN_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Key Pool Console</title>
+<meta name="robots" content="noindex">
+<title>Key rotator control</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1014'/%3E%3Cpath d='M9 20l5-9 4 6 5-3' stroke='%23e8a33d' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   :root {
-    --bg: #0b0d10;
-    --panel: #14171c;
-    --panel-2: #1b1f26;
-    --line: #262c35;
-    --text: #e8ecf1;
-    --muted: #9aa5b4;
-    --ready: #3ddc84;
-    --cool: #f0b429;
-    --dead: #f2545b;
-    --accent: #4c8dff;
-    --focus: #8ab4ff;
+    --bg: #0d1014;
+    --panel: #12161b;
+    --panel-2: #171c22;
+    --line: #242b34;
+    --line-soft: #1c222a;
+    --text: #e6eaf0;
+    --muted: #8c96a5;
+    --accent: #e8a33d;
+    --ready: #57c98a;
+    --cool: #e0b64a;
+    --dead: #e8737b;
+    --focus: #7fb4ff;
+    --radius: 8px;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html, body { margin: 0; }
   body {
     background: var(--bg);
     color: var(--text);
-    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: 20px 16px 64px;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; }
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
-  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
-  h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
-  .storage { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .storage b { color: var(--text); font-weight: 600; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
 
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
-  .panel > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .brand .sub { font-size: 12px; color: var(--muted); }
+  .top-right { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
+  .top-right .mono { font-size: 12px; }
 
-  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], input[type=text], textarea {
+  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
+
+  /* one-line health strip, not a card grid */
+  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
+  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .strip .kv span { font-size: 12px; color: var(--muted); }
+  .strip .kv.ready b { color: var(--ready); }
+  .strip .kv.cooling b { color: var(--cool); }
+  .strip .kv.dead b { color: var(--dead); }
+  .strip .spacer { flex: 1; }
+  .strip .meta { font-size: 12px; color: var(--muted); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .card + .card { margin-top: 12px; }
+
+  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  input[type=password], textarea {
     width: 100%;
-    background: var(--panel-2);
+    background: var(--bg);
     color: var(--text);
     border: 1px solid var(--line);
-    border-radius: 8px;
+    border-radius: var(--radius);
     padding: 11px 12px;
     font: inherit;
-    font-size: 14px;
-    min-height: 44px;
+    font-size: 13.5px;
   }
-  textarea { min-height: 96px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.6; }
-  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-color: transparent; }
-  input::placeholder, textarea::placeholder { color: #6b7482; }
-
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
-  .row > .grow { flex: 1 1 240px; min-width: 0; }
+  textarea { resize: vertical; min-height: 84px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6; }
+  input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  input::placeholder, textarea::placeholder { color: #5f6875; }
 
   button {
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 0 16px;
-    height: 44px;
     font: inherit;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 13.5px;
+    font-weight: 550;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    min-height: 44px;
+    padding: 0 16px;
     cursor: pointer;
     white-space: nowrap;
+    transition: background 120ms ease, border-color 120ms ease;
   }
-  button:hover:not(:disabled) { background: #232932; border-color: #38414e; }
+  button:hover:not(:disabled) { background: #1e242c; border-color: #333d49; }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #06121f; font-weight: 650; }
-  button.primary:hover:not(:disabled) { background: #6ea3ff; border-color: #6ea3ff; }
-  button.danger { color: var(--dead); border-color: #4a2b30; background: transparent; height: 36px; padding: 0 12px; font-size: 13px; }
-  button.danger:hover:not(:disabled) { background: #2a1417; border-color: var(--dead); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 650; }
+  button.primary:hover:not(:disabled) { background: #f0b154; border-color: #f0b154; }
+  button.small { min-height: 34px; padding: 0 11px; font-size: 12.5px; }
+  button.danger { color: var(--dead); border-color: #3d272b; background: transparent; }
+  button.danger:hover:not(:disabled) { background: #22161a; border-color: var(--dead); }
 
-  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
-  .stat .n { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
-  .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-top: 2px; }
-  .stat.ready .n { color: var(--ready); }
-  .stat.cooling .n { color: var(--cool); }
-  .stat.dead .n { color: var(--dead); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .row > .grow { flex: 1 1 260px; min-width: 0; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; padding: 0 10px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  tbody td { padding: 10px; border-bottom: 1px solid #1e242c; vertical-align: middle; }
-  tbody tr:last-child td { border-bottom: 0; }
-  tbody tr:hover { background: #171b21; }
-  code.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
-  .num { font-variant-numeric: tabular-nums; text-align: right; }
-
-  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; border: 1px solid; }
-  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .badge.ready { color: var(--ready); border-color: #1f4c36; background: #10241a; }
-  .badge.cooling { color: var(--cool); border-color: #4d3d12; background: #241e0d; }
-  .badge.dead { color: var(--dead); border-color: #4a2b30; background: #241315; }
-
-  .msg { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 12px; display: none; }
+  .msg { border-radius: var(--radius); padding: 10px 12px; font-size: 13px; margin-top: 12px; display: none; border: 1px solid; }
   .msg.show { display: block; }
-  .msg.ok { background: #10241a; border: 1px solid #1f4c36; color: #b8f5d2; }
-  .msg.err { background: #241315; border: 1px solid #4a2b30; color: #ffc3c6; }
-  .msg.info { background: #101a24; border: 1px solid #1f3548; color: #c2e0ff; }
+  .msg.ok { background: #101f18; border-color: #1f4c36; color: #b8f5d2; }
+  .msg.err { background: #211416; border-color: #4a2b30; color: #ffc3c6; }
+  .msg.info { background: #101a24; border-color: #1f3548; color: #c2e0ff; }
 
-  .empty { padding: 28px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
-  .skeleton { height: 12px; border-radius: 4px; background: linear-gradient(90deg, #1b1f26, #262c35, #1b1f26); background-size: 200% 100%; animation: sh 1.2s linear infinite; }
+  /* table */
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--muted); font-weight: 600; padding: 0 10px 9px; border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  thead th.right, tbody td.right { text-align: right; }
+  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background 120ms ease; }
+  tbody tr:hover { background: #151a20; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .num { font-variant-numeric: tabular-nums; }
+  td.actions { text-align: right; white-space: nowrap; }
+  td.actions button + button { margin-left: 6px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; border: 1px solid; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.ready { color: var(--ready); border-color: #1f4c36; background: #101f18; }
+  .badge.cooling { color: var(--cool); border-color: #4d3d12; background: #221d0c; }
+  .badge.dead { color: var(--dead); border-color: #4a2b30; background: #211416; }
+
+  /* cooldown cell: number plus a thin drain bar, both functional */
+  .cool { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .cool .bar { width: 54px; height: 3px; border-radius: 2px; background: #232a33; overflow: hidden; }
+  .cool .bar i { display: block; height: 100%; background: var(--cool); }
+
+  .empty { padding: 30px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
+  .empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; font-weight: 600; }
+
+  .skeleton { height: 11px; border-radius: 4px; background: linear-gradient(90deg, #1b2027, #262d37, #1b2027); background-size: 200% 100%; animation: sh 1.2s linear infinite; }
   @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-  @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } tbody tr, button { transition: none; } }
 
-  .foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 10px; }
+  .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
   .muted { color: var(--muted); font-size: 12px; }
-  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; min-height: 44px; }
-  .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
+  .check input { width: 17px; height: 17px; accent-color: var(--accent); }
 
-  @media (max-width: 720px) {
-    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .probe { font-size: 12px; color: var(--muted); }
+  .probe.ok { color: var(--ready); }
+  .probe.bad { color: var(--dead); }
+  .probe.warn { color: var(--cool); }
+
+  @media (max-width: 760px) {
+    .wrap { padding: 20px 14px 56px; }
     thead { display: none; }
-    tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 12px 0; border-bottom: 1px solid #1e242c; }
+    tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
     tbody td { border: 0; padding: 0; }
     tbody td::before { content: attr(data-l); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    tbody td.act { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
-    tbody td.act::before { display: none; }
-    tbody tr:hover { background: transparent; }
+    tbody td.key { grid-column: 1 / -1; margin-bottom: 4px; }
+    tbody td.key::before { display: none; }
+    tbody td.actions { grid-column: 1 / -1; text-align: left; margin-top: 8px; }
+    tbody td.actions::before { display: none; }
+    td.actions button { min-height: 40px; }
+    .strip { gap: 0 14px; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>Key Pool Console <span>gemini-key-rotator</span></h1>
-    <div class="storage" id="storageLine">storage <b id="storageVal">unknown</b></div>
+
+  <header class="top">
+    <div class="brand">
+      <span class="dot"></span>
+      <div>
+        <h1>Key rotator control</h1>
+        <div class="sub">Pool health, key intake, live probe</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <span id="storage" class="mono">storage: -</span>
+      <span id="synced">-</span>
+    </div>
   </header>
 
-  <section class="panel" id="authPanel">
-    <h2>1. Admin access</h2>
+  <!-- auth -->
+  <section id="authPanel" class="card" style="margin-top:18px">
+    <label class="field" for="token">Admin token</label>
     <div class="row">
       <div class="grow">
-        <label for="token">Admin token</label>
         <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
       </div>
-      <button class="primary" id="connect">Connect</button>
-      <button id="forget" title="Clear the stored token">Forget</button>
+      <button id="connect" class="primary" type="button">Connect</button>
     </div>
-    <div class="msg info show" id="authHint">Paste the ADMIN_TOKEN to load the pool. It is kept in this browser only.</div>
+    <div id="authHint" class="msg err"></div>
+    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is never sent anywhere except this deployment.</p>
   </section>
 
-  <section class="panel" id="statsPanel" hidden>
-    <h2>Pool</h2>
-    <div class="stats">
-      <div class="stat"><div class="n" id="sTotal">0</div><div class="k">Total</div></div>
-      <div class="stat ready"><div class="n" id="sReady">0</div><div class="k">Ready</div></div>
-      <div class="stat cooling"><div class="n" id="sCooling">0</div><div class="k">Cooling</div></div>
-      <div class="stat dead"><div class="n" id="sDead">0</div><div class="k">Dead</div></div>
-    </div>
-    <div class="foot">
-      <label class="check"><input type="checkbox" id="auto" checked> Auto refresh every 5s</label>
-      <span class="muted" id="lastSync">never synced</span>
+  <!-- health strip -->
+  <section id="statsPanel" hidden>
+    <div class="strip">
+      <div class="kv"><b id="sTotal">0</b><span>keys</span></div>
+      <div class="kv ready"><b id="sReady">0</b><span>ready</span></div>
+      <div class="kv cooling"><b id="sCooling">0</b><span>cooling</span></div>
+      <div class="kv dead"><b id="sDead">0</b><span>dead</span></div>
+      <div class="spacer"></div>
+      <div class="meta" id="nextReady">-</div>
     </div>
   </section>
 
-  <section class="panel" id="addPanel" hidden>
-    <h2>2. Add keys</h2>
-    <label for="newKeys">One key per line, or comma / space separated</label>
+  <!-- add -->
+  <section id="addPanel" class="card" hidden>
+    <h2 class="sec" style="margin-top:0">Add keys</h2>
+    <label class="field" for="newKeys">One key per line, or separated by commas</label>
     <textarea id="newKeys" spellcheck="false" placeholder="AIzaSy...&#10;AIzaSy..."></textarea>
     <div class="row" style="margin-top:10px">
-      <button class="primary" id="addBtn">Add to pool</button>
-      <span class="muted" id="addCount"></span>
+      <button id="addBtn" class="primary" type="button">Add to pool</button>
+      <span id="addCount" class="muted"></span>
     </div>
-    <div class="msg" id="addMsg"></div>
+    <div id="addMsg" class="msg"></div>
   </section>
 
-  <section class="panel" id="keysPanel" hidden>
-    <h2>3. Keys</h2>
-    <div id="keysBody">
-      <div class="empty">
-        <div class="skeleton" style="width:60%;margin:0 auto 8px"></div>
-        <div class="skeleton" style="width:40%;margin:0 auto"></div>
-      </div>
+  <!-- keys -->
+  <section id="keysPanel" hidden>
+    <h2 class="sec">Pool</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button id="testAllBtn" type="button">Test all live keys</button>
+      <span id="testAllNote" class="muted"></span>
     </div>
-    <div class="msg" id="keyMsg"></div>
+    <div id="keysBody" class="card tablewrap"><div class="empty">Loading pool...</div></div>
+    <div id="keyMsg" class="msg"></div>
+
+    <div class="foot">
+      <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
+      <button id="forget" class="small" type="button">Forget token</button>
+    </div>
   </section>
+
 </div>
 
 <script>
 (function () {
   "use strict";
   var STORE = "gkr.admin.token";
-  var state = { token: "", timer: null, busy: false, keys: [] };
 
-  var $ = function (id) { return document.getElementById(id); };
   var el = {
-    token: $("token"), connect: $("connect"), forget: $("forget"), authHint: $("authHint"),
-    statsPanel: $("statsPanel"), addPanel: $("addPanel"), keysPanel: $("keysPanel"), authPanel: $("authPanel"),
-    sTotal: $("sTotal"), sReady: $("sReady"), sCooling: $("sCooling"), sDead: $("sDead"),
-    storageVal: $("storageVal"), auto: $("auto"), lastSync: $("lastSync"),
-    newKeys: $("newKeys"), addBtn: $("addBtn"), addMsg: $("addMsg"), addCount: $("addCount"),
-    keysBody: $("keysBody"), keyMsg: $("keyMsg")
+    authPanel: document.getElementById("authPanel"),
+    authHint: document.getElementById("authHint"),
+    token: document.getElementById("token"),
+    connect: document.getElementById("connect"),
+    statsPanel: document.getElementById("statsPanel"),
+    addPanel: document.getElementById("addPanel"),
+    keysPanel: document.getElementById("keysPanel"),
+    sTotal: document.getElementById("sTotal"),
+    sReady: document.getElementById("sReady"),
+    sCooling: document.getElementById("sCooling"),
+    sDead: document.getElementById("sDead"),
+    nextReady: document.getElementById("nextReady"),
+    storage: document.getElementById("storage"),
+    synced: document.getElementById("synced"),
+    newKeys: document.getElementById("newKeys"),
+    addBtn: document.getElementById("addBtn"),
+    addCount: document.getElementById("addCount"),
+    addMsg: document.getElementById("addMsg"),
+    keysBody: document.getElementById("keysBody"),
+    keyMsg: document.getElementById("keyMsg"),
+    testAllBtn: document.getElementById("testAllBtn"),
+    testAllNote: document.getElementById("testAllNote"),
+    auto: document.getElementById("auto"),
+    forget: document.getElementById("forget")
   };
 
-  function say(node, text, kind) {
-    node.className = "msg show " + (kind || "info");
-    node.textContent = text;
-  }
-  function hide(node) { node.className = "msg"; node.textContent = ""; }
+  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {} };
 
-  function fmtAge(ms) {
-    if (!ms) return "never";
-    var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-    if (s < 60) return s + "s ago";
-    if (s < 3600) return Math.floor(s / 60) + "m ago";
-    if (s < 86400) return Math.floor(s / 3600) + "h ago";
-    return Math.floor(s / 86400) + "d ago";
+  function say(node, text, kind) {
+    node.className = "msg " + (kind || "info");
+    node.textContent = text;
+    node.classList.add("show");
   }
-  function fmtLeft(ms) {
-    if (ms <= 0) return "-";
-    var s = Math.ceil(ms / 1000);
-    if (s < 60) return s + "s";
-    return Math.ceil(s / 60) + "m";
-  }
+  function hide(node) { node.classList.remove("show"); node.textContent = ""; }
 
   function api(path, opts) {
     opts = opts || {};
-    var headers = { "Authorization": "Bearer " + state.token };
-    if (opts.body) headers["Content-Type"] = "application/json";
+    var headers = { "authorization": "Bearer " + state.token };
+    if (opts.body) headers["content-type"] = "application/json";
     return fetch(path, {
       method: opts.method || "GET",
       headers: headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined
     }).then(function (res) {
-      return res.text().then(function (txt) {
+      return res.text().then(function (raw) {
         var data = null;
-        try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = { raw: txt }; }
+        try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
         if (!res.ok) {
-          var m = (data && data.error && data.error.message) || ("HTTP " + res.status);
-          var err = new Error(m);
+          var err = new Error((data && data.error && data.error.message) || ("HTTP " + res.status));
           err.status = res.status;
           throw err;
         }
@@ -3664,74 +3735,173 @@ var ADMIN_HTML = `<!doctype html>
     });
   }
 
+  function fmtAge(ms) {
+    if (!ms) return "never";
+    var d = Date.now() - ms;
+    if (d < 0) d = 0;
+    var s = Math.floor(d / 1000);
+    if (s < 60) return s + "s ago";
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + "m ago";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + "h ago";
+    return Math.floor(h / 24) + "d ago";
+  }
+  function fmtLeft(ms) {
+    if (!ms || ms <= 0) return "0s";
+    var s = Math.ceil(ms / 1000);
+    if (s < 60) return s + "s";
+    var m = Math.floor(s / 60), r = s % 60;
+    if (m < 60) return r ? m + "m " + r + "s" : m + "m";
+    var h = Math.floor(m / 60);
+    return h + "h " + (m % 60) + "m";
+  }
+
   function renderStats(pool) {
     el.sTotal.textContent = pool.total;
     el.sReady.textContent = pool.ready;
     el.sCooling.textContent = pool.cooling;
     el.sDead.textContent = pool.dead;
-    el.storageVal.textContent = pool.storage + (pool.degraded ? " (degraded)" : "");
-    el.lastSync.textContent = "synced " + new Date().toLocaleTimeString();
+    el.storage.textContent = "storage: " + pool.storage + (pool.degraded ? " (degraded)" : "");
+    el.synced.textContent = "synced " + new Date().toLocaleTimeString();
+    el.nextReady.textContent = pool.cooling > 0
+      ? "next key free in " + fmtLeft(pool.soonestReadyMs)
+      : (pool.ready > 0 ? "all ready keys selectable" : "no key can serve right now");
   }
 
-  function td(label, cls) {
-    var c = document.createElement("td");
-    if (cls) c.className = cls;
-    if (label) c.setAttribute("data-l", label);
-    return c;
+  function cell(label, cls) {
+    var td = document.createElement("td");
+    if (cls) td.className = cls;
+    if (label) td.setAttribute("data-l", label);
+    return td;
+  }
+
+  function probeClass(status) {
+    if (status === "ok") return "ok";
+    if (status === "rate_limited" || status === "zero_quota" || status === "server_error") return "warn";
+    return "bad";
+  }
+  function probeText(res) {
+    var label = res.status.replace(/_/g, " ");
+    if (res.status === "ok") label = "serving";
+    if (res.status === "rate_limited") label = "429, free in " + fmtLeft(res.retryAfterMs);
+    return label + " (" + res.latencyMs + "ms)";
   }
 
   function renderKeys(keys) {
     state.keys = keys;
     if (!keys.length) {
-      el.keysBody.innerHTML = '<div class="empty">Pool is empty. Add keys above, or set GEMINI_API_KEYS on the deployment.</div>';
+      el.keysBody.innerHTML = "";
+      var box = document.createElement("div");
+      box.className = "empty";
+      var b = document.createElement("b");
+      b.textContent = "Pool is empty";
+      box.appendChild(b);
+      box.appendChild(document.createTextNode("Add keys above, or set GEMINI_API_KEYS on the deployment."));
+      el.keysBody.appendChild(box);
       return;
     }
+
     var table = document.createElement("table");
     var thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th>Failures</th><th>Cooldown</th><th>Last used</th><th></th></tr>";
+    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
     table.appendChild(thead);
     var tbody = document.createElement("tbody");
 
     keys.forEach(function (k) {
       var tr = document.createElement("tr");
+      tr.setAttribute("data-id", k.id);
 
-      var cKey = td("Key");
+      var cKey = cell("Key", "key");
       var code = document.createElement("span");
       code.className = "mono";
       code.textContent = k.key;
+      code.title = "id " + k.id;
       cKey.appendChild(code);
 
-      var cStatus = td("Status");
+      var cStatus = cell("Status");
       var badge = document.createElement("span");
       badge.className = "badge " + k.status;
-      badge.textContent = k.status === "dead" ? "dead" : k.status === "cooling" ? "cooling" : "ready";
+      badge.textContent = k.status;
       cStatus.appendChild(badge);
 
-      var cFail = td("Failures", "num");
+      var cFail = cell("Fails", "right num");
       cFail.textContent = k.failures;
 
-      var cCool = td("Cooldown", "num");
-      cCool.textContent = fmtLeft(k.cooldownLeftMs);
+      var cCool = cell("Cooldown", "right");
+      var wrapCool = document.createElement("span");
+      wrapCool.className = "cool num";
+      var left = document.createElement("span");
+      left.className = "left";
+      left.textContent = fmtLeft(k.cooldownLeftMs);
+      var bar = document.createElement("span");
+      bar.className = "bar";
+      var fill = document.createElement("i");
+      var totalCd = Math.max(k.cooldownLeftMs, 1);
+      fill.style.width = k.cooldownLeftMs > 0 ? "100%" : "0%";
+      bar.appendChild(fill);
+      wrapCool.appendChild(left);
+      wrapCool.appendChild(bar);
+      cCool.appendChild(wrapCool);
 
-      var cUsed = td("Last used");
+      var cUsed = cell("Last used");
       cUsed.textContent = fmtAge(k.lastUsed);
 
-      var cAct = td(null, "act");
-      var btn = document.createElement("button");
-      btn.className = "danger";
-      btn.type = "button";
-      btn.textContent = "Remove";
-      btn.addEventListener("click", function () { removeKey(k, btn); });
-      cAct.appendChild(btn);
+      var cProbe = cell("Probe");
+      var pv = document.createElement("span");
+      pv.className = "probe";
+      var known = state.testing[k.id];
+      if (known) {
+        pv.className = "probe " + probeClass(known.status);
+        pv.textContent = probeText(known);
+      } else {
+        pv.textContent = "-";
+      }
+      cProbe.appendChild(pv);
+
+      var cAct = cell(null, "actions");
+      var testBtn = document.createElement("button");
+      testBtn.type = "button";
+      testBtn.className = "small";
+      testBtn.textContent = "Test";
+      testBtn.addEventListener("click", function () { testKey(k, testBtn, pv); });
+
+      var delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "small danger";
+      delBtn.textContent = "Remove";
+      delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
+
+      cAct.appendChild(testBtn);
+      cAct.appendChild(delBtn);
 
       tr.appendChild(cKey); tr.appendChild(cStatus); tr.appendChild(cFail);
-      tr.appendChild(cCool); tr.appendChild(cUsed); tr.appendChild(cAct);
+      tr.appendChild(cCool); tr.appendChild(cUsed); tr.appendChild(cProbe); tr.appendChild(cAct);
       tbody.appendChild(tr);
     });
 
     table.appendChild(tbody);
     el.keysBody.innerHTML = "";
     el.keysBody.appendChild(table);
+    startTicker();
+  }
+
+  /**
+   * Cooldown cells drain between polls. Recomputing from the last sync keeps
+   * the display honest without extra requests.
+   */
+  function startTicker() {
+    if (state.tick) return;
+    state.tick = setInterval(function () {
+      var rows = el.keysBody.querySelectorAll("tr[data-id]");
+      for (var i = 0; i < rows.length; i++) {
+        var id = rows[i].getAttribute("data-id");
+        var k = state.keys.filter(function (x) { return x.id === id; })[0];
+        if (!k || k.cooldownLeftMs <= 0) continue;
+        var left = rows[i].querySelector(".cool .left");
+        if (left) left.textContent = fmtLeft(k.cooldownLeftMs);
+      }
+    }, 1000);
   }
 
   function refresh() {
@@ -3745,7 +3915,6 @@ var ADMIN_HTML = `<!doctype html>
         el.addPanel.hidden = false;
         el.keysPanel.hidden = false;
         el.authPanel.hidden = true;
-        hide(el.keyMsg);
       })
       .catch(function (err) {
         if (err.status === 401 || err.status === 403) {
@@ -3792,16 +3961,69 @@ var ADMIN_HTML = `<!doctype html>
   }
 
   function removeKey(k, btn) {
-    if (!confirm("Remove key " + k.key + " from the pool?")) return;
+    if (!confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
     btn.disabled = true;
     api("/admin/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
-        say(el.keyMsg, "Removed " + k.key + " (total now " + data.pool.total + ").", "ok");
+        say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        delete state.testing[k.id];
         return refresh();
       })
       .catch(function (err) {
         btn.disabled = false;
         say(el.keyMsg, "Remove failed: " + err.message, "err");
+      });
+  }
+
+  /**
+   * Probe one key against Google. The server folds the verdict into the pool:
+   * a serving key leaves cooldown, a 429 key re-enters it with the real wait,
+   * a revoked key is retired.
+   */
+  function testKey(k, btn, node) {
+    btn.disabled = true;
+    btn.textContent = "Testing";
+    node.className = "probe";
+    node.textContent = "probing...";
+    api("/admin/keys/test", { method: "POST", body: { id: k.id } })
+      .then(function (data) {
+        state.testing[k.id] = data.probe;
+        node.className = "probe " + probeClass(data.probe.status);
+        node.textContent = probeText(data.probe);
+        var note = data.applied === "revived" ? " back in rotation"
+          : data.applied === "cooling" ? " parked again"
+          : data.applied === "retired" ? " retired from the pool" : "";
+        say(el.keyMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "info");
+        return refresh();
+      })
+      .catch(function (err) {
+        node.className = "probe bad";
+        node.textContent = "probe failed";
+        say(el.keyMsg, "Test failed: " + err.message, "err");
+      })
+      .then(function () {
+        btn.disabled = false;
+        btn.textContent = "Test";
+      });
+  }
+
+  function testAll() {
+    el.testAllBtn.disabled = true;
+    var label = el.testAllBtn.textContent;
+    el.testAllBtn.textContent = "Testing...";
+    el.testAllNote.textContent = "one live call per key, 4 at a time";
+    api("/admin/keys/test-all", { method: "POST" })
+      .then(function (data) {
+        (data.results || []).forEach(function (r) { state.testing[r.id] = r.probe; });
+        var ok = (data.results || []).filter(function (r) { return r.probe.status === "ok"; }).length;
+        say(el.keyMsg, "Probed " + data.tested + " keys, " + ok + " serving. Pool: " + data.pool.ready + " ready, " + data.pool.cooling + " cooling, " + data.pool.dead + " dead.", ok ? "ok" : "info");
+        return refresh();
+      })
+      .catch(function (err) { say(el.keyMsg, "Test all failed: " + err.message, "err"); })
+      .then(function () {
+        el.testAllBtn.disabled = false;
+        el.testAllBtn.textContent = label;
+        el.testAllNote.textContent = "";
       });
   }
 
@@ -3814,7 +4036,7 @@ var ADMIN_HTML = `<!doctype html>
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";
-        say(el.addMsg, "Sent " + data.received + ", added " + data.added + ". Pool total " + data.pool.total + ".", "ok");
+        say(el.addMsg, "Sent " + data.received + ", added " + data.added + ". Pool total " + data.pool.total + ".", data.added ? "ok" : "info");
         return refresh();
       })
       .catch(function (err) { say(el.addMsg, "Add failed: " + err.message, "err"); })
@@ -3839,6 +4061,7 @@ var ADMIN_HTML = `<!doctype html>
   });
   el.auto.addEventListener("change", function () { if (el.auto.checked) startAuto(); else stopAuto(); });
   el.addBtn.addEventListener("click", addKeys);
+  el.testAllBtn.addEventListener("click", testAll);
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
@@ -4080,6 +4303,121 @@ function jsonError(status, code, message) {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+// src/probe.ts
+var TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
+var MAX_TOKENS = 8;
+function messageOf(body) {
+  try {
+    const parsed = JSON.parse(body);
+    const msg = parsed.error?.message ?? parsed.error?.status ?? "";
+    if (msg) return msg.slice(0, 220);
+  } catch {
+  }
+  return body.replace(/\s+/g, " ").trim().slice(0, 220);
+}
+async function probeKey(rawKey, model = cfg.defaultModel) {
+  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
+  const started = Date.now();
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "ping" }] }],
+        generationConfig: { maxOutputTokens: MAX_TOKENS, temperature: 0 }
+      }),
+      redirect: "manual",
+      signal
+    });
+  } catch (err2) {
+    return {
+      status: "network_error",
+      httpStatus: 0,
+      latencyMs: Date.now() - started,
+      retryAfterMs: 0,
+      message: err2 instanceof Error ? err2.message : String(err2)
+    };
+  }
+  const latencyMs = Date.now() - started;
+  const body = await res.text().catch(() => "");
+  const status = res.status;
+  if (status >= 200 && status < 300) {
+    return { status: "ok", httpStatus: status, latencyMs, retryAfterMs: 0, message: "serving" };
+  }
+  if (status === 429) {
+    if (isZeroQuota(body)) {
+      return {
+        status: "zero_quota",
+        httpStatus: status,
+        latencyMs,
+        retryAfterMs: 0,
+        message: messageOf(body) || "project quota is 0"
+      };
+    }
+    return {
+      status: "rate_limited",
+      httpStatus: status,
+      latencyMs,
+      retryAfterMs: parseRetryAfter(res, body) ?? cfg.cooldownMs,
+      message: messageOf(body) || "rate limited"
+    };
+  }
+  if (status === 401 || status === 403 || status === 400) {
+    if (isInvalidKeyText(body) || /reported as leaked/i.test(body) || status === 401) {
+      return {
+        status: "invalid",
+        httpStatus: status,
+        latencyMs,
+        retryAfterMs: 0,
+        message: messageOf(body) || "key rejected"
+      };
+    }
+    if (isZeroQuota(body)) {
+      return {
+        status: "zero_quota",
+        httpStatus: status,
+        latencyMs,
+        retryAfterMs: 0,
+        message: messageOf(body) || "project quota is 0"
+      };
+    }
+    if (status === 400 && /API key not valid|API_KEY_INVALID/i.test(body)) {
+      return {
+        status: "invalid",
+        httpStatus: status,
+        latencyMs,
+        retryAfterMs: 0,
+        message: messageOf(body)
+      };
+    }
+    return {
+      status: "unexpected",
+      httpStatus: status,
+      latencyMs,
+      retryAfterMs: 0,
+      message: messageOf(body) || `HTTP ${status}`
+    };
+  }
+  if (status >= 500) {
+    return {
+      status: "server_error",
+      httpStatus: status,
+      latencyMs,
+      retryAfterMs: 0,
+      message: messageOf(body) || `HTTP ${status}`
+    };
+  }
+  return {
+    status: "unexpected",
+    httpStatus: status,
+    latencyMs,
+    retryAfterMs: 0,
+    message: messageOf(body) || `HTTP ${status}`
+  };
 }
 
 // src/gemini.ts
@@ -4657,11 +4995,15 @@ app.post("/admin/keys", async (c) => {
   if (Array.isArray(body.keys)) incoming.push(...body.keys);
   const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
   if (clean.length === 0) return c.json({ error: { message: "No keys supplied." } }, 400);
+  const ids = [];
   let added = 0;
   for (const k of clean) {
-    if (await addKey(k)) added++;
+    if (await addKey(k)) {
+      added++;
+      ids.push(keyId(k));
+    }
   }
-  return c.json({ ok: true, received: clean.length, added, pool: await snapshot() });
+  return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
 });
 app.delete("/admin/keys", async (c) => {
   let body;
@@ -4680,6 +5022,80 @@ app.delete("/admin/keys", async (c) => {
   }
   await removeKey(body.key);
   return c.json({ ok: true, pool: await snapshot() });
+});
+app.post("/admin/keys/test", async (c) => {
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  let raw2 = "";
+  let id = typeof body.id === "string" ? body.id : "";
+  if (id) {
+    const resolved = await rawKeyById(id);
+    if (!resolved) return c.json({ error: { message: "No key with that id." } }, 404);
+    raw2 = resolved;
+  } else if (typeof body.key === "string" && body.key.trim()) {
+    raw2 = body.key.trim();
+    id = keyId(raw2);
+  } else {
+    return c.json({ error: { message: "`id` or `key` is required." } }, 400);
+  }
+  const model = typeof body.model === "string" && body.model ? body.model : void 0;
+  const result = await probeKey(raw2, model);
+  const held = id ? Boolean(await rawKeyById(id)) : false;
+  let applied = "none";
+  if (held) {
+    if (result.status === "ok") {
+      await markHealthy(raw2);
+      applied = "revived";
+    } else if (result.status === "rate_limited") {
+      await mark429(raw2, Math.max(cfg.cooldownMs, result.retryAfterMs));
+      applied = "cooling";
+    } else if (result.status === "zero_quota" || result.status === "invalid") {
+      await markInvalid(raw2);
+      applied = "retired";
+    } else if (result.status === "server_error") {
+      await mark429(raw2, cfg.serverErrCooldownMs);
+      applied = "cooling";
+    }
+  }
+  return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
+});
+app.post("/admin/keys/test-all", async (c) => {
+  const keys = await listKeys();
+  const target = keys.filter((k) => k.status !== "dead");
+  const limit = 4;
+  const results = [];
+  let cursor = 0;
+  const worker = async () => {
+    for (; ; ) {
+      const i = cursor++;
+      if (i >= target.length) return;
+      const k = target[i];
+      const raw2 = await rawKeyById(k.id);
+      if (!raw2) continue;
+      const probe = await probeKey(raw2);
+      let applied = "none";
+      if (probe.status === "ok") {
+        await markHealthy(raw2);
+        applied = "revived";
+      } else if (probe.status === "rate_limited") {
+        await mark429(raw2, Math.max(cfg.cooldownMs, probe.retryAfterMs));
+        applied = "cooling";
+      } else if (probe.status === "zero_quota" || probe.status === "invalid") {
+        await markInvalid(raw2);
+        applied = "retired";
+      } else if (probe.status === "server_error") {
+        await mark429(raw2, cfg.serverErrCooldownMs);
+        applied = "cooling";
+      }
+      results.push({ id: k.id, key: k.key, probe, applied });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
 });
 app.notFound(
   (c) => c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)

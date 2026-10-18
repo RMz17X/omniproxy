@@ -35,7 +35,7 @@ export type ExecResult = {
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Parse Retry-After header or a "reset after 30s" style message. */
-function parseRetryAfter(res: Response, body: string): number | null {
+export function parseRetryAfter(res: Response, body: string): number | null {
   const h = res.headers.get("retry-after");
   if (h) {
     const secs = Number(h);
@@ -55,7 +55,7 @@ function isQuotaText(body: string): boolean {
   return /RESOURCE_EXHAUSTED|quota|rate.?limit|exceeded/i.test(body);
 }
 
-function isInvalidKeyText(body: string): boolean {
+export function isInvalidKeyText(body: string): boolean {
   return /API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i.test(body);
 }
 
@@ -65,7 +65,7 @@ function isInvalidKeyText(body: string): boolean {
  * cooldown window burns attempts and stalls every request behind a dead
  * project, so it is retired permanently instead.
  */
-function isZeroQuota(body: string): boolean {
+export function isZeroQuota(body: string): boolean {
   return /"quota_limit_value"\s*:\s*"?0"?/.test(body) || /quota_limit_value[:=]\s*0\b/.test(body);
 }
 

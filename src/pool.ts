@@ -303,6 +303,27 @@ export async function removeKeyById(id: string): Promise<boolean> {
   return removeKey(hit.key);
 }
 
+/** Raw key for an id, resolved server-side only. Never returned to a client. */
+export async function rawKeyById(id: string): Promise<string | null> {
+  const all = await states();
+  const hit = all.find((s) => keyId(s.key) === id);
+  return hit ? hit.key : null;
+}
+
+/**
+ * A successful probe clears the parked state: the key demonstrably serves, so
+ * keeping it cooling would only waste supply. Failures are reset because the
+ * old count described a different (dead) window of the key's life.
+ */
+export async function markHealthy(key: string): Promise<void> {
+  const st = local.get(key) ?? decode(key, null);
+  st.invalid = false;
+  st.failures = 0;
+  st.cooldownUntil = 0;
+  st.lastUsed = now();
+  await persist(st, [["SREM", DEAD_KEY, key]]);
+}
+
 export type KeyView = {
   id: string;
   key: string;
@@ -312,6 +333,8 @@ export type KeyView = {
   lastUsed: number;
   invalid: boolean;
   status: "ready" | "cooling" | "dead";
+  /** epoch ms when the key becomes selectable again, 0 when it already is */
+  cooldownUntil: number;
 };
 
 /** Admin view: masked key plus the id used for mutation. */
@@ -327,6 +350,7 @@ export async function listKeys(): Promise<KeyView[]> {
     lastUsed: s.lastUsed,
     invalid: s.invalid,
     status: s.invalid ? "dead" : s.cooldownUntil > t ? "cooling" : "ready",
+    cooldownUntil: s.cooldownUntil,
   }));
 }
 

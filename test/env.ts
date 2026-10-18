@@ -18,7 +18,7 @@ process.env.KEY_5XX_COOLDOWN_MS = "100";
 process.env.MAX_WAIT_MS = "600";
 process.env.MAX_ATTEMPTS = "6";
 process.env.LOG_LEVEL = "error";
-process.env.ADMIN_TOKEN = "";
+process.env.ADMIN_TOKEN = "test-admin-token";
 process.env.CLIENT_TOKEN = "";
 /** Force the in-memory store and an empty seed: tests manage their own keys. */
 delete process.env.GEMINI_API_KEYS;
