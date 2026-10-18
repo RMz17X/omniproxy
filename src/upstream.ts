@@ -60,6 +60,16 @@ function isInvalidKeyText(body: string): boolean {
 }
 
 /**
+ * A 429 whose `quota_limit_value` is 0 means the consumer project has no
+ * quota at all — the limit will never reset. Recycling such a key every
+ * cooldown window burns attempts and stalls every request behind a dead
+ * project, so it is retired permanently instead.
+ */
+function isZeroQuota(body: string): boolean {
+  return /"quota_limit_value"\s*:\s*"?0"?/.test(body) || /quota_limit_value[:=]\s*0\b/.test(body);
+}
+
+/**
  * Build the upstream headers. The inbound credential headers are stripped and
  * replaced by the one bound to the selected key, so callers can send a dummy
  * Authorization (needed by OpenAI-compatible SDKs) without leaking it.
@@ -207,6 +217,12 @@ export async function execute(
     if (status === 429) {
       counters.upstream429++;
       const body = await safeText(res);
+      if (isZeroQuota(body)) {
+        const claimed = await markInvalid(st.key);
+        log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        continue;
+      }
       const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
       await mark429(st.key, Math.max(cfg.cooldownMs, cd));
       log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
@@ -221,6 +237,12 @@ export async function execute(
         log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
       } else if (isQuotaText(body)) {
         counters.upstream429++;
+        if (isZeroQuota(body)) {
+          const claimed = await markInvalid(st.key);
+          log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+          if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+          continue;
+        }
         const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
         await mark429(st.key, Math.max(cfg.cooldownMs, cd));
         log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
