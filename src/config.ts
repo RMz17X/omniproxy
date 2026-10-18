@@ -1,4 +1,6 @@
-/** Runtime configuration, all overridable by env. */
+/**
+ * Runtime configuration, all overridable by env.
+ */
 
 const num = (v: string | undefined, d: number) => {
   const n = Number(v);
@@ -17,13 +19,14 @@ export const cfg = {
   serverErrCooldownMs: num(process.env.KEY_5XX_COOLDOWN_MS, 15_000),
   /** max key attempts per request before giving up */
   maxAttempts: num(process.env.MAX_ATTEMPTS, 6),
-  /** how many ready keys to sample when picking */
-  pickSample: num(process.env.PICK_SAMPLE, 5),
   /** how long to wait for a busy pool before 429-ing the client */
   maxWaitMs: num(process.env.MAX_WAIT_MS, 8_000),
+  /** hard ceiling for one upstream attempt; also the client-disconnect bound */
+  upstreamTimeoutMs: num(process.env.UPSTREAM_TIMEOUT_MS, 120_000),
   /** default model when the client omits one */
   defaultModel: process.env.DEFAULT_MODEL ?? "gemini-2.5-flash",
   defaultTtsModel: process.env.DEFAULT_TTS_MODEL ?? "gemini-2.5-flash-preview-tts",
+  defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "text-embedding-004",
   defaultVoice: process.env.DEFAULT_VOICE ?? "Kore",
   adminToken: process.env.ADMIN_TOKEN ?? "",
   /** OpenAI-compatible bearer the clients present ("" = open) */

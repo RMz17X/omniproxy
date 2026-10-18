@@ -82,10 +82,7 @@ app.get("/v1/models", () => models());
 
 /* ---------- native Gemini passthrough ---------- */
 
-app.all("/v1beta/models/*", (c) => {
-  const url = new URL(c.req.url);
-  return geminiPassthrough(c.req.raw, url.pathname, url.search);
-});
+app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.url).pathname));
 
 /* ---------- admin ---------- */
 

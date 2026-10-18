@@ -18,7 +18,7 @@ const server = Bun.serve({
         headers: { "content-type": "application/json" },
       });
 
-    if (key.includes("429")) {
+    if (key.toLowerCase().includes("429".toLowerCase())) {
       return new Response(
         JSON.stringify({
           error: {
@@ -30,12 +30,12 @@ const server = Bun.serve({
         { status: 429, headers: { "content-type": "application/json", "retry-after": "2" } },
       );
     }
-    if (key.includes("dead")) {
+    if (key.toLowerCase().includes("dead".toLowerCase())) {
       return q(400, {
         error: { code: 400, status: "INVALID_ARGUMENT", message: "API key not valid. API_KEY_INVALID" },
       });
     }
-    if (key.includes("boom")) return q(500, { error: { message: "internal" } });
+    if (key.toLowerCase().includes("boom".toLowerCase())) return q(500, { error: { message: "internal" } });
 
     if (url.pathname.endsWith(":streamGenerateContent")) {
       const enc = new TextEncoder();

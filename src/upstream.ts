@@ -13,6 +13,8 @@
  */
 
 import { cfg } from "./config.ts";
+import { log } from "./log.ts";
+import { counters } from "./metrics.ts";
 import {
   mark429,
   markInvalid,
@@ -24,6 +26,7 @@ import {
 
 export type ExecResult = {
   response: Response;
+  /** masked key, safe to log */
   key: string;
   attempts: number;
   rotated: boolean;
@@ -85,15 +88,28 @@ function urlWithoutKey(raw: string): string {
   return u.toString();
 }
 
+/**
+ * Combine the caller's abort signal with the per-attempt timeout so either one
+ * tears the upstream fetch down. A client disconnect must not hold a key.
+ */
+function attemptSignal(client: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return client ? AbortSignal.any([client, timeout]) : timeout;
+}
+
 export async function execute(
   url: string,
   init: RequestInit & { method: string },
   path: string,
+  signal?: AbortSignal,
 ): Promise<ExecResult> {
   const tried = new Set<string>();
   const deadline = Date.now() + cfg.maxWaitMs;
   let attempts = 0;
   let rotated = false;
+
+  // A caller that has already hung up gets no key at all.
+  if (signal?.aborted) return aborted();
 
   for (;;) {
     let st = await pick(tried);
@@ -102,6 +118,7 @@ export async function execute(
     while (!st) {
       const snap = await snapshot();
       if (snap.total === 0) {
+        counters.poolExhausted++;
         return {
           response: jsonError(503, "no_api_keys", "The key pool is empty."),
           key: "",
@@ -110,7 +127,15 @@ export async function execute(
         };
       }
       const wait = Math.max(120, Math.min(snap.soonestReadyMs || 500, 2_000));
-      if (Date.now() + wait > deadline) {
+      if (Date.now() + wait > deadline || signal?.aborted) {
+        counters.poolExhausted++;
+        log("warn", "pool.exhausted", {
+          path,
+          total: snap.total,
+          cooling: snap.cooling,
+          dead: snap.dead,
+          soonestReadyMs: snap.soonestReadyMs,
+        });
         return {
           response: jsonError(
             429,
@@ -126,8 +151,12 @@ export async function execute(
       st = await pick(tried);
     }
 
-    if (attempts > 0) rotated = true;
+    if (attempts > 0) {
+      rotated = true;
+      counters.rotations++;
+    }
     if (attempts >= cfg.maxAttempts) {
+      counters.poolExhausted++;
       return {
         response: jsonError(429, "max_attempts", "Every key attempt failed."),
         key: st.key,
@@ -142,16 +171,31 @@ export async function execute(
     const target = urlWithoutKey(url);
 
     let res: Response;
+    counters.upstreamRequests++;
     try {
       res = await fetch(target, {
-        method: init.method,
+        // Carry the caller's body (and `duplex` for streamed bodies) through
+        // unchanged; only the credential headers are swapped.
+        ...init,
         headers,
-        body: init.body,
         // Never follow redirects into a different credential scope.
         redirect: "manual",
+        signal: attemptSignal(signal, cfg.upstreamTimeoutMs),
       });
     } catch (err) {
+      if (signal?.aborted) {
+        counters.clientAborts++;
+        log("warn", "client.aborted", { path, attempt: attempts, key: st.key });
+        return aborted();
+      }
+      counters.networkErrors++;
       await markSoftError(st.key, cfg.serverErrCooldownMs);
+      log("warn", "upstream.network_error", {
+        path,
+        key: st.key,
+        attempt: attempts,
+        error: err instanceof Error ? err.message : String(err),
+      });
       if (attempts >= cfg.maxAttempts) throw err;
       continue;
     }
@@ -161,9 +205,11 @@ export async function execute(
     const status = res.status;
 
     if (status === 429) {
+      counters.upstream429++;
       const body = await safeText(res);
       const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
       await mark429(st.key, Math.max(cfg.cooldownMs, cd));
+      log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
@@ -171,10 +217,13 @@ export async function execute(
     if (status === 401 || status === 403) {
       const body = await safeText(res);
       if (isInvalidKeyText(body) || status === 401) {
-        await markInvalid(st.key);
+        const claimed = await markInvalid(st.key);
+        log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
       } else if (isQuotaText(body)) {
+        counters.upstream429++;
         const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
         await mark429(st.key, Math.max(cfg.cooldownMs, cd));
+        log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
       } else {
         // Genuine authorisation failure for the caller, not a key problem.
         return { response: rebuild(res, body), key: st.key, attempts, rotated };
@@ -186,7 +235,8 @@ export async function execute(
     if (status === 400) {
       const body = await safeText(res);
       if (isInvalidKeyText(body)) {
-        await markInvalid(st.key);
+        const claimed = await markInvalid(st.key);
+        log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
         if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       }
@@ -195,8 +245,10 @@ export async function execute(
     }
 
     if (status >= 500) {
+      counters.upstream5xx++;
       const body = await safeText(res);
       await markSoftError(st.key, cfg.serverErrCooldownMs);
+      log("warn", "key.soft_error", { path, key: st.key, status, attempt: attempts });
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
@@ -204,6 +256,15 @@ export async function execute(
     // 2xx / 3xx / anything else — legitimate answer, stream it straight back.
     return { response: res, key: st.key, attempts, rotated };
   }
+}
+
+function aborted(): ExecResult {
+  return {
+    response: new Response(null, { status: 499 }),
+    key: "",
+    attempts: 0,
+    rotated: false,
+  };
 }
 
 async function safeText(res: Response): Promise<string> {

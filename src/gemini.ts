@@ -1,14 +1,22 @@
-/** Native Gemini surface: generateContent, streamGenerateContent, TTS. */
+/**
+ * Native Gemini surface: generateContent, streamGenerateContent, TTS.
+ *
+ * The passthrough is byte-transparent: the request body, method, query and
+ * every response byte are forwarded unchanged, only the credential is swapped,
+ * and the caller's abort signal is bridged into the upstream fetch so a
+ * disconnect tears the upstream connection down instead of holding it open.
+ */
 
 import { cfg, VOICE_MAP } from "./config.ts";
 import { execute } from "./upstream.ts";
 
 const UP = cfg.upstream.replace(/\/$/, "");
 
-export function geminiPassthrough(req: Request, path: string, search: string): Promise<Response> {
-  const url = `${UP}${path}${search}`;
+export function geminiPassthrough(req: Request, path: string): Promise<Response> {
+  const url = new URL(req.url);
+  const upstreamUrl = `${UP}${path}${url.search}`;
   return execute(
-    url,
+    upstreamUrl,
     {
       method: req.method,
       headers: req.headers,
@@ -17,10 +25,11 @@ export function geminiPassthrough(req: Request, path: string, search: string): P
       duplex: "half",
     },
     path,
+    req.signal,
   ).then((r) => withMeta(r.response, r));
 }
 
-function withMeta(res: Response, meta: { key: string; attempts: number; rotated: boolean }): Response {
+function withMeta(res: Response, meta: { attempts: number; rotated: boolean }): Response {
   const h = new Headers(res.headers);
   h.set("x-gkr-attempts", String(meta.attempts));
   h.set("x-gkr-rotated", meta.rotated ? "1" : "0");
@@ -63,12 +72,11 @@ export async function speech(req: Request): Promise<Response> {
       responseModalities: ["AUDIO"],
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
     },
-    model,
   };
 
-  const url = `${UP}/v1beta/models/${model}:generateContent`;
+  const path = `/v1beta/models/${model}:generateContent`;
   const result = await execute(
-    url,
+    `${UP}${path}`,
     {
       method: "POST",
       headers: new Headers({
@@ -77,28 +85,32 @@ export async function speech(req: Request): Promise<Response> {
       }),
       body: JSON.stringify(payload),
     },
-    `/v1beta/models/${model}:generateContent`,
+    path,
+    req.signal,
   );
 
+  if (result.response.status === 499) {
+    return new Response(null, { status: 499 });
+  }
   if (!result.response.ok) return result.response;
 
-  let json: any;
+  let json: { candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[] };
   try {
     json = await result.response.json();
   } catch {
     return new Response("Upstream returned non-JSON audio response.", { status: 502 });
   }
 
-  const part = json?.candidates?.[0]?.content?.parts?.find((p: any) => p?.inlineData?.data);
-  const b64: string | undefined = part?.inlineData?.data;
+  const part = json.candidates?.[0]?.content?.parts?.find((p) => p?.inlineData?.data);
+  const b64 = part?.inlineData?.data;
   if (!b64) {
-    return new Response(
-      JSON.stringify({ error: { code: "no_audio", message: "Upstream returned no audio part." } }),
-      { status: 502, headers: { "content-type": "application/json" } },
+    return Response.json(
+      { error: { code: "no_audio", message: "Upstream returned no audio part." } },
+      { status: 502 },
     );
   }
 
-  const mime: string = part.inlineData.mimeType ?? "audio/L16;rate=24000";
+  const mime = part?.inlineData?.mimeType ?? "audio/L16;rate=24000";
   const pcm = Buffer.from(b64, "base64");
   const rate = Number(/rate=(\d+)/.exec(mime)?.[1] ?? 24000);
 
@@ -144,8 +156,5 @@ function pcmToWav(pcm: Buffer, rate: number, channels: number, bits: number): Bu
 }
 
 function badRequest(message: string): Response {
-  return new Response(JSON.stringify({ error: { code: "bad_request", message } }), {
-    status: 400,
-    headers: { "content-type": "application/json" },
-  });
+  return Response.json({ error: { code: "bad_request", message } }, { status: 400 });
 }
