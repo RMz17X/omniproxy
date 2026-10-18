@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run bundle:api",
+  "installCommand": "npm install --no-audit --no-fund",
+  "framework": null,
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
   ]
