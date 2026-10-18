@@ -15,7 +15,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, listKeys, removeKey, snapshot, storageMode } from "./pool.ts";
+import { addKey, listKeys, removeKey, removeKeyById, snapshot, storageMode } from "./pool.ts";
+import { ADMIN_HTML } from "./admin-ui.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { chatCompletions, models } from "./openai.ts";
 
@@ -41,6 +42,9 @@ app.use("/v1/*", async (c, next) => {
 });
 
 app.use("/admin/*", async (c, next) => {
+  // The console shell carries no data and must load before a token exists;
+  // /admin is the only admin path reachable without credentials.
+  if (new URL(c.req.url).pathname === "/admin") return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -86,6 +90,10 @@ app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.ur
 
 /* ---------- admin ---------- */
 
+// The console shell is public by design: it holds no data and asks for the
+// admin token itself. Everything it renders comes from /admin/keys.
+app.get("/admin", (c) => c.html(ADMIN_HTML));
+
 app.get("/admin/keys", async (c) => {
   const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
   return c.json({ pool: snap, keys });
@@ -113,13 +121,21 @@ app.post("/admin/keys", async (c) => {
 });
 
 app.delete("/admin/keys", async (c) => {
-  let body: { key?: string };
+  let body: { key?: string; id?: string };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: { message: "Body must be JSON." } }, 400);
   }
-  if (!body.key) return c.json({ error: { message: "`key` is required." } }, 400);
+  // `id` is the handle the console holds (sha256 prefix); `key` stays for curl.
+  if (typeof body.id === "string" && body.id) {
+    const removed = await removeKeyById(body.id);
+    if (!removed) return c.json({ error: { message: "No key with that id." } }, 404);
+    return c.json({ ok: true, pool: await snapshot() });
+  }
+  if (typeof body.key !== "string" || !body.key) {
+    return c.json({ error: { message: "`id` or `key` is required." } }, 400);
+  }
   await removeKey(body.key);
   return c.json({ ok: true, pool: await snapshot() });
 });

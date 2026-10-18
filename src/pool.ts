@@ -17,6 +17,7 @@
  * wins, so an outage can never resurrect a parked key early.
  */
 
+import { createHash } from "node:crypto";
 import { log } from "./log.ts";
 import { counters } from "./metrics.ts";
 
@@ -60,6 +61,15 @@ export function maskKey(k: string): string {
   if (k.length <= 4) return "*".repeat(k.length);
   if (k.length <= 12) return `${k.slice(0, 2)}…${k.slice(-2)}`;
   return `${k.slice(0, 6)}…${k.slice(-4)}`;
+}
+
+/**
+ * Stable short identifier for a key, safe to expose in the admin UI: the
+ * masked form is ambiguous between keys that share a prefix and suffix, so
+ * destructive actions address a key by hash instead of by plaintext.
+ */
+export function keyId(k: string): string {
+  return createHash("sha256").update(k).digest("hex").slice(0, 12);
 }
 
 const encode = (s: KeyState) =>
@@ -185,7 +195,11 @@ async function refresh(knowsIndex: boolean): Promise<void> {
   if (values && members.length === cachedIndex.length && members.every((k, i) => k === cachedIndex[i])) {
     fetched = values;
   } else if (members.length > 0) {
-    fetched = (await kvPipeline([["MGET", ...members.map((k) => KEY_PREFIX + k)]])) as (string | null)[];
+    // kvPipeline always returns one entry per command, so a single MGET is
+    // unwrapped here — without [0] the decoder receives an array of values
+    // instead of one value per key.
+    const [vals] = await kvPipeline([["MGET", ...members.map((k) => KEY_PREFIX + k)]]);
+    fetched = (vals as (string | null)[] | null) ?? null;
   }
 
   const seen = new Set(members);
@@ -277,17 +291,42 @@ export async function removeKey(key: string): Promise<boolean> {
   }
 }
 
-export async function listKeys(): Promise<
-  { key: string; failures: number; cooldownLeftMs: number; lastUsed: number; invalid: boolean }[]
-> {
+/**
+ * Resolve a key id (see `keyId`) against the live pool and remove it.
+ * The raw key never crosses the admin API boundary, so the id is the only
+ * handle a browser can hold.
+ */
+export async function removeKeyById(id: string): Promise<boolean> {
+  const all = await states();
+  const hit = all.find((s) => keyId(s.key) === id);
+  if (!hit) return false;
+  return removeKey(hit.key);
+}
+
+export type KeyView = {
+  id: string;
+  key: string;
+  failures: number;
+  invalidations: number;
+  cooldownLeftMs: number;
+  lastUsed: number;
+  invalid: boolean;
+  status: "ready" | "cooling" | "dead";
+};
+
+/** Admin view: masked key plus the id used for mutation. */
+export async function listKeys(): Promise<KeyView[]> {
   const all = await states();
   const t = now();
   return all.map((s) => ({
+    id: keyId(s.key),
     key: maskKey(s.key),
     failures: s.failures,
+    invalidations: s.invalidations,
     cooldownLeftMs: Math.max(0, s.cooldownUntil - t),
     lastUsed: s.lastUsed,
     invalid: s.invalid,
+    status: s.invalid ? "dead" : s.cooldownUntil > t ? "cooling" : "ready",
   }));
 }
 
