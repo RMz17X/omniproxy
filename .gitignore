@@ -7,6 +7,3 @@ data/
 !.env.example
 *.log
 .worktrees/
-# generated serverless bundle (built at deploy time)
-api/index.js
-api/index.js.map
