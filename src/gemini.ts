@@ -1,0 +1,151 @@
+/** Native Gemini surface: generateContent, streamGenerateContent, TTS. */
+
+import { cfg, VOICE_MAP } from "./config.ts";
+import { execute } from "./upstream.ts";
+
+const UP = cfg.upstream.replace(/\/$/, "");
+
+export function geminiPassthrough(req: Request, path: string, search: string): Promise<Response> {
+  const url = `${UP}${path}${search}`;
+  return execute(
+    url,
+    {
+      method: req.method,
+      headers: req.headers,
+      body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
+      // @ts-expect-error Bun needs half-duplex for streaming bodies
+      duplex: "half",
+    },
+    path,
+  ).then((r) => withMeta(r.response, r));
+}
+
+function withMeta(res: Response, meta: { key: string; attempts: number; rotated: boolean }): Response {
+  const h = new Headers(res.headers);
+  h.set("x-gkr-attempts", String(meta.attempts));
+  h.set("x-gkr-rotated", meta.rotated ? "1" : "0");
+  return new Response(res.body, { status: res.status, headers: h });
+}
+
+/* ---------- OpenAI-compatible speech ---------- */
+
+type SpeechBody = {
+  model?: string;
+  input?: string;
+  voice?: string;
+  response_format?: string;
+  speed?: number;
+};
+
+/**
+ * Translate an OpenAI /v1/audio/speech payload into a Gemini TTS call and
+ * wrap the PCM result in a WAV container. Gemini returns 16-bit mono
+ * 24 kHz little-endian PCM with no header, which most players reject.
+ */
+export async function speech(req: Request): Promise<Response> {
+  let body: SpeechBody;
+  try {
+    body = (await req.json()) as SpeechBody;
+  } catch {
+    return badRequest("Body must be JSON.");
+  }
+
+  const text = (body.input ?? "").trim();
+  if (!text) return badRequest("`input` is required.");
+
+  const model = body.model && body.model.startsWith("gemini") ? body.model : cfg.defaultTtsModel;
+  const voice = VOICE_MAP[(body.voice ?? "").toLowerCase()] ?? body.voice ?? cfg.defaultVoice;
+  const fmt = (body.response_format ?? "wav").toLowerCase();
+
+  const payload = {
+    contents: [{ parts: [{ text }] }],
+    generationConfig: {
+      responseModalities: ["AUDIO"],
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+    },
+    model,
+  };
+
+  const url = `${UP}/v1beta/models/${model}:generateContent`;
+  const result = await execute(
+    url,
+    {
+      method: "POST",
+      headers: new Headers({
+        "content-type": "application/json",
+        accept: "application/json",
+      }),
+      body: JSON.stringify(payload),
+    },
+    `/v1beta/models/${model}:generateContent`,
+  );
+
+  if (!result.response.ok) return result.response;
+
+  let json: any;
+  try {
+    json = await result.response.json();
+  } catch {
+    return new Response("Upstream returned non-JSON audio response.", { status: 502 });
+  }
+
+  const part = json?.candidates?.[0]?.content?.parts?.find((p: any) => p?.inlineData?.data);
+  const b64: string | undefined = part?.inlineData?.data;
+  if (!b64) {
+    return new Response(
+      JSON.stringify({ error: { code: "no_audio", message: "Upstream returned no audio part." } }),
+      { status: 502, headers: { "content-type": "application/json" } },
+    );
+  }
+
+  const mime: string = part.inlineData.mimeType ?? "audio/L16;rate=24000";
+  const pcm = Buffer.from(b64, "base64");
+  const rate = Number(/rate=(\d+)/.exec(mime)?.[1] ?? 24000);
+
+  if (fmt === "pcm") {
+    return new Response(new Uint8Array(pcm), {
+      headers: {
+        "content-type": "audio/L16",
+        "x-gkr-attempts": String(result.attempts),
+      },
+    });
+  }
+
+  const wav = pcmToWav(pcm, rate, 1, 16);
+  return new Response(new Uint8Array(wav), {
+    headers: {
+      "content-type": "audio/wav",
+      "content-length": String(wav.byteLength),
+      "x-gkr-attempts": String(result.attempts),
+      "x-gkr-rotated": result.rotated ? "1" : "0",
+      "x-gkr-voice": voice,
+    },
+  });
+}
+
+function pcmToWav(pcm: Buffer, rate: number, channels: number, bits: number): Buffer {
+  const blockAlign = (channels * bits) / 8;
+  const byteRate = rate * blockAlign;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bits, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+function badRequest(message: string): Response {
+  return new Response(JSON.stringify({ error: { code: "bad_request", message } }), {
+    status: 400,
+    headers: { "content-type": "application/json" },
+  });
+}
