@@ -419,7 +419,7 @@ var readBodyDirect = (request) => {
   const promise = new Promise((resolve, reject) => {
     const chunks = [];
     let settled = false;
-    const finish = (callback) => {
+    const finish2 = (callback) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -428,7 +428,7 @@ var readBodyDirect = (request) => {
     const recoverCompleteBodyAfterDisconnect = (error) => {
       const streamError = incoming.errored ?? error;
       if (!isRecoverableDisconnectedIncoming(incoming) || streamError && streamError.code !== "ECONNRESET") return false;
-      finish(() => {
+      finish2(() => {
         const recovered = readBodyBufferedBeforeDisconnect(incoming, chunks);
         if (recovered instanceof Error) reject(recovered);
         else if (recovered === void 0) reject(error ?? normalizeAbortError(request, incoming));
@@ -443,7 +443,7 @@ var readBodyDirect = (request) => {
       chunks.push(toBufferChunk(chunk, incoming.readableEncoding));
     };
     const onEnd = () => {
-      finish(() => {
+      finish2(() => {
         const buffer = chunks.length === 1 ? chunks[0] : Buffer.concat(chunks);
         request[bodyBufferKey] = buffer;
         resolve(buffer);
@@ -451,7 +451,7 @@ var readBodyDirect = (request) => {
     };
     const onError = (error) => {
       if (recoverCompleteBodyAfterDisconnect(error)) return;
-      finish(() => {
+      finish2(() => {
         reject(error);
       });
     };
@@ -461,7 +461,7 @@ var readBodyDirect = (request) => {
         return;
       }
       if (recoverCompleteBodyAfterDisconnect()) return;
-      finish(() => {
+      finish2(() => {
         reject(normalizeAbortError(request, incoming));
       });
     };
@@ -3137,6 +3137,7 @@ var KEY_PREFIX = "gkr:k:";
 var CACHE_TTL_MS = Number(process.env.POOL_CACHE_TTL_MS ?? 250);
 var BREAKER_MS = Number(process.env.REDIS_BREAKER_MS ?? 3e4);
 var BREAKER_TRIP_AT = 2;
+var KEY_TIERS = ["unknown", "free", "paid", "pro"];
 var local = /* @__PURE__ */ new Map();
 var now = () => Date.now();
 function maskKey(k) {
@@ -3147,10 +3148,12 @@ function maskKey(k) {
 function keyId(k) {
   return createHash("sha256").update(k).digest("hex").slice(0, 12);
 }
-var encode = (s) => `f=${s.failures};u=${s.invalid ? 1 : 0};c=${s.cooldownUntil};l=${s.lastUsed};v=${s.invalidations}`;
+var encode = (s) => `f=${s.failures};u=${s.invalid ? 1 : 0};c=${s.cooldownUntil};l=${s.lastUsed};v=${s.invalidations};t=${s.tier}`;
+var isTier = (v) => v === "free" || v === "paid" || v === "pro";
 var decode = (key, raw2) => {
   const out = {
     key,
+    tier: "unknown",
     failures: 0,
     invalid: false,
     invalidations: 0,
@@ -3168,6 +3171,7 @@ var decode = (key, raw2) => {
     else if (k === "c") out.cooldownUntil = Number(v) || 0;
     else if (k === "l") out.lastUsed = Number(v) || 0;
     else if (k === "v") out.invalidations = Number(v) || 0;
+    else if (k === "t" && isTier(v)) out.tier = v;
   }
   return out;
 };
@@ -3326,6 +3330,22 @@ async function removeKeyById(id) {
   if (!hit) return false;
   return removeKey(hit.key);
 }
+async function setKeyTier(key, tier) {
+  const all = await states();
+  const st = all.find((s) => s.key === key) ?? decode(key, null);
+  st.tier = tier;
+  return persist(st);
+}
+async function setTierById(id, tier) {
+  const raw2 = await rawKeyById(id);
+  if (!raw2) return false;
+  return setKeyTier(raw2, tier);
+}
+function tierCounts(list) {
+  const out = { unknown: 0, free: 0, paid: 0, pro: 0 };
+  for (const k of list) out[k.tier] = (out[k.tier] ?? 0) + 1;
+  return out;
+}
 async function rawKeyById(id) {
   const all = await states();
   const hit = all.find((s) => keyId(s.key) === id);
@@ -3345,6 +3365,7 @@ async function listKeys() {
   return all.map((s) => ({
     id: keyId(s.key),
     key: maskKey(s.key),
+    tier: s.tier,
     failures: s.failures,
     invalidations: s.invalidations,
     cooldownLeftMs: Math.max(0, s.cooldownUntil - t),
@@ -3624,6 +3645,7 @@ var ADMIN_HTML = `<!doctype html>
     </div>
     <div class="top-right">
       <a href="/pengatur/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
+      <a href="/pengatur/usage" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">usage &rarr;</a>
       <span id="storage" class="mono">storage: -</span>
       <span id="synced">-</span>
     </div>
@@ -3649,6 +3671,7 @@ var ADMIN_HTML = `<!doctype html>
       <div class="kv ready"><b id="sReady">0</b><span>ready</span></div>
       <div class="kv cooling"><b id="sCooling">0</b><span>cooling</span></div>
       <div class="kv dead"><b id="sDead">0</b><span>dead</span></div>
+      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span>plans</span></div>
       <div class="spacer"></div>
       <div class="meta" id="nextReady">-</div>
     </div>
@@ -3685,6 +3708,21 @@ var ADMIN_HTML = `<!doctype html>
           <option value="100">100 / page</option>
         </select>
       </div>
+      <div>
+        <select id="tierBulk" aria-label="Declare billing plan for keys">
+          <option value="">Set plan for...</option>
+          <option value="free">Free tier</option>
+          <option value="paid">Pay-as-you-go</option>
+          <option value="pro">Google AI Pro / Ultra</option>
+          <option value="unknown">Unspecified</option>
+        </select>
+      </div>
+      <div>
+        <button id="tierApply" type="button" class="small">Apply to page</button>
+      </div>
+      <div>
+        <button id="tierApplyAll" type="button" class="small">Apply to all</button>
+      </div>
     </div>
     <div id="keysBody" class="card tablewrap"><div class="empty">Loading pool...</div></div>
     <div id="keyPager" class="pager"></div>
@@ -3715,6 +3753,7 @@ var ADMIN_HTML = `<!doctype html>
     sReady: document.getElementById("sReady"),
     sCooling: document.getElementById("sCooling"),
     sDead: document.getElementById("sDead"),
+    sTier: document.getElementById("sTier"),
     nextReady: document.getElementById("nextReady"),
     storage: document.getElementById("storage"),
     synced: document.getElementById("synced"),
@@ -3733,7 +3772,43 @@ var ADMIN_HTML = `<!doctype html>
     forget: document.getElementById("forget")
   };
 
-  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "" };
+  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "", tiers: null };
+
+  // Billing plan declaration. Google never reports a project's plan over the
+  // API, so the operator states it here and the models page prices against it.
+  var TIERS = [
+    { value: "unknown", label: "Unspecified" },
+    { value: "free", label: "Free tier" },
+    { value: "paid", label: "Pay-as-you-go" },
+    { value: "pro", label: "AI Pro / Ultra" }
+  ];
+
+  function setTier(ids, tier, control) {
+    if (!ids.length) { say(el.keyMsg, "Nothing to update.", "err"); return; }
+    if (control) control.disabled = true;
+    api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
+      .then(function (data) {
+        var label = (TIERS.filter(function (t) { return t.value === tier; })[0] || {}).label || tier;
+        say(el.keyMsg, "Plan set to " + label + " for " + data.updated + " key(s).", "ok");
+        state.tiers = data.tiers;
+        if (data.tiers) paintTiers();
+        return refresh();
+      })
+      .catch(function (err) {
+        say(el.keyMsg, "Plan update failed: " + err.message, "err");
+      })
+      .then(function () { if (control) control.disabled = false; });
+  }
+
+  function paintTiers() {
+    var t = state.tiers || {};
+    var parts = [];
+    if (t.free) parts.push(t.free + " free");
+    if (t.paid) parts.push(t.paid + " paid");
+    if (t.pro) parts.push(t.pro + " pro");
+    if (t.unknown) parts.push(t.unknown + " unset");
+    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
+  }
 
   function say(node, text, kind) {
     node.className = "msg " + (kind || "info");
@@ -3867,7 +3942,7 @@ var ADMIN_HTML = `<!doctype html>
 
     var table = document.createElement("table");
     var thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
+    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th>Plan</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
     table.appendChild(thead);
     var tbody = document.createElement("tbody");
 
@@ -3887,6 +3962,22 @@ var ADMIN_HTML = `<!doctype html>
       badge.className = "badge " + k.status;
       badge.textContent = k.status;
       cStatus.appendChild(badge);
+
+      // Plan is an operator declaration, not an upstream fact; the select is the
+      // input, the stored value is what /pengatur/models prices against.
+      var cTier = cell("Plan");
+      var tierSel = document.createElement("select");
+      tierSel.className = "tier";
+      tierSel.setAttribute("aria-label", "Billing plan for " + k.key);
+      TIERS.forEach(function (t) {
+        var o = document.createElement("option");
+        o.value = t.value;
+        o.textContent = t.label;
+        if ((k.tier || "unknown") === t.value) o.selected = true;
+        tierSel.appendChild(o);
+      });
+      tierSel.addEventListener("change", function () { setTier([k.id], tierSel.value, tierSel); });
+      cTier.appendChild(tierSel);
 
       var cFail = cell("Fails", "right num");
       cFail.textContent = k.failures;
@@ -3938,7 +4029,7 @@ var ADMIN_HTML = `<!doctype html>
       cAct.appendChild(testBtn);
       cAct.appendChild(delBtn);
 
-      tr.appendChild(cKey); tr.appendChild(cStatus); tr.appendChild(cFail);
+      tr.appendChild(cKey); tr.appendChild(cStatus); tr.appendChild(cTier); tr.appendChild(cFail);
       tr.appendChild(cCool); tr.appendChild(cUsed); tr.appendChild(cProbe); tr.appendChild(cAct);
       tbody.appendChild(tr);
     });
@@ -4029,6 +4120,8 @@ var ADMIN_HTML = `<!doctype html>
     return api("/pengatur/keys")
       .then(function (data) {
         renderStats(data.pool);
+        state.tiers = data.tiers;
+        paintTiers();
         renderKeys(data.keys || []);
         el.statsPanel.hidden = false;
         el.addPanel.hidden = false;
@@ -4064,6 +4157,8 @@ var ADMIN_HTML = `<!doctype html>
       .then(function (data) {
         try { localStorage.setItem(STORE, t); } catch (e) {}
         renderStats(data.pool);
+        state.tiers = data.tiers;
+        paintTiers();
         renderKeys(data.keys || []);
         el.statsPanel.hidden = false;
         el.addPanel.hidden = false;
@@ -4316,6 +4411,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
     </div>
     <div class="top-right">
       <a href="/pengatur" class="mono">admin</a>
+      <a href="/pengatur/usage" class="mono">usage</a>
       <span id="asOf" class="mono">pricing: -</span>
       <span id="synced">-</span>
     </div>
@@ -5154,16 +5250,31 @@ async function listLiveModels(force = false) {
   if (cache) return { models: cache.models, source: cache.source + " (stale)", cached: true };
   throw new Error(lastErr || "Could not list models with any pooled key.");
 }
-async function testModel(modelId, rawKey) {
+async function testModel(modelId, rawKey, tier = "unknown") {
   const id = modelId.replace(/^models\//, "").trim();
+  const cat = catalogFor(id);
+  const freeTier = cat ? cat.free : null;
   let key = rawKey?.trim() ?? "";
   const pooled = !key;
   if (!key) {
     const st = await pick();
     if (!st) {
-      return { id, status: "error", httpStatus: 0, latencyMs: 0, reply: "", message: "No selectable key in the pool.", pooled: true };
+      return {
+        id,
+        status: "error",
+        httpStatus: 0,
+        latencyMs: 0,
+        reply: "",
+        message: "No selectable key in the pool.",
+        pooled: true,
+        inputTokens: null,
+        outputTokens: null,
+        costUsd: null,
+        freeTier
+      };
     }
     key = st.key;
+    if (tier === "unknown") tier = st.tier;
   }
   const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${encodeURIComponent(id)}:generateContent`;
   const started = Date.now();
@@ -5181,7 +5292,19 @@ async function testModel(modelId, rawKey) {
       signal: AbortSignal.timeout(TIMEOUT_MS)
     });
   } catch (e) {
-    return { id, status: "error", httpStatus: 0, latencyMs: Date.now() - started, reply: "", message: e instanceof Error ? e.message : String(e), pooled };
+    return {
+      id,
+      status: "error",
+      httpStatus: 0,
+      latencyMs: Date.now() - started,
+      reply: "",
+      message: e instanceof Error ? e.message : String(e),
+      pooled,
+      inputTokens: null,
+      outputTokens: null,
+      costUsd: null,
+      freeTier
+    };
   }
   const latencyMs = Date.now() - started;
   const body = await res.text().catch(() => "");
@@ -5195,21 +5318,27 @@ async function testModel(modelId, rawKey) {
     const e = parsed?.error ?? {};
     return e.message ?? body.replace(/\s+/g, " ").slice(0, 220);
   })();
+  const usage = parsed?.usageMetadata ?? null;
+  const inputTokens = typeof usage?.promptTokenCount === "number" ? usage.promptTokenCount : null;
+  const outputTokens = typeof usage?.candidatesTokenCount === "number" ? usage.candidatesTokenCount + (typeof usage.thoughtsTokenCount === "number" ? usage.thoughtsTokenCount : 0) : null;
+  const billable = tier !== "free";
+  const costUsd = billable && cat && cat.inUsd !== null && cat.outUsd !== null && inputTokens !== null && outputTokens !== null ? inputTokens / 1e6 * cat.inUsd + outputTokens / 1e6 * cat.outUsd : null;
+  const base = { id, latencyMs, pooled, inputTokens, outputTokens, costUsd, freeTier };
   if (res.ok) {
     const cands = parsed?.candidates ?? [];
     const text = (cands[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
-    return { id, status: "ok", httpStatus: res.status, latencyMs, reply: text.slice(0, 200), message: "serving", pooled };
+    return { ...base, status: "ok", httpStatus: res.status, reply: text.slice(0, 200), message: "serving" };
   }
   if (res.status === 404) {
-    return { id, status: "unsupported", httpStatus: 404, latencyMs, reply: "", message: errMsg || "model not available to this key", pooled };
+    return { ...base, status: "unsupported", httpStatus: 404, reply: "", message: errMsg || "model not available to this key" };
   }
   if (res.status === 429) {
-    return { id, status: isZeroQuota(body) ? "zero_quota" : "rate_limited", httpStatus: 429, latencyMs, reply: "", message: errMsg || "rate limited", pooled };
+    return { ...base, status: isZeroQuota(body) ? "zero_quota" : "rate_limited", httpStatus: 429, reply: "", message: errMsg || "rate limited" };
   }
   if (res.status === 400 || res.status === 401 || res.status === 403) {
-    return { id, status: "invalid", httpStatus: res.status, latencyMs, reply: "", message: errMsg || "key rejected", pooled };
+    return { ...base, status: "invalid", httpStatus: res.status, reply: "", message: errMsg || "key rejected" };
   }
-  return { id, status: "error", httpStatus: res.status, latencyMs, reply: "", message: errMsg || `HTTP ${res.status}`, pooled };
+  return { ...base, status: "error", httpStatus: res.status, reply: "", message: errMsg || `HTTP ${res.status}` };
 }
 function pricingMeta() {
   return { asOf: PRICING_AS_OF, entries: CATALOG.length };
@@ -5355,6 +5484,242 @@ async function probeOnce(rawKey, model) {
   };
 }
 
+// src/usage.ts
+import { createHash as createHash2 } from "node:crypto";
+function ledgerKeyId(masked) {
+  return createHash2("sha256").update(`masked:${masked}`).digest("hex").slice(0, 12);
+}
+var KEY_SHAPED2 = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/;
+var capacity = (() => {
+  const n = Number(process.env.USAGE_ROWS ?? 1e3);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1e3;
+})();
+var rows = [];
+var collectors = /* @__PURE__ */ new WeakMap();
+function costFor(model, promptTokens, completionTokens) {
+  const entry = catalogFor(model);
+  if (!entry || entry.inUsd === null || entry.outUsd === null) return null;
+  const cost = promptTokens / 1e6 * entry.inUsd + completionTokens / 1e6 * entry.outUsd;
+  return Number.isFinite(cost) ? cost : null;
+}
+function routeOf(path) {
+  if (path.startsWith("/pengatur") || path.startsWith("/admin")) return null;
+  if (path === "/" || path === "/health" || path === "/metrics" || path === "/favicon.ico") return null;
+  if (path === "/v1/chat/completions") return "chat.completions";
+  if (path === "/v1/audio/speech") return "audio.speech";
+  if (path === "/v1/embeddings") return "embeddings";
+  if (path === "/v1/models") return "models.list";
+  if (path.startsWith("/v1beta/models")) return "gemini.passthrough";
+  if (path.startsWith("/v1")) return "other";
+  return null;
+}
+function beginUsage(req, path, route) {
+  const c = {
+    startedAt: Date.now(),
+    path,
+    method: req.method,
+    route,
+    model: "",
+    keyId: "",
+    keyMasked: "",
+    attempts: 0,
+    rotated: false,
+    stream: false,
+    errorCode: null,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    cachedTokens: 0,
+    committed: false
+  };
+  collectors.set(req, c);
+  return c;
+}
+function noteUsage(req, patch) {
+  const c = collectors.get(req);
+  if (!c || c.committed) return;
+  if (patch.keyRaw) {
+    c.keyMasked = maskKey(patch.keyRaw);
+    c.keyId = ledgerKeyId(c.keyMasked);
+  }
+  if (patch.keyMasked) {
+    c.keyMasked = patch.keyMasked;
+    if (!patch.keyId) c.keyId = ledgerKeyId(patch.keyMasked);
+  }
+  if (patch.keyId) c.keyId = patch.keyId;
+  if (patch.model) c.model = patch.model;
+  if (typeof patch.attempts === "number") c.attempts = patch.attempts;
+  if (typeof patch.rotated === "boolean") c.rotated = patch.rotated;
+  if (typeof patch.stream === "boolean") c.stream = patch.stream;
+  if (patch.errorCode !== void 0) c.errorCode = patch.errorCode;
+  if (typeof patch.promptTokens === "number") c.promptTokens = patch.promptTokens;
+  if (typeof patch.completionTokens === "number") c.completionTokens = patch.completionTokens;
+  if (typeof patch.totalTokens === "number") c.totalTokens = patch.totalTokens;
+  if (typeof patch.cachedTokens === "number") c.cachedTokens = patch.cachedTokens;
+}
+function commitUsage(req, status) {
+  const c = collectors.get(req);
+  if (!c || c.committed) return null;
+  if (c.stream) return null;
+  c.committed = true;
+  let masked = c.keyMasked;
+  if (KEY_SHAPED2.test(masked)) {
+    masked = maskKey(masked);
+    c.keyMasked = masked;
+    c.keyId = ledgerKeyId(masked);
+  }
+  KEY_SHAPED2.lastIndex = 0;
+  const promptTokens = c.promptTokens;
+  const completionTokens = c.completionTokens;
+  const totalTokens = c.totalTokens || promptTokens + completionTokens;
+  const row = {
+    id: crypto.randomUUID(),
+    ts: c.startedAt,
+    route: c.route,
+    path: c.path,
+    method: c.method,
+    model: c.model || "unknown",
+    keyId: c.keyId,
+    keyMasked: c.keyMasked,
+    status,
+    ok: status >= 200 && status < 400,
+    errorCode: c.errorCode,
+    attempts: c.attempts,
+    rotated: c.rotated,
+    stream: false,
+    latencyMs: Date.now() - c.startedAt,
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    cachedTokens: c.cachedTokens,
+    costUsd: costFor(c.model, promptTokens, completionTokens)
+  };
+  rows.unshift(row);
+  if (rows.length > capacity) rows.length = capacity;
+  return row;
+}
+function finalizeStream(req, status = 200, errorCode) {
+  const c = collectors.get(req);
+  if (!c || c.committed) return;
+  if (errorCode) c.errorCode = errorCode;
+  c.stream = false;
+  commitUsage(req, status);
+}
+var emptyTotals = () => ({
+  requests: 0,
+  ok: 0,
+  errors: 0,
+  rotated: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+  totalTokens: 0,
+  cachedTokens: 0,
+  costUsd: 0,
+  avgLatencyMs: 0
+});
+function addInto(acc, row) {
+  acc.requests += 1;
+  if (row.ok) acc.ok += 1;
+  else acc.errors += 1;
+  if (row.rotated) acc.rotated += 1;
+  acc.promptTokens += row.promptTokens;
+  acc.completionTokens += row.completionTokens;
+  acc.totalTokens += row.totalTokens;
+  acc.cachedTokens += row.cachedTokens;
+  if (row.costUsd !== null) acc.costUsd = (acc.costUsd ?? 0) + row.costUsd;
+  acc.avgLatencyMs += row.latencyMs;
+}
+function finish(acc) {
+  acc.avgLatencyMs = acc.requests ? Math.round(acc.avgLatencyMs / acc.requests) : 0;
+  if (acc.costUsd !== null) acc.costUsd = Number(acc.costUsd.toFixed(6));
+  return acc;
+}
+function sumRows(list) {
+  const acc = emptyTotals();
+  for (const r of list) addInto(acc, r);
+  return finish(acc);
+}
+function bucketBy(list, keyOf) {
+  const map = /* @__PURE__ */ new Map();
+  for (const r of list) {
+    const k = keyOf(r) || "unknown";
+    let acc = map.get(k);
+    if (!acc) {
+      acc = emptyTotals();
+      map.set(k, acc);
+    }
+    addInto(acc, r);
+  }
+  return [...map.entries()].map(([key, acc]) => ({ key, ...finish(acc) })).sort((a, b) => b.requests - a.requests || b.totalTokens - a.totalTokens);
+}
+var dayOf = (ts) => new Date(ts).toISOString().slice(0, 10);
+function filterRows(list, f) {
+  return list.filter((r) => {
+    if (f.day && dayOf(r.ts) !== f.day) return false;
+    if (f.model && r.model !== f.model) return false;
+    if (f.key && r.keyId !== f.key && r.keyMasked !== f.key) return false;
+    if (f.route && r.route !== f.route) return false;
+    if (f.status === "ok" && !r.ok) return false;
+    if (f.status === "error" && r.ok) return false;
+    if (f.status === "rotated" && !r.rotated) return false;
+    return true;
+  });
+}
+function pageOf(items, page, pageSize) {
+  const p = Math.max(1, Math.floor(page) || 1);
+  const n = Math.min(Math.max(1, Math.floor(pageSize) || 25), 200);
+  return items.slice((p - 1) * n, p * n);
+}
+function usageOverview(page = 1, pageSize = 25, filter = {}) {
+  const filtered = filterRows(rows, filter);
+  return {
+    mode: "memory",
+    capacity,
+    rows: pageOf(filtered, page, pageSize),
+    page: Math.max(1, Math.floor(page) || 1),
+    pageSize: Math.min(Math.max(1, Math.floor(pageSize) || 25), 200),
+    totalRows: filtered.length,
+    totals: sumRows(filtered),
+    byModel: bucketBy(filtered, (r) => r.model),
+    byKey: bucketBy(filtered, (r) => r.keyMasked || r.keyId),
+    byDay: bucketBy(filtered, (r) => dayOf(r.ts)),
+    byRoute: bucketBy(filtered, (r) => r.route),
+    since: rows.length ? rows[rows.length - 1].ts : null
+  };
+}
+function toCsv(list) {
+  const cols = [
+    "id",
+    "ts",
+    "route",
+    "path",
+    "method",
+    "model",
+    "keyId",
+    "keyMasked",
+    "status",
+    "ok",
+    "errorCode",
+    "attempts",
+    "rotated",
+    "stream",
+    "latencyMs",
+    "promptTokens",
+    "completionTokens",
+    "totalTokens",
+    "cachedTokens",
+    "costUsd"
+  ];
+  const esc = (v) => {
+    if (v === null || v === void 0) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [cols.join(",")];
+  for (const r of list) lines.push(cols.map((c) => esc(r[c])).join(","));
+  return lines.join("\n") + "\n";
+}
+
 // src/gemini.ts
 var UP = cfg.upstream.replace(/\/$/, "");
 function geminiPassthrough(req, path) {
@@ -5371,7 +5736,17 @@ function geminiPassthrough(req, path) {
     },
     path,
     req.signal
-  ).then((r) => withMeta(r.response, r));
+  ).then((r) => {
+    const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
+    noteUsage(req, {
+      model,
+      keyRaw: r.key,
+      attempts: r.attempts,
+      rotated: r.rotated,
+      errorCode: r.response.ok ? null : `http_${r.response.status}`
+    });
+    return withMeta(r.response, r);
+  });
 }
 function withMeta(res, meta) {
   const h = new Headers(res.headers);
@@ -5415,6 +5790,13 @@ async function speech(req) {
   if (result.response.status === 499) {
     return new Response(null, { status: 499 });
   }
+  noteUsage(req, {
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`
+  });
   if (!result.response.ok) return result.response;
   let json2;
   try {
@@ -5662,6 +6044,14 @@ async function chatCompletions(req) {
     `/v1beta/models/${model}:${method}`,
     req.signal
   );
+  noteUsage(req, {
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    stream,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`
+  });
   if (result.response.status === 499) return err(499, "client_closed_request", "Client disconnected.");
   if (!result.response.ok) return result.response;
   const id = `chatcmpl-${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
@@ -5676,6 +6066,11 @@ async function chatCompletions(req) {
     const cand = json2.candidates?.[0];
     const { text, grounding, toolCalls } = parseCandidate(cand);
     const usage = json2.usageMetadata ?? {};
+    noteUsage(req, {
+      promptTokens: usage.promptTokenCount ?? 0,
+      completionTokens: usage.candidatesTokenCount ?? 0,
+      totalTokens: usage.totalTokenCount ?? 0
+    });
     const message = {
       role: "assistant",
       content: text || (toolCalls.length ? null : "")
@@ -5728,8 +6123,13 @@ async function chatCompletions(req) {
       const reader = upstream.getReader();
       const decoder = new TextDecoder();
       let buf = "";
-      let finish = null;
+      let finish2 = null;
       const toolCalls = [];
+      let sPrompt = 0;
+      let sCompletion = 0;
+      let sTotal = 0;
+      let sCached = 0;
+      let streamErr = null;
       try {
         for (; ; ) {
           const { done, value } = await reader.read();
@@ -5751,7 +6151,15 @@ async function chatCompletions(req) {
             const cand = json2.candidates?.[0];
             const { text, toolCalls: calls } = parseCandidate(cand);
             const fr = cand?.finishReason;
-            if (fr) finish = mapFinish(fr);
+            if (json2.usageMetadata) {
+              const u = json2.usageMetadata;
+              if (u.promptTokenCount) sPrompt = u.promptTokenCount;
+              if (u.candidatesTokenCount) sCompletion = u.candidatesTokenCount;
+              if (u.totalTokenCount) sTotal = u.totalTokenCount;
+              const cached = u.cachedContentTokenCount;
+              if (cached) sCached = cached;
+            }
+            if (fr) finish2 = mapFinish(fr);
             if (text) {
               send({
                 id,
@@ -5798,18 +6206,26 @@ async function chatCompletions(req) {
             {
               index: 0,
               delta: {},
-              finish_reason: toolCalls.length ? "tool_calls" : finish ?? "stop"
+              finish_reason: toolCalls.length ? "tool_calls" : finish2 ?? "stop"
             }
           ]
         });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       } catch (e) {
+        streamErr = "stream_error";
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ error: { message: String(e) } })}
 
 `)
         );
       } finally {
+        noteUsage(req, {
+          promptTokens: sPrompt,
+          completionTokens: sCompletion,
+          totalTokens: sTotal,
+          cachedTokens: sCached
+        });
+        finalizeStream(req, streamErr ? 502 : 200, streamErr ?? void 0);
         controller.close();
         reader.releaseLock();
       }
@@ -5862,9 +6278,662 @@ function err(status, type, message) {
   return Response.json({ error: { type, message } }, { status });
 }
 
+// src/usage-ui.ts
+var USAGE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Usage ledger</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1014'/%3E%3Cpath d='M8 22V14M14 22V9M20 22V16M26 22V12' stroke='%23e8a33d' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0d1014;
+    --panel: #12161b;
+    --panel-2: #171c22;
+    --line: #242b34;
+    --line-soft: #1c222a;
+    --text: #e6eaf0;
+    --muted: #8c96a5;
+    --accent: #e8a33d;
+    --ready: #57c98a;
+    --cool: #e0b64a;
+    --dead: #e8737b;
+    --focus: #7fb4ff;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
+
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .brand .sub { font-size: 12px; color: var(--muted); }
+  .top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+  .top-right a { color: var(--accent); text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
+  .top-right .mono { font-size: 12px; }
+
+  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
+
+  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
+  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .strip .kv span { font-size: 12px; color: var(--muted); }
+  .strip .kv.ready b { color: var(--ready); }
+  .strip .kv.dead b { color: var(--dead); }
+  .strip .spacer { flex: 1; }
+  .strip .meta { font-size: 12px; color: var(--muted); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .card + .card { margin-top: 12px; }
+
+  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  input[type=password], input[type=text], select {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 9px 11px;
+    font-size: 13px;
+    font-family: inherit;
+    min-height: 40px;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  button {
+    background: var(--accent);
+    color: #1a1206;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 650;
+    padding: 0 14px;
+    min-height: 40px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.small { min-height: 32px; padding: 0 10px; font-size: 12px; font-weight: 600; }
+  button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+  button:disabled { opacity: 0.45; cursor: default; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .row > * { flex: 0 1 auto; }
+  .row .grow { flex: 1 1 200px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th {
+    text-align: left;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  thead th.num, tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tbody tr { transition: background 120ms ease; }
+  tbody tr:hover { background: #161b21; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; }
+  .dim { color: var(--muted); }
+  .nowrap { white-space: nowrap; }
+
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.ok { color: var(--ready); border-color: #1f4c36; background: #101f18; }
+  .badge.err { color: var(--dead); border-color: #4a2b30; background: #211416; }
+  .badge.rot { color: var(--cool); border-color: #4d3d12; background: #221d0c; }
+
+  .empty { padding: 30px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
+  .empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; font-weight: 600; }
+
+  .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+  .pager:empty { display: none; }
+  .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .pager button.small { min-width: 36px; font-variant-numeric: tabular-nums; }
+  .pager button.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; }
+
+  .err-box { border: 1px solid #4a2b30; background: #211416; color: var(--dead); border-radius: 6px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
+  .err-box:empty { display: none; }
+
+  .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
+  .muted { color: var(--muted); font-size: 12px; }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
+  .check input { width: 17px; height: 17px; accent-color: var(--accent); }
+
+  @media (max-width: 820px) {
+    .wrap { padding: 20px 14px 56px; }
+    thead { display: none; }
+    tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+    tbody td { border: 0; padding: 0; }
+    tbody td::before { content: attr(data-l); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    tbody td.wide { grid-column: 1 / -1; }
+    tbody td.num { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <span class="dot"></span>
+      <div>
+        <h1>Usage ledger</h1>
+        <div class="sub">Requests, tokens, cost &mdash; in-memory, reset on redeploy</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <a href="/pengatur">keys &rarr;</a>
+      <a href="/pengatur/models">models &rarr;</a>
+      <span id="mode" class="mono">-</span>
+    </div>
+  </header>
+
+  <div class="card" id="gate">
+    <label class="field" for="token">Admin token</label>
+    <div class="row">
+      <div class="grow">
+        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+      </div>
+      <button id="connect" type="button">Connect</button>
+    </div>
+    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is only sent to this deployment.</p>
+    <div id="gateErr" class="err-box"></div>
+  </div>
+
+  <div id="console" hidden>
+
+    <div class="strip">
+      <div class="kv"><b id="sReq">0</b><span>requests</span></div>
+      <div class="kv ready"><b id="sOk">0</b><span>ok</span></div>
+      <div class="kv dead"><b id="sErr">0</b><span>errors</span></div>
+      <div class="kv"><b id="sRot">0</b><span>rotated</span></div>
+      <div class="kv"><b id="sPrompt">0</b><span>prompt tok</span></div>
+      <div class="kv"><b id="sCompletion">0</b><span>output tok</span></div>
+      <div class="kv"><b id="sCached">0</b><span>cached</span></div>
+      <div class="kv"><b id="sCost">-</b><span>est. USD</span></div>
+      <div class="spacer"></div>
+      <div class="meta" id="sLatency">-</div>
+    </div>
+
+    <h2 class="sec">Filter</h2>
+    <div class="card">
+      <div class="row">
+        <div style="flex:1 1 140px">
+          <label class="field" for="fDay">Day</label>
+          <select id="fDay"><option value="">all</option></select>
+        </div>
+        <div style="flex:1 1 160px">
+          <label class="field" for="fModel">Model</label>
+          <select id="fModel"><option value="">all</option></select>
+        </div>
+        <div style="flex:1 1 160px">
+          <label class="field" for="fKey">Key</label>
+          <select id="fKey"><option value="">all</option></select>
+        </div>
+        <div style="flex:1 1 130px">
+          <label class="field" for="fStatus">Status</label>
+          <select id="fStatus">
+            <option value="">all</option>
+            <option value="ok">ok</option>
+            <option value="error">error</option>
+            <option value="rotated">rotated</option>
+          </select>
+        </div>
+        <button id="apply" type="button">Apply</button>
+        <button id="reset" class="ghost" type="button">Reset</button>
+      </div>
+    </div>
+
+    <h2 class="sec">By model</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="byModel">
+        <thead><tr>
+          <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" data-empty hidden><b>No traffic yet</b>Send a request through the gateway and it shows up here.</div>
+    </div>
+
+    <h2 class="sec">By key</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="byKey">
+        <thead><tr>
+          <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" data-empty hidden><b>No key attributed yet</b>A request that reached a key is listed here by its masked form.</div>
+    </div>
+
+    <h2 class="sec">By day</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="byDay">
+        <thead><tr>
+          <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h2 class="sec">Request log</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="log">
+        <thead><tr>
+          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" data-empty hidden><b>No requests match</b>Loosen the filter or send traffic through the gateway.</div>
+    </div>
+
+    <div class="pager" id="pager"></div>
+
+    <div class="foot">
+      <div class="row" style="gap:10px">
+        <button id="refresh" type="button" class="small">Refresh</button>
+        <button id="csv" type="button" class="small ghost">Export CSV</button>
+        <label class="check"><input id="auto" type="checkbox"> auto-refresh 60s</label>
+      </div>
+      <div class="muted" id="stamp">-</div>
+    </div>
+
+    <div id="err" class="err-box"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE = "gkr.admin.token";
+  var el = {
+    gate: document.getElementById("gate"),
+    gateErr: document.getElementById("gateErr"),
+    token: document.getElementById("token"),
+    connect: document.getElementById("connect"),
+    console: document.getElementById("console"),
+    mode: document.getElementById("mode"),
+    sReq: document.getElementById("sReq"),
+    sOk: document.getElementById("sOk"),
+    sErr: document.getElementById("sErr"),
+    sRot: document.getElementById("sRot"),
+    sPrompt: document.getElementById("sPrompt"),
+    sCompletion: document.getElementById("sCompletion"),
+    sCached: document.getElementById("sCached"),
+    sCost: document.getElementById("sCost"),
+    sLatency: document.getElementById("sLatency"),
+    fDay: document.getElementById("fDay"),
+    fModel: document.getElementById("fModel"),
+    fKey: document.getElementById("fKey"),
+    fStatus: document.getElementById("fStatus"),
+    apply: document.getElementById("apply"),
+    reset: document.getElementById("reset"),
+    byModel: document.getElementById("byModel"),
+    byKey: document.getElementById("byKey"),
+    byDay: document.getElementById("byDay"),
+    log: document.getElementById("log"),
+    pager: document.getElementById("pager"),
+    refresh: document.getElementById("refresh"),
+    csv: document.getElementById("csv"),
+    auto: document.getElementById("auto"),
+    stamp: document.getElementById("stamp"),
+    err: document.getElementById("err")
+  };
+
+  var state = {
+    token: "",
+    page: 1,
+    size: 25,
+    filter: { day: "", model: "", key: "", status: "" },
+    timer: null,
+    last: null
+  };
+
+  function fmt(n) {
+    if (n === null || n === undefined) return "-";
+    if (typeof n !== "number") return String(n);
+    return n.toLocaleString("en-US");
+  }
+
+  function money(n) {
+    if (n === null || n === undefined) return "-";
+    if (n === 0) return "$0";
+    if (n < 0.000001) return "<$0.000001";
+    return "$" + n.toFixed(6).replace(/0+$/, "").replace(/\\.$/, "");
+  }
+
+  function clock(ts) {
+    var d = new Date(ts);
+    return d.toLocaleTimeString("en-GB", { hour12: false }) + "." +
+      String(d.getMilliseconds()).padStart(3, "0");
+  }
+
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = { authorization: "Bearer " + state.token };
+    if (opts.body) headers["content-type"] = "application/json";
+    return fetch(path, {
+      method: opts.method || "GET",
+      headers: headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (r) {
+      if (r.status === 401) throw new Error("Unauthorized. Re-enter the admin token.");
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          var msg = t;
+          try { msg = JSON.parse(t).error.message || t; } catch (e) {}
+          throw new Error(msg || ("HTTP " + r.status));
+        });
+      }
+      return r.json();
+    });
+  }
+
+  function setErr(msg) {
+    el.err.textContent = msg || "";
+    el.gateErr.textContent = msg || "";
+  }
+
+  function cell(tr, text, cls, label) {
+    var td = document.createElement("td");
+    if (cls) td.className = cls;
+    if (label) td.setAttribute("data-l", label);
+    td.textContent = text;
+    tr.appendChild(td);
+    return td;
+  }
+
+  function renderBuckets(table, buckets, cols) {
+    var body = table.querySelector("tbody");
+    body.textContent = "";
+    var empty = table.parentNode.querySelector("[data-empty]");
+    if (empty) empty.hidden = buckets.length > 0;
+    for (var i = 0; i < buckets.length; i++) {
+      var b = buckets[i];
+      var tr = document.createElement("tr");
+      for (var j = 0; j < cols.length; j++) {
+        var c = cols[j];
+        var v = c.fmt ? c.fmt(b[c.k], b) : b[c.k];
+        cell(tr, v === undefined || v === null ? "-" : String(v), c.num ? "num" : "", c.label);
+      }
+      body.appendChild(tr);
+    }
+  }
+
+  function renderLog(rows) {
+    var body = el.log.querySelector("tbody");
+    body.textContent = "";
+    var empty = el.log.parentNode.querySelector("[data-empty]");
+    if (empty) empty.hidden = rows.length > 0;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var tr = document.createElement("tr");
+      cell(tr, clock(r.ts), "mono nowrap", "time");
+      cell(tr, r.route, "mono", "route");
+      cell(tr, r.model, "mono", "model");
+      cell(tr, r.keyMasked || "-", "mono", "key");
+      var st = document.createElement("td");
+      st.setAttribute("data-l", "status");
+      var badge = document.createElement("span");
+      badge.className = "badge " + (r.ok ? "ok" : "err");
+      badge.textContent = r.status + (r.errorCode ? " " + r.errorCode : "");
+      st.appendChild(badge);
+      if (r.rotated) {
+        var rb = document.createElement("span");
+        rb.className = "badge rot";
+        rb.style.marginLeft = "6px";
+        rb.textContent = "rot";
+        st.appendChild(rb);
+      }
+      tr.appendChild(st);
+      cell(tr, fmt(r.promptTokens), "num", "prompt");
+      cell(tr, fmt(r.completionTokens), "num", "output");
+      cell(tr, fmt(r.totalTokens), "num", "total");
+      cell(tr, money(r.costUsd), "num", "cost");
+      cell(tr, fmt(r.latencyMs), "num", "ms");
+      body.appendChild(tr);
+    }
+  }
+
+  function renderPager(data) {
+    el.pager.textContent = "";
+    var total = data.totalRows;
+    var pages = Math.max(1, Math.ceil(total / data.pageSize));
+    var info = document.createElement("div");
+    info.textContent = total === 0
+      ? "0 rows"
+      : "rows " + ((data.page - 1) * data.pageSize + 1) + "-" +
+        Math.min(total, data.page * data.pageSize) + " of " + total;
+    el.pager.appendChild(info);
+
+    if (pages <= 1) return;
+    var box = document.createElement("div");
+    box.className = "pages";
+
+    function pageBtn(label, n, active, disabled) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "small" + (active ? " active" : "");
+      b.textContent = label;
+      b.disabled = !!disabled;
+      if (!active && !disabled) {
+        b.addEventListener("click", function () { state.page = n; load(); });
+      }
+      box.appendChild(b);
+    }
+
+    pageBtn("first", 1, false, data.page === 1);
+    pageBtn("prev", data.page - 1, false, data.page === 1);
+    var lo = Math.max(1, data.page - 2);
+    var hi = Math.min(pages, lo + 4);
+    lo = Math.max(1, hi - 4);
+    for (var p = lo; p <= hi; p++) pageBtn(String(p), p, p === data.page, false);
+    pageBtn("next", data.page + 1, false, data.page === pages);
+    pageBtn("last", pages, false, data.page === pages);
+    el.pager.appendChild(box);
+  }
+
+  function fillSelect(sel, items, current) {
+    var seen = {};
+    var keep = sel.value;
+    var opts = ['<option value="">all</option>'];
+    for (var i = 0; i < items.length; i++) {
+      var v = items[i].key;
+      if (!v || seen[v]) continue;
+      seen[v] = 1;
+      opts.push('<option value="' + String(v).replace(/"/g, "&quot;") + '">' + v + "</option>");
+    }
+    sel.innerHTML = opts.join("");
+    if (keep) sel.value = keep;
+    else if (current) sel.value = current;
+  }
+
+  function paint(data) {
+    state.last = data;
+    el.mode.textContent = "mode: " + data.mode + " / cap " + fmt(data.capacity);
+    var t = data.totals;
+    el.sReq.textContent = fmt(t.requests);
+    el.sOk.textContent = fmt(t.ok);
+    el.sErr.textContent = fmt(t.errors);
+    el.sRot.textContent = fmt(t.rotated);
+    el.sPrompt.textContent = fmt(t.promptTokens);
+    el.sCompletion.textContent = fmt(t.completionTokens);
+    el.sCached.textContent = fmt(t.cachedTokens);
+    el.sCost.textContent = money(t.costUsd);
+    el.sLatency.textContent = "avg " + fmt(t.avgLatencyMs) + " ms" +
+      (data.since ? " \xB7 oldest " + new Date(data.since).toLocaleString() : "");
+
+    fillSelect(el.fDay, data.byDay, state.filter.day);
+    fillSelect(el.fModel, data.byModel, state.filter.model);
+    fillSelect(el.fKey, data.byKey, state.filter.key);
+
+    renderBuckets(el.byModel, data.byModel, [
+      { k: "key", label: "model" },
+      { k: "requests", num: true, label: "req" },
+      { k: "errors", num: true, label: "err" },
+      { k: "promptTokens", num: true, label: "prompt" },
+      { k: "completionTokens", num: true, label: "output" },
+      { k: "cachedTokens", num: true, label: "cached" },
+      { k: "costUsd", num: true, fmt: money, label: "cost" },
+      { k: "avgLatencyMs", num: true, label: "ms" }
+    ]);
+
+    renderBuckets(el.byKey, data.byKey, [
+      { k: "key", label: "key" },
+      { k: "requests", num: true, label: "req" },
+      { k: "errors", num: true, label: "err" },
+      { k: "rotated", num: true, label: "rot" },
+      { k: "promptTokens", num: true, label: "prompt" },
+      { k: "completionTokens", num: true, label: "output" },
+      { k: "costUsd", num: true, fmt: money, label: "cost" },
+      { k: "avgLatencyMs", num: true, label: "ms" }
+    ]);
+
+    renderBuckets(el.byDay, data.byDay, [
+      { k: "key", label: "day" },
+      { k: "requests", num: true, label: "req" },
+      { k: "errors", num: true, label: "err" },
+      { k: "promptTokens", num: true, label: "prompt" },
+      { k: "completionTokens", num: true, label: "output" },
+      { k: "costUsd", num: true, fmt: money, label: "cost" }
+    ]);
+
+    renderLog(data.rows);
+    renderPager(data);
+    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+  }
+
+  function query() {
+    var q = ["page=" + state.page, "pageSize=" + state.size];
+    for (var k in state.filter) {
+      if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
+    }
+    return "/pengatur/usage/data?" + q.join("&");
+  }
+
+  function load() {
+    if (!state.token) return;
+    el.refresh.disabled = true;
+    api(query()).then(function (data) {
+      setErr("");
+      paint(data);
+    }).catch(function (e) {
+      setErr(e.message);
+    }).then(function () {
+      el.refresh.disabled = false;
+    });
+  }
+
+  function exportCsv() {
+    if (!state.token) return;
+    var q = [];
+    for (var k in state.filter) {
+      if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
+    }
+    var url = "/pengatur/usage/export.csv" + (q.length ? "?" + q.join("&") : "");
+    fetch(url, { headers: { authorization: "Bearer " + state.token } })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.blob();
+      })
+      .then(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "gkr-usage-" + new Date().toISOString().slice(0, 10) + ".csv";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+      })
+      .catch(function (e) { setErr(e.message); });
+  }
+
+  function connect() {
+    var t = el.token.value.trim();
+    if (!t) { setErr("Enter the admin token."); return; }
+    state.token = t;
+    api("/pengatur/usage/data?page=1&pageSize=" + state.size).then(function (data) {
+      try { localStorage.setItem(STORE, t); } catch (e) {}
+      setErr("");
+      el.gate.hidden = true;
+      el.console.hidden = false;
+      paint(data);
+    }).catch(function (e) {
+      state.token = "";
+      setErr(e.message);
+    });
+  }
+
+  el.connect.addEventListener("click", connect);
+  el.token.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
+  el.apply.addEventListener("click", function () {
+    state.filter.day = el.fDay.value;
+    state.filter.model = el.fModel.value;
+    state.filter.key = el.fKey.value;
+    state.filter.status = el.fStatus.value;
+    state.page = 1;
+    load();
+  });
+  el.reset.addEventListener("click", function () {
+    state.filter = { day: "", model: "", key: "", status: "" };
+    el.fDay.value = "";
+    el.fModel.value = "";
+    el.fKey.value = "";
+    el.fStatus.value = "";
+    state.page = 1;
+    load();
+  });
+  el.refresh.addEventListener("click", load);
+  el.csv.addEventListener("click", exportCsv);
+  el.auto.addEventListener("change", function () {
+    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    if (el.auto.checked) {
+      state.timer = setInterval(function () {
+        // Only poll while the tab is actually being looked at.
+        if (document.visibilityState === "visible") load();
+      }, 60000);
+    }
+  });
+
+  var saved = "";
+  try { saved = localStorage.getItem(STORE) || ""; } catch (e) {}
+  if (saved) { el.token.value = saved; connect(); }
+})();
+</script>
+</body>
+</html>
+`;
+
 // src/app.ts
 var app = new Hono3();
 app.use("*", cors());
+app.use("*", async (c, next) => {
+  const path = new URL(c.req.url).pathname;
+  const route = routeOf(path);
+  if (!route) return next();
+  beginUsage(c.req.raw, path, route);
+  await next();
+  commitUsage(c.req.raw, c.res.status);
+});
 var bearer = (h) => {
   if (!h) return "";
   const m = /^Bearer\s+(.+)$/i.exec(h.trim());
@@ -5880,7 +6949,7 @@ app.use("/v1/*", async (c, next) => {
 });
 app.use("/pengatur/*", async (c, next) => {
   const adminPath = new URL(c.req.url).pathname;
-  if (adminPath === "/pengatur" || adminPath === "/pengatur/models") return next();
+  if (adminPath === "/pengatur" || adminPath === "/pengatur/models" || adminPath === "/pengatur/usage") return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -5957,12 +7026,38 @@ app.post("/pengatur/models/test", async (c) => {
   }
   const model = typeof body.model === "string" ? body.model.trim() : "";
   if (!model) return c.json({ error: { message: "`model` is required." } }, 400);
-  const result = await testModel(model, typeof body.key === "string" ? body.key : void 0);
+  const tier = typeof body.tier === "string" ? body.tier : "";
+  const result = await testModel(
+    model,
+    typeof body.key === "string" ? body.key : void 0,
+    KEY_TIERS.includes(tier) ? tier : "unknown"
+  );
   return c.json({ ok: true, model, result });
 });
 app.get("/pengatur/keys", async (c) => {
   const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
-  return c.json({ pool: snap, keys });
+  return c.json({ pool: snap, keys, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+});
+app.post("/pengatur/keys/tier", async (c) => {
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  const tier = String(body.tier ?? "");
+  if (!KEY_TIERS.includes(tier)) {
+    return c.json({ error: { message: `\`tier\` must be one of: ${KEY_TIERS.join(", ")}` } }, 400);
+  }
+  let ids = [];
+  if (body.all) ids = (await listKeys()).map((k) => k.id);
+  else if (Array.isArray(body.ids)) ids = body.ids.filter((x) => typeof x === "string" && x);
+  else if (typeof body.id === "string" && body.id) ids = [body.id];
+  if (!ids.length) return c.json({ error: { message: "`id`, `ids` or `all` is required." } }, 400);
+  let updated = 0;
+  for (const id of ids) if (await setTierById(id, tier)) updated++;
+  const keys = await listKeys();
+  return c.json({ ok: true, tier, updated, tiers: tierCounts(keys), pool: await snapshot() });
 });
 app.post("/pengatur/keys", async (c) => {
   let body;
@@ -6085,6 +7180,38 @@ app.notFound(
 app.onError((e, c) => {
   console.error("[gkr] unhandled:", e);
   return c.json({ error: { message: e.message } }, 500);
+});
+app.get("/pengatur/usage", (c) => c.html(USAGE_HTML));
+app.get("/pengatur/usage/data", (c) => {
+  const q = new URL(c.req.url).searchParams;
+  const filter = {
+    day: q.get("day") ?? void 0,
+    model: q.get("model") ?? void 0,
+    key: q.get("key") ?? void 0,
+    status: q.get("status") ?? void 0,
+    route: q.get("route") ?? void 0
+  };
+  const page = Number(q.get("page") ?? 1) || 1;
+  const pageSize = Number(q.get("pageSize") ?? 25) || 25;
+  return c.json(usageOverview(page, pageSize, filter));
+});
+app.get("/pengatur/usage/export.csv", (c) => {
+  const q = new URL(c.req.url).searchParams;
+  const filter = {
+    day: q.get("day") ?? void 0,
+    model: q.get("model") ?? void 0,
+    key: q.get("key") ?? void 0,
+    status: q.get("status") ?? void 0,
+    route: q.get("route") ?? void 0
+  };
+  const snapshot2 = usageOverview(1, 200, filter);
+  const csv = toCsv(snapshot2.rows);
+  return new Response(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="gkr-usage-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv"`
+    }
+  });
 });
 var app_default = app;
 
