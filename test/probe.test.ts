@@ -67,7 +67,7 @@ test("probing a cooling key with a 429 re-parks it with the upstream wait", asyn
   // Parked far in the future, as if it had failed minutes ago.
   await mark429("AIzaPOOL429X", 600_000);
 
-  const res = await adminPost("/admin/keys/test", { key: "AIzaPOOL429X" });
+  const res = await adminPost("/pengatur/keys/test", { key: "AIzaPOOL429X" });
   expect(res.status).toBe(200);
   const body = (await res.json()) as {
     ok: boolean;
@@ -96,7 +96,7 @@ test("a successful probe revives a cooling key immediately", async () => {
   await mark429("AIzaPOOLGOOD1", 600_000);
   expect((await find("AIzaPOOLGOOD1"))?.status).toBe("cooling");
 
-  const res = await adminPost("/admin/keys/test", { key: "AIzaPOOLGOOD1" });
+  const res = await adminPost("/pengatur/keys/test", { key: "AIzaPOOLGOOD1" });
   const body = (await res.json()) as { applied: string; probe: { status: string }; pool: { ready: number } };
   expect(body.probe.status).toBe("ok");
   expect(body.applied).toBe("revived");
@@ -110,13 +110,13 @@ test("a successful probe revives a cooling key immediately", async () => {
 
 test("probing an unknown id is a 404, not a crash", async () => {
   await setPool(["AIzaPOOLGOOD1"]);
-  const res = await adminPost("/admin/keys/test", { id: "000000000000" });
+  const res = await adminPost("/pengatur/keys/test", { id: "000000000000" });
   expect(res.status).toBe(404);
 });
 
 test("test-all skips dead keys and reports the pool", async () => {
   await setPool(["AIzaPOOLGOOD1", "AIzaPOOL429X"]);
-  const res = await adminPost("/admin/keys/test-all");
+  const res = await adminPost("/pengatur/keys/test-all");
   expect(res.status).toBe(200);
   const body = (await res.json()) as {
     tested: number;

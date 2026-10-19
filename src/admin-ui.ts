@@ -225,6 +225,7 @@ export const ADMIN_HTML = `<!doctype html>
       <div class="kv ready"><b id="sReady">0</b><span>ready</span></div>
       <div class="kv cooling"><b id="sCooling">0</b><span>cooling</span></div>
       <div class="kv dead"><b id="sDead">0</b><span>dead</span></div>
+      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span>plans</span></div>
       <div class="spacer"></div>
       <div class="meta" id="nextReady">-</div>
     </div>
@@ -261,6 +262,21 @@ export const ADMIN_HTML = `<!doctype html>
           <option value="100">100 / page</option>
         </select>
       </div>
+      <div>
+        <select id="tierBulk" aria-label="Declare billing plan for keys">
+          <option value="">Set plan for...</option>
+          <option value="free">Free tier</option>
+          <option value="paid">Pay-as-you-go</option>
+          <option value="pro">Google AI Pro / Ultra</option>
+          <option value="unknown">Unspecified</option>
+        </select>
+      </div>
+      <div>
+        <button id="tierApply" type="button" class="small">Apply to page</button>
+      </div>
+      <div>
+        <button id="tierApplyAll" type="button" class="small">Apply to all</button>
+      </div>
     </div>
     <div id="keysBody" class="card tablewrap"><div class="empty">Loading pool...</div></div>
     <div id="keyPager" class="pager"></div>
@@ -291,6 +307,7 @@ export const ADMIN_HTML = `<!doctype html>
     sReady: document.getElementById("sReady"),
     sCooling: document.getElementById("sCooling"),
     sDead: document.getElementById("sDead"),
+    sTier: document.getElementById("sTier"),
     nextReady: document.getElementById("nextReady"),
     storage: document.getElementById("storage"),
     synced: document.getElementById("synced"),
@@ -309,7 +326,43 @@ export const ADMIN_HTML = `<!doctype html>
     forget: document.getElementById("forget")
   };
 
-  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "" };
+  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "", tiers: null };
+
+  // Billing plan declaration. Google never reports a project's plan over the
+  // API, so the operator states it here and the models page prices against it.
+  var TIERS = [
+    { value: "unknown", label: "Unspecified" },
+    { value: "free", label: "Free tier" },
+    { value: "paid", label: "Pay-as-you-go" },
+    { value: "pro", label: "AI Pro / Ultra" }
+  ];
+
+  function setTier(ids, tier, control) {
+    if (!ids.length) { say(el.keyMsg, "Nothing to update.", "err"); return; }
+    if (control) control.disabled = true;
+    api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
+      .then(function (data) {
+        var label = (TIERS.filter(function (t) { return t.value === tier; })[0] || {}).label || tier;
+        say(el.keyMsg, "Plan set to " + label + " for " + data.updated + " key(s).", "ok");
+        state.tiers = data.tiers;
+        if (data.tiers) paintTiers();
+        return refresh();
+      })
+      .catch(function (err) {
+        say(el.keyMsg, "Plan update failed: " + err.message, "err");
+      })
+      .then(function () { if (control) control.disabled = false; });
+  }
+
+  function paintTiers() {
+    var t = state.tiers || {};
+    var parts = [];
+    if (t.free) parts.push(t.free + " free");
+    if (t.paid) parts.push(t.paid + " paid");
+    if (t.pro) parts.push(t.pro + " pro");
+    if (t.unknown) parts.push(t.unknown + " unset");
+    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
+  }
 
   function say(node, text, kind) {
     node.className = "msg " + (kind || "info");
@@ -443,7 +496,7 @@ export const ADMIN_HTML = `<!doctype html>
 
     var table = document.createElement("table");
     var thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
+    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th>Plan</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
     table.appendChild(thead);
     var tbody = document.createElement("tbody");
 
@@ -463,6 +516,22 @@ export const ADMIN_HTML = `<!doctype html>
       badge.className = "badge " + k.status;
       badge.textContent = k.status;
       cStatus.appendChild(badge);
+
+      // Plan is an operator declaration, not an upstream fact; the select is the
+      // input, the stored value is what /pengatur/models prices against.
+      var cTier = cell("Plan");
+      var tierSel = document.createElement("select");
+      tierSel.className = "tier";
+      tierSel.setAttribute("aria-label", "Billing plan for " + k.key);
+      TIERS.forEach(function (t) {
+        var o = document.createElement("option");
+        o.value = t.value;
+        o.textContent = t.label;
+        if ((k.tier || "unknown") === t.value) o.selected = true;
+        tierSel.appendChild(o);
+      });
+      tierSel.addEventListener("change", function () { setTier([k.id], tierSel.value, tierSel); });
+      cTier.appendChild(tierSel);
 
       var cFail = cell("Fails", "right num");
       cFail.textContent = k.failures;
@@ -514,7 +583,7 @@ export const ADMIN_HTML = `<!doctype html>
       cAct.appendChild(testBtn);
       cAct.appendChild(delBtn);
 
-      tr.appendChild(cKey); tr.appendChild(cStatus); tr.appendChild(cFail);
+      tr.appendChild(cKey); tr.appendChild(cStatus); tr.appendChild(cTier); tr.appendChild(cFail);
       tr.appendChild(cCool); tr.appendChild(cUsed); tr.appendChild(cProbe); tr.appendChild(cAct);
       tbody.appendChild(tr);
     });
@@ -605,6 +674,8 @@ export const ADMIN_HTML = `<!doctype html>
     return api("/pengatur/keys")
       .then(function (data) {
         renderStats(data.pool);
+        state.tiers = data.tiers;
+        paintTiers();
         renderKeys(data.keys || []);
         el.statsPanel.hidden = false;
         el.addPanel.hidden = false;
@@ -640,6 +711,8 @@ export const ADMIN_HTML = `<!doctype html>
       .then(function (data) {
         try { localStorage.setItem(STORE, t); } catch (e) {}
         renderStats(data.pool);
+        state.tiers = data.tiers;
+        paintTiers();
         renderKeys(data.keys || []);
         el.statsPanel.hidden = false;
         el.addPanel.hidden = false;

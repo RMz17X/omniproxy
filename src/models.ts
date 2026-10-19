@@ -8,7 +8,7 @@
  */
 
 import { cfg } from "./config.ts";
-import { pick, rawKeyById } from "./pool.ts";
+import { pick, rawKeyById, type KeyTier } from "./pool.ts";
 import { CATALOG, PRICING_AS_OF, catalogFor, type CatalogEntry, type ModelKind } from "./models-catalog.ts";
 import { isZeroQuota } from "./upstream.ts";
 import { log } from "./log.ts";
@@ -165,22 +165,41 @@ export type ModelTestResult = {
   message: string;
   /** true when the tested key was taken from the pool */
   pooled: boolean;
+  /** real token usage reported by upstream, null when the call never billed */
+  inputTokens: number | null;
+  outputTokens: number | null;
+  /** USD cost of that single call at the catalog price, null when unpriced */
+  costUsd: number | null;
+  /** free tier verdict of the model itself, independent of the key's plan */
+  freeTier: boolean | null;
 };
 
 /**
  * Live generateContent ping against ONE model id. Uses a pooled key unless the
  * caller supplies one (the /models page never does; curl may).
+ *
+ * The response is costed from the real `usageMetadata` Google returns, not an
+ * estimate: `totalTokenCount` is what the call would bill. `tier` is the
+ * declared plan of the key that answered, so the console can say "free tier
+ * covers this" instead of quoting a dollar figure the operator may not owe.
  */
-export async function testModel(modelId: string, rawKey?: string): Promise<ModelTestResult> {
+export async function testModel(modelId: string, rawKey?: string, tier: KeyTier = "unknown"): Promise<ModelTestResult> {
   const id = modelId.replace(/^models\//, "").trim();
+  const cat = catalogFor(id);
+  const freeTier = cat ? cat.free : null;
   let key = rawKey?.trim() ?? "";
   const pooled = !key;
   if (!key) {
     const st = await pick();
     if (!st) {
-      return { id, status: "error", httpStatus: 0, latencyMs: 0, reply: "", message: "No selectable key in the pool.", pooled: true };
+      return {
+        id, status: "error", httpStatus: 0, latencyMs: 0, reply: "",
+        message: "No selectable key in the pool.", pooled: true,
+        inputTokens: null, outputTokens: null, costUsd: null, freeTier,
+      };
     }
     key = st.key;
+    if (tier === "unknown") tier = st.tier;
   }
 
   const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${encodeURIComponent(id)}:generateContent`;
@@ -199,7 +218,11 @@ export async function testModel(modelId: string, rawKey?: string): Promise<Model
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (e) {
-    return { id, status: "error", httpStatus: 0, latencyMs: Date.now() - started, reply: "", message: e instanceof Error ? e.message : String(e), pooled };
+    return {
+      id, status: "error", httpStatus: 0, latencyMs: Date.now() - started, reply: "",
+      message: e instanceof Error ? e.message : String(e), pooled,
+      inputTokens: null, outputTokens: null, costUsd: null, freeTier,
+    };
   }
 
   const latencyMs = Date.now() - started;
@@ -211,21 +234,40 @@ export async function testModel(modelId: string, rawKey?: string): Promise<Model
     return e.message ?? body.replace(/\s+/g, " ").slice(0, 220);
   })();
 
+  // usageMetadata is present on billed calls (success or partial). Absent means
+  // the request never reached the model, so no cost may be claimed.
+  const usage = (parsed?.usageMetadata ?? null) as
+    | { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number }
+    | null;
+  const inputTokens = typeof usage?.promptTokenCount === "number" ? usage.promptTokenCount : null;
+  const outputTokens = typeof usage?.candidatesTokenCount === "number"
+    ? usage.candidatesTokenCount + (typeof usage.thoughtsTokenCount === "number" ? usage.thoughtsTokenCount : 0)
+    : null;
+
+  // Cost is only real for a paid plan; a free-tier key bills nothing even when
+  // the catalog carries a list price. Unpriced models stay null.
+  const billable = tier !== "free";
+  const costUsd = billable && cat && cat.inUsd !== null && cat.outUsd !== null && inputTokens !== null && outputTokens !== null
+    ? (inputTokens / 1_000_000) * cat.inUsd + (outputTokens / 1_000_000) * cat.outUsd
+    : null;
+
+  const base = { id, latencyMs, pooled, inputTokens, outputTokens, costUsd, freeTier };
+
   if (res.ok) {
     const cands = (parsed?.candidates ?? []) as Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     const text = (cands[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
-    return { id, status: "ok", httpStatus: res.status, latencyMs, reply: text.slice(0, 200), message: "serving", pooled };
+    return { ...base, status: "ok", httpStatus: res.status, reply: text.slice(0, 200), message: "serving" };
   }
   if (res.status === 404) {
-    return { id, status: "unsupported", httpStatus: 404, latencyMs, reply: "", message: errMsg || "model not available to this key", pooled };
+    return { ...base, status: "unsupported", httpStatus: 404, reply: "", message: errMsg || "model not available to this key" };
   }
   if (res.status === 429) {
-    return { id, status: isZeroQuota(body) ? "zero_quota" : "rate_limited", httpStatus: 429, latencyMs, reply: "", message: errMsg || "rate limited", pooled };
+    return { ...base, status: isZeroQuota(body) ? "zero_quota" : "rate_limited", httpStatus: 429, reply: "", message: errMsg || "rate limited" };
   }
   if (res.status === 400 || res.status === 401 || res.status === 403) {
-    return { id, status: "invalid", httpStatus: res.status, latencyMs, reply: "", message: errMsg || "key rejected", pooled };
+    return { ...base, status: "invalid", httpStatus: res.status, reply: "", message: errMsg || "key rejected" };
   }
-  return { id, status: "error", httpStatus: res.status, latencyMs, reply: "", message: errMsg || `HTTP ${res.status}`, pooled };
+  return { ...base, status: "error", httpStatus: res.status, reply: "", message: errMsg || `HTTP ${res.status}` };
 }
 
 export function pricingMeta() {

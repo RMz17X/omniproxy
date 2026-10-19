@@ -15,7 +15,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, keyId, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, snapshot, storageMode } from "./pool.ts";
+import { addKey, KEY_TIERS, keyId, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, storageMode, tierCounts, type KeyTier } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { MODELS_HTML } from "./models-ui.ts";
 import { listLiveModels, pricingMeta, testModel } from "./models.ts";
@@ -150,7 +150,7 @@ app.get("/pengatur/models/list", async (c) => {
 
 /** Real per-model probe: one generateContent call against the named model. */
 app.post("/pengatur/models/test", async (c) => {
-  let body: { model?: string; key?: string };
+  let body: { model?: string; key?: string; tier?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -159,13 +159,49 @@ app.post("/pengatur/models/test", async (c) => {
   const model = typeof body.model === "string" ? body.model.trim() : "";
   if (!model) return c.json({ error: { message: "`model` is required." } }, 400);
 
-  const result = await testModel(model, typeof body.key === "string" ? body.key : undefined);
+  const tier = (typeof body.tier === "string" ? body.tier : "") as KeyTier;
+  const result = await testModel(
+    model,
+    typeof body.key === "string" ? body.key : undefined,
+    KEY_TIERS.includes(tier) ? tier : "unknown",
+  );
   return c.json({ ok: true, model, result });
 });
 
 app.get("/pengatur/keys", async (c) => {
   const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
-  return c.json({ pool: snap, keys });
+  return c.json({ pool: snap, keys, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+});
+
+/**
+ * Declare the billing plan for a pooled key. Google does not expose the plan
+ * over the API, so the console asks the operator and stores the answer here;
+ * /pengatur/models then prices a test run against the declared plan.
+ *
+ * Body: { id, tier } | { tier, ids: [] } | { tier, all: true }
+ */
+app.post("/pengatur/keys/tier", async (c) => {
+  let body: { id?: string; ids?: string[]; tier?: string; all?: boolean };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  const tier = String(body.tier ?? "") as KeyTier;
+  if (!KEY_TIERS.includes(tier)) {
+    return c.json({ error: { message: `\`tier\` must be one of: ${KEY_TIERS.join(", ")}` } }, 400);
+  }
+
+  let ids: string[] = [];
+  if (body.all) ids = (await listKeys()).map((k) => k.id);
+  else if (Array.isArray(body.ids)) ids = body.ids.filter((x) => typeof x === "string" && x);
+  else if (typeof body.id === "string" && body.id) ids = [body.id];
+  if (!ids.length) return c.json({ error: { message: "`id`, `ids` or `all` is required." } }, 400);
+
+  let updated = 0;
+  for (const id of ids) if (await setTierById(id, tier)) updated++;
+  const keys = await listKeys();
+  return c.json({ ok: true, tier, updated, tiers: tierCounts(keys), pool: await snapshot() });
 });
 
 app.post("/pengatur/keys", async (c) => {

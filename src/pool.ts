@@ -36,8 +36,19 @@ const BREAKER_MS = Number(process.env.REDIS_BREAKER_MS ?? 30_000);
 /** Failure streak that trips the breaker. */
 const BREAKER_TRIP_AT = 2;
 
+/**
+ * Billing tier attached to a key by the operator. Google does not expose which
+ * plan a project is on, and the answer changes what a 429 means (free tier
+ * quota vs paid quota), so the pool stores the operator's declaration instead
+ * of guessing. `unknown` is the safe default: no pricing claims are made.
+ */
+export type KeyTier = "unknown" | "free" | "paid" | "pro";
+
+export const KEY_TIERS: KeyTier[] = ["unknown", "free", "paid", "pro"];
+
 export type KeyState = {
   key: string;
+  tier: KeyTier;
   failures: number;
   /** permanence marker: the key was rejected as invalid by upstream */
   invalid: boolean;
@@ -73,11 +84,14 @@ export function keyId(k: string): string {
 }
 
 const encode = (s: KeyState) =>
-  `f=${s.failures};u=${s.invalid ? 1 : 0};c=${s.cooldownUntil};l=${s.lastUsed};v=${s.invalidations}`;
+  `f=${s.failures};u=${s.invalid ? 1 : 0};c=${s.cooldownUntil};l=${s.lastUsed};v=${s.invalidations};t=${s.tier}`;
+
+const isTier = (v: string): v is KeyTier => v === "free" || v === "paid" || v === "pro";
 
 const decode = (key: string, raw: string | null): KeyState => {
   const out: KeyState = {
     key,
+    tier: "unknown",
     failures: 0,
     invalid: false,
     invalidations: 0,
@@ -95,6 +109,7 @@ const decode = (key: string, raw: string | null): KeyState => {
     else if (k === "c") out.cooldownUntil = Number(v) || 0;
     else if (k === "l") out.lastUsed = Number(v) || 0;
     else if (k === "v") out.invalidations = Number(v) || 0;
+    else if (k === "t" && isTier(v)) out.tier = v;
   }
   return out;
 };
@@ -303,6 +318,34 @@ export async function removeKeyById(id: string): Promise<boolean> {
   return removeKey(hit.key);
 }
 
+/**
+ * Declare the billing plan behind a key. Pricing on /pengatur/models is
+ * computed against this, and the key table shows it, so the operator can tell a
+ * free-tier 429 apart from a paid-quota 429 without leaving the console.
+ */
+export async function setKeyTier(key: string, tier: KeyTier): Promise<boolean> {
+  // Read through `states()` so a cold serverless instance does not overwrite a
+  // persisted failure/cooldown window with a blank state.
+  const all = await states();
+  const st = all.find((s) => s.key === key) ?? decode(key, null);
+  st.tier = tier;
+  return persist(st);
+}
+
+/** Same as setKeyTier but addressed by the admin id, never by raw key. */
+export async function setTierById(id: string, tier: KeyTier): Promise<boolean> {
+  const raw = await rawKeyById(id);
+  if (!raw) return false;
+  return setKeyTier(raw, tier);
+}
+
+/** Tier census for the console strip: how many keys of each declared plan. */
+export function tierCounts(list: KeyView[]): Record<KeyTier, number> {
+  const out: Record<KeyTier, number> = { unknown: 0, free: 0, paid: 0, pro: 0 };
+  for (const k of list) out[k.tier] = (out[k.tier] ?? 0) + 1;
+  return out;
+}
+
 /** Raw key for an id, resolved server-side only. Never returned to a client. */
 export async function rawKeyById(id: string): Promise<string | null> {
   const all = await states();
@@ -327,6 +370,7 @@ export async function markHealthy(key: string): Promise<void> {
 export type KeyView = {
   id: string;
   key: string;
+  tier: KeyTier;
   failures: number;
   invalidations: number;
   cooldownLeftMs: number;
@@ -344,6 +388,7 @@ export async function listKeys(): Promise<KeyView[]> {
   return all.map((s) => ({
     id: keyId(s.key),
     key: maskKey(s.key),
+    tier: s.tier,
     failures: s.failures,
     invalidations: s.invalidations,
     cooldownLeftMs: Math.max(0, s.cooldownUntil - t),
