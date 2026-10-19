@@ -258,7 +258,7 @@ export async function execute(
       continue;
     }
 
-    if (status === 400) {
+    if (status === 400 || status === 404) {
       const body = await safeText(res);
       if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
@@ -266,7 +266,7 @@ export async function execute(
         if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       }
-      // Bad request from the client — no amount of rotation fixes it.
+      // Bad request / Not found from the client — no amount of rotation fixes it.
       return { response: rebuild(res, body), key: st.key, attempts, rotated };
     }
 
@@ -326,11 +326,13 @@ function rebuild(res: Response, body: string): Response {
   const type =
     res.status === 429
       ? "rate_limit_error"
-      : res.status === 401 || res.status === 403
-        ? "auth_error"
-        : res.status >= 500
-          ? "upstream_error"
-          : "invalid_request_error";
+      : res.status === 404
+        ? "not_found_error"
+        : res.status === 401 || res.status === 403
+          ? "auth_error"
+          : res.status >= 500
+            ? "upstream_error"
+            : "invalid_request_error";
 
   h.set("content-type", "application/json");
   return new Response(

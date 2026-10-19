@@ -51,6 +51,13 @@ export async function geminiPassthrough(req: Request, path: string): Promise<Res
 
 function withMeta(res: Response, meta: { attempts: number; rotated: boolean }): Response {
   const h = new Headers(res.headers);
+  // `fetch` has already decoded the body, but the upstream headers still claim
+  // `content-encoding: gzip` / a `content-length` that no longer matches. A
+  // serverless runtime re-reads those headers and drops or truncates the body,
+  // which is why the passthrough answered 200 with an empty payload.
+  h.delete("content-encoding");
+  h.delete("content-length");
+  h.delete("transfer-encoding");
   h.set("x-gkr-attempts", String(meta.attempts));
   h.set("x-gkr-rotated", meta.rotated ? "1" : "0");
   return new Response(res.body, { status: res.status, headers: h });

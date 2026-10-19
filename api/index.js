@@ -5100,7 +5100,7 @@ async function execute(url, init, path, signal) {
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
-    if (status === 400) {
+    if (status === 400 || status === 404) {
       const body = await safeText(res);
       if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
@@ -5150,7 +5150,7 @@ function rebuild(res, body) {
   }
   const g = parsed?.error;
   const message = g?.message ?? (body.slice(0, 400) || `Upstream returned HTTP ${res.status}.`);
-  const type = res.status === 429 ? "rate_limit_error" : res.status === 401 || res.status === 403 ? "auth_error" : res.status >= 500 ? "upstream_error" : "invalid_request_error";
+  const type = res.status === 429 ? "rate_limit_error" : res.status === 404 ? "not_found_error" : res.status === 401 || res.status === 403 ? "auth_error" : res.status >= 500 ? "upstream_error" : "invalid_request_error";
   h.set("content-type", "application/json");
   return new Response(
     JSON.stringify({
@@ -5771,6 +5771,9 @@ async function geminiPassthrough(req, path) {
 }
 function withMeta(res, meta) {
   const h = new Headers(res.headers);
+  h.delete("content-encoding");
+  h.delete("content-length");
+  h.delete("transfer-encoding");
   h.set("x-gkr-attempts", String(meta.attempts));
   h.set("x-gkr-rotated", meta.rotated ? "1" : "0");
   return new Response(res.body, { status: res.status, headers: h });
