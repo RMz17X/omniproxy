@@ -71,7 +71,7 @@ export const ADMIN_HTML = `<!doctype html>
   .card + .card { margin-top: 12px; }
 
   label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], textarea {
+  input[type=password], input[type=text], select, textarea {
     width: 100%;
     background: var(--bg);
     color: var(--text);
@@ -82,7 +82,9 @@ export const ADMIN_HTML = `<!doctype html>
     font-size: 13.5px;
   }
   textarea { resize: vertical; min-height: 84px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6; }
-  input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  select { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; cursor: pointer; }
+  input[type=text] { min-height: 44px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   input::placeholder, textarea::placeholder { color: #5f6875; }
 
   button {
@@ -152,6 +154,14 @@ export const ADMIN_HTML = `<!doctype html>
   @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } tbody tr, button { transition: none; } }
 
+  /* pagination */
+  .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+  .pager:empty { display: none; }
+  .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .pager .pages span { color: var(--muted); padding: 0 2px; }
+  .pager button.small { min-width: 36px; padding: 0 9px; font-variant-numeric: tabular-nums; }
+  .pager button.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; }
+
   .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
   .muted { color: var(--muted); font-size: 12px; }
   .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
@@ -189,6 +199,7 @@ export const ADMIN_HTML = `<!doctype html>
       </div>
     </div>
     <div class="top-right">
+      <a href="/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
       <span id="storage" class="mono">storage: -</span>
       <span id="synced">-</span>
     </div>
@@ -238,7 +249,21 @@ export const ADMIN_HTML = `<!doctype html>
       <button id="testAllBtn" type="button">Test all live keys</button>
       <span id="testAllNote" class="muted"></span>
     </div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="grow">
+        <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
+      </div>
+      <div>
+        <select id="keySize" aria-label="Keys per page">
+          <option value="10">10 / page</option>
+          <option value="25" selected>25 / page</option>
+          <option value="50">50 / page</option>
+          <option value="100">100 / page</option>
+        </select>
+      </div>
+    </div>
     <div id="keysBody" class="card tablewrap"><div class="empty">Loading pool...</div></div>
+    <div id="keyPager" class="pager"></div>
     <div id="keyMsg" class="msg"></div>
 
     <div class="foot">
@@ -274,6 +299,9 @@ export const ADMIN_HTML = `<!doctype html>
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
     keysBody: document.getElementById("keysBody"),
+    keyFilter: document.getElementById("keyFilter"),
+    keySize: document.getElementById("keySize"),
+    keyPager: document.getElementById("keyPager"),
     keyMsg: document.getElementById("keyMsg"),
     testAllBtn: document.getElementById("testAllBtn"),
     testAllNote: document.getElementById("testAllNote"),
@@ -281,7 +309,7 @@ export const ADMIN_HTML = `<!doctype html>
     forget: document.getElementById("forget")
   };
 
-  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {} };
+  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "" };
 
   function say(node, text, kind) {
     node.className = "msg " + (kind || "info");
@@ -367,6 +395,16 @@ export const ADMIN_HTML = `<!doctype html>
 
   function renderKeys(keys) {
     state.keys = keys;
+    drawTable();
+  }
+
+  /**
+   * Draw one page of the pool. Pagination is client-side: the admin endpoint
+   * already returns the whole pool in one request, so slicing here keeps the
+   * 5s auto-refresh from re-fetching per page.
+   */
+  function drawTable() {
+    var keys = state.keys;
     if (!keys.length) {
       el.keysBody.innerHTML = "";
       var box = document.createElement("div");
@@ -379,13 +417,37 @@ export const ADMIN_HTML = `<!doctype html>
       return;
     }
 
+    var filtered = keys.filter(function (k) {
+      if (!state.query) return true;
+      return (k.key + " " + k.id + " " + k.status).toLowerCase().indexOf(state.query) >= 0;
+    });
+
+    if (!filtered.length) {
+      el.keysBody.innerHTML = "";
+      var nbox = document.createElement("div");
+      nbox.className = "empty";
+      var nb = document.createElement("b");
+      nb.textContent = "No key matches this filter";
+      nbox.appendChild(nb);
+      nbox.appendChild(document.createTextNode("Clear the filter box to see the whole pool."));
+      el.keysBody.appendChild(nbox);
+      renderPager(0, 1);
+      return;
+    }
+
+    var pages = Math.max(1, Math.ceil(filtered.length / state.size));
+    if (state.page > pages) state.page = pages;
+    if (state.page < 1) state.page = 1;
+    var start = (state.page - 1) * state.size;
+    var slice = filtered.slice(start, start + state.size);
+
     var table = document.createElement("table");
     var thead = document.createElement("thead");
     thead.innerHTML = "<tr><th>Key</th><th>Status</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
     table.appendChild(thead);
     var tbody = document.createElement("tbody");
 
-    keys.forEach(function (k) {
+    slice.forEach(function (k) {
       var tr = document.createElement("tr");
       tr.setAttribute("data-id", k.id);
 
@@ -460,7 +522,63 @@ export const ADMIN_HTML = `<!doctype html>
     table.appendChild(tbody);
     el.keysBody.innerHTML = "";
     el.keysBody.appendChild(table);
+    renderPager(filtered.length, pages);
     startTicker();
+  }
+
+  /** Numbered pager with a sliding window; Prev/Next never wrap around. */
+  function renderPager(total, pages) {
+    el.keyPager.innerHTML = "";
+    if (!total) return;
+
+    var start = (state.page - 1) * state.size + 1;
+    var end = Math.min(total, state.page * state.size);
+
+    var info = document.createElement("span");
+    info.textContent = "Showing " + start + "-" + end + " of " + total + " keys";
+    el.keyPager.appendChild(info);
+
+    var box = document.createElement("div");
+    box.className = "pages";
+
+    function mk(label, page, disabled, active) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "small" + (active ? " active" : "");
+      b.textContent = label;
+      b.disabled = Boolean(disabled);
+      if (active) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      return b;
+    }
+
+    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
+
+    var win = 5;
+    var from = Math.max(1, state.page - Math.floor(win / 2));
+    var to = Math.min(pages, from + win - 1);
+    from = Math.max(1, to - win + 1);
+
+    if (from > 1) {
+      box.appendChild(mk("1", 1, false, state.page === 1));
+      if (from > 2) {
+        var d = document.createElement("span");
+        d.textContent = "…";
+        box.appendChild(d);
+      }
+    }
+    for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
+    if (to < pages) {
+      if (to < pages - 1) {
+        var d2 = document.createElement("span");
+        d2.textContent = "…";
+        box.appendChild(d2);
+      }
+      box.appendChild(mk(String(pages), pages, false, state.page === pages));
+    }
+
+    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
+    el.keyPager.appendChild(box);
   }
 
   /**
@@ -639,6 +757,22 @@ export const ADMIN_HTML = `<!doctype html>
   el.auto.addEventListener("change", function () { if (el.auto.checked) startAuto(); else stopAuto(); });
   el.addBtn.addEventListener("click", addKeys);
   el.testAllBtn.addEventListener("click", testAll);
+  var filterTimer = null;
+  el.keyFilter.addEventListener("input", function () {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(function () {
+      state.query = el.keyFilter.value.trim().toLowerCase();
+      state.page = 1;
+      drawTable();
+    }, 140);
+  });
+
+  el.keySize.addEventListener("change", function () {
+    state.size = Number(el.keySize.value) || 25;
+    state.page = 1;
+    drawTable();
+  });
+
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";

@@ -432,15 +432,23 @@ export async function markUsed(key: string): Promise<void> {
   await persist(st);
 }
 
+/**
+ * 429 / RESOURCE_EXHAUSTED. A throttled key is a *valid* credential, so this
+ * also clears a previous retirement: if the upstream answered with a quota
+ * verdict for this key, the key is alive and only owes the pool a cooldown.
+ * Leaving `invalid` set here is what permanently buried rate-limited keys.
+ */
 export async function mark429(key: string, cooldownMs: number): Promise<void> {
   const st = local.get(key) ?? decode(key, null);
   st.failures += 1;
   st.invalidations += 1;
   st.cooldownUntil = now() + cooldownMs;
+  st.invalid = false;
   counters.cooldowns++;
-  await persist(st);
+  await persist(st, [["SREM", DEAD_KEY, key]]);
 }
 
+/** 5xx / transport hiccup: park briefly, never retire. */
 export async function markSoftError(key: string, cooldownMs: number): Promise<void> {
   const st = local.get(key) ?? decode(key, null);
   st.failures += 1;

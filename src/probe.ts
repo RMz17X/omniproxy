@@ -30,8 +30,8 @@ export type ProbeResult = {
 };
 
 const TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 8000);
-/** Cheap enough to run on every click; large enough to prove the key serves. */
-const MAX_TOKENS = 8;
+/** Large enough for models with thinking tokens to complete a probe ping. */
+const MAX_TOKENS = 64;
 
 /** Pull a human-readable line out of a Google error envelope. */
 function messageOf(body: string): string {
@@ -45,7 +45,50 @@ function messageOf(body: string): string {
   return body.replace(/\s+/g, " ").trim().slice(0, 220);
 }
 
-export async function probeKey(rawKey: string, model = cfg.defaultModel): Promise<ProbeResult> {
+/**
+ * Models Google may accept when the configured default is refused for a key.
+ * Newly created projects are denied retired models ("no longer available to
+ * new users"), and that verdict is a property of the model, not of the key, so
+ * the probe retries down this list before reporting anything to the pool.
+ */
+const FALLBACK_MODELS = (process.env.PROBE_FALLBACK_MODELS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .concat(["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]);
+
+/** True when the body says the *model* is unavailable, not the key. */
+function isModelUnavailable(body: string): boolean {
+  return /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported/i.test(
+    body,
+  );
+}
+
+export async function probeKey(rawKey: string, model?: string): Promise<ProbeResult> {
+  const chain = [model ?? cfg.defaultModel, ...FALLBACK_MODELS].filter(
+    (m, i, all) => Boolean(m) && all.indexOf(m) === i,
+  );
+
+  let last: ProbeResult | null = null;
+  for (const candidate of chain) {
+    const res = await probeOnce(rawKey, candidate);
+    if (res.status !== "unexpected" || res.httpStatus !== 404) return res;
+    if (!isModelUnavailable(res.message)) return res;
+    // The model was refused; try the next one. Keep the message for the end.
+    last = res;
+  }
+  return (
+    last ?? {
+      status: "unexpected",
+      httpStatus: 0,
+      latencyMs: 0,
+      retryAfterMs: 0,
+      message: "no probe model was accepted",
+    }
+  );
+}
+
+async function probeOnce(rawKey: string, model: string): Promise<ProbeResult> {
   const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
   const started = Date.now();
   const signal = AbortSignal.timeout(TIMEOUT_MS);

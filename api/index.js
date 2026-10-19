@@ -637,8 +637,8 @@ var Response$1 = class Response$12 {
   #body;
   #init;
   [getResponseCache]() {
-    const cache = this[cacheKey];
-    const liveHeaders = cache && cache[2] instanceof Headers ? cache[2] : void 0;
+    const cache2 = this[cacheKey];
+    const liveHeaders = cache2 && cache2[2] instanceof Headers ? cache2[2] : void 0;
     delete this[cacheKey];
     return this[responseCache] ||= new GlobalResponse(this.#body, liveHeaders ? {
       status: this.#init?.status,
@@ -666,10 +666,10 @@ var Response$1 = class Response$12 {
     ];
   }
   get headers() {
-    const cache = this[cacheKey];
-    if (cache) {
-      if (!(cache[2] instanceof Headers)) cache[2] = new Headers(cache[2] || (cache[1] === null ? void 0 : { "content-type": defaultContentType }));
-      return cache[2];
+    const cache2 = this[cacheKey];
+    if (cache2) {
+      if (!(cache2[2] instanceof Headers)) cache2[2] = new Headers(cache2[2] || (cache2[1] === null ? void 0 : { "content-type": defaultContentType }));
+      return cache2[2];
     }
     return this[getResponseCache]().headers;
   }
@@ -3056,15 +3056,15 @@ var cfg = {
   /** hard ceiling for one upstream attempt; also the client-disconnect bound */
   upstreamTimeoutMs: num(process.env.UPSTREAM_TIMEOUT_MS, 12e4),
   /** default model when the client omits one */
-  defaultModel: process.env.DEFAULT_MODEL ?? "gemini-2.5-flash",
-  defaultTtsModel: process.env.DEFAULT_TTS_MODEL ?? "gemini-2.5-flash-preview-tts",
+  defaultModel: process.env.DEFAULT_MODEL ?? "gemini-3.8-flash",
+  defaultTtsModel: process.env.DEFAULT_TTS_MODEL ?? "gemini-3.8-flash-tts",
   defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "text-embedding-004",
   defaultVoice: process.env.DEFAULT_VOICE ?? "Kore",
   adminToken: process.env.ADMIN_TOKEN ?? "",
   /** OpenAI-compatible bearer the clients present ("" = open) */
   clientToken: process.env.CLIENT_TOKEN ?? "",
   /** inject Google Search grounding when the client asks for "search" */
-  searchModel: process.env.SEARCH_MODEL ?? "gemini-2.5-flash"
+  searchModel: process.env.SEARCH_MODEL ?? "gemini-3.8-flash"
 };
 var VOICE_MAP = {
   alloy: "Kore",
@@ -3397,8 +3397,9 @@ async function mark429(key, cooldownMs) {
   st.failures += 1;
   st.invalidations += 1;
   st.cooldownUntil = now() + cooldownMs;
+  st.invalid = false;
   counters.cooldowns++;
-  await persist(st);
+  await persist(st, [["SREM", DEAD_KEY, key]]);
 }
 async function markSoftError(key, cooldownMs) {
   const st = local.get(key) ?? decode(key, null);
@@ -3494,7 +3495,7 @@ var ADMIN_HTML = `<!doctype html>
   .card + .card { margin-top: 12px; }
 
   label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], textarea {
+  input[type=password], input[type=text], select, textarea {
     width: 100%;
     background: var(--bg);
     color: var(--text);
@@ -3505,7 +3506,9 @@ var ADMIN_HTML = `<!doctype html>
     font-size: 13.5px;
   }
   textarea { resize: vertical; min-height: 84px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6; }
-  input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  select { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; cursor: pointer; }
+  input[type=text] { min-height: 44px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
   input::placeholder, textarea::placeholder { color: #5f6875; }
 
   button {
@@ -3575,6 +3578,14 @@ var ADMIN_HTML = `<!doctype html>
   @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } tbody tr, button { transition: none; } }
 
+  /* pagination */
+  .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+  .pager:empty { display: none; }
+  .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .pager .pages span { color: var(--muted); padding: 0 2px; }
+  .pager button.small { min-width: 36px; padding: 0 9px; font-variant-numeric: tabular-nums; }
+  .pager button.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; }
+
   .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
   .muted { color: var(--muted); font-size: 12px; }
   .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
@@ -3612,6 +3623,7 @@ var ADMIN_HTML = `<!doctype html>
       </div>
     </div>
     <div class="top-right">
+      <a href="/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
       <span id="storage" class="mono">storage: -</span>
       <span id="synced">-</span>
     </div>
@@ -3661,7 +3673,21 @@ var ADMIN_HTML = `<!doctype html>
       <button id="testAllBtn" type="button">Test all live keys</button>
       <span id="testAllNote" class="muted"></span>
     </div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="grow">
+        <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
+      </div>
+      <div>
+        <select id="keySize" aria-label="Keys per page">
+          <option value="10">10 / page</option>
+          <option value="25" selected>25 / page</option>
+          <option value="50">50 / page</option>
+          <option value="100">100 / page</option>
+        </select>
+      </div>
+    </div>
     <div id="keysBody" class="card tablewrap"><div class="empty">Loading pool...</div></div>
+    <div id="keyPager" class="pager"></div>
     <div id="keyMsg" class="msg"></div>
 
     <div class="foot">
@@ -3697,6 +3723,9 @@ var ADMIN_HTML = `<!doctype html>
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
     keysBody: document.getElementById("keysBody"),
+    keyFilter: document.getElementById("keyFilter"),
+    keySize: document.getElementById("keySize"),
+    keyPager: document.getElementById("keyPager"),
     keyMsg: document.getElementById("keyMsg"),
     testAllBtn: document.getElementById("testAllBtn"),
     testAllNote: document.getElementById("testAllNote"),
@@ -3704,7 +3733,7 @@ var ADMIN_HTML = `<!doctype html>
     forget: document.getElementById("forget")
   };
 
-  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {} };
+  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "" };
 
   function say(node, text, kind) {
     node.className = "msg " + (kind || "info");
@@ -3790,6 +3819,16 @@ var ADMIN_HTML = `<!doctype html>
 
   function renderKeys(keys) {
     state.keys = keys;
+    drawTable();
+  }
+
+  /**
+   * Draw one page of the pool. Pagination is client-side: the admin endpoint
+   * already returns the whole pool in one request, so slicing here keeps the
+   * 5s auto-refresh from re-fetching per page.
+   */
+  function drawTable() {
+    var keys = state.keys;
     if (!keys.length) {
       el.keysBody.innerHTML = "";
       var box = document.createElement("div");
@@ -3802,13 +3841,37 @@ var ADMIN_HTML = `<!doctype html>
       return;
     }
 
+    var filtered = keys.filter(function (k) {
+      if (!state.query) return true;
+      return (k.key + " " + k.id + " " + k.status).toLowerCase().indexOf(state.query) >= 0;
+    });
+
+    if (!filtered.length) {
+      el.keysBody.innerHTML = "";
+      var nbox = document.createElement("div");
+      nbox.className = "empty";
+      var nb = document.createElement("b");
+      nb.textContent = "No key matches this filter";
+      nbox.appendChild(nb);
+      nbox.appendChild(document.createTextNode("Clear the filter box to see the whole pool."));
+      el.keysBody.appendChild(nbox);
+      renderPager(0, 1);
+      return;
+    }
+
+    var pages = Math.max(1, Math.ceil(filtered.length / state.size));
+    if (state.page > pages) state.page = pages;
+    if (state.page < 1) state.page = 1;
+    var start = (state.page - 1) * state.size;
+    var slice = filtered.slice(start, start + state.size);
+
     var table = document.createElement("table");
     var thead = document.createElement("thead");
     thead.innerHTML = "<tr><th>Key</th><th>Status</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
     table.appendChild(thead);
     var tbody = document.createElement("tbody");
 
-    keys.forEach(function (k) {
+    slice.forEach(function (k) {
       var tr = document.createElement("tr");
       tr.setAttribute("data-id", k.id);
 
@@ -3883,7 +3946,63 @@ var ADMIN_HTML = `<!doctype html>
     table.appendChild(tbody);
     el.keysBody.innerHTML = "";
     el.keysBody.appendChild(table);
+    renderPager(filtered.length, pages);
     startTicker();
+  }
+
+  /** Numbered pager with a sliding window; Prev/Next never wrap around. */
+  function renderPager(total, pages) {
+    el.keyPager.innerHTML = "";
+    if (!total) return;
+
+    var start = (state.page - 1) * state.size + 1;
+    var end = Math.min(total, state.page * state.size);
+
+    var info = document.createElement("span");
+    info.textContent = "Showing " + start + "-" + end + " of " + total + " keys";
+    el.keyPager.appendChild(info);
+
+    var box = document.createElement("div");
+    box.className = "pages";
+
+    function mk(label, page, disabled, active) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "small" + (active ? " active" : "");
+      b.textContent = label;
+      b.disabled = Boolean(disabled);
+      if (active) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      return b;
+    }
+
+    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
+
+    var win = 5;
+    var from = Math.max(1, state.page - Math.floor(win / 2));
+    var to = Math.min(pages, from + win - 1);
+    from = Math.max(1, to - win + 1);
+
+    if (from > 1) {
+      box.appendChild(mk("1", 1, false, state.page === 1));
+      if (from > 2) {
+        var d = document.createElement("span");
+        d.textContent = "\u2026";
+        box.appendChild(d);
+      }
+    }
+    for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
+    if (to < pages) {
+      if (to < pages - 1) {
+        var d2 = document.createElement("span");
+        d2.textContent = "\u2026";
+        box.appendChild(d2);
+      }
+      box.appendChild(mk(String(pages), pages, false, state.page === pages));
+    }
+
+    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
+    el.keyPager.appendChild(box);
   }
 
   /**
@@ -4062,6 +4181,22 @@ var ADMIN_HTML = `<!doctype html>
   el.auto.addEventListener("change", function () { if (el.auto.checked) startAuto(); else stopAuto(); });
   el.addBtn.addEventListener("click", addKeys);
   el.testAllBtn.addEventListener("click", testAll);
+  var filterTimer = null;
+  el.keyFilter.addEventListener("input", function () {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(function () {
+      state.query = el.keyFilter.value.trim().toLowerCase();
+      state.page = 1;
+      drawTable();
+    }, 140);
+  });
+
+  el.keySize.addEventListener("change", function () {
+    state.size = Number(el.keySize.value) || 25;
+    state.page = 1;
+    drawTable();
+  });
+
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
@@ -4075,6 +4210,617 @@ var ADMIN_HTML = `<!doctype html>
 </script>
 </body>
 </html>`;
+
+// src/models-ui.ts
+var MODELS_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Models \xB7 key rotator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230e1116'/%3E%3Cpath d='M8 22V10h3l5 8 5-8h3v12h-2.6v-7.4L16.6 22h-1.2l-4.8-7.4V22z' fill='%2367e8a1'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0b0d11; --panel:#12161c; --panel-2:#161b22; --line:#232a33; --line-soft:#1b2129;
+  --ink:#e6edf3; --muted:#8b98a5; --dim:#5f6b78;
+  --ok:#67e8a1; --warn:#f0c04a; --bad:#f0705f; --cool:#68a8f0; --accent:#67e8a1;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1240px;margin:0 auto;padding:22px 18px 64px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
+h1{font-size:19px;margin:0;letter-spacing:-0.01em}
+.sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+.top-right{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+label.field{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:6px}
+input[type=password],input[type=text],select,textarea{width:100%;background:#0d1116;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:9px 11px;font:inherit;outline:none}
+input:focus,select:focus{border-color:#3a4756;box-shadow:0 0 0 3px rgba(103,232,161,.09)}
+button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:9px 14px;font:inherit;cursor:pointer;transition:background 120ms ease,border-color 120ms ease}
+button:hover:not(:disabled){background:#1d242c;border-color:#33404e}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--accent);color:#08130c;border-color:var(--accent);font-weight:600}
+button.primary:hover:not(:disabled){background:#7defb3}
+button.small{padding:5px 10px;font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:200px}
+.muted{color:var(--muted)}
+.msg{display:none;margin-top:10px;padding:9px 12px;border-radius:7px;font-size:12.5px;border:1px solid transparent}
+.msg.show{display:block}
+.msg.err{background:rgba(240,112,95,.1);border-color:rgba(240,112,95,.35);color:#ffb3a8}
+.msg.ok{background:rgba(103,232,161,.1);border-color:rgba(103,232,161,.32);color:#b9f7d4}
+.msg.info{background:rgba(104,168,240,.1);border-color:rgba(104,168,240,.3);color:#b6d6fb}
+.strip{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);margin:18px 0}
+.kv{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
+.kv:last-child{border-right:0}
+.kv b{display:block;font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kv span{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.kv.ok b{color:var(--ok)} .kv.warn b{color:var(--warn)} .kv.bad b{color:var(--bad)} .kv.cool b{color:var(--cool)}
+.spacer{flex:1;border:0}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 12px}
+.toolbar .grow{min-width:180px}
+.tablewrap{overflow-x:auto;padding:0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);font-weight:600;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel)}
+thead th.right{text-align:right}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{transition:background 120ms ease}
+tbody tr:hover{background:#151a20}
+td.right{text-align:right;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;border:1px solid transparent;white-space:nowrap}
+.badge.free{background:rgba(103,232,161,.13);color:#8ff0bb;border-color:rgba(103,232,161,.3)}
+.badge.paid{background:rgba(240,192,74,.12);color:#f3d489;border-color:rgba(240,192,74,.3)}
+.badge.unknown{background:rgba(139,152,165,.12);color:#a9b5c1;border-color:rgba(139,152,165,.26)}
+.tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;background:#1a212a;color:var(--muted);border:1px solid var(--line);font-family:var(--mono)}
+.mid{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all}
+.dimtext{color:var(--dim);font-size:11.5px}
+.probe{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.probe.ok{color:var(--ok)} .probe.warn{color:var(--warn)} .probe.bad{color:var(--bad)}
+.pager{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.pager .pages{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pager button.small{min-width:34px;text-align:center}
+.pager button.active{background:var(--accent);color:#08130c;border-color:var(--accent);font-weight:700}
+.empty{padding:34px 18px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);margin-bottom:4px}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--muted)}
+.check{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);cursor:pointer}
+.skeleton{height:44px;background:linear-gradient(90deg,#141a21,#1b222b,#141a21);background-size:200% 100%;animation:sh 1.2s ease-in-out infinite;border-radius:6px;margin:6px 12px}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skeleton{animation:none}tbody tr,button{transition:none}}
+@media (max-width:860px){
+  .strip{flex-wrap:wrap}
+  .kv{flex:1 1 45%;border-bottom:1px solid var(--line)}
+  .kv:nth-child(2n){border-right:0}
+  thead{display:none}
+  tbody tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:12px 4px;border-bottom:1px solid var(--line-soft)}
+  tbody td{border:0;padding:0}
+  tbody td::before{content:attr(data-l);display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-top:4px}
+  tbody td.mid{grid-column:1/-1}
+  tbody td.mid::before{display:none}
+  tbody td.act{grid-column:1/-1;text-align:left;margin-top:8px}
+  tbody td.act::before{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Models</h1>
+      <div class="sub">Live inventory from the Generative Language API, joined with published pricing</div>
+    </div>
+    <div class="top-right">
+      <a href="/admin" class="mono">admin</a>
+      <span id="asOf" class="mono">pricing: -</span>
+      <span id="synced">-</span>
+    </div>
+  </header>
+
+  <section id="authPanel" class="card" style="margin-top:18px">
+    <label class="field" for="token">Admin token</label>
+    <div class="row">
+      <div class="grow"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN"></div>
+      <button id="connect" class="primary" type="button">Connect</button>
+    </div>
+    <div id="authHint" class="msg err"></div>
+    <p class="muted" style="margin:12px 0 0">The token stays in this browser and is only sent to this deployment.</p>
+  </section>
+
+  <section id="main" hidden>
+    <div class="strip">
+      <div class="kv ok"><b id="cTotal">0</b><span>models</span></div>
+      <div class="kv ok"><b id="cFree">0</b><span>free tier</span></div>
+      <div class="kv warn"><b id="cPaid">0</b><span>paid only</span></div>
+      <div class="kv cool"><b id="cTested">0</b><span>tested</span></div>
+      <div class="spacer"></div>
+      <div class="kv" style="border-right:0"><b id="cTier">-</b><span>your tier</span></div>
+    </div>
+
+    <div class="card" style="padding:14px">
+      <div class="row">
+        <div style="min-width:210px">
+          <label class="field" for="tier">Your plan</label>
+          <select id="tier">
+            <option value="free">Free tier (no billing)</option>
+            <option value="paid">Pay-as-you-go (billing enabled)</option>
+            <option value="pro">Google AI Pro / Ultra</option>
+            <option value="any">Show everything</option>
+          </select>
+        </div>
+        <div class="grow">
+          <label class="field" for="q">Search</label>
+          <input id="q" type="text" spellcheck="false" placeholder="gemini, tts, image, embedding...">
+        </div>
+        <div style="min-width:150px">
+          <label class="field" for="kind">Capability</label>
+          <select id="kind">
+            <option value="">All</option>
+            <option value="text">Text</option>
+            <option value="tts">TTS</option>
+            <option value="image">Image</option>
+            <option value="video">Video</option>
+            <option value="audio">Audio</option>
+            <option value="live">Live</option>
+            <option value="transcribe">Transcribe</option>
+            <option value="embedding">Embedding</option>
+            <option value="omni">Omni</option>
+            <option value="robotics">Robotics</option>
+          </select>
+        </div>
+        <div style="min-width:130px">
+          <label class="field" for="size">Per page</label>
+          <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
+        </div>
+        <div style="align-self:flex-end">
+          <button id="reload" type="button">Refresh live list</button>
+        </div>
+      </div>
+      <div id="msg" class="msg"></div>
+      <div id="tierNote" class="muted" style="margin-top:10px;font-size:12.5px"></div>
+    </div>
+
+    <div id="body" class="card tablewrap" style="margin-top:14px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div id="pager" class="pager"></div>
+    <div id="rowMsg" class="msg"></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var STORE = "gkr.admin.token";
+  var el = {
+    authPanel: document.getElementById("authPanel"),
+    authHint: document.getElementById("authHint"),
+    token: document.getElementById("token"),
+    connect: document.getElementById("connect"),
+    main: document.getElementById("main"),
+    asOf: document.getElementById("asOf"),
+    synced: document.getElementById("synced"),
+    cTotal: document.getElementById("cTotal"),
+    cFree: document.getElementById("cFree"),
+    cPaid: document.getElementById("cPaid"),
+    cTested: document.getElementById("cTested"),
+    cTier: document.getElementById("cTier"),
+    tier: document.getElementById("tier"),
+    tierNote: document.getElementById("tierNote"),
+    q: document.getElementById("q"),
+    kind: document.getElementById("kind"),
+    size: document.getElementById("size"),
+    reload: document.getElementById("reload"),
+    body: document.getElementById("body"),
+    pager: document.getElementById("pager"),
+    msg: document.getElementById("msg"),
+    rowMsg: document.getElementById("rowMsg")
+  };
+
+  var state = {
+    token: "", models: [], page: 1, size: 25, testing: {}, fetchedAt: 0
+  };
+
+  function say(node, text, kind) {
+    node.className = "msg " + (kind || "info");
+    node.textContent = text;
+    node.classList.add("show");
+  }
+  function hide(node) { node.classList.remove("show"); node.textContent = ""; }
+
+  function api(path, opts) {
+    opts = opts || {};
+    var headers = { "authorization": "Bearer " + state.token };
+    if (opts.body) headers["content-type"] = "application/json";
+    return fetch(path, {
+      method: opts.method || "GET",
+      headers: headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (res) {
+      return res.text().then(function (raw) {
+        var data = null;
+        try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
+        if (!res.ok) {
+          var err = new Error((data && data.error && data.error.message) || ("HTTP " + res.status));
+          err.status = res.status;
+          throw err;
+        }
+        return data;
+      });
+    });
+  }
+
+  function money(v) {
+    if (v === null || v === undefined) return null;
+    return "$" + (v >= 1 ? v.toFixed(2) : v.toFixed(3));
+  }
+
+  function tierMatches(m) {
+    var tier = el.tier.value;
+    if (tier === "any") return true;
+    if (m.free === true) return true;
+    if (m.free === false) return tier !== "free";
+    return true;
+  }
+
+  function visible() {
+    var q = el.q.value.trim().toLowerCase();
+    var kind = el.kind.value;
+    return state.models.filter(function (m) {
+      if (kind && m.kind !== kind) return false;
+      if (!tierMatches(m)) return false;
+      if (!q) return true;
+      return (m.id + " " + m.displayName + " " + m.description).toLowerCase().indexOf(q) >= 0;
+    });
+  }
+
+  function stats() {
+    el.cTotal.textContent = state.models.length;
+    el.cFree.textContent = state.models.filter(function (m) { return m.free === true; }).length;
+    el.cPaid.textContent = state.models.filter(function (m) { return m.free === false; }).length;
+    el.cTested.textContent = Object.keys(state.testing).length;
+  }
+
+  function badgeFor(m) {
+    var b = document.createElement("span");
+    if (m.free === true) { b.className = "badge free"; b.textContent = "free tier"; }
+    else if (m.free === false) { b.className = "badge paid"; b.textContent = "paid only"; }
+    else { b.className = "badge unknown"; b.textContent = "unlisted"; }
+    b.title = m.freeLabel;
+    return b;
+  }
+
+  function cell(label, cls) {
+    var td = document.createElement("td");
+    if (cls) td.className = cls;
+    if (label) td.setAttribute("data-l", label);
+    return td;
+  }
+
+  function probeText(r) {
+    if (!r) return "-";
+    if (r.status === "ok") return "ok " + r.latencyMs + "ms";
+    if (r.status === "unsupported") return "n/a";
+    return r.status.replace(/_/g, " ") + " " + r.httpStatus;
+  }
+  function probeClass(r) {
+    if (!r) return "";
+    if (r.status === "ok") return "ok";
+    if (r.status === "rate_limited" || r.status === "zero_quota") return "warn";
+    return "bad";
+  }
+
+  function render() {
+    var rows = visible();
+    var pages = Math.max(1, Math.ceil(rows.length / state.size));
+    if (state.page > pages) state.page = pages;
+    if (state.page < 1) state.page = 1;
+    var start = (state.page - 1) * state.size;
+    var slice = rows.slice(start, start + state.size);
+
+    stats();
+
+    if (!rows.length) {
+      el.body.innerHTML = "";
+      var box = document.createElement("div");
+      box.className = "empty";
+      var b = document.createElement("b");
+      b.textContent = "No model matches these filters";
+      box.appendChild(b);
+      box.appendChild(document.createTextNode("Clear the search box or switch your plan to Show everything."));
+      el.body.appendChild(box);
+      renderPager(0, 1);
+      return;
+    }
+
+    var table = document.createElement("table");
+    var thead = document.createElement("thead");
+    thead.innerHTML = "<tr><th>Model</th><th>Tier</th><th class='right'>Input /1M</th><th class='right'>Output /1M</th><th class='right'>Ctx</th><th>Test</th><th></th></tr>";
+    table.appendChild(thead);
+    var tbody = document.createElement("tbody");
+
+    slice.forEach(function (m) {
+      var tr = document.createElement("tr");
+
+      var cId = cell(null, "mid");
+      cId.textContent = m.id;
+      var sub = document.createElement("div");
+      sub.className = "dimtext";
+      var bits = [m.displayName];
+      if (m.kind && m.kind !== "text") bits.push(m.kind);
+      if (m.methods && m.methods.length) bits.push(m.methods.join("/"));
+      sub.textContent = bits.join(" \xB7 ");
+      cId.appendChild(sub);
+
+      var cTier = cell("Tier");
+      cTier.appendChild(badgeFor(m));
+
+      var cIn = cell("Input /1M", "right");
+      var inV = money(m.inUsd);
+      if (inV) { cIn.textContent = inV; }
+      else if (m.inRaw) { cIn.innerHTML = "<span class='dimtext'>unit</span>"; }
+      else { cIn.innerHTML = "<span class='dimtext'>-</span>"; }
+      if (m.inRaw) cIn.title = m.inRaw;
+
+      var cOut = cell("Output /1M", "right");
+      var outV = money(m.outUsd);
+      if (outV) { cOut.textContent = outV; }
+      else if (m.outRaw) { cOut.innerHTML = "<span class='dimtext'>unit</span>"; }
+      else { cOut.innerHTML = "<span class='dimtext'>-</span>"; }
+      if (m.outRaw) cOut.title = m.outRaw;
+
+      var cCtx = cell("Ctx", "right");
+      if (m.inputTokenLimit) {
+        cCtx.textContent = (m.inputTokenLimit >= 1000 ? Math.round(m.inputTokenLimit / 1000) + "k" : String(m.inputTokenLimit));
+      } else { cCtx.innerHTML = "<span class='dimtext'>-</span>"; }
+
+      var cProbe = cell("Test");
+      var pv = document.createElement("span");
+      var known = state.testing[m.id];
+      pv.className = "probe " + probeClass(known);
+      pv.textContent = probeText(known);
+      if (known && known.message) pv.title = known.message;
+      cProbe.appendChild(pv);
+
+      var cAct = cell(null, "act");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "small";
+      btn.textContent = "Test model";
+      btn.addEventListener("click", function () { testModel(m, btn, pv); });
+      cAct.appendChild(btn);
+
+      tr.appendChild(cId); tr.appendChild(cTier); tr.appendChild(cIn); tr.appendChild(cOut);
+      tr.appendChild(cCtx); tr.appendChild(cProbe); tr.appendChild(cAct);
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    el.body.innerHTML = "";
+    el.body.appendChild(table);
+    renderPager(rows.length, pages);
+  }
+
+  function renderPager(total, pages) {
+    el.pager.innerHTML = "";
+    if (!total) return;
+    var start = (state.page - 1) * state.size + 1;
+    var end = Math.min(total, state.page * state.size);
+
+    var info = document.createElement("span");
+    info.textContent = "Showing " + start + "-" + end + " of " + total;
+    el.pager.appendChild(info);
+
+    var box = document.createElement("div");
+    box.className = "pages";
+
+    function mk(label, page, disabled, active) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "small" + (active ? " active" : "");
+      b.textContent = label;
+      b.disabled = Boolean(disabled);
+      if (active) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", function () { state.page = page; render(); });
+      return b;
+    }
+
+    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
+
+    var windowSize = 5;
+    var from = Math.max(1, state.page - Math.floor(windowSize / 2));
+    var to = Math.min(pages, from + windowSize - 1);
+    from = Math.max(1, to - windowSize + 1);
+    if (from > 1) {
+      box.appendChild(mk("1", 1, false, state.page === 1));
+      if (from > 2) { var dots = document.createElement("span"); dots.textContent = "\u2026"; box.appendChild(dots); }
+    }
+    for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
+    if (to < pages) {
+      if (to < pages - 1) { var d2 = document.createElement("span"); d2.textContent = "\u2026"; box.appendChild(d2); }
+      box.appendChild(mk(String(pages), pages, false, state.page === pages));
+    }
+
+    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
+    el.pager.appendChild(box);
+  }
+
+  function load(force) {
+    el.reload.disabled = true;
+    say(el.msg, force ? "Re-querying the live model list..." : "Loading live model list...", "info");
+    var url = "/admin/models" + (force ? "?refresh=1" : "");
+    api(url).then(function (data) {
+      state.models = data.models || [];
+      state.fetchedAt = Date.now();
+      el.asOf.textContent = "pricing: " + (data.pricing && data.pricing.asOf ? data.pricing.asOf : "-");
+      el.synced.textContent = "synced " + new Date().toLocaleTimeString();
+      var live = data.source || "upstream";
+      say(el.msg, state.models.length + " models from " + live + (data.cached ? " (cached)" : ""), "ok");
+      setTimeout(function () { hide(el.msg); }, 4000);
+      el.main.hidden = false;
+      el.authPanel.hidden = true;
+      render();
+    }).catch(function (err) {
+      if (err.status === 401) { lock("Token rejected. Enter the admin token."); return; }
+      say(el.msg, "Could not load models: " + err.message, "err");
+      el.main.hidden = false;
+      el.body.innerHTML = "";
+      var box = document.createElement("div");
+      box.className = "empty";
+      box.innerHTML = "<b>Live list unavailable</b>";
+      box.appendChild(document.createTextNode("The pool has no key that can answer the model list right now. Add or revive a key in /admin."));
+      el.body.appendChild(box);
+    }).then(function () { el.reload.disabled = false; });
+  }
+
+  function lock(reason) {
+    state.token = "";
+    try { localStorage.removeItem(STORE); } catch (e) {}
+    el.authPanel.hidden = false;
+    el.main.hidden = true;
+    el.token.value = "";
+    if (reason) say(el.authHint, reason, "err");
+    el.token.focus();
+  }
+
+  function connect() {
+    var token = el.token.value.trim();
+    if (!token) { say(el.authHint, "Enter the admin token.", "err"); return; }
+    state.token = token;
+    el.connect.disabled = true;
+    hide(el.authHint);
+    api("/admin/models").then(function () {
+      try { localStorage.setItem(STORE, token); } catch (e) {}
+      el.main.hidden = false;
+      el.authPanel.hidden = true;
+      load(false);
+    }).catch(function (err) {
+      if (err.status === 401) say(el.authHint, "Token rejected.", "err");
+      else say(el.authHint, "Connection failed: " + err.message, "err");
+    }).then(function () { el.connect.disabled = false; });
+  }
+
+  function testModel(m, btn, node) {
+    btn.disabled = true;
+    node.className = "probe";
+    node.textContent = "testing...";
+    say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "info");
+    api("/admin/models/test", { method: "POST", body: { model: m.id } }).then(function (data) {
+      var r = data.result;
+      state.testing[m.id] = r;
+      node.className = "probe " + probeClass(r);
+      node.textContent = probeText(r);
+      node.title = r.message || "";
+      if (r.status === "ok") {
+        say(el.rowMsg, m.id + " served in " + r.latencyMs + "ms: " + (r.reply || "(empty reply)"), "ok");
+      } else {
+        say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "info" : "err");
+      }
+      stats();
+    }).catch(function (err) {
+      node.className = "probe bad";
+      node.textContent = "error";
+      say(el.rowMsg, "Test failed: " + err.message, "err");
+      if (err.status === 401) lock("Token rejected.");
+    }).then(function () { btn.disabled = false; });
+  }
+
+  el.token.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
+  el.connect.addEventListener("click", connect);
+  el.reload.addEventListener("click", function () { load(true); });
+
+  el.size.addEventListener("change", function () {
+    state.size = Number(el.size.value) || 25;
+    state.page = 1;
+    render();
+  });
+
+  var debounce = null;
+  el.q.addEventListener("input", function () {
+    clearTimeout(debounce);
+    debounce = setTimeout(function () { state.page = 1; render(); }, 140);
+  });
+
+  el.kind.addEventListener("change", function () { state.page = 1; render(); });
+
+  el.tier.addEventListener("change", function () {
+    var t = el.tier.value;
+    try { localStorage.setItem("gkr.tier", t); } catch (e) {}
+    var label = { free: "Free tier", paid: "Pay-as-you-go", pro: "Google AI Pro/Ultra", any: "All models" }[t];
+    el.cTier.textContent = label;
+    if (t === "free") el.tierNote.textContent = "Models marked paid only need billing enabled on the Google Cloud project behind the key.";
+    else if (t === "pro") el.tierNote.textContent = "AI Pro/Ultra quotas apply inside the Google AI Studio / Gemini app, not to raw API keys. API keys bill through Cloud.";
+    else if (t === "paid") el.tierNote.textContent = "Paid tier prices below are per 1M tokens in USD, from Google's published table.";
+    else el.tierNote.textContent = "Showing every model Google returns, regardless of billing.";
+    state.page = 1;
+    render();
+  });
+
+  var saved = null;
+  try { saved = localStorage.getItem(STORE); } catch (e) {}
+  var savedTier = null;
+  try { savedTier = localStorage.getItem("gkr.tier"); } catch (e) {}
+  if (savedTier) el.tier.value = savedTier;
+  if (saved) {
+    state.token = saved;
+    el.token.value = saved;
+    api("/admin/models").then(function () {
+      el.main.hidden = false;
+      el.authPanel.hidden = true;
+      load(false);
+    }).catch(function () { lock("Saved token is no longer valid."); });
+  } else {
+    el.token.focus();
+  }
+  el.tier.dispatchEvent(new Event("change"));
+})();
+</script>
+</body>
+</html>`;
+
+// src/models-catalog.ts
+var PRICING_AS_OF = "2026-10-19";
+var CATALOG = [
+  { "id": "gemini-4-argon", "name": "Gemini 4 Argon", "kind": "text", "free": false, "freeLabel": "Not available", "inUsd": 2, "outUsd": 10, "inRaw": "$2.00 through November 30, 2026. | $4.00 starting December 1, 2026.", "outRaw": "$10.00 through November 30, 2026. | $20.00 starting December 1, 2026." },
+  { "id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.75, "outUsd": 3.75, "inRaw": "$0.75 through December 31, 2026. | $1.50 starting January 1, 2027.", "outRaw": "$3.75 through December 31, 2026. | $7.50 starting January 1, 2027." },
+  { "id": "gemini-3.6-flash", "name": "Gemini 3.6 Flash", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.75, "outUsd": 3.75, "inRaw": "$0.75 through December 31, 2026. | $1.50 starting January 1, 2027.", "outRaw": "$3.75 through December 31, 2026. | $7.50 starting January 1, 2027." },
+  { "id": "gemini-3.8-live", "name": "Gemini 3.8 Live, Gemini 3.8 Live Extended Thinking, and Gemini 3.1 Flash Live Preview", "kind": "live", "free": true, "freeLabel": "Free of charge", "inUsd": 0.75, "outUsd": 4.5, "inRaw": "$0.75 (text) | $3.00 or $0.005/min (audio) | $1.00 or $0.002/min (image/video)", "outRaw": "$4.50 (text) | $12.00 or $0.018/min (audio)" },
+  { "id": "gemini-3.5-live-translate-preview", "name": "Gemini 3.5 Live Translate", "kind": "live", "free": true, "freeLabel": "Free of charge", "inUsd": 3.5, "outUsd": 21, "inRaw": "$3.50 or $0.0053/min* (audio)", "outRaw": "$21.00 or $0.0315/min* (audio)" },
+  { "id": "gemini-3.5-transcribe-live", "name": "Gemini 3.5 Transcribe Live", "kind": "live", "free": true, "freeLabel": "Free of charge", "inUsd": 3.5, "outUsd": 21, "inRaw": "$3.50 or $0.005/min* (audio)", "outRaw": "$21.00 or $0.004/min* (text)" },
+  { "id": "gemini-3.5-transcribe", "name": "Gemini 3.5 Transcribe", "kind": "transcribe", "free": true, "freeLabel": "Free of charge", "inUsd": 2, "outUsd": 12, "inRaw": "$2.00 or $0.003/min* (audio)", "outRaw": "$12.00 or $0.002/min* (text)" },
+  { "id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.3, "outUsd": 2.5, "inRaw": "$0.30 (text / image / video / audio)", "outRaw": "$2.50" },
+  { "id": "gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash-Lite", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.25, "outUsd": 1.5, "inRaw": "$0.25 (text / image / video) | $0.50 (audio)", "outRaw": "$1.50" },
+  { "id": "gemini-omni-1.1-flash", "name": "Gemini Omni Flash", "kind": "omni", "free": false, "freeLabel": "Not available", "inUsd": 1.5, "outUsd": 9, "inRaw": "$1.50 (text / image / video / audio)", "outRaw": "$9.00 (text) | $17.50 (video)*" },
+  { "id": "gemini-omni-flash-preview", "name": "Gemini Omni Flash Preview", "kind": "omni", "free": false, "freeLabel": "Not available", "inUsd": 1.5, "outUsd": 9, "inRaw": "$1.50 (text / image / video / audio)", "outRaw": "$9.00 (text) | $17.50 (video)*" },
+  { "id": "gemini-3.1-pro-preview", "name": "Gemini 3.1 Pro Preview", "kind": "text", "free": false, "freeLabel": "Not available", "inUsd": 2, "outUsd": 12, "inRaw": "$2.00, prompts 200k tokens", "outRaw": "$12.00, prompts 200k" },
+  { "id": "gemini-nano-banana-2.1", "name": "Gemini Nano Banana 2.1 \u{1F34C}", "kind": "text", "free": false, "freeLabel": "Not available", "inUsd": 1.5, "outUsd": 7.5, "inRaw": "$1.50 (text/image/video)", "outRaw": "$7.50 (text and thinking) | $30.00 (images) | Equivalent to $0.0336 per 1K image*, | $0.0504 per 2K image*, | and $0.113 per 4K image*." },
+  { "id": "gemini-3.1-flash-image", "name": "Gemini 3.1 Flash Image (Nano Banana 2) \u{1F34C}", "kind": "image", "free": false, "freeLabel": "Not available", "inUsd": 0.5, "outUsd": 3, "inRaw": "$0.50 (text/image)", "outRaw": "$3 (text and thinking) | $60.00 (images) | Equivalent to $0.045 per 0.5K image* | $0.067 per 1K image*, $0.101 per 2K image*, and $0.151 per 4K image*." },
+  { "id": "gemini-3.1-flash-lite-image", "name": "Gemini 3.1 Flash Lite Image (Nano Banana 2 Lite) \u{1F34C}", "kind": "image", "free": false, "freeLabel": "Not available", "inUsd": 0.25, "outUsd": 1.5, "inRaw": "$0.25 (text/image/video)", "outRaw": "$1.50 (text and thinking) | $30.00 (images) | Equivalent to $0.0336 per 1K resolution image*" },
+  { "id": "gemini-3.8-flash-tts", "name": "Gemini 3.8 Flash TTS", "kind": "tts", "free": true, "freeLabel": "Free of charge", "inUsd": 0.5, "outUsd": 9, "inRaw": "$0.50 (text) through December 31, 2026. | $1.00 (text) starting January 1, 2027.", "outRaw": "$9.00 (audio) through December 31, 2026. | $18.00 (audio) starting January 1, 2027. | Equivalent to $0.00225 per 10s audio* through December 31, 2026. | Equivalent to $0.0045 per 10s audio* starting January 1, 2027." },
+  { "id": "gemini-3.8-flash-lite-tts", "name": "Gemini 3.8 Flash-Lite TTS", "kind": "tts", "free": true, "freeLabel": "Free of charge", "inUsd": 0.5, "outUsd": 6, "inRaw": "$0.50 (text) through December 31, 2026. | $1.00 (text) starting January 1, 2027.", "outRaw": "$6.00 (audio) through December 31, 2026. | $12.00 (audio) starting January 1, 2027. | Equivalent to $0.0015 per 10s audio* through December 31, 2026. | Equivalent to $0.003 per 10s audio* starting January 1, 2027." },
+  { "id": "gemini-3.1-flash-tts-preview", "name": "Gemini 3.1 Flash TTS Preview", "kind": "tts", "free": true, "freeLabel": "Free of charge", "inUsd": 1, "outUsd": 20, "inRaw": "$1.00 (text)", "outRaw": "$20.00 (audio)" },
+  { "id": "gemini-3-flash-preview", "name": "Gemini 3 Flash Preview", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.5, "outUsd": 3, "inRaw": "$0.50 (text / image / video) | $1.00 (audio)", "outRaw": "$3.00" },
+  { "id": "gemini-3-pro-image", "name": "Gemini 3 Pro Image (Nano Banana Pro) \u{1F34C}", "kind": "image", "free": false, "freeLabel": "Not available", "inUsd": 2, "outUsd": 12, "inRaw": "$2.00 (text/image), | equivalent to $0.0011 per image*", "outRaw": "$12.00 (text and thinking) | $120.00 (images) | Equivalent to $0.134 per 1K/2K image** | and $0.24 per 4K image**" },
+  { "id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 1.25, "outUsd": 10, "inRaw": "$1.25, prompts 200k tokens", "outRaw": "$10.00, prompts 200k" },
+  { "id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.3, "outUsd": 2.5, "inRaw": "$0.30 (text / image / video) | $1.00 (audio)", "outRaw": "$2.50" },
+  { "id": "gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash-Lite", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.1, "outUsd": 0.4, "inRaw": "$0.10 (text / image / video) | $0.30 (audio)", "outRaw": "$0.40" },
+  { "id": "gemini-2.5-flash-native-audio", "name": "Gemini 2.5 Flash Native Audio (Live API)", "kind": "text", "free": true, "freeLabel": "Free of charge", "inUsd": 0.5, "outUsd": 2, "inRaw": "$0.50 (text) | $3.00 (audio / video)", "outRaw": "$2.00 (text) | $12.00 (audio)" },
+  { "id": "gemini-2.5-flash-image", "name": "Gemini 2.5 Flash Image (Nano Banana) \u{1F34C}", "kind": "image", "free": false, "freeLabel": "Not available", "inUsd": 0.3, "outUsd": 0.039, "inRaw": "$0.30 (text / image)", "outRaw": "$0.039 per image*" },
+  { "id": "gemini-2.5-flash-preview-tts", "name": "Gemini 2.5 Flash Preview TTS", "kind": "tts", "free": true, "freeLabel": "Free of charge", "inUsd": 0.5, "outUsd": 10, "inRaw": "$0.50 (text)", "outRaw": "$10.00 (audio)" },
+  { "id": "gemini-2.5-pro-preview-tts", "name": "Gemini 2.5 Pro Preview TTS", "kind": "tts", "free": false, "freeLabel": "Not available", "inUsd": 1, "outUsd": 20, "inRaw": "$1.00 (text)", "outRaw": "$20.00 (audio)" },
+  { "id": "veo-3.1", "name": "Veo 3.1", "kind": "video", "free": null, "freeLabel": "unknown", "inUsd": null, "outUsd": null, "inRaw": "", "outRaw": "" },
+  { "id": "lyria-3-5", "name": "Lyria 3.5", "kind": "audio", "free": null, "freeLabel": "unknown", "inUsd": null, "outUsd": null, "inRaw": "", "outRaw": "" },
+  { "id": "lyria-3", "name": "Lyria 3", "kind": "audio", "free": null, "freeLabel": "unknown", "inUsd": null, "outUsd": null, "inRaw": "", "outRaw": "" },
+  { "id": "gemini-embedding-2", "name": "Gemini Embedding 2", "kind": "embedding", "free": null, "freeLabel": "unknown", "inUsd": null, "outUsd": null, "inRaw": "", "outRaw": "" },
+  { "id": "gemini-robotics-er-2", "name": "Gemini Robotics ER 2 Preview", "kind": "robotics", "free": true, "freeLabel": "Free of charge", "inUsd": 1, "outUsd": 5, "inRaw": "$1.00 (text / image / video / audio) through December 31, 2026. | $2.00 (text / image / video / audio) starting January 1, 2027.", "outRaw": "$5.00 through December 31, 2026. | $10.00 starting January 1, 2027." },
+  { "id": "gemini-robotics-er-2-streaming", "name": "Gemini Robotics ER 2 Streaming Preview", "kind": "robotics", "free": true, "freeLabel": "Free of charge", "inUsd": 1, "outUsd": 5, "inRaw": "$1.00 (text / image / video / audio) through December 31, 2026. | $2.00 (text / image / video / audio) starting January 1, 2027.", "outRaw": "$5.00 through December 31, 2026. | $10.00 starting January 1, 2027." }
+];
+var BY_ID = new Map(CATALOG.map((m) => [m.id, m]));
+function catalogFor(id) {
+  return BY_ID.get(id.replace(/^models\//, "")) ?? null;
+}
 
 // src/upstream.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -4100,6 +4846,9 @@ function isInvalidKeyText(body) {
   return /API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i.test(body);
 }
 function isZeroQuota(body) {
+  if (/requests?\s*per\s*minute|per_minute|\b1\/min\b|RequestsPerMinute/i.test(body)) {
+    return false;
+  }
   return /"quota_limit_value"\s*:\s*"?0"?/.test(body) || /quota_limit_value[:=]\s*0\b/.test(body);
 }
 function headersFor(src, key) {
@@ -4305,9 +5054,168 @@ function jsonError(status, code, message) {
   });
 }
 
+// src/models.ts
+var CACHE_MS = Number(process.env.MODELS_CACHE_MS ?? 3e5);
+var TIMEOUT_MS = Number(process.env.MODELS_TIMEOUT_MS ?? 1e4);
+var cache = null;
+function kindOf(id, methods) {
+  const c = catalogFor(id);
+  if (c) return c.kind;
+  const m = id.toLowerCase();
+  if (m.includes("embedding")) return "embedding";
+  if (m.includes("tts")) return "tts";
+  if (m.includes("image") || m.includes("imagen") || m.includes("banana")) return "image";
+  if (m.includes("veo")) return "video";
+  if (m.includes("lyria")) return "audio";
+  if (m.includes("live")) return "live";
+  if (m.includes("transcribe")) return "transcribe";
+  if (methods.some((x) => /predict|generateVideo/i.test(x))) return "video";
+  if (methods.some((x) => /embedContent|embedText/i.test(x))) return "embedding";
+  return "text";
+}
+async function candidateKeys(limit = 6) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = 0; i < limit; i++) {
+    const st = await pick(seen);
+    if (!st) break;
+    seen.add(st.key);
+    out.push(st.key);
+  }
+  return out;
+}
+async function fetchWithKey(key) {
+  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models?pageSize=1000`;
+  return fetch(url, {
+    method: "GET",
+    headers: { "x-goog-api-key": key },
+    signal: AbortSignal.timeout(TIMEOUT_MS)
+  });
+}
+async function listLiveModels(force = false) {
+  if (!force && cache && Date.now() - cache.at < CACHE_MS) {
+    return { models: cache.models, source: cache.source, cached: true };
+  }
+  const keys = await candidateKeys();
+  if (!keys.length) {
+    const err2 = new Error("Pool has no selectable key, cannot query the model list.");
+    err2.code = "empty_pool";
+    throw err2;
+  }
+  let lastErr = "";
+  for (const key of keys) {
+    let res;
+    try {
+      res = await fetchWithKey(key);
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+      continue;
+    }
+    const body = await res.text().catch(() => "");
+    if (!res.ok) {
+      lastErr = `HTTP ${res.status}: ${body.slice(0, 180)}`;
+      log("warn", "models.list_key_failed", { status: res.status, zeroQuota: isZeroQuota(body) });
+      continue;
+    }
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      lastErr = "Upstream returned non-JSON model list.";
+      continue;
+    }
+    const models2 = (payload.models ?? []).map((raw2) => {
+      const full = String(raw2.name ?? "");
+      const id = full.replace(/^models\//, "");
+      const methods = Array.isArray(raw2.supportedGenerationMethods) ? raw2.supportedGenerationMethods : [];
+      const cat = catalogFor(id);
+      return {
+        id,
+        name: full,
+        displayName: String(raw2.displayName ?? id),
+        description: String(raw2.description ?? ""),
+        version: String(raw2.version ?? ""),
+        methods,
+        inputTokenLimit: typeof raw2.inputTokenLimit === "number" ? raw2.inputTokenLimit : null,
+        outputTokenLimit: typeof raw2.outputTokenLimit === "number" ? raw2.outputTokenLimit : null,
+        kind: kindOf(id, methods),
+        free: cat?.free ?? null,
+        freeLabel: cat?.freeLabel ?? "not published",
+        inUsd: cat?.inUsd ?? null,
+        outUsd: cat?.outUsd ?? null,
+        inRaw: cat?.inRaw ?? "",
+        outRaw: cat?.outRaw ?? ""
+      };
+    });
+    models2.sort((a, b) => a.id.localeCompare(b.id));
+    cache = { at: Date.now(), models: models2, source: "generativelanguage.googleapis.com" };
+    return { models: models2, source: cache.source, cached: false };
+  }
+  if (cache) return { models: cache.models, source: cache.source + " (stale)", cached: true };
+  throw new Error(lastErr || "Could not list models with any pooled key.");
+}
+async function testModel(modelId, rawKey) {
+  const id = modelId.replace(/^models\//, "").trim();
+  let key = rawKey?.trim() ?? "";
+  const pooled = !key;
+  if (!key) {
+    const st = await pick();
+    if (!st) {
+      return { id, status: "error", httpStatus: 0, latencyMs: 0, reply: "", message: "No selectable key in the pool.", pooled: true };
+    }
+    key = st.key;
+  }
+  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${encodeURIComponent(id)}:generateContent`;
+  const started = Date.now();
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Reply with exactly: OK" }] }],
+        generationConfig: { maxOutputTokens: 64, temperature: 0 }
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS)
+    });
+  } catch (e) {
+    return { id, status: "error", httpStatus: 0, latencyMs: Date.now() - started, reply: "", message: e instanceof Error ? e.message : String(e), pooled };
+  }
+  const latencyMs = Date.now() - started;
+  const body = await res.text().catch(() => "");
+  let parsed = null;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    parsed = null;
+  }
+  const errMsg = (() => {
+    const e = parsed?.error ?? {};
+    return e.message ?? body.replace(/\s+/g, " ").slice(0, 220);
+  })();
+  if (res.ok) {
+    const cands = parsed?.candidates ?? [];
+    const text = (cands[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("").trim();
+    return { id, status: "ok", httpStatus: res.status, latencyMs, reply: text.slice(0, 200), message: "serving", pooled };
+  }
+  if (res.status === 404) {
+    return { id, status: "unsupported", httpStatus: 404, latencyMs, reply: "", message: errMsg || "model not available to this key", pooled };
+  }
+  if (res.status === 429) {
+    return { id, status: isZeroQuota(body) ? "zero_quota" : "rate_limited", httpStatus: 429, latencyMs, reply: "", message: errMsg || "rate limited", pooled };
+  }
+  if (res.status === 400 || res.status === 401 || res.status === 403) {
+    return { id, status: "invalid", httpStatus: res.status, latencyMs, reply: "", message: errMsg || "key rejected", pooled };
+  }
+  return { id, status: "error", httpStatus: res.status, latencyMs, reply: "", message: errMsg || `HTTP ${res.status}`, pooled };
+}
+function pricingMeta() {
+  return { asOf: PRICING_AS_OF, entries: CATALOG.length };
+}
+
 // src/probe.ts
-var TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
-var MAX_TOKENS = 8;
+var TIMEOUT_MS2 = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
+var MAX_TOKENS = 64;
 function messageOf(body) {
   try {
     const parsed = JSON.parse(body);
@@ -4317,10 +5225,35 @@ function messageOf(body) {
   }
   return body.replace(/\s+/g, " ").trim().slice(0, 220);
 }
-async function probeKey(rawKey, model = cfg.defaultModel) {
+var FALLBACK_MODELS = (process.env.PROBE_FALLBACK_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean).concat(["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]);
+function isModelUnavailable(body) {
+  return /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported/i.test(
+    body
+  );
+}
+async function probeKey(rawKey, model) {
+  const chain = [model ?? cfg.defaultModel, ...FALLBACK_MODELS].filter(
+    (m, i, all) => Boolean(m) && all.indexOf(m) === i
+  );
+  let last = null;
+  for (const candidate of chain) {
+    const res = await probeOnce(rawKey, candidate);
+    if (res.status !== "unexpected" || res.httpStatus !== 404) return res;
+    if (!isModelUnavailable(res.message)) return res;
+    last = res;
+  }
+  return last ?? {
+    status: "unexpected",
+    httpStatus: 0,
+    latencyMs: 0,
+    retryAfterMs: 0,
+    message: "no probe model was accepted"
+  };
+}
+async function probeOnce(rawKey, model) {
   const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
   const started = Date.now();
-  const signal = AbortSignal.timeout(TIMEOUT_MS);
+  const signal = AbortSignal.timeout(TIMEOUT_MS2);
   let res;
   try {
     res = await fetch(url, {
@@ -4978,6 +5911,37 @@ app.post("/v1/audio/speech", (c) => speech(c.req.raw));
 app.get("/v1/models", () => models());
 app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.url).pathname));
 app.get("/admin", (c) => c.html(ADMIN_HTML));
+app.get("/models", (c) => c.html(MODELS_HTML));
+app.get("/admin/models", async (c) => {
+  const force = new URL(c.req.url).searchParams.get("refresh") === "1";
+  try {
+    const { models: models2, source, cached } = await listLiveModels(force);
+    return c.json({
+      ok: true,
+      count: models2.length,
+      models: models2,
+      source,
+      cached,
+      pricing: pricingMeta()
+    });
+  } catch (err2) {
+    const message = err2 instanceof Error ? err2.message : String(err2);
+    const status = err2.code === "empty_pool" ? 503 : 502;
+    return c.json({ error: { message } }, status);
+  }
+});
+app.post("/admin/models/test", async (c) => {
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  const model = typeof body.model === "string" ? body.model.trim() : "";
+  if (!model) return c.json({ error: { message: "`model` is required." } }, 400);
+  const result = await testModel(model, typeof body.key === "string" ? body.key : void 0);
+  return c.json({ ok: true, model, result });
+});
 app.get("/admin/keys", async (c) => {
   const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
   return c.json({ pool: snap, keys });

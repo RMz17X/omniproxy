@@ -24,15 +24,15 @@ export const cfg = {
   /** hard ceiling for one upstream attempt; also the client-disconnect bound */
   upstreamTimeoutMs: num(process.env.UPSTREAM_TIMEOUT_MS, 120_000),
   /** default model when the client omits one */
-  defaultModel: process.env.DEFAULT_MODEL ?? "gemini-2.5-flash",
-  defaultTtsModel: process.env.DEFAULT_TTS_MODEL ?? "gemini-2.5-flash-preview-tts",
+  defaultModel: process.env.DEFAULT_MODEL ?? "gemini-3.8-flash",
+  defaultTtsModel: process.env.DEFAULT_TTS_MODEL ?? "gemini-3.8-flash-tts",
   defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "text-embedding-004",
   defaultVoice: process.env.DEFAULT_VOICE ?? "Kore",
   adminToken: process.env.ADMIN_TOKEN ?? "",
   /** OpenAI-compatible bearer the clients present ("" = open) */
   clientToken: process.env.CLIENT_TOKEN ?? "",
   /** inject Google Search grounding when the client asks for "search" */
-  searchModel: process.env.SEARCH_MODEL ?? "gemini-2.5-flash",
+  searchModel: process.env.SEARCH_MODEL ?? "gemini-3.8-flash",
 };
 
 export const VOICE_MAP: Record<string, string> = {

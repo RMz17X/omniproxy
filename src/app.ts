@@ -17,6 +17,8 @@ import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
 import { addKey, keyId, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, snapshot, storageMode } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
+import { MODELS_HTML } from "./models-ui.ts";
+import { listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey } from "./probe.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { chatCompletions, models } from "./openai.ts";
@@ -94,6 +96,47 @@ app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.ur
 // The console shell is public by design: it holds no data and asks for the
 // admin token itself. Everything it renders comes from /admin/keys.
 app.get("/admin", (c) => c.html(ADMIN_HTML));
+
+/** Model inventory console. The shell is public; its data endpoints are not. */
+app.get("/models", (c) => c.html(MODELS_HTML));
+
+/**
+ * Live model list. Queried from the Generative Language API with a pooled key
+ * and cached briefly; pricing/free-tier columns come from the static catalog.
+ */
+app.get("/admin/models", async (c) => {
+  const force = new URL(c.req.url).searchParams.get("refresh") === "1";
+  try {
+    const { models, source, cached } = await listLiveModels(force);
+    return c.json({
+      ok: true,
+      count: models.length,
+      models,
+      source,
+      cached,
+      pricing: pricingMeta(),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const status = (err as Error & { code?: string }).code === "empty_pool" ? 503 : 502;
+    return c.json({ error: { message } }, status);
+  }
+});
+
+/** Real per-model probe: one generateContent call against the named model. */
+app.post("/admin/models/test", async (c) => {
+  let body: { model?: string; key?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  const model = typeof body.model === "string" ? body.model.trim() : "";
+  if (!model) return c.json({ error: { message: "`model` is required." } }, 400);
+
+  const result = await testModel(model, typeof body.key === "string" ? body.key : undefined);
+  return c.json({ ok: true, model, result });
+});
 
 app.get("/admin/keys", async (c) => {
   const [keys, snap] = await Promise.all([listKeys(), snapshot()]);

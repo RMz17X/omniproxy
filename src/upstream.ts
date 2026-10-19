@@ -66,6 +66,10 @@ export function isInvalidKeyText(body: string): boolean {
  * project, so it is retired permanently instead.
  */
 export function isZeroQuota(body: string): boolean {
+  // A per-minute rate limit resets every minute; it is NOT permanent zero quota.
+  if (/requests?\s*per\s*minute|per_minute|\b1\/min\b|RequestsPerMinute/i.test(body)) {
+    return false;
+  }
   return /"quota_limit_value"\s*:\s*"?0"?/.test(body) || /quota_limit_value[:=]\s*0\b/.test(body);
 }
 
