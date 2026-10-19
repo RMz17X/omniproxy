@@ -301,12 +301,50 @@ async function safeText(res: Response): Promise<string> {
   }
 }
 
+/**
+ * Normalise a Google error envelope into the OpenAI error shape so a client
+ * that only speaks OpenAI sees `error.type` instead of a bare Google status.
+ * The original payload is preserved under `error.upstream` — nothing is lost,
+ * but nothing Google-specific leaks into `error.message` either.
+ */
 function rebuild(res: Response, body: string): Response {
   const h = new Headers(res.headers);
   h.delete("content-encoding");
   h.delete("content-length");
   h.delete("transfer-encoding");
-  return new Response(body, { status: res.status, headers: h });
+
+  if (res.status < 400) return new Response(body, { status: res.status, headers: h });
+
+  let parsed: unknown = null;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    parsed = null;
+  }
+  const g = (parsed as { error?: { message?: string; status?: string; code?: number } } | null)?.error;
+  const message = g?.message ?? (body.slice(0, 400) || `Upstream returned HTTP ${res.status}.`);
+  const type =
+    res.status === 429
+      ? "rate_limit_error"
+      : res.status === 401 || res.status === 403
+        ? "auth_error"
+        : res.status >= 500
+          ? "upstream_error"
+          : "invalid_request_error";
+
+  h.set("content-type", "application/json");
+  return new Response(
+    JSON.stringify({
+      error: {
+        type,
+        code: g?.status ?? `http_${res.status}`,
+        message,
+        status: res.status,
+        upstream: parsed ?? body.slice(0, 2000),
+      },
+    }),
+    { status: res.status, headers: h },
+  );
 }
 
 function jsonError(status: number, code: string, message: string): Response {

@@ -3058,7 +3058,7 @@ var cfg = {
   /** default model when the client omits one */
   defaultModel: process.env.DEFAULT_MODEL ?? "gemini-3.8-flash",
   defaultTtsModel: process.env.DEFAULT_TTS_MODEL ?? "gemini-3.8-flash-tts",
-  defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "text-embedding-004",
+  defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "gemini-embedding-001",
   defaultVoice: process.env.DEFAULT_VOICE ?? "Kore",
   adminToken: process.env.ADMIN_TOKEN ?? "",
   /** OpenAI-compatible bearer the clients present ("" = open) */
@@ -5141,7 +5141,29 @@ function rebuild(res, body) {
   h.delete("content-encoding");
   h.delete("content-length");
   h.delete("transfer-encoding");
-  return new Response(body, { status: res.status, headers: h });
+  if (res.status < 400) return new Response(body, { status: res.status, headers: h });
+  let parsed = null;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    parsed = null;
+  }
+  const g = parsed?.error;
+  const message = g?.message ?? (body.slice(0, 400) || `Upstream returned HTTP ${res.status}.`);
+  const type = res.status === 429 ? "rate_limit_error" : res.status === 401 || res.status === 403 ? "auth_error" : res.status >= 500 ? "upstream_error" : "invalid_request_error";
+  h.set("content-type", "application/json");
+  return new Response(
+    JSON.stringify({
+      error: {
+        type,
+        code: g?.status ?? `http_${res.status}`,
+        message,
+        status: res.status,
+        upstream: parsed ?? body.slice(0, 2e3)
+      }
+    }),
+    { status: res.status, headers: h }
+  );
 }
 function jsonError(status, code, message) {
   return new Response(JSON.stringify({ error: { code, message } }), {
@@ -5722,31 +5744,30 @@ function toCsv(list) {
 
 // src/gemini.ts
 var UP = cfg.upstream.replace(/\/$/, "");
-function geminiPassthrough(req, path) {
+async function geminiPassthrough(req, path) {
   const url = new URL(req.url);
   const upstreamUrl = `${UP}${path}${url.search}`;
-  return execute(
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const body = hasBody ? await req.arrayBuffer() : void 0;
+  const r = await execute(
     upstreamUrl,
     {
       method: req.method,
       headers: req.headers,
-      body: req.method === "GET" || req.method === "HEAD" ? void 0 : req.body,
-      // @ts-expect-error Bun needs half-duplex for streaming bodies
-      duplex: "half"
+      body
     },
     path,
     req.signal
-  ).then((r) => {
-    const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
-    noteUsage(req, {
-      model,
-      keyRaw: r.key,
-      attempts: r.attempts,
-      rotated: r.rotated,
-      errorCode: r.response.ok ? null : `http_${r.response.status}`
-    });
-    return withMeta(r.response, r);
+  );
+  const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
+  noteUsage(req, {
+    model,
+    keyRaw: r.key,
+    attempts: r.attempts,
+    rotated: r.rotated,
+    errorCode: r.response.ok ? null : `http_${r.response.status}`
   });
+  return withMeta(r.response, r);
 }
 function withMeta(res, meta) {
   const h = new Headers(res.headers);
@@ -6066,10 +6087,15 @@ async function chatCompletions(req) {
     const cand = json2.candidates?.[0];
     const { text, grounding, toolCalls } = parseCandidate(cand);
     const usage = json2.usageMetadata ?? {};
+    const thoughts = usage.thoughtsTokenCount ?? 0;
+    const promptTokens = usage.promptTokenCount ?? 0;
+    const completionTokens = (usage.candidatesTokenCount ?? 0) + thoughts;
+    const totalTokens = usage.totalTokenCount ?? promptTokens + completionTokens;
     noteUsage(req, {
-      promptTokens: usage.promptTokenCount ?? 0,
-      completionTokens: usage.candidatesTokenCount ?? 0,
-      totalTokens: usage.totalTokenCount ?? 0
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      cachedTokens: usage.cachedContentTokenCount ?? 0
     });
     const message = {
       role: "assistant",
@@ -6096,9 +6122,10 @@ async function chatCompletions(req) {
           }
         ],
         usage: {
-          prompt_tokens: usage.promptTokenCount ?? 0,
-          completion_tokens: usage.candidatesTokenCount ?? 0,
-          total_tokens: usage.totalTokenCount ?? 0
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: totalTokens,
+          ...thoughts ? { completion_tokens_details: { reasoning_tokens: thoughts } } : {}
         },
         ...wantsSearch && grounding ? { grounding } : {}
       },
@@ -6127,6 +6154,7 @@ async function chatCompletions(req) {
       const toolCalls = [];
       let sPrompt = 0;
       let sCompletion = 0;
+      let sThoughts = 0;
       let sTotal = 0;
       let sCached = 0;
       let streamErr = null;
@@ -6155,9 +6183,9 @@ async function chatCompletions(req) {
               const u = json2.usageMetadata;
               if (u.promptTokenCount) sPrompt = u.promptTokenCount;
               if (u.candidatesTokenCount) sCompletion = u.candidatesTokenCount;
+              if (u.thoughtsTokenCount) sThoughts = u.thoughtsTokenCount;
               if (u.totalTokenCount) sTotal = u.totalTokenCount;
-              const cached = u.cachedContentTokenCount;
-              if (cached) sCached = cached;
+              if (u.cachedContentTokenCount) sCached = u.cachedContentTokenCount;
             }
             if (fr) finish2 = mapFinish(fr);
             if (text) {
@@ -6210,6 +6238,23 @@ async function chatCompletions(req) {
             }
           ]
         });
+        if (body.stream_options?.include_usage) {
+          const completion = sCompletion + sThoughts;
+          send({
+            id,
+            object: "chat.completion.chunk",
+            created,
+            model,
+            choices: [],
+            usage: {
+              prompt_tokens: sPrompt,
+              completion_tokens: completion,
+              total_tokens: sTotal || sPrompt + completion,
+              ...sThoughts ? { completion_tokens_details: { reasoning_tokens: sThoughts } } : {},
+              ...sCached ? { prompt_tokens_details: { cached_tokens: sCached } } : {}
+            }
+          });
+        }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       } catch (e) {
         streamErr = "stream_error";
@@ -6221,8 +6266,8 @@ async function chatCompletions(req) {
       } finally {
         noteUsage(req, {
           promptTokens: sPrompt,
-          completionTokens: sCompletion,
-          totalTokens: sTotal,
+          completionTokens: sCompletion + sThoughts,
+          totalTokens: sTotal || sPrompt + sCompletion + sThoughts,
           cachedTokens: sCached
         });
         finalizeStream(req, streamErr ? 502 : 200, streamErr ?? void 0);
@@ -6255,8 +6300,88 @@ function mapFinish(reason) {
       return "stop";
   }
 }
-function models() {
-  const list = [
+var asTextList = (input) => {
+  if (typeof input === "string") return input ? [input] : [];
+  if (Array.isArray(input)) return input.map((v) => typeof v === "string" ? v : JSON.stringify(v));
+  return [];
+};
+function base64Float32(values) {
+  const buf = Buffer.alloc(values.length * 4);
+  values.forEach((v, i) => buf.writeFloatLE(v, i * 4));
+  return buf.toString("base64");
+}
+async function embeddings(req) {
+  counters.embeddings++;
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return err(400, "invalid_request_error", "Body must be JSON.");
+  }
+  const texts = asTextList(body.input);
+  if (texts.length === 0) {
+    return err(400, "invalid_request_error", "`input` must be a string or an array of strings.");
+  }
+  const model = body.model && (body.model.includes("embed") || body.model.startsWith("gemini")) ? body.model : cfg.defaultEmbedModel;
+  const gen = {};
+  if (typeof body.dimensions === "number") gen.outputDimensionality = body.dimensions;
+  const payload = {
+    requests: texts.map((text) => ({
+      model: `models/${model}`,
+      content: { parts: [{ text }] },
+      ...Object.keys(gen).length ? { generationConfig: gen } : {}
+    }))
+  };
+  const path = `/v1beta/models/${model}:batchEmbedContents`;
+  const result = await execute(
+    `${UP2}${path}`,
+    {
+      method: "POST",
+      headers: new Headers({ "content-type": "application/json", accept: "application/json" }),
+      body: JSON.stringify(payload)
+    },
+    path,
+    req.signal
+  );
+  noteUsage(req, {
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`
+  });
+  if (result.response.status === 499) return err(499, "client_closed_request", "Client disconnected.");
+  if (!result.response.ok) return result.response;
+  let json2;
+  try {
+    json2 = await result.response.json();
+  } catch {
+    return err(502, "upstream_error", "Upstream returned non-JSON.");
+  }
+  const vectors = json2.embeddings ?? (json2.embedding ? [json2.embedding] : []);
+  if (vectors.length === 0) {
+    return err(502, "upstream_error", "Upstream returned no embeddings.");
+  }
+  const wantsBase64 = body.encoding_format === "base64";
+  const data = vectors.map((v, index) => ({
+    object: "embedding",
+    index,
+    embedding: wantsBase64 ? base64Float32(v.values ?? []) : v.values ?? []
+  }));
+  const tokens = json2.usageMetadata?.promptTokenCount ?? 0;
+  noteUsage(req, { promptTokens: tokens, totalTokens: tokens });
+  return Response.json(
+    {
+      object: "list",
+      data,
+      model,
+      usage: { prompt_tokens: tokens, total_tokens: tokens }
+    },
+    { headers: metaHeaders(result.attempts, result.rotated) }
+  );
+}
+async function models() {
+  const fallback = [
     cfg.defaultModel,
     cfg.searchModel,
     cfg.defaultTtsModel,
@@ -6264,15 +6389,54 @@ function models() {
     "gemini-2.5-pro",
     "gemini-2.0-flash"
   ];
-  return Response.json({
-    object: "list",
-    data: [...new Set(list)].map((id) => ({
-      id,
-      object: "model",
-      created: 17e8,
-      owned_by: "google"
-    }))
-  });
+  let live = [];
+  let cached = false;
+  let degraded = false;
+  try {
+    const r = await listLiveModels();
+    live = r.models;
+    cached = r.cached;
+  } catch {
+    degraded = true;
+  }
+  if (!live.length) {
+    return Response.json(
+      {
+        object: "list",
+        data: [...new Set(fallback)].map((id) => ({
+          id,
+          object: "model",
+          created: 17e8,
+          owned_by: "google"
+        })),
+        gkr: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() }
+      },
+      { headers: { "x-gkr-models": "fallback" } }
+    );
+  }
+  return Response.json(
+    {
+      object: "list",
+      data: live.map((m) => {
+        const c = catalogFor(m.id);
+        return {
+          id: m.id,
+          object: "model",
+          created: 17e8,
+          owned_by: "google",
+          // OpenAI clients ignore unknown fields; these are additive.
+          display_name: m.displayName,
+          kind: m.kind,
+          free: m.free,
+          context_window: m.inputTokenLimit,
+          max_output_tokens: m.outputTokenLimit,
+          pricing: c ? { input_per_1m_usd: c.inUsd, output_per_1m_usd: c.outUsd, as_of: PRICING_AS_OF } : null
+        };
+      }),
+      gkr: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() }
+    },
+    { headers: { "x-gkr-models": cached ? "live-cached" : "live" } }
+  );
 }
 function err(status, type, message) {
   return Response.json({ error: { type, message } }, { status });
@@ -6980,6 +7144,7 @@ app.get("/health", async (c) => {
 });
 app.post("/v1/chat/completions", (c) => chatCompletions(c.req.raw));
 app.post("/v1/audio/speech", (c) => speech(c.req.raw));
+app.post("/v1/embeddings", (c) => embeddings(c.req.raw));
 app.get("/v1/models", () => models());
 app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.url).pathname));
 var LEGACY_PATHS = {

@@ -13,34 +13,40 @@ import { noteUsage } from "./usage.ts";
 
 const UP = cfg.upstream.replace(/\/$/, "");
 
-export function geminiPassthrough(req: Request, path: string): Promise<Response> {
+export async function geminiPassthrough(req: Request, path: string): Promise<Response> {
   const url = new URL(req.url);
   const upstreamUrl = `${UP}${path}${url.search}`;
-  return execute(
+
+  // The body is buffered before the first attempt on purpose. `execute()` may
+  // retry with a different key, and a ReadableStream can only be consumed once:
+  // reusing it made Bun throw "Response body object should not be disturbed or
+  // locked" on every retry, which surfaced as a 500 after the 120 s timeout.
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const body = hasBody ? await req.arrayBuffer() : undefined;
+
+  const r = await execute(
     upstreamUrl,
     {
       method: req.method,
       headers: req.headers,
-      body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
-      // @ts-expect-error Bun needs half-duplex for streaming bodies
-      duplex: "half",
+      body,
     },
     path,
     req.signal,
-  ).then((r) => {
-    // The passthrough is byte-transparent, so the body is never parsed here and
-    // token counts stay 0. The row still records the route, the model in the
-    // path, the key and the outcome — which is what an audit needs.
-    const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
-    noteUsage(req, {
-      model,
-      keyRaw: r.key,
-      attempts: r.attempts,
-      rotated: r.rotated,
-      errorCode: r.response.ok ? null : `http_${r.response.status}`,
-    });
-    return withMeta(r.response, r);
+  );
+
+  // The passthrough is byte-transparent on success, so the body is never parsed
+  // here and token counts stay 0. The row still records the route, the model in
+  // the path, the key and the outcome — which is what an audit needs.
+  const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
+  noteUsage(req, {
+    model,
+    keyRaw: r.key,
+    attempts: r.attempts,
+    rotated: r.rotated,
+    errorCode: r.response.ok ? null : `http_${r.response.status}`,
   });
+  return withMeta(r.response, r);
 }
 
 function withMeta(res: Response, meta: { attempts: number; rotated: boolean }): Response {

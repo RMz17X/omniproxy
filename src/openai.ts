@@ -11,6 +11,8 @@ import { cfg } from "./config.ts";
 import { counters } from "./metrics.ts";
 import { execute } from "./upstream.ts";
 import { finalizeStream, noteUsage } from "./usage.ts";
+import { listLiveModels, pricingMeta, type LiveModel } from "./models.ts";
+import { catalogFor, PRICING_AS_OF } from "./models-catalog.ts";
 
 const UP = cfg.upstream.replace(/\/$/, "");
 
@@ -52,6 +54,7 @@ type OAIRequest = {
   /** non-standard: enable Google Search grounding */
   web_search?: boolean;
   search?: boolean;
+  stream_options?: { include_usage?: boolean };
 };
 
 /* ---------- Gemini wire shapes (the subset this gateway reads) ---------- */
@@ -74,6 +77,8 @@ type GeminiResponse = {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
     totalTokenCount?: number;
+    thoughtsTokenCount?: number;
+    cachedContentTokenCount?: number;
   };
   embedding?: { values?: number[] };
   embeddings?: { values?: number[] }[];
@@ -336,10 +341,18 @@ export async function chatCompletions(req: Request): Promise<Response> {
     const cand = json.candidates?.[0];
     const { text, grounding, toolCalls } = parseCandidate(cand);
     const usage = json.usageMetadata ?? {};
+    // Gemini reports thinking tokens on a separate meter. OpenAI counts them
+    // inside completion_tokens, so fold them in to keep the numbers comparable
+    // (a "PONG" reply was reporting total 109 with completion 2 before this).
+    const thoughts = usage.thoughtsTokenCount ?? 0;
+    const promptTokens = usage.promptTokenCount ?? 0;
+    const completionTokens = (usage.candidatesTokenCount ?? 0) + thoughts;
+    const totalTokens = usage.totalTokenCount ?? promptTokens + completionTokens;
     noteUsage(req, {
-      promptTokens: usage.promptTokenCount ?? 0,
-      completionTokens: usage.candidatesTokenCount ?? 0,
-      totalTokens: usage.totalTokenCount ?? 0,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      cachedTokens: usage.cachedContentTokenCount ?? 0,
     });
     const message: Record<string, unknown> = {
       role: "assistant",
@@ -366,9 +379,10 @@ export async function chatCompletions(req: Request): Promise<Response> {
           },
         ],
         usage: {
-          prompt_tokens: usage.promptTokenCount ?? 0,
-          completion_tokens: usage.candidatesTokenCount ?? 0,
-          total_tokens: usage.totalTokenCount ?? 0,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: totalTokens,
+          ...(thoughts ? { completion_tokens_details: { reasoning_tokens: thoughts } } : {}),
         },
         ...(wantsSearch && grounding ? { grounding } : {}),
       },
@@ -403,6 +417,7 @@ export async function chatCompletions(req: Request): Promise<Response> {
       // the newest non-zero values and publish them once the stream drains.
       let sPrompt = 0;
       let sCompletion = 0;
+      let sThoughts = 0;
       let sTotal = 0;
       let sCached = 0;
       let streamErr: string | null = null;
@@ -432,9 +447,11 @@ export async function chatCompletions(req: Request): Promise<Response> {
               const u = json.usageMetadata;
               if (u.promptTokenCount) sPrompt = u.promptTokenCount;
               if (u.candidatesTokenCount) sCompletion = u.candidatesTokenCount;
+              if (u.thoughtsTokenCount) sThoughts = u.thoughtsTokenCount;
+              // Always take the newest total; a thinking model's last frame is
+              // the only one that carries the final count.
               if (u.totalTokenCount) sTotal = u.totalTokenCount;
-              const cached = (u as { cachedContentTokenCount?: number }).cachedContentTokenCount;
-              if (cached) sCached = cached;
+              if (u.cachedContentTokenCount) sCached = u.cachedContentTokenCount;
             }
             if (fr) finish = mapFinish(fr);
             if (text) {
@@ -489,6 +506,27 @@ export async function chatCompletions(req: Request): Promise<Response> {
             },
           ],
         });
+        // OpenAI's stream contract: a usage chunk arrives only when the caller
+        // asks for it, and only after the finish_reason chunk. Thinking tokens
+        // are folded into completion_tokens the same way the non-stream path
+        // does, so the two responses agree on the same prompt.
+        if (body.stream_options?.include_usage) {
+          const completion = sCompletion + sThoughts;
+          send({
+            id,
+            object: "chat.completion.chunk",
+            created,
+            model,
+            choices: [],
+            usage: {
+              prompt_tokens: sPrompt,
+              completion_tokens: completion,
+              total_tokens: sTotal || sPrompt + completion,
+              ...(sThoughts ? { completion_tokens_details: { reasoning_tokens: sThoughts } } : {}),
+              ...(sCached ? { prompt_tokens_details: { cached_tokens: sCached } } : {}),
+            },
+          });
+        }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       } catch (e) {
         streamErr = "stream_error";
@@ -500,8 +538,8 @@ export async function chatCompletions(req: Request): Promise<Response> {
         // already has every byte it will get.
         noteUsage(req, {
           promptTokens: sPrompt,
-          completionTokens: sCompletion,
-          totalTokens: sTotal,
+          completionTokens: sCompletion + sThoughts,
+          totalTokens: sTotal || sPrompt + sCompletion + sThoughts,
           cachedTokens: sCached,
         });
         finalizeStream(req, streamErr ? 502 : 200, streamErr ?? undefined);
@@ -575,7 +613,10 @@ export async function embeddings(req: Request): Promise<Response> {
   if (texts.length === 0) {
     return err(400, "invalid_request_error", "`input` must be a string or an array of strings.");
   }
-  const model = body.model && body.model.startsWith("text-embedding") ? body.model : cfg.defaultEmbedModel;
+  const model =
+    body.model && (body.model.includes("embed") || body.model.startsWith("gemini"))
+      ? body.model
+      : cfg.defaultEmbedModel;
   const gen: Record<string, unknown> = {};
   if (typeof body.dimensions === "number") gen.outputDimensionality = body.dimensions;
 
@@ -642,8 +683,13 @@ export async function embeddings(req: Request): Promise<Response> {
   );
 }
 
-export function models(): Response {
-  const list = [
+/**
+ * GET /v1/models — the live upstream inventory, annotated with the catalog's
+ * price and free-tier verdict. Falls back to the configured defaults only when
+ * the pool cannot answer, so a client still gets a usable list.
+ */
+export async function models(): Promise<Response> {
+  const fallback = [
     cfg.defaultModel,
     cfg.searchModel,
     cfg.defaultTtsModel,
@@ -651,15 +697,59 @@ export function models(): Response {
     "gemini-2.5-pro",
     "gemini-2.0-flash",
   ];
-  return Response.json({
-    object: "list",
-    data: [...new Set(list)].map((id) => ({
-      id,
-      object: "model",
-      created: 1700000000,
-      owned_by: "google",
-    })),
-  });
+
+  let live: LiveModel[] = [];
+  let cached = false;
+  let degraded = false;
+  try {
+    const r = await listLiveModels();
+    live = r.models;
+    cached = r.cached;
+  } catch {
+    degraded = true;
+  }
+
+  if (!live.length) {
+    return Response.json(
+      {
+        object: "list",
+        data: [...new Set(fallback)].map((id) => ({
+          id,
+          object: "model",
+          created: 1700000000,
+          owned_by: "google",
+        })),
+        gkr: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() },
+      },
+      { headers: { "x-gkr-models": "fallback" } },
+    );
+  }
+
+  return Response.json(
+    {
+      object: "list",
+      data: live.map((m) => {
+        const c = catalogFor(m.id);
+        return {
+          id: m.id,
+          object: "model",
+          created: 1700000000,
+          owned_by: "google",
+          // OpenAI clients ignore unknown fields; these are additive.
+          display_name: m.displayName,
+          kind: m.kind,
+          free: m.free,
+          context_window: m.inputTokenLimit,
+          max_output_tokens: m.outputTokenLimit,
+          pricing: c
+            ? { input_per_1m_usd: c.inUsd, output_per_1m_usd: c.outUsd, as_of: PRICING_AS_OF }
+            : null,
+        };
+      }),
+      gkr: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() },
+    },
+    { headers: { "x-gkr-models": cached ? "live-cached" : "live" } },
+  );
 }
 
 function err(status: number, type: string, message: string): Response {

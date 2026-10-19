@@ -21,7 +21,7 @@ import { MODELS_HTML } from "./models-ui.ts";
 import { listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey } from "./probe.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
-import { chatCompletions, models } from "./openai.ts";
+import { chatCompletions, embeddings, models } from "./openai.ts";
 import {
   beginUsage,
   commitUsage,
@@ -116,6 +116,7 @@ app.get("/health", async (c) => {
 
 app.post("/v1/chat/completions", (c) => chatCompletions(c.req.raw));
 app.post("/v1/audio/speech", (c) => speech(c.req.raw));
+app.post("/v1/embeddings", (c) => embeddings(c.req.raw));
 app.get("/v1/models", () => models());
 
 /* ---------- native Gemini passthrough ---------- */

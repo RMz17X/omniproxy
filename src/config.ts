@@ -26,7 +26,7 @@ export const cfg = {
   /** default model when the client omits one */
   defaultModel: process.env.DEFAULT_MODEL ?? "gemini-3.8-flash",
   defaultTtsModel: process.env.DEFAULT_TTS_MODEL ?? "gemini-3.8-flash-tts",
-  defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "text-embedding-004",
+  defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "gemini-embedding-001",
   defaultVoice: process.env.DEFAULT_VOICE ?? "Kore",
   adminToken: process.env.ADMIN_TOKEN ?? "",
   /** OpenAI-compatible bearer the clients present ("" = open) */
