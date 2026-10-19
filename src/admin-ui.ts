@@ -1,12 +1,12 @@
 /**
- * Admin console shell, served at GET /admin.
+ * Admin console shell, served at GET /pengatur.
  *
  * Dials: ENERGY calm-utilitarian, RHYTHM dense rows over generous section
  * padding, MOTION one 120ms fade on row state change and a live cooldown
  * countdown (functional: it tells you when a key returns to the pool).
  *
  * The shell carries no data. It asks for the admin token, stores it in
- * localStorage, and renders from /admin/keys. Every mutation addresses a key
+ * localStorage, and renders from /pengatur/keys. Every mutation addresses a key
  * by its sha256 id, so the browser never holds a raw credential.
  */
 
@@ -199,7 +199,7 @@ export const ADMIN_HTML = `<!doctype html>
       </div>
     </div>
     <div class="top-right">
-      <a href="/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
+      <a href="/pengatur/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
       <span id="storage" class="mono">storage: -</span>
       <span id="synced">-</span>
     </div>
@@ -602,7 +602,7 @@ export const ADMIN_HTML = `<!doctype html>
   function refresh() {
     if (!state.token || state.busy) return Promise.resolve();
     state.busy = true;
-    return api("/admin/keys")
+    return api("/pengatur/keys")
       .then(function (data) {
         renderStats(data.pool);
         renderKeys(data.keys || []);
@@ -636,7 +636,7 @@ export const ADMIN_HTML = `<!doctype html>
     if (!t) { say(el.authHint, "Token is empty.", "err"); return; }
     state.token = t;
     el.connect.disabled = true;
-    api("/admin/keys")
+    api("/pengatur/keys")
       .then(function (data) {
         try { localStorage.setItem(STORE, t); } catch (e) {}
         renderStats(data.pool);
@@ -658,7 +658,7 @@ export const ADMIN_HTML = `<!doctype html>
   function removeKey(k, btn) {
     if (!confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
     btn.disabled = true;
-    api("/admin/keys", { method: "DELETE", body: { id: k.id } })
+    api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
         say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
         delete state.testing[k.id];
@@ -680,7 +680,7 @@ export const ADMIN_HTML = `<!doctype html>
     btn.textContent = "Testing";
     node.className = "probe";
     node.textContent = "probing...";
-    api("/admin/keys/test", { method: "POST", body: { id: k.id } })
+    api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
         state.testing[k.id] = data.probe;
         node.className = "probe " + probeClass(data.probe.status);
@@ -707,7 +707,7 @@ export const ADMIN_HTML = `<!doctype html>
     var label = el.testAllBtn.textContent;
     el.testAllBtn.textContent = "Testing...";
     el.testAllNote.textContent = "one live call per key, 4 at a time";
-    api("/admin/keys/test-all", { method: "POST" })
+    api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         (data.results || []).forEach(function (r) { state.testing[r.id] = r.probe; });
         var ok = (data.results || []).filter(function (r) { return r.probe.status === "ok"; }).length;
@@ -727,7 +727,7 @@ export const ADMIN_HTML = `<!doctype html>
     var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { say(el.addMsg, "Nothing to add.", "err"); return; }
     el.addBtn.disabled = true;
-    api("/admin/keys", { method: "POST", body: { keys: keys } })
+    api("/pengatur/keys", { method: "POST", body: { keys: keys } })
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";

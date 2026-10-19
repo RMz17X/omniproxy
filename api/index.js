@@ -3623,7 +3623,7 @@ var ADMIN_HTML = `<!doctype html>
       </div>
     </div>
     <div class="top-right">
-      <a href="/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
+      <a href="/pengatur/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
       <span id="storage" class="mono">storage: -</span>
       <span id="synced">-</span>
     </div>
@@ -4026,7 +4026,7 @@ var ADMIN_HTML = `<!doctype html>
   function refresh() {
     if (!state.token || state.busy) return Promise.resolve();
     state.busy = true;
-    return api("/admin/keys")
+    return api("/pengatur/keys")
       .then(function (data) {
         renderStats(data.pool);
         renderKeys(data.keys || []);
@@ -4060,7 +4060,7 @@ var ADMIN_HTML = `<!doctype html>
     if (!t) { say(el.authHint, "Token is empty.", "err"); return; }
     state.token = t;
     el.connect.disabled = true;
-    api("/admin/keys")
+    api("/pengatur/keys")
       .then(function (data) {
         try { localStorage.setItem(STORE, t); } catch (e) {}
         renderStats(data.pool);
@@ -4082,7 +4082,7 @@ var ADMIN_HTML = `<!doctype html>
   function removeKey(k, btn) {
     if (!confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
     btn.disabled = true;
-    api("/admin/keys", { method: "DELETE", body: { id: k.id } })
+    api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
         say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
         delete state.testing[k.id];
@@ -4104,7 +4104,7 @@ var ADMIN_HTML = `<!doctype html>
     btn.textContent = "Testing";
     node.className = "probe";
     node.textContent = "probing...";
-    api("/admin/keys/test", { method: "POST", body: { id: k.id } })
+    api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
         state.testing[k.id] = data.probe;
         node.className = "probe " + probeClass(data.probe.status);
@@ -4131,7 +4131,7 @@ var ADMIN_HTML = `<!doctype html>
     var label = el.testAllBtn.textContent;
     el.testAllBtn.textContent = "Testing...";
     el.testAllNote.textContent = "one live call per key, 4 at a time";
-    api("/admin/keys/test-all", { method: "POST" })
+    api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         (data.results || []).forEach(function (r) { state.testing[r.id] = r.probe; });
         var ok = (data.results || []).filter(function (r) { return r.probe.status === "ok"; }).length;
@@ -4151,7 +4151,7 @@ var ADMIN_HTML = `<!doctype html>
     var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { say(el.addMsg, "Nothing to add.", "err"); return; }
     el.addBtn.disabled = true;
-    api("/admin/keys", { method: "POST", body: { keys: keys } })
+    api("/pengatur/keys", { method: "POST", body: { keys: keys } })
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";
@@ -4315,7 +4315,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
       <div class="sub">Live inventory from the Generative Language API, joined with published pricing</div>
     </div>
     <div class="top-right">
-      <a href="/admin" class="mono">admin</a>
+      <a href="/pengatur" class="mono">admin</a>
       <span id="asOf" class="mono">pricing: -</span>
       <span id="synced">-</span>
     </div>
@@ -4650,7 +4650,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
   function load(force) {
     el.reload.disabled = true;
     say(el.msg, force ? "Re-querying the live model list..." : "Loading live model list...", "info");
-    var url = "/admin/models" + (force ? "?refresh=1" : "");
+    var url = "/pengatur/models/list" + (force ? "?refresh=1" : "");
     api(url).then(function (data) {
       state.models = data.models || [];
       state.fetchedAt = Date.now();
@@ -4670,7 +4670,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
       var box = document.createElement("div");
       box.className = "empty";
       box.innerHTML = "<b>Live list unavailable</b>";
-      box.appendChild(document.createTextNode("The pool has no key that can answer the model list right now. Add or revive a key in /admin."));
+      box.appendChild(document.createTextNode("The pool has no key that can answer the model list right now. Add or revive a key in /pengatur."));
       el.body.appendChild(box);
     }).then(function () { el.reload.disabled = false; });
   }
@@ -4691,7 +4691,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
     state.token = token;
     el.connect.disabled = true;
     hide(el.authHint);
-    api("/admin/models").then(function () {
+    api("/pengatur/models/list").then(function () {
       try { localStorage.setItem(STORE, token); } catch (e) {}
       el.main.hidden = false;
       el.authPanel.hidden = true;
@@ -4707,7 +4707,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
     node.className = "probe";
     node.textContent = "testing...";
     say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "info");
-    api("/admin/models/test", { method: "POST", body: { model: m.id } }).then(function (data) {
+    api("/pengatur/models/test", { method: "POST", body: { model: m.id } }).then(function (data) {
       var r = data.result;
       state.testing[m.id] = r;
       node.className = "probe " + probeClass(r);
@@ -4766,7 +4766,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
   if (saved) {
     state.token = saved;
     el.token.value = saved;
-    api("/admin/models").then(function () {
+    api("/pengatur/models/list").then(function () {
       el.main.hidden = false;
       el.authPanel.hidden = true;
       load(false);
@@ -5174,7 +5174,9 @@ async function testModel(modelId, rawKey) {
       headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         contents: [{ parts: [{ text: "Reply with exactly: OK" }] }],
-        generationConfig: { maxOutputTokens: 64, temperature: 0 }
+        // Thinking models spend output tokens on reasoning before emitting text;
+        // 64 tokens can end in finishReason=MAX_TOKENS with an empty reply.
+        generationConfig: { maxOutputTokens: 512, temperature: 0, thinkingConfig: { thinkingBudget: 0 } }
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS)
     });
@@ -5876,8 +5878,9 @@ app.use("/v1/*", async (c, next) => {
   }
   return next();
 });
-app.use("/admin/*", async (c, next) => {
-  if (new URL(c.req.url).pathname === "/admin") return next();
+app.use("/pengatur/*", async (c, next) => {
+  const adminPath = new URL(c.req.url).pathname;
+  if (adminPath === "/pengatur" || adminPath === "/pengatur/models") return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -5910,9 +5913,24 @@ app.post("/v1/chat/completions", (c) => chatCompletions(c.req.raw));
 app.post("/v1/audio/speech", (c) => speech(c.req.raw));
 app.get("/v1/models", () => models());
 app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.url).pathname));
-app.get("/admin", (c) => c.html(ADMIN_HTML));
-app.get("/models", (c) => c.html(MODELS_HTML));
-app.get("/admin/models", async (c) => {
+var LEGACY_PATHS = {
+  "/admin": "/pengatur",
+  "/admin/keys": "/pengatur/keys",
+  "/admin/keys/test": "/pengatur/keys/test",
+  "/admin/keys/test-all": "/pengatur/keys/test-all",
+  "/admin/models": "/pengatur/models/list",
+  "/admin/models/test": "/pengatur/models/test",
+  "/models": "/pengatur/models"
+};
+app.all("/admin", (c) => c.redirect(LEGACY_PATHS["/admin"], 308));
+app.all("/admin/*", (c) => {
+  const p = new URL(c.req.url).pathname;
+  return c.redirect(LEGACY_PATHS[p] ?? "/pengatur" + p.slice("/admin".length), 308);
+});
+app.all("/models", (c) => c.redirect(LEGACY_PATHS["/models"], 308));
+app.get("/pengatur", (c) => c.html(ADMIN_HTML));
+app.get("/pengatur/models", (c) => c.html(MODELS_HTML));
+app.get("/pengatur/models/list", async (c) => {
   const force = new URL(c.req.url).searchParams.get("refresh") === "1";
   try {
     const { models: models2, source, cached } = await listLiveModels(force);
@@ -5930,7 +5948,7 @@ app.get("/admin/models", async (c) => {
     return c.json({ error: { message } }, status);
   }
 });
-app.post("/admin/models/test", async (c) => {
+app.post("/pengatur/models/test", async (c) => {
   let body;
   try {
     body = await c.req.json();
@@ -5942,11 +5960,11 @@ app.post("/admin/models/test", async (c) => {
   const result = await testModel(model, typeof body.key === "string" ? body.key : void 0);
   return c.json({ ok: true, model, result });
 });
-app.get("/admin/keys", async (c) => {
+app.get("/pengatur/keys", async (c) => {
   const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
   return c.json({ pool: snap, keys });
 });
-app.post("/admin/keys", async (c) => {
+app.post("/pengatur/keys", async (c) => {
   let body;
   try {
     body = await c.req.json();
@@ -5969,7 +5987,7 @@ app.post("/admin/keys", async (c) => {
   }
   return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
 });
-app.delete("/admin/keys", async (c) => {
+app.delete("/pengatur/keys", async (c) => {
   let body;
   try {
     body = await c.req.json();
@@ -5987,7 +6005,7 @@ app.delete("/admin/keys", async (c) => {
   await removeKey(body.key);
   return c.json({ ok: true, pool: await snapshot() });
 });
-app.post("/admin/keys/test", async (c) => {
+app.post("/pengatur/keys/test", async (c) => {
   let body;
   try {
     body = await c.req.json();
@@ -6027,7 +6045,7 @@ app.post("/admin/keys/test", async (c) => {
   }
   return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
 });
-app.post("/admin/keys/test-all", async (c) => {
+app.post("/pengatur/keys/test-all", async (c) => {
   const keys = await listKeys();
   const target = keys.filter((k) => k.status !== "dead");
   const limit = 4;

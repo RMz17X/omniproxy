@@ -2,7 +2,7 @@
  * /models console: live Gemini model inventory with pricing, free-tier
  * verdict and a real per-model probe.
  *
- * Data is never hardcoded in the client: /admin/models returns the live list
+ * Data is never hardcoded in the client: /pengatur/models/list returns the live list
  * fetched from the Generative Language API, and every Test button performs an
  * actual generateContent call against the selected model.
  */
@@ -110,7 +110,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
       <div class="sub">Live inventory from the Generative Language API, joined with published pricing</div>
     </div>
     <div class="top-right">
-      <a href="/admin" class="mono">admin</a>
+      <a href="/pengatur" class="mono">admin</a>
       <span id="asOf" class="mono">pricing: -</span>
       <span id="synced">-</span>
     </div>
@@ -445,7 +445,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
   function load(force) {
     el.reload.disabled = true;
     say(el.msg, force ? "Re-querying the live model list..." : "Loading live model list...", "info");
-    var url = "/admin/models" + (force ? "?refresh=1" : "");
+    var url = "/pengatur/models/list" + (force ? "?refresh=1" : "");
     api(url).then(function (data) {
       state.models = data.models || [];
       state.fetchedAt = Date.now();
@@ -465,7 +465,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
       var box = document.createElement("div");
       box.className = "empty";
       box.innerHTML = "<b>Live list unavailable</b>";
-      box.appendChild(document.createTextNode("The pool has no key that can answer the model list right now. Add or revive a key in /admin."));
+      box.appendChild(document.createTextNode("The pool has no key that can answer the model list right now. Add or revive a key in /pengatur."));
       el.body.appendChild(box);
     }).then(function () { el.reload.disabled = false; });
   }
@@ -486,7 +486,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
     state.token = token;
     el.connect.disabled = true;
     hide(el.authHint);
-    api("/admin/models").then(function () {
+    api("/pengatur/models/list").then(function () {
       try { localStorage.setItem(STORE, token); } catch (e) {}
       el.main.hidden = false;
       el.authPanel.hidden = true;
@@ -502,7 +502,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
     node.className = "probe";
     node.textContent = "testing...";
     say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "info");
-    api("/admin/models/test", { method: "POST", body: { model: m.id } }).then(function (data) {
+    api("/pengatur/models/test", { method: "POST", body: { model: m.id } }).then(function (data) {
       var r = data.result;
       state.testing[m.id] = r;
       node.className = "probe " + probeClass(r);
@@ -561,7 +561,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
   if (saved) {
     state.token = saved;
     el.token.value = saved;
-    api("/admin/models").then(function () {
+    api("/pengatur/models/list").then(function () {
       el.main.hidden = false;
       el.authPanel.hidden = true;
       load(false);

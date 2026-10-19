@@ -7,9 +7,9 @@
  *   POST /v1/chat/completions   OpenAI-compatible chat (stream + tools/search)
  *   POST /v1/audio/speech       OpenAI-compatible TTS -> WAV
  *   GET  /v1/models             OpenAI-compatible model list
- *   GET  /admin/keys            list pooled keys (masked)
- *   POST /admin/keys            add keys  { keys: ["AIza..."] }
- *   DELETE /admin/keys          remove key { key: "AIza..." }
+ *   GET  /pengatur/keys            list pooled keys (masked)
+ *   POST /pengatur/keys            add keys  { keys: ["AIza..."] }
+ *   DELETE /pengatur/keys          remove key { key: "AIza..." }
  */
 
 import { Hono } from "hono";
@@ -44,10 +44,12 @@ app.use("/v1/*", async (c, next) => {
   return next();
 });
 
-app.use("/admin/*", async (c, next) => {
-  // The console shell carries no data and must load before a token exists;
-  // /admin is the only admin path reachable without credentials.
-  if (new URL(c.req.url).pathname === "/admin") return next();
+app.use("/pengatur/*", async (c, next) => {
+  // The console shells carry no data and must load before a token exists;
+  // /pengatur and /pengatur/models are the only admin paths reachable
+  // without credentials.
+  const adminPath = new URL(c.req.url).pathname;
+  if (adminPath === "/pengatur" || adminPath === "/pengatur/models") return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -93,18 +95,41 @@ app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.ur
 
 /* ---------- admin ---------- */
 
-// The console shell is public by design: it holds no data and asks for the
-// admin token itself. Everything it renders comes from /admin/keys.
-app.get("/admin", (c) => c.html(ADMIN_HTML));
+/* ---------- legacy paths ---------- */
+// The console moved from /admin to /pengatur, and the model inventory from
+// /models to /pengatur/models. Redirects are permanent so bookmarks and any
+// external caller keep resolving to a live URL instead of 404.
+const LEGACY_PATHS: Record<string, string> = {
+  "/admin": "/pengatur",
+  "/admin/keys": "/pengatur/keys",
+  "/admin/keys/test": "/pengatur/keys/test",
+  "/admin/keys/test-all": "/pengatur/keys/test-all",
+  "/admin/models": "/pengatur/models/list",
+  "/admin/models/test": "/pengatur/models/test",
+  "/models": "/pengatur/models",
+};
+
+app.all("/admin", (c) => c.redirect(LEGACY_PATHS["/admin"], 308));
+app.all("/admin/*", (c) => {
+  const p = new URL(c.req.url).pathname;
+  return c.redirect(LEGACY_PATHS[p] ?? "/pengatur" + p.slice("/admin".length), 308);
+});
+app.all("/models", (c) => c.redirect(LEGACY_PATHS["/models"], 308));
+
+/* ---------- console shells ---------- */
+
+// Both shells are public by design: they hold no data and ask for the admin
+// token themselves. Everything they render comes from /pengatur/* endpoints.
+app.get("/pengatur", (c) => c.html(ADMIN_HTML));
 
 /** Model inventory console. The shell is public; its data endpoints are not. */
-app.get("/models", (c) => c.html(MODELS_HTML));
+app.get("/pengatur/models", (c) => c.html(MODELS_HTML));
 
 /**
  * Live model list. Queried from the Generative Language API with a pooled key
  * and cached briefly; pricing/free-tier columns come from the static catalog.
  */
-app.get("/admin/models", async (c) => {
+app.get("/pengatur/models/list", async (c) => {
   const force = new URL(c.req.url).searchParams.get("refresh") === "1";
   try {
     const { models, source, cached } = await listLiveModels(force);
@@ -124,7 +149,7 @@ app.get("/admin/models", async (c) => {
 });
 
 /** Real per-model probe: one generateContent call against the named model. */
-app.post("/admin/models/test", async (c) => {
+app.post("/pengatur/models/test", async (c) => {
   let body: { model?: string; key?: string };
   try {
     body = await c.req.json();
@@ -138,12 +163,12 @@ app.post("/admin/models/test", async (c) => {
   return c.json({ ok: true, model, result });
 });
 
-app.get("/admin/keys", async (c) => {
+app.get("/pengatur/keys", async (c) => {
   const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
   return c.json({ pool: snap, keys });
 });
 
-app.post("/admin/keys", async (c) => {
+app.post("/pengatur/keys", async (c) => {
   let body: { keys?: string[] | string; key?: string };
   try {
     body = await c.req.json();
@@ -168,7 +193,7 @@ app.post("/admin/keys", async (c) => {
   return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
 });
 
-app.delete("/admin/keys", async (c) => {
+app.delete("/pengatur/keys", async (c) => {
   let body: { key?: string; id?: string };
   try {
     body = await c.req.json();
@@ -195,7 +220,7 @@ app.delete("/admin/keys", async (c) => {
  * key to vet it before adding. A probe is the only path that revives a parked
  * key, so a recovering key does not have to wait out a stale cooldown.
  */
-app.post("/admin/keys/test", async (c) => {
+app.post("/pengatur/keys/test", async (c) => {
   let body: { id?: string; key?: string; model?: string };
   try {
     body = await c.req.json();
@@ -242,7 +267,7 @@ app.post("/admin/keys/test", async (c) => {
 });
 
 /** Bounded-concurrency probe of the whole pool; the console's "test all". */
-app.post("/admin/keys/test-all", async (c) => {
+app.post("/pengatur/keys/test-all", async (c) => {
   const keys = await listKeys();
   const target = keys.filter((k) => k.status !== "dead");
   const limit = 4;

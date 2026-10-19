@@ -192,7 +192,9 @@ export async function testModel(modelId: string, rawKey?: string): Promise<Model
       headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         contents: [{ parts: [{ text: "Reply with exactly: OK" }] }],
-        generationConfig: { maxOutputTokens: 64, temperature: 0 },
+        // Thinking models spend output tokens on reasoning before emitting text;
+        // 64 tokens can end in finishReason=MAX_TOKENS with an empty reply.
+        generationConfig: { maxOutputTokens: 512, temperature: 0, thinkingConfig: { thinkingBudget: 0 } },
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
