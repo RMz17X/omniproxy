@@ -111,6 +111,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
     </div>
     <div class="top-right">
       <a href="/pengatur" class="mono">admin</a>
+      <a href="/pengatur/usage" class="mono">usage</a>
       <span id="asOf" class="mono">pricing: -</span>
       <span id="synced">-</span>
     </div>

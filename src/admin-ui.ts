@@ -200,6 +200,7 @@ export const ADMIN_HTML = `<!doctype html>
     </div>
     <div class="top-right">
       <a href="/pengatur/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
+      <a href="/pengatur/usage" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">usage &rarr;</a>
       <span id="storage" class="mono">storage: -</span>
       <span id="synced">-</span>
     </div>

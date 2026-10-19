@@ -9,6 +9,7 @@
 
 import { cfg, VOICE_MAP } from "./config.ts";
 import { execute } from "./upstream.ts";
+import { noteUsage } from "./usage.ts";
 
 const UP = cfg.upstream.replace(/\/$/, "");
 
@@ -26,7 +27,20 @@ export function geminiPassthrough(req: Request, path: string): Promise<Response>
     },
     path,
     req.signal,
-  ).then((r) => withMeta(r.response, r));
+  ).then((r) => {
+    // The passthrough is byte-transparent, so the body is never parsed here and
+    // token counts stay 0. The row still records the route, the model in the
+    // path, the key and the outcome — which is what an audit needs.
+    const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
+    noteUsage(req, {
+      model,
+      keyRaw: r.key,
+      attempts: r.attempts,
+      rotated: r.rotated,
+      errorCode: r.response.ok ? null : `http_${r.response.status}`,
+    });
+    return withMeta(r.response, r);
+  });
 }
 
 function withMeta(res: Response, meta: { attempts: number; rotated: boolean }): Response {
@@ -92,6 +106,18 @@ export async function speech(req: Request): Promise<Response> {
   if (result.response.status === 499) {
     return new Response(null, { status: 499 });
   }
+
+  // TTS has no prompt/completion split worth reporting: Gemini bills the input
+  // text and the returned audio as two different meters, and this endpoint
+  // never asks for usageMetadata. Record the attempt and the model only.
+  noteUsage(req, {
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`,
+  });
+
   if (!result.response.ok) return result.response;
 
   let json: { candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[] };

@@ -22,10 +22,39 @@ import { listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey } from "./probe.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { chatCompletions, models } from "./openai.ts";
+import {
+  beginUsage,
+  commitUsage,
+  noteUsage,
+  routeOf,
+  toCsv,
+  usageOverview,
+  type RowFilter,
+} from "./usage.ts";
+import { USAGE_HTML } from "./usage-ui.ts";
 
 const app = new Hono();
 
 app.use("*", cors());
+
+/* ---------- usage ledger (in-memory, no Redis) ---------- */
+
+/**
+ * One row per gateway request. Deliberately process-local: the ledger is
+ * operator telemetry, so it dies with the instance and never consumes a single
+ * Upstash command. Non-stream responses are committed here; streaming handlers
+ * call `finalizeStream()` themselves because their token counts are only final
+ * once the last byte leaves.
+ */
+app.use("*", async (c, next) => {
+  const path = new URL(c.req.url).pathname;
+  const route = routeOf(path);
+  if (!route) return next();
+
+  beginUsage(c.req.raw, path, route);
+  await next();
+  commitUsage(c.req.raw, c.res.status);
+});
 
 /* ---------- auth ---------- */
 
@@ -49,7 +78,7 @@ app.use("/pengatur/*", async (c, next) => {
   // /pengatur and /pengatur/models are the only admin paths reachable
   // without credentials.
   const adminPath = new URL(c.req.url).pathname;
-  if (adminPath === "/pengatur" || adminPath === "/pengatur/models") return next();
+  if (adminPath === "/pengatur" || adminPath === "/pengatur/models" || adminPath === "/pengatur/usage") return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -347,6 +376,47 @@ app.notFound((c) =>
 app.onError((e, c) => {
   console.error("[gkr] unhandled:", e);
   return c.json({ error: { message: e.message } }, 500);
+});
+
+/** Usage console shell. Public like the other two; its data endpoints are not. */
+app.get("/pengatur/usage", (c) => c.html(USAGE_HTML));
+
+/**
+ * Ledger snapshot. Paged and filtered server-side so the browser never
+ * downloads the whole ring.
+ */
+app.get("/pengatur/usage/data", (c) => {
+  const q = new URL(c.req.url).searchParams;
+  const filter: RowFilter = {
+    day: q.get("day") ?? undefined,
+    model: q.get("model") ?? undefined,
+    key: q.get("key") ?? undefined,
+    status: q.get("status") ?? undefined,
+    route: q.get("route") ?? undefined,
+  };
+  const page = Number(q.get("page") ?? 1) || 1;
+  const pageSize = Number(q.get("pageSize") ?? 25) || 25;
+  return c.json(usageOverview(page, pageSize, filter));
+});
+
+/** Same filters as the console, one CSV file. */
+app.get("/pengatur/usage/export.csv", (c) => {
+  const q = new URL(c.req.url).searchParams;
+  const filter: RowFilter = {
+    day: q.get("day") ?? undefined,
+    model: q.get("model") ?? undefined,
+    key: q.get("key") ?? undefined,
+    status: q.get("status") ?? undefined,
+    route: q.get("route") ?? undefined,
+  };
+  const snapshot = usageOverview(1, 200, filter);
+  const csv = toCsv(snapshot.rows);
+  return new Response(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="gkr-usage-${new Date().toISOString().slice(0, 10)}.csv"`,
+    },
+  });
 });
 
 export default app;

@@ -10,6 +10,7 @@
 import { cfg } from "./config.ts";
 import { counters } from "./metrics.ts";
 import { execute } from "./upstream.ts";
+import { finalizeStream, noteUsage } from "./usage.ts";
 
 const UP = cfg.upstream.replace(/\/$/, "");
 
@@ -310,6 +311,15 @@ export async function chatCompletions(req: Request): Promise<Response> {
     req.signal,
   );
 
+  noteUsage(req, {
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    stream,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`,
+  });
+
   if (result.response.status === 499) return err(499, "client_closed_request", "Client disconnected.");
   if (!result.response.ok) return result.response;
 
@@ -326,6 +336,11 @@ export async function chatCompletions(req: Request): Promise<Response> {
     const cand = json.candidates?.[0];
     const { text, grounding, toolCalls } = parseCandidate(cand);
     const usage = json.usageMetadata ?? {};
+    noteUsage(req, {
+      promptTokens: usage.promptTokenCount ?? 0,
+      completionTokens: usage.candidatesTokenCount ?? 0,
+      totalTokens: usage.totalTokenCount ?? 0,
+    });
     const message: Record<string, unknown> = {
       role: "assistant",
       content: text || (toolCalls.length ? null : ""),
@@ -384,6 +399,13 @@ export async function chatCompletions(req: Request): Promise<Response> {
       let buf = "";
       let finish: string | null = null;
       const toolCalls: { id: string; name: string; args: string }[] = [];
+      // Gemini only reports token counts on the last SSE frame, so accumulate
+      // the newest non-zero values and publish them once the stream drains.
+      let sPrompt = 0;
+      let sCompletion = 0;
+      let sTotal = 0;
+      let sCached = 0;
+      let streamErr: string | null = null;
 
       try {
         for (;;) {
@@ -406,6 +428,14 @@ export async function chatCompletions(req: Request): Promise<Response> {
             const cand = json.candidates?.[0];
             const { text, toolCalls: calls } = parseCandidate(cand);
             const fr = cand?.finishReason;
+            if (json.usageMetadata) {
+              const u = json.usageMetadata;
+              if (u.promptTokenCount) sPrompt = u.promptTokenCount;
+              if (u.candidatesTokenCount) sCompletion = u.candidatesTokenCount;
+              if (u.totalTokenCount) sTotal = u.totalTokenCount;
+              const cached = (u as { cachedContentTokenCount?: number }).cachedContentTokenCount;
+              if (cached) sCached = cached;
+            }
             if (fr) finish = mapFinish(fr);
             if (text) {
               send({
@@ -461,10 +491,20 @@ export async function chatCompletions(req: Request): Promise<Response> {
         });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       } catch (e) {
+        streamErr = "stream_error";
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ error: { message: String(e) } })}\n\n`),
         );
       } finally {
+        // The row is only committed now: token counts are final and the client
+        // already has every byte it will get.
+        noteUsage(req, {
+          promptTokens: sPrompt,
+          completionTokens: sCompletion,
+          totalTokens: sTotal,
+          cachedTokens: sCached,
+        });
+        finalizeStream(req, streamErr ? 502 : 200, streamErr ?? undefined);
         controller.close();
         reader.releaseLock();
       }
@@ -559,6 +599,14 @@ export async function embeddings(req: Request): Promise<Response> {
     req.signal,
   );
 
+  noteUsage(req, {
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`,
+  });
+
   if (result.response.status === 499) return err(499, "client_closed_request", "Client disconnected.");
   if (!result.response.ok) return result.response;
 
@@ -581,6 +629,7 @@ export async function embeddings(req: Request): Promise<Response> {
     embedding: wantsBase64 ? base64Float32(v.values ?? []) : (v.values ?? []),
   }));
   const tokens = json.usageMetadata?.promptTokenCount ?? 0;
+  noteUsage(req, { promptTokens: tokens, totalTokens: tokens });
 
   return Response.json(
     {
