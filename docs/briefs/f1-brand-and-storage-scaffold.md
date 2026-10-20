@@ -8,7 +8,26 @@ of crashing.
 
 One branch, tests green, local commits only. Do NOT push to any remote.
 
-## A. Brand migration (13 source files plus generated bundle)
+## OPERATIONAL RULES (read first)
+
+1. If a tool result looks identical to a previous one, stop using that tool for
+   that file and read it through bash instead: `rg -n '' <path> | sed -n '1,120p'`,
+   `awk 'NR>=76 && NR<=249' <path>`, `cat -n <path>`. Retry a repeatedly-identical
+   call at most once. Never read a single file in more than 3 tool calls.
+2. Commit after each task, immediately, as soon as that task's own check passes.
+   Do not batch one final commit at the end. Each of T1, T2, T3, T4 below ends
+   with its own commit.
+3. Spend at most 3 tool calls exploring a single file; then target the symbol with
+   `rg` and move on.
+4. Do not stop before every listed task is committed. If a task is genuinely
+   blocked, commit the partial work and name the block in the final report.
+5. Never end your turn with a text-only message while a task is still open. If the
+   next step is an edit, make the edit tool call. A reply that only describes what
+   you intend to do is a failed turn.
+
+Task order is T1, T2, T3, T4. Commit at the end of each one.
+
+### T1 - brand migration (commit 1)
 
 Replace every occurrence of the token `gkr` and the string `gemini-key-rotator`
 with `geminesx`, in these files only:
@@ -39,7 +58,7 @@ file contains no `gkr` token.
 `bun.lock` and `package-lock.json` are lockfiles. Only the `name` field may
 change there; do not otherwise rewrite them.
 
-## B. Storage layer with OPTIONAL DATABASE_URL
+### T2 - storage core: db, schema, keys-repo, pool (commit 2)
 
 Add dependency `@neondatabase/serverless`. New module `src/db.ts`:
 
@@ -78,6 +97,8 @@ Refactor `src/pool.ts`:
 - Critical path rule: no database query may sit between an incoming request and
   the upstream call. Load once at cold start, write asynchronously afterwards.
 
+### T3 - ledger, rollup, audit (commit 3)
+
 New module `src/ledger.ts`:
 
 - Keeps the existing in-memory ring buffer that serves the live tail view.
@@ -114,7 +135,7 @@ Validation: invalid input on any new route returns 400. Missing admin bearer on
 the key routes returns 401. Do not add a new validation dependency; reuse the
 existing manual checks already present in `src/app.ts`.
 
-## C. Configuration
+### T4 - configuration and cron (commit 4)
 
 `src/config.ts` gains, all optional:
 
