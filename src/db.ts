@@ -33,9 +33,22 @@ const DSN_SHAPED = /postgres(?:ql)?:\/\/\S+/gi;
 
 const client: DbClient | null = cfg.databaseUrl ? neon(cfg.databaseUrl) : null;
 
-/** True when DATABASE_URL is configured. Cheap, no I/O. */
+/**
+ * Stand-in executor. Tests and the ledger/rollup fixtures install one to
+ * exercise SQL without a live database; production never sets it.
+ */
+export type SqlRunner = <T>(query: string, params: unknown[]) => Promise<SqlResult<T>>;
+
+let runner: SqlRunner | null = null;
+
+/** Install (or clear, with `null`) the fake executor. */
+export function setSqlRunner(next: SqlRunner | null): void {
+  runner = next;
+}
+
+/** True when a database is configured. Cheap, no I/O. */
 export function dbEnabled(): boolean {
-  return client !== null;
+  return client !== null || runner !== null;
 }
 
 /** Raw client for callers that need the tagged-template form. */
@@ -91,6 +104,7 @@ export async function sql<T = Record<string, unknown>>(
   params: unknown[] = [],
   opts: { timeoutMs?: number } = {},
 ): Promise<SqlResult<T>> {
+  if (runner) return runner<T>(query, params);
   if (!client) return { ok: false, reason: "disabled", message: "DATABASE_URL not set" };
 
   const open = openUntil > Date.now();

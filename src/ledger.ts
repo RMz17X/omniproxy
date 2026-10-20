@@ -1,26 +1,30 @@
 /**
- * Request / token ledger — IN-MEMORY ONLY, no Redis, no Upstash.
+ * Durable usage ledger — request collector, console ring, batched writer.
  *
- * Why memory: the ledger is operator telemetry, not durable state. It is
- * deliberately lost on redeploy / cold start. Keeping it out of Upstash means
- * the pool's command budget is untouched by the dashboard, which is what
- * matters on a free tier.
+ * Absorbs the former `usage.ts`. Three layers, each with one job:
+ *   1. `record()` — synchronous append to the ring and the pending batch. It
+ *      never awaits the database and never throws into the request path.
+ *   2. `flush()` — one multi-row INSERT into `usage_events`. Triggered by batch
+ *      size (`LEDGER_MAX_ROWS`) or age (`LEDGER_FLUSH_MS`).
+ *   3. Failure policy — the database is optional. A failed flush puts the batch
+ *      back, capped at twice the batch size; the excess is dropped oldest-first
+ *      and counted in `droppedCount()`.
  *
- * PRIVACY RULE (enforced by construction):
- *   - A row carries ONLY metadata: ids, hashes, counts, timings, status.
- *   - The raw API key is NEVER stored. It is reduced immediately to `keyId`
- *     (sha256 prefix) and `keyMasked` (display form) inside `noteUsage`.
- *   - Request bodies, prompt text, response text, headers and query strings
- *     are NEVER stored. Only the path, token COUNTS and the model id.
- *
- * Costing: `costFor()` prices prompt/completion tokens from `models-catalog.ts`
- * (USD per 1M tokens). A model missing from the catalogue yields `null`, never
- * a fabricated number.
+ * PRIVACY (enforced by construction): a row carries identifiers, counts,
+ * timings and status only. No field can hold a prompt or a completion. The raw
+ * credential is reduced on arrival to `keyId` (sha256 prefix) plus `keyMasked`;
+ * it is never retained, logged or persisted.
  */
 
 import { createHash } from "node:crypto";
+import { cfg } from "./config.ts";
+import { dbEnabled, sql } from "./db.ts";
+import { log } from "./log.ts";
 import { catalogFor } from "./models-catalog.ts";
 import { maskKey } from "./pool.ts";
+
+/** Anything that looks like a Google API key or OAuth token. */
+const KEY_SHAPED = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/;
 
 /**
  * Ledger-scoped key id. `execute()` only hands back the MASKED credential, and
@@ -32,9 +36,6 @@ function ledgerKeyId(masked: string): string {
   return createHash("sha256").update(`masked:${masked}`).digest("hex").slice(0, 12);
 }
 
-/** Anything that looks like a Google API key or OAuth token. */
-const KEY_SHAPED = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/;
-
 export type UsageRoute =
   | "chat.completions"
   | "audio.speech"
@@ -43,6 +44,7 @@ export type UsageRoute =
   | "embeddings"
   | "other";
 
+/** One console row: superset of the persisted event. */
 export type UsageRow = {
   id: string;
   ts: number;
@@ -66,47 +68,214 @@ export type UsageRow = {
   costUsd: number | null;
 };
 
-export type UsageTotals = {
-  requests: number;
-  ok: number;
-  errors: number;
-  rotated: number;
+/** Exactly the columns of `usage_events`. */
+export type LedgerEvent = {
+  ts: number;
+  reqId: string | null;
+  route: string;
+  model: string | null;
+  keyId: string | null;
+  status: number;
+  attempts: number;
+  rotated: boolean;
+  stream: boolean;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
-  cachedTokens: number;
   costUsd: number | null;
-  avgLatencyMs: number;
+  latencyMs: number | null;
+  errorCode: string | null;
 };
 
-export type UsageBucket = UsageTotals & { key: string };
+/* ---------- ring (live console tail) ---------- */
 
-export type UsageSnapshot = {
-  mode: "memory";
-  capacity: number;
-  rows: UsageRow[];
-  page: number;
-  pageSize: number;
-  totalRows: number;
-  totals: UsageTotals;
-  byModel: UsageBucket[];
-  byKey: UsageBucket[];
-  byDay: UsageBucket[];
-  byRoute: UsageBucket[];
-  since: number | null;
-};
+/** Newest first, bounded by `LEDGER_TAIL_ROWS`. */
+const tail: UsageRow[] = [];
 
-/* ---------- ring ---------- */
+/** Newest-first snapshot of the in-process tail. */
+export function tailEvents(limit = cfg.ledgerTailRows): UsageRow[] {
+  const n = Math.max(0, Math.min(limit, tail.length));
+  return tail.slice(0, n);
+}
 
-const capacity = (() => {
-  const n = Number(process.env.USAGE_ROWS ?? 1000);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1000;
-})();
+/* ---------- pending batch ---------- */
 
-/** Newest first. Bounded: unshift + truncate. */
-const rows: UsageRow[] = [];
+let pending: LedgerEvent[] = [];
+/** Epoch ms of the oldest pending event; 0 when the batch is empty. */
+let oldestPending = 0;
+let timer: ReturnType<typeof setTimeout> | null = null;
+let flushing = false;
+let dropped = 0;
 
-type Collector = {
+/** Rows discarded by the overflow policy. Read by metrics. */
+export function droppedCount(): number {
+  return dropped;
+}
+
+/** Rows waiting to be written. */
+export function pendingCount(): number {
+  return pending.length;
+}
+
+/** Batch size and the overflow ceiling derived from it. */
+const batchCap = Math.max(1, cfg.ledgerMaxRows);
+const overflowCap = batchCap * 2;
+
+function scheduleFlush(): void {
+  if (timer !== null || !dbEnabled() || pending.length === 0) return;
+  const wait = Math.max(0, oldestPending + cfg.ledgerFlushMs - Date.now());
+  timer = setTimeout(() => {
+    timer = null;
+    void flush();
+  }, wait);
+  // Never hold the process open for a telemetry flush.
+  if (typeof timer === "object" && timer !== null && "unref" in timer) timer.unref();
+}
+
+/** Project a console row onto the persisted column set. */
+function toEvent(row: UsageRow): LedgerEvent {
+  return {
+    ts: row.ts,
+    reqId: row.id,
+    route: row.route,
+    model: row.model,
+    keyId: row.keyId,
+    status: row.status,
+    attempts: row.attempts,
+    rotated: row.rotated,
+    stream: row.stream,
+    promptTokens: row.promptTokens,
+    completionTokens: row.completionTokens,
+    totalTokens: row.totalTokens,
+    costUsd: row.costUsd,
+    latencyMs: row.latencyMs,
+    errorCode: row.errorCode,
+  };
+}
+
+/**
+ * Append one row to the ring and the pending batch. Synchronous by contract:
+ * the caller is on the response path and must not pay for a round trip.
+ */
+export function record(row: UsageRow): void {
+  try {
+    tail.unshift(row);
+    if (tail.length > cfg.ledgerTailRows) tail.length = cfg.ledgerTailRows;
+
+    if (!dbEnabled()) return;
+
+    if (pending.length === 0) oldestPending = row.ts;
+    pending.push(toEvent(row));
+
+    if (pending.length > overflowCap) {
+      const excess = pending.length - overflowCap;
+      pending.splice(0, excess);
+      dropped += excess;
+      oldestPending = pending.length ? pending[0].ts : 0;
+      log("warn", "ledger.overflow_drop", { dropped: excess, totalDropped: dropped });
+    }
+
+    if (pending.length >= batchCap) void flush();
+    else scheduleFlush();
+  } catch (err) {
+    // Telemetry must never break the request.
+    log("warn", "ledger.record_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+const CHUNK = 100;
+
+function insertStatement(rows: LedgerEvent[]): { text: string; params: unknown[] } {
+  const cols = 15;
+  const tuples: string[] = [];
+  const params: unknown[] = [];
+  rows.forEach((e, i) => {
+    const base = i * cols;
+    tuples.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14},$${base + 15})`);
+    params.push(
+      new Date(e.ts).toISOString(),
+      e.reqId,
+      e.route,
+      e.model,
+      e.keyId,
+      e.status,
+      e.attempts,
+      e.rotated,
+      e.stream,
+      e.promptTokens,
+      e.completionTokens,
+      e.totalTokens,
+      e.costUsd,
+      e.latencyMs,
+      e.errorCode,
+    );
+  });
+  const text =
+    "insert into usage_events (ts, req_id, route, model, key_id, status, attempts, rotated, stream, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, error_code) values " +
+    tuples.join(",");
+  return { text, params };
+}
+
+/**
+ * Write the pending batch. Safe to call at any time; a concurrent call is a
+ * no-op. Never throws, never rejects.
+ */
+export async function flush(): Promise<void> {
+  if (flushing || pending.length === 0) return;
+  if (!dbEnabled()) {
+    pending = [];
+    oldestPending = 0;
+    return;
+  }
+
+  flushing = true;
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
+  }
+
+  const batch = pending;
+  pending = [];
+  oldestPending = 0;
+
+  try {
+    for (let i = 0; i < batch.length; i += CHUNK) {
+      const { text, params } = insertStatement(batch.slice(i, i + CHUNK));
+      const res = await sql(text, params);
+      if (!res.ok) {
+        requeue(batch.slice(i));
+        log("warn", "ledger.flush_failed", { reason: res.reason, rows: batch.length - i });
+        return;
+      }
+    }
+  } finally {
+    flushing = false;
+    if (pending.length) scheduleFlush();
+  }
+}
+
+/**
+ * Put a failed batch back in front of the queue, bounded by the overflow cap.
+ * The ring is untouched: the live console keeps showing what it had.
+ */
+function requeue(rows: LedgerEvent[]): void {
+  const merged = rows.concat(pending);
+  const cap = overflowCap;
+  if (merged.length > cap) {
+    dropped += merged.length - cap;
+    merged.splice(0, merged.length - cap);
+  }
+  pending = merged;
+  oldestPending = pending.length ? pending[0].ts : 0;
+  if (pending.length >= batchCap) void flush();
+  else scheduleFlush();
+}
+
+/* ---------- request collector ---------- */
+
+export type Collector = {
   startedAt: number;
   path: string;
   method: string;
@@ -142,6 +311,7 @@ export function costFor(
 export function routeOf(path: string): UsageRoute | null {
   if (path.startsWith("/pengatur") || path.startsWith("/admin")) return null;
   if (path === "/" || path === "/health" || path === "/metrics" || path === "/favicon.ico") return null;
+  if (path === "/internal/rollup") return null;
   if (path === "/v1/chat/completions") return "chat.completions";
   if (path === "/v1/audio/speech") return "audio.speech";
   if (path === "/v1/embeddings") return "embeddings";
@@ -266,8 +436,7 @@ export function commitUsage(req: Request, status: number): UsageRow | null {
     costUsd: costFor(c.model, promptTokens, completionTokens),
   };
 
-  rows.unshift(row);
-  if (rows.length > capacity) rows.length = capacity;
+  record(row);
   return row;
 }
 
@@ -281,6 +450,42 @@ export function finalizeStream(req: Request, status = 200, errorCode?: string): 
 }
 
 /* ---------- read side ---------- */
+
+export type UsageTotals = {
+  requests: number;
+  ok: number;
+  errors: number;
+  rotated: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  cachedTokens: number;
+  costUsd: number | null;
+  avgLatencyMs: number;
+};
+
+export type UsageBucket = UsageTotals & { key: string };
+
+export type UsageSnapshot = {
+  mode: "memory";
+  capacity: number;
+  rows: UsageRow[];
+  page: number;
+  pageSize: number;
+  totalRows: number;
+  totals: UsageTotals;
+  byModel: UsageBucket[];
+  byKey: UsageBucket[];
+  byDay: UsageBucket[];
+  byRoute: UsageBucket[];
+  since: number | null;
+};
+
+/** Console capacity, `USAGE_ROWS` for compatibility with the old ring knob. */
+const capacity = (() => {
+  const n = Number(process.env.USAGE_ROWS ?? 1000);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1000;
+})();
 
 const emptyTotals = (): UsageTotals => ({
   requests: 0,
@@ -366,7 +571,7 @@ export function pageOf<T>(items: T[], page: number, pageSize: number): T[] {
 }
 
 export function usageOverview(page = 1, pageSize = 25, filter: RowFilter = {}): UsageSnapshot {
-  const filtered = filterRows(rows, filter);
+  const filtered = filterRows(tail, filter);
   return {
     mode: "memory",
     capacity,
@@ -379,12 +584,12 @@ export function usageOverview(page = 1, pageSize = 25, filter: RowFilter = {}): 
     byKey: bucketBy(filtered, (r) => r.keyMasked || r.keyId),
     byDay: bucketBy(filtered, (r) => dayOf(r.ts)),
     byRoute: bucketBy(filtered, (r) => r.route),
-    since: rows.length ? rows[rows.length - 1].ts : null,
+    since: tail.length ? tail[tail.length - 1].ts : null,
   };
 }
 
 export function allRows(): UsageRow[] {
-  return rows.slice();
+  return tail.slice();
 }
 
 export function toCsv(list: UsageRow[]): string {

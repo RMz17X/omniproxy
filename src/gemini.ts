@@ -9,7 +9,7 @@
 
 import { cfg, VOICE_MAP } from "./config.ts";
 import { execute } from "./upstream.ts";
-import { noteUsage } from "./usage.ts";
+import { noteUsage } from "./ledger.ts";
 
 const UP = cfg.upstream.replace(/\/$/, "");
 

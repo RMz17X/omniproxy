@@ -27,26 +27,24 @@ import { chatCompletions, embeddings, models } from "./openai.ts";
 import {
   beginUsage,
   commitUsage,
-  noteUsage,
+  flush as flushLedger,
   routeOf,
   toCsv,
   usageOverview,
   type RowFilter,
-} from "./usage.ts";
+} from "./ledger.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 
 const app = new Hono();
 
 app.use("*", cors());
 
-/* ---------- usage ledger (in-memory, no Redis) ---------- */
+/* ---------- usage ledger ---------- */
 
 /**
- * One row per gateway request. Deliberately process-local: the ledger is
- * operator telemetry, so it dies with the instance and never consumes a single
- * Upstash command. Non-stream responses are committed here; streaming handlers
- * call `finalizeStream()` themselves because their token counts are only final
- * once the last byte leaves.
+ * One row per gateway request. The collector lives on the Request object; the
+ * row is committed after the handler returns, and the batch is flushed off the
+ * response path so no client ever waits on Postgres.
  */
 app.use("*", async (c, next) => {
   const path = new URL(c.req.url).pathname;
@@ -56,6 +54,12 @@ app.use("*", async (c, next) => {
   beginUsage(c.req.raw, path, route);
   await next();
   commitUsage(c.req.raw, c.res.status);
+  // The flush is detached: `void` keeps it off the critical path, and
+  // `waitUntil` (when the platform provides it) keeps the instance alive
+  // long enough for the batch to land.
+  const ctx = c.executionCtx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
+  const flushed = flushLedger().catch(() => {});
+  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(flushed);
 });
 
 /* ---------- auth ---------- */
