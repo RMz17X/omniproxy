@@ -827,7 +827,7 @@ var drainIncoming = (incoming) => {
   }
   let bytesRead = 0;
   const cleanup = () => {
-    clearTimeout(timer);
+    clearTimeout(timer2);
     incoming.off("data", onData);
     incoming.off("end", cleanup);
     incoming.off("error", cleanup);
@@ -840,8 +840,8 @@ var drainIncoming = (incoming) => {
       else if (typeof socket.destroy === "function") socket.destroy();
     }
   };
-  const timer = setTimeout(forceClose, DRAIN_TIMEOUT_MS);
-  timer.unref?.();
+  const timer2 = setTimeout(forceClose, DRAIN_TIMEOUT_MS);
+  timer2.unref?.();
   const onData = (chunk2) => {
     bytesRead += chunk2.length;
     if (bytesRead > MAX_DRAIN_BYTES) forceClose();
@@ -8454,8 +8454,9 @@ var TRIP_AT = 5;
 var OPEN_MS = 6e4;
 var DSN_SHAPED = /postgres(?:ql)?:\/\/\S+/gi;
 var client = cfg.databaseUrl ? ys(cfg.databaseUrl) : null;
+var runner = null;
 function dbEnabled() {
-  return client !== null;
+  return client !== null || runner !== null;
 }
 var failStreak = 0;
 var openUntil = 0;
@@ -8476,19 +8477,20 @@ function onFailure(reason, message) {
   log("warn", "db.query_failed", { reason, failures: failStreak, message });
 }
 async function sql(query, params = [], opts = {}) {
+  if (runner) return runner(query, params);
   if (!client) return { ok: false, reason: "disabled", message: "DATABASE_URL not set" };
   const open = openUntil > Date.now();
   if (open && probing) return { ok: false, reason: "breaker", message: "breaker open" };
   if (open) probing = true;
   const timeoutMs = opts.timeoutMs ?? cfg.dbQueryTimeoutMs;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timer2 = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const rows2 = await client.query(query, params, {
+    const rows = await client.query(query, params, {
       fetchOptions: { signal: ctrl.signal }
     });
     onSuccess();
-    return { ok: true, rows: Array.isArray(rows2) ? rows2 : [] };
+    return { ok: true, rows: Array.isArray(rows) ? rows : [] };
   } catch (err2) {
     const aborted2 = ctrl.signal.aborted;
     const raw2 = err2 instanceof Error ? err2.message : String(err2);
@@ -8496,7 +8498,7 @@ async function sql(query, params = [], opts = {}) {
     onFailure(aborted2 ? "timeout" : "error", aborted2 ? `timeout after ${timeoutMs}ms` : message);
     return { ok: false, reason: aborted2 ? "timeout" : "error", message };
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timer2);
   }
 }
 
@@ -8614,9 +8616,9 @@ async function hydrate() {
     log("info", "pool.hydrated", { source: "env", keys: local.size });
     return local.size;
   }
-  const rows2 = await loadKeys();
+  const rows = await loadKeys();
   const byId = new Map([...local.values()].map((s) => [keyId(s.key), s]));
-  for (const row of rows2) {
+  for (const row of rows) {
     const hit = byId.get(row.id);
     if (!hit) continue;
     hit.tier = row.plan;
@@ -8626,7 +8628,7 @@ async function hydrate() {
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
     }
   }
-  log("info", "pool.hydrated", { source: "postgres+env", keys: local.size, rows: rows2.length });
+  log("info", "pool.hydrated", { source: "postgres+env", keys: local.size, rows: rows.length });
   return local.size;
 }
 async function addKey(key) {
@@ -10957,17 +10959,141 @@ async function probeOnce(rawKey, model) {
 // src/app.ts
 import { deflateSync } from "node:zlib";
 
-// src/usage.ts
+// src/ledger.ts
 import { createHash as createHash2 } from "node:crypto";
+var KEY_SHAPED2 = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/;
 function ledgerKeyId(masked) {
   return createHash2("sha256").update(`masked:${masked}`).digest("hex").slice(0, 12);
 }
-var KEY_SHAPED2 = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/;
-var capacity = (() => {
-  const n = Number(process.env.USAGE_ROWS ?? 1e3);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1e3;
-})();
-var rows = [];
+var tail = [];
+var pending = [];
+var oldestPending = 0;
+var timer = null;
+var flushing = false;
+var dropped = 0;
+var batchCap = Math.max(1, cfg.ledgerMaxRows);
+var overflowCap = batchCap * 2;
+function scheduleFlush() {
+  if (timer !== null || !dbEnabled() || pending.length === 0) return;
+  const wait = Math.max(0, oldestPending + cfg.ledgerFlushMs - Date.now());
+  timer = setTimeout(() => {
+    timer = null;
+    void flush();
+  }, wait);
+  if (typeof timer === "object" && timer !== null && "unref" in timer) timer.unref();
+}
+function toEvent(row) {
+  return {
+    ts: row.ts,
+    reqId: row.id,
+    route: row.route,
+    model: row.model,
+    keyId: row.keyId,
+    status: row.status,
+    attempts: row.attempts,
+    rotated: row.rotated,
+    stream: row.stream,
+    promptTokens: row.promptTokens,
+    completionTokens: row.completionTokens,
+    totalTokens: row.totalTokens,
+    costUsd: row.costUsd,
+    latencyMs: row.latencyMs,
+    errorCode: row.errorCode
+  };
+}
+function record(row) {
+  try {
+    tail.unshift(row);
+    if (tail.length > cfg.ledgerTailRows) tail.length = cfg.ledgerTailRows;
+    if (!dbEnabled()) return;
+    if (pending.length === 0) oldestPending = row.ts;
+    pending.push(toEvent(row));
+    if (pending.length > overflowCap) {
+      const excess = pending.length - overflowCap;
+      pending.splice(0, excess);
+      dropped += excess;
+      oldestPending = pending.length ? pending[0].ts : 0;
+      log("warn", "ledger.overflow_drop", { dropped: excess, totalDropped: dropped });
+    }
+    if (pending.length >= batchCap) void flush();
+    else scheduleFlush();
+  } catch (err2) {
+    log("warn", "ledger.record_failed", {
+      error: err2 instanceof Error ? err2.message : String(err2)
+    });
+  }
+}
+var CHUNK = 100;
+function insertStatement(rows) {
+  const cols = 15;
+  const tuples = [];
+  const params = [];
+  rows.forEach((e, i) => {
+    const base = i * cols;
+    tuples.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14},$${base + 15})`);
+    params.push(
+      new Date(e.ts).toISOString(),
+      e.reqId,
+      e.route,
+      e.model,
+      e.keyId,
+      e.status,
+      e.attempts,
+      e.rotated,
+      e.stream,
+      e.promptTokens,
+      e.completionTokens,
+      e.totalTokens,
+      e.costUsd,
+      e.latencyMs,
+      e.errorCode
+    );
+  });
+  const text = "insert into usage_events (ts, req_id, route, model, key_id, status, attempts, rotated, stream, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, error_code) values " + tuples.join(",");
+  return { text, params };
+}
+async function flush() {
+  if (flushing || pending.length === 0) return;
+  if (!dbEnabled()) {
+    pending = [];
+    oldestPending = 0;
+    return;
+  }
+  flushing = true;
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  const batch = pending;
+  pending = [];
+  oldestPending = 0;
+  try {
+    for (let i = 0; i < batch.length; i += CHUNK) {
+      const { text, params } = insertStatement(batch.slice(i, i + CHUNK));
+      const res = await sql(text, params);
+      if (!res.ok) {
+        requeue(batch.slice(i));
+        log("warn", "ledger.flush_failed", { reason: res.reason, rows: batch.length - i });
+        return;
+      }
+    }
+  } finally {
+    flushing = false;
+    if (pending.length) scheduleFlush();
+  }
+}
+function requeue(rows) {
+  const merged = rows.concat(pending);
+  const cap = overflowCap;
+  if (merged.length > cap) {
+    dropped += merged.length - cap;
+    merged.splice(0, merged.length - cap);
+  }
+  pending = merged;
+  oldestPending = pending.length ? pending[0].ts : 0;
+  if (pending.length >= batchCap) void flush();
+  else scheduleFlush();
+}
 var collectors = /* @__PURE__ */ new WeakMap();
 function costFor(model, promptTokens, completionTokens) {
   const entry = catalogFor(model);
@@ -10978,6 +11104,7 @@ function costFor(model, promptTokens, completionTokens) {
 function routeOf(path) {
   if (path.startsWith("/pengatur") || path.startsWith("/admin")) return null;
   if (path === "/" || path === "/health" || path === "/metrics" || path === "/favicon.ico") return null;
+  if (path === "/internal/rollup") return null;
   if (path === "/v1/chat/completions") return "chat.completions";
   if (path === "/v1/audio/speech") return "audio.speech";
   if (path === "/v1/embeddings") return "embeddings";
@@ -11067,8 +11194,7 @@ function commitUsage(req, status) {
     cachedTokens: c.cachedTokens,
     costUsd: costFor(c.model, promptTokens, completionTokens)
   };
-  rows.unshift(row);
-  if (rows.length > capacity) rows.length = capacity;
+  record(row);
   return row;
 }
 function finalizeStream(req, status = 200, errorCode) {
@@ -11078,6 +11204,10 @@ function finalizeStream(req, status = 200, errorCode) {
   c.stream = false;
   commitUsage(req, status);
 }
+var capacity = (() => {
+  const n = Number(process.env.USAGE_ROWS ?? 1e3);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1e3;
+})();
 var emptyTotals = () => ({
   requests: 0,
   ok: 0,
@@ -11144,7 +11274,7 @@ function pageOf(items, page, pageSize) {
   return items.slice((p2 - 1) * n, p2 * n);
 }
 function usageOverview(page = 1, pageSize = 25, filter = {}) {
-  const filtered = filterRows(rows, filter);
+  const filtered = filterRows(tail, filter);
   return {
     mode: "memory",
     capacity,
@@ -11157,7 +11287,7 @@ function usageOverview(page = 1, pageSize = 25, filter = {}) {
     byKey: bucketBy(filtered, (r) => r.keyMasked || r.keyId),
     byDay: bucketBy(filtered, (r) => dayOf(r.ts)),
     byRoute: bucketBy(filtered, (r) => r.route),
-    since: rows.length ? rows[rows.length - 1].ts : null
+    since: tail.length ? tail[tail.length - 1].ts : null
   };
 }
 function toCsv(list) {
@@ -11896,6 +12026,76 @@ function err(status, type, message) {
   return Response.json({ error: { type, message } }, { status });
 }
 
+// src/rollup.ts
+var WIB_OFFSET_MS = 7 * 60 * 60 * 1e3;
+var DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+function wibDayOf(ts2) {
+  return new Date(ts2 + WIB_OFFSET_MS).toISOString().slice(0, 10);
+}
+function yesterdayWib(now2 = Date.now()) {
+  return wibDayOf(now2 - 24 * 60 * 60 * 1e3);
+}
+function dayStart(day) {
+  return /* @__PURE__ */ new Date(`${day}T00:00:00.000+07:00`);
+}
+function normalizeDay(day) {
+  if (day && DAY_RE.test(day)) {
+    const t = Date.parse(`${day}T00:00:00.000Z`);
+    if (Number.isFinite(t)) return day;
+  }
+  return yesterdayWib();
+}
+async function rollupDay(day) {
+  const target = normalizeDay(day);
+  if (!dbEnabled()) return { day: target, buckets: 0 };
+  const start = dayStart(target);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1e3);
+  const text = `
+with cleared as (
+  delete from usage_daily where day = $1::date returning 1
+)
+insert into usage_daily (
+  day, route, model, key_id,
+  requests, errors, rotated,
+  prompt_tokens, completion_tokens, total_tokens,
+  cost_usd, p50_ms, p95_ms
+)
+select
+  $1::date,
+  route,
+  coalesce(model, ''),
+  coalesce(key_id, ''),
+  count(*)::int,
+  (count(*) filter (where status >= 400))::int,
+  (count(*) filter (where rotated))::int,
+  coalesce(sum(prompt_tokens), 0)::bigint,
+  coalesce(sum(completion_tokens), 0)::bigint,
+  coalesce(sum(total_tokens), 0)::bigint,
+  coalesce(sum(cost_usd), 0)::numeric,
+  percentile_cont(0.5) within group (order by latency_ms)::int,
+  percentile_cont(0.95) within group (order by latency_ms)::int
+from usage_events
+where ts >= $2::timestamptz and ts < $3::timestamptz
+group by route, coalesce(model, ''), coalesce(key_id, '')
+returning 1`;
+  const res = await sql(text, [target, start.toISOString(), end.toISOString()]);
+  if (!res.ok) return { day: target, buckets: 0 };
+  return { day: target, buckets: res.rows.length };
+}
+async function pruneOlderThan(days = cfg.retentionDays) {
+  if (!dbEnabled()) return { pruned: 0 };
+  const keep = Number.isFinite(days) && days > 0 ? Math.floor(days) : cfg.retentionDays;
+  const res = await sql(
+    "delete from usage_events where ts < now() - make_interval(days => $1::int) returning 1",
+    [keep]
+  );
+  if (!res.ok) return { pruned: 0 };
+  return { pruned: res.rows.length };
+}
+function defaultDay(now2 = Date.now()) {
+  return yesterdayWib(now2);
+}
+
 // src/usage-ui.ts
 var USAGE_HTML = `<!doctype html>
 <html lang="en">
@@ -12553,6 +12753,10 @@ app.use("*", async (c, next) => {
   beginUsage(c.req.raw, path, route);
   await next();
   commitUsage(c.req.raw, c.res.status);
+  const ctx = c.executionCtx;
+  const flushed = flush().catch(() => {
+  });
+  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(flushed);
 });
 var bearer = (h2) => {
   if (!h2) return "";
@@ -12791,6 +12995,25 @@ app.post("/pengatur/keys/test-all", async (c) => {
   };
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
+});
+app.post("/internal/rollup", async (c) => {
+  if (!cfg.rollupToken) {
+    return c.json({ error: { message: "Rollup disabled: ROLLUP_TOKEN is not set." } }, 403);
+  }
+  const presented = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() || c.req.header("x-rollup-token") || "";
+  if (presented !== cfg.rollupToken) {
+    return c.json({ error: { message: "Unauthorized." } }, 401);
+  }
+  let bodyDay;
+  try {
+    const body = await c.req.json();
+    bodyDay = body?.day;
+  } catch {
+  }
+  const requested = bodyDay ?? new URL(c.req.url).searchParams.get("day") ?? void 0;
+  const rolled = await rollupDay(requested ?? defaultDay());
+  const pruned = await pruneOlderThan();
+  return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
 });
 app.notFound(
   (c) => c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
