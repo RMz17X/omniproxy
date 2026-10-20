@@ -33,6 +33,7 @@ import {
   usageOverview,
   type RowFilter,
 } from "./ledger.ts";
+import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 
 const app = new Hono();
@@ -378,6 +379,41 @@ app.post("/pengatur/keys/test-all", async (c) => {
 
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
+});
+
+/* ---------- cron ---------- */
+
+/**
+ * Daily rollup entry point. Vercel cron calls this with no body; the day
+ * defaults to yesterday in WIB. Auth is a shared bearer token, and an unset
+ * `ROLLUP_TOKEN` disables the route entirely rather than leaving it open.
+ */
+app.post("/internal/rollup", async (c) => {
+  if (!cfg.rollupToken) {
+    return c.json({ error: { message: "Rollup disabled: ROLLUP_TOKEN is not set." } }, 403);
+  }
+  const presented =
+    (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() ||
+    c.req.header("x-rollup-token") ||
+    "";
+  if (presented !== cfg.rollupToken) {
+    return c.json({ error: { message: "Unauthorized." } }, 401);
+  }
+
+  let bodyDay: string | undefined;
+  try {
+    const body = (await c.req.json()) as { day?: string } | null;
+    bodyDay = body?.day;
+  } catch {
+    // No body is the normal cron case; fall through to query/default.
+  }
+  const requested = bodyDay ?? new URL(c.req.url).searchParams.get("day") ?? undefined;
+
+  // Neither call throws: both return zeroed counts when the database is
+  // absent or the breaker is open.
+  const rolled = await rollupDay(requested ?? defaultDay());
+  const pruned = await pruneOlderThan();
+  return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
 });
 
 app.notFound((c) =>
