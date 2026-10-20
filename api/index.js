@@ -12753,10 +12753,12 @@ app.use("*", async (c, next) => {
   beginUsage(c.req.raw, path, route);
   await next();
   commitUsage(c.req.raw, c.res.status);
-  const ctx = c.executionCtx;
   const flushed = flush().catch(() => {
   });
-  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(flushed);
+  try {
+    c.executionCtx.waitUntil(flushed);
+  } catch {
+  }
 });
 var bearer = (h2) => {
   if (!h2) return "";

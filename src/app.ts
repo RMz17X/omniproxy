@@ -57,10 +57,14 @@ app.use("*", async (c, next) => {
   commitUsage(c.req.raw, c.res.status);
   // The flush is detached: `void` keeps it off the critical path, and
   // `waitUntil` (when the platform provides it) keeps the instance alive
-  // long enough for the batch to land.
-  const ctx = c.executionCtx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
+  // long enough for the batch to land. Reading `executionCtx` THROWS on a
+  // runtime that has none (plain Bun, `app.fetch` in tests), so it is probed.
   const flushed = flushLedger().catch(() => {});
-  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(flushed);
+  try {
+    c.executionCtx.waitUntil(flushed);
+  } catch {
+    // No platform context: the detached promise is all we get.
+  }
 });
 
 /* ---------- auth ---------- */
