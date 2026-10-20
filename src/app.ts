@@ -128,25 +128,9 @@ app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.ur
 /* ---------- admin ---------- */
 
 /* ---------- legacy paths ---------- */
-// The console moved from /admin to /pengatur, and the model inventory from
-// /models to /pengatur/models. Redirects are permanent so bookmarks and any
-// external caller keep resolving to a live URL instead of 404.
-const LEGACY_PATHS: Record<string, string> = {
-  "/admin": "/pengatur",
-  "/admin/keys": "/pengatur/keys",
-  "/admin/keys/test": "/pengatur/keys/test",
-  "/admin/keys/test-all": "/pengatur/keys/test-all",
-  "/admin/models": "/pengatur/models/list",
-  "/admin/models/test": "/pengatur/models/test",
-  "/models": "/pengatur/models",
-};
-
-app.all("/admin", (c) => c.redirect(LEGACY_PATHS["/admin"], 308));
-app.all("/admin/*", (c) => {
-  const p = new URL(c.req.url).pathname;
-  return c.redirect(LEGACY_PATHS[p] ?? "/pengatur" + p.slice("/admin".length), 308);
-});
-app.all("/models", (c) => c.redirect(LEGACY_PATHS["/models"], 308));
+// Deliberately absent: /admin and /models used to 308-redirect to the console
+// paths. A redirect tells an unauthenticated stranger exactly where the console
+// lives, so both prefixes now fall through to the normal 404.
 
 /* ---------- favicon ---------- */
 
