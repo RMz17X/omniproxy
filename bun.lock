@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "gemini-key-rotator",
+      "name": "geminesx",
       "dependencies": {
         "@hono/node-server": "^2.1.5",
         "hono": "^4.6.14",

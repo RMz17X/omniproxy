@@ -12,7 +12,7 @@ export const MODELS_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Models · key rotator</title>
+<title>Models · GeminesX</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
@@ -191,7 +191,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
 <script>
 (function () {
   "use strict";
-  var STORE = "gkr.admin.token";
+  var STORE = "geminesx.admin.token";
   var el = {
     authPanel: document.getElementById("authPanel"),
     authHint: document.getElementById("authHint"),
@@ -545,7 +545,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
 
   el.tier.addEventListener("change", function () {
     var t = el.tier.value;
-    try { localStorage.setItem("gkr.tier", t); } catch (e) {}
+    try { localStorage.setItem("geminesx.tier", t); } catch (e) {}
     var label = { free: "Free tier", paid: "Pay-as-you-go", pro: "Google AI Pro/Ultra", any: "All models" }[t];
     el.cTier.textContent = label;
     if (t === "free") el.tierNote.textContent = "Models marked paid only need billing enabled on the Google Cloud project behind the key.";
@@ -559,7 +559,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
   var saved = null;
   try { saved = localStorage.getItem(STORE); } catch (e) {}
   var savedTier = null;
-  try { savedTier = localStorage.getItem("gkr.tier"); } catch (e) {}
+  try { savedTier = localStorage.getItem("geminesx.tier"); } catch (e) {}
   if (savedTier) el.tier.value = savedTier;
   if (saved) {
     state.token = saved;

@@ -25,9 +25,9 @@ const KV_URL = (process.env.UPSTASH_REDIS_REST_URL ?? "").replace(/\/+$/, "");
 const KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
 const USE_KV = Boolean(KV_URL && KV_TOKEN);
 
-const IDX_KEY = "gkr:idx";
-const DEAD_KEY = "gkr:idx:dead";
-const KEY_PREFIX = "gkr:k:";
+const IDX_KEY = "geminesx:idx";
+const DEAD_KEY = "geminesx:idx:dead";
+const KEY_PREFIX = "geminesx:k:";
 
 /** How long a refreshed pool view is reused before hitting Redis again. */
 export const CACHE_TTL_MS = Number(process.env.POOL_CACHE_TTL_MS ?? 250);
@@ -502,7 +502,7 @@ export async function markSoftError(key: string, cooldownMs: number): Promise<vo
 }
 
 /**
- * Permanently retire a key. `SADD gkr:idx:dead` doubles as the conditional
+ * Permanently retire a key. `SADD geminesx:idx:dead` doubles as the conditional
  * claim: it returns 0 when another instance already retired this key, so only
  * the first writer logs the death.
  */

@@ -1,12 +1,12 @@
-// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+// ../../node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
 var X_ALREADY_SENT = "x-hono-already-sent";
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 import { STATUS_CODES, ServerResponse, createServer } from "node:http";
 import { Http2ServerRequest, constants } from "node:http2";
 import { Readable } from "node:stream";
 
-// node_modules/hono/dist/helper/websocket/index.js
+// ../../node_modules/hono/dist/helper/websocket/index.js
 var defineWebSocketHelper = (handler2) => {
   return (...args) => {
     if (typeof args[0] === "function") {
@@ -27,7 +27,7 @@ var defineWebSocketHelper = (handler2) => {
   };
 };
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 var RequestError = class extends Error {
   constructor(message, options) {
     super(message, options);
@@ -1194,15 +1194,15 @@ var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
   return new Response();
 });
 
-// node_modules/hono/dist/request/constants.js
+// ../../node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = Symbol();
 
-// node_modules/hono/dist/utils/buffer.js
+// ../../node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType2) => {
   return new Response(arrayBuffer, { headers: { "Content-Type": contentType2.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase()) } }).formData();
 };
 
-// node_modules/hono/dist/utils/body.js
+// ../../node_modules/hono/dist/utils/body.js
 var MAX_NESTED_OBJECTS = 1e4;
 var isRawRequest = (request) => "headers" in request;
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
@@ -1266,7 +1266,7 @@ var throwNestingLimitExceeded = () => {
   throw new Error("Nesting limit exceeded");
 };
 
-// node_modules/hono/dist/utils/url.js
+// ../../node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split("/");
   if (paths[0] === "") paths.shift();
@@ -1437,7 +1437,7 @@ var getQueryParams = (url, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// node_modules/hono/dist/request.js
+// ../../node_modules/hono/dist/request.js
 var HonoRequest = class {
   /**
   * `.raw` can get the raw Request object.
@@ -1707,7 +1707,7 @@ var HonoRequest = class {
   }
 };
 
-// node_modules/hono/dist/utils/html.js
+// ../../node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -1737,7 +1737,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   else return resStr;
 };
 
-// node_modules/hono/dist/context.js
+// ../../node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType2, headers) => {
   return {
@@ -2115,7 +2115,7 @@ var Context = class {
   };
 };
 
-// node_modules/hono/dist/compose.js
+// ../../node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -2146,7 +2146,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// node_modules/hono/dist/router.js
+// ../../node_modules/hono/dist/router.js
 var METHODS = [
   "get",
   "post",
@@ -2160,10 +2160,10 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 var UnsupportedPathError = class extends Error {
 };
 
-// node_modules/hono/dist/utils/constants.js
+// ../../node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
-// node_modules/hono/dist/hono-base.js
+// ../../node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -2504,10 +2504,10 @@ var Hono = class Hono2 {
   };
 };
 
-// node_modules/hono/dist/router/utils.js
+// ../../node_modules/hono/dist/router/utils.js
 var createNullObject = () => /* @__PURE__ */ Object.create(null);
 
-// node_modules/hono/dist/router/reg-exp-router/matcher.js
+// ../../node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -2524,7 +2524,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// node_modules/hono/dist/router/reg-exp-router/node.js
+// ../../node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
 var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
 var PATH_ERROR = Symbol();
@@ -2605,7 +2605,7 @@ var Node = class Node2 {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/trie.js
+// ../../node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -2670,7 +2670,7 @@ var Trie = class {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/router.js
+// ../../node_modules/hono/dist/router/reg-exp-router/router.js
 var wildcardRegExpCache = createNullObject();
 function buildWildcardRegExp(path) {
   return wildcardRegExpCache[path] ??= new RegExp(`^${path.replace(/\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g, (match2, metaChar) => metaChar ? `\\${metaChar}` : match2 === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match2 === "*" ? ".*" : `/:${LABEL_REG_EXP_STR}`)}$`);
@@ -2764,7 +2764,7 @@ var RegExpRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/smart-router/router.js
+// ../../node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = "SmartRouter";
   #routers = [];
@@ -2811,7 +2811,7 @@ var SmartRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/node.js
+// ../../node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = createNullObject();
 var order = 0;
 var Node3 = class Node4 {
@@ -2941,7 +2941,7 @@ var Node3 = class Node4 {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/router.js
+// ../../node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = "TrieRouter";
   #node = new Node3();
@@ -2953,7 +2953,7 @@ var TrieRouter = class {
   }
 };
 
-// node_modules/hono/dist/hono.js
+// ../../node_modules/hono/dist/hono.js
 var Hono3 = class extends Hono {
   /**
   * Creates an instance of the Hono class.
@@ -2966,7 +2966,7 @@ var Hono3 = class extends Hono {
   }
 };
 
-// node_modules/hono/dist/middleware/cors/index.js
+// ../../node_modules/hono/dist/middleware/cors/index.js
 var cors = (options) => {
   const opts = {
     origin: "*",
@@ -3131,9 +3131,9 @@ var counters = {
 var KV_URL = (process.env.UPSTASH_REDIS_REST_URL ?? "").replace(/\/+$/, "");
 var KV_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
 var USE_KV = Boolean(KV_URL && KV_TOKEN);
-var IDX_KEY = "gkr:idx";
-var DEAD_KEY = "gkr:idx:dead";
-var KEY_PREFIX = "gkr:k:";
+var IDX_KEY = "geminesx:idx";
+var DEAD_KEY = "geminesx:idx:dead";
+var KEY_PREFIX = "geminesx:k:";
 var CACHE_TTL_MS = Number(process.env.POOL_CACHE_TTL_MS ?? 250);
 var BREAKER_MS = Number(process.env.REDIS_BREAKER_MS ?? 3e4);
 var BREAKER_TRIP_AT = 2;
@@ -3461,7 +3461,7 @@ var ADMIN_HTML = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Key rotator control</title>
+<title>GeminesX control</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
@@ -3741,7 +3741,7 @@ var ADMIN_HTML = `<!doctype html>
 <script>
 (function () {
   "use strict";
-  var STORE = "gkr.admin.token";
+  var STORE = "geminesx.admin.token";
 
   var el = {
     authPanel: document.getElementById("authPanel"),
@@ -4444,7 +4444,7 @@ var MODELS_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Models \xB7 key rotator</title>
+<title>Models \xB7 GeminesX</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
@@ -4623,7 +4623,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
 <script>
 (function () {
   "use strict";
-  var STORE = "gkr.admin.token";
+  var STORE = "geminesx.admin.token";
   var el = {
     authPanel: document.getElementById("authPanel"),
     authHint: document.getElementById("authHint"),
@@ -4977,7 +4977,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
 
   el.tier.addEventListener("change", function () {
     var t = el.tier.value;
-    try { localStorage.setItem("gkr.tier", t); } catch (e) {}
+    try { localStorage.setItem("geminesx.tier", t); } catch (e) {}
     var label = { free: "Free tier", paid: "Pay-as-you-go", pro: "Google AI Pro/Ultra", any: "All models" }[t];
     el.cTier.textContent = label;
     if (t === "free") el.tierNote.textContent = "Models marked paid only need billing enabled on the Google Cloud project behind the key.";
@@ -4991,7 +4991,7 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
   var saved = null;
   try { saved = localStorage.getItem(STORE); } catch (e) {}
   var savedTier = null;
-  try { savedTier = localStorage.getItem("gkr.tier"); } catch (e) {}
+  try { savedTier = localStorage.getItem("geminesx.tier"); } catch (e) {}
   if (savedTier) el.tier.value = savedTier;
   if (saved) {
     state.token = saved;
@@ -5911,8 +5911,8 @@ function withMeta(res, meta) {
   h.delete("content-encoding");
   h.delete("content-length");
   h.delete("transfer-encoding");
-  h.set("x-gkr-attempts", String(meta.attempts));
-  h.set("x-gkr-rotated", meta.rotated ? "1" : "0");
+  h.set("x-geminesx-attempts", String(meta.attempts));
+  h.set("x-geminesx-rotated", meta.rotated ? "1" : "0");
   return new Response(res.body, { status: res.status, headers: h });
 }
 async function speech(req) {
@@ -5980,7 +5980,7 @@ async function speech(req) {
     return new Response(new Uint8Array(pcm), {
       headers: {
         "content-type": "audio/L16",
-        "x-gkr-attempts": String(result.attempts)
+        "x-geminesx-attempts": String(result.attempts)
       }
     });
   }
@@ -5989,9 +5989,9 @@ async function speech(req) {
     headers: {
       "content-type": "audio/wav",
       "content-length": String(wav.byteLength),
-      "x-gkr-attempts": String(result.attempts),
-      "x-gkr-rotated": result.rotated ? "1" : "0",
-      "x-gkr-voice": voice
+      "x-geminesx-attempts": String(result.attempts),
+      "x-geminesx-rotated": result.rotated ? "1" : "0",
+      "x-geminesx-voice": voice
     }
   });
 }
@@ -6172,8 +6172,8 @@ function parseCandidate(cand) {
   return { text, grounding: cand?.groundingMetadata ?? null, toolCalls };
 }
 var metaHeaders = (attempts, rotated) => ({
-  "x-gkr-attempts": String(attempts),
-  "x-gkr-rotated": rotated ? "1" : "0"
+  "x-geminesx-attempts": String(attempts),
+  "x-geminesx-rotated": rotated ? "1" : "0"
 });
 async function chatCompletions(req) {
   let body;
@@ -6549,9 +6549,9 @@ async function models() {
           created: 17e8,
           owned_by: "google"
         })),
-        gkr: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() }
+        geminesx: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() }
       },
-      { headers: { "x-gkr-models": "fallback" } }
+      { headers: { "x-geminesx-models": "fallback" } }
     );
   }
   return Response.json(
@@ -6573,9 +6573,9 @@ async function models() {
           pricing: c ? { input_per_1m_usd: c.inUsd, output_per_1m_usd: c.outUsd, as_of: PRICING_AS_OF } : null
         };
       }),
-      gkr: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() }
+      geminesx: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() }
     },
-    { headers: { "x-gkr-models": cached ? "live-cached" : "live" } }
+    { headers: { "x-geminesx-models": cached ? "live-cached" : "live" } }
   );
 }
 function err(status, type, message) {
@@ -6870,7 +6870,7 @@ var USAGE_HTML = `<!doctype html>
 (function () {
   "use strict";
 
-  var STORE = "gkr.admin.token";
+  var STORE = "geminesx.admin.token";
   var el = {
     gate: document.getElementById("gate"),
     gateErr: document.getElementById("gateErr"),
@@ -7164,7 +7164,7 @@ var USAGE_HTML = `<!doctype html>
       .then(function (blob) {
         var a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "gkr-usage-" + new Date().toISOString().slice(0, 10) + ".csv";
+        a.download = "geminesx-usage-" + new Date().toISOString().slice(0, 10) + ".csv";
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -7269,7 +7269,7 @@ app.get("/", async (c) => {
   const snap = await snapshot();
   return c.json({
     ok: true,
-    service: "gemini-key-rotator",
+    service: "geminesx",
     storage: storageMode,
     pool: snap,
     defaults: {
@@ -7482,7 +7482,7 @@ app.notFound(
   (c) => c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
 );
 app.onError((e, c) => {
-  console.error("[gkr] unhandled:", e);
+  console.error("[geminesx] unhandled:", e);
   return c.json({ error: { message: e.message } }, 500);
 });
 app.get("/pengatur/usage", (c) => c.html(USAGE_HTML));
@@ -7513,7 +7513,7 @@ app.get("/pengatur/usage/export.csv", (c) => {
   return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="gkr-usage-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv"`
+      "content-disposition": `attachment; filename="geminesx-usage-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv"`
     }
   });
 });
@@ -7526,7 +7526,7 @@ function hydrate() {
   if (!hydrated) {
     hydrated = (async () => {
       for (const k of seed) await addKey(k);
-      console.log(`[gkr] cold-start seeded ${seed.length} keys storage=${storageMode}`);
+      console.log(`[geminesx] cold-start seeded ${seed.length} keys storage=${storageMode}`);
     })();
   }
   return hydrated;

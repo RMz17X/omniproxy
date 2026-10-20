@@ -27,7 +27,7 @@ delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __gkrMockStarted: Promise<void> | undefined;
+  var __geminesxMockStarted: Promise<void> | undefined;
 }
 
 async function probe(url: string): Promise<boolean> {
@@ -44,8 +44,8 @@ async function probe(url: string): Promise<boolean> {
  * answers. Idempotent across test files; the child dies with the runner.
  */
 export async function ensureMock(): Promise<void> {
-  if (globalThis.__gkrMockStarted) return globalThis.__gkrMockStarted;
-  globalThis.__gkrMockStarted = (async () => {
+  if (globalThis.__geminesxMockStarted) return globalThis.__geminesxMockStarted;
+  globalThis.__geminesxMockStarted = (async () => {
     const proc = Bun.spawn(
       ["bun", "run", new URL("./mock-upstream.ts", import.meta.url).pathname],
       { stdout: "ignore", stderr: "ignore" },
@@ -59,8 +59,8 @@ export async function ensureMock(): Promise<void> {
       await Bun.sleep(50);
     }
     proc.kill();
-    globalThis.__gkrMockStarted = undefined;
+    globalThis.__geminesxMockStarted = undefined;
     throw new Error(`mock upstream did not come up on ${MOCK_BASE}`);
   })();
-  return globalThis.__gkrMockStarted;
+  return globalThis.__geminesxMockStarted;
 }

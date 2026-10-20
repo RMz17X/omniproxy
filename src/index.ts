@@ -13,7 +13,7 @@ for (const k of seed) await addKey(k);
 const port = Number(process.env.PORT ?? 3000);
 
 console.log(
-  `[gkr] up on :${port} storage=${storageMode} seed=${seed.length} admin=${cfg.adminToken ? "on" : "off"}`,
+  `[geminesx] up on :${port} storage=${storageMode} seed=${seed.length} admin=${cfg.adminToken ? "on" : "off"}`,
 );
 
 export default {

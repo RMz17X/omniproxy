@@ -21,7 +21,7 @@ function hydrate(): Promise<void> {
   if (!hydrated) {
     hydrated = (async () => {
       for (const k of seed) await addKey(k);
-      console.log(`[gkr] cold-start seeded ${seed.length} keys storage=${storageMode}`);
+      console.log(`[geminesx] cold-start seeded ${seed.length} keys storage=${storageMode}`);
     })();
   }
   return hydrated;
