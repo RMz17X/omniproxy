@@ -132,7 +132,8 @@ add the new keys with the defaults above and empty values where required.
 
 ## D. Verification required INSIDE this session, with real output pasted back
 
-1. `bunx tsc --noEmit` exits 0.
+1. `bun x tsc --noEmit` exits 0. (There is no `bunx` binary on this host; use
+   `bun x tsc` or `./node_modules/.bin/tsc`.)
 2. `bun run bundle:api` regenerates `api/index.js`.
 3. `rg -i -g '!*.lock' -g '!api/index.js' 'gkr' .` returns zero matches.
    Then confirm the NEW `api/index.js` also has zero `gkr` matches.
@@ -162,7 +163,7 @@ Report every file changed, and paste the raw command output for items 1 through
 
 ```
 cd /workspaces/geminesx
-bunx tsc --noEmit
+bun x tsc --noEmit
 bun run bundle:api
 rg -i -g '!*.lock' -g '!api/index.js' 'gkr' .
 git status --porcelain
