@@ -1,19 +1,17 @@
 import app from "./app.ts";
-import { addKey, storageMode } from "./pool.ts";
+import { hydrate, storageMode } from "./pool.ts";
 import { cfg } from "./config.ts";
 
 /* ---------- bootstrap ---------- */
-const seed = (process.env.GEMINI_API_KEYS ?? "")
-  .split(/[\s,]+/)
-  .map((s) => s.trim())
-  .filter(Boolean);
 
-for (const k of seed) await addKey(k);
+// One cold-start read. The pool is memory-first; Postgres only supplies the
+// durable identity overlay when DATABASE_URL is configured.
+const seeded = await hydrate();
 
 const port = Number(process.env.PORT ?? 3000);
 
 console.log(
-  `[geminesx] up on :${port} storage=${storageMode} seed=${seed.length} admin=${cfg.adminToken ? "on" : "off"}`,
+  `[geminesx] up on :${port} storage=${storageMode} seed=${seeded} admin=${cfg.adminToken ? "on" : "off"}`,
 );
 
 export default {
