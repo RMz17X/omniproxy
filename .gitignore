@@ -7,3 +7,6 @@ data/
 !.env.example
 *.log
 .worktrees/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
