@@ -13,7 +13,9 @@ export const MODELS_HTML = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Models · key rotator</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230e1116'/%3E%3Cpath d='M8 22V10h3l5 8 5-8h3v12h-2.6v-7.4L16.6 22h-1.2l-4.8-7.4V22z' fill='%2367e8a1'/%3E%3C/svg%3E">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/favicon.svg">
 <style>
 :root{
   --bg:#0b0d11; --panel:#12161c; --panel-2:#161b22; --line:#232a33; --line-soft:#1b2129;

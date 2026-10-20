@@ -225,7 +225,7 @@ var byteExactEncodings = /* @__PURE__ */ new Set([
 var isByteExactEncoding = (encoding) => encoding === null || byteExactEncodings.has(encoding);
 var bodyBufferedBeforeDisconnectKey = Symbol("bodyBufferedBeforeDisconnect");
 var bodyBufferedLengthBeforeDisconnectKey = Symbol("bodyBufferedLengthBeforeDisconnect");
-var toBufferChunk = (chunk, encoding) => Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding ?? "utf8");
+var toBufferChunk = (chunk2, encoding) => Buffer.isBuffer(chunk2) ? chunk2 : Buffer.from(chunk2, encoding ?? "utf8");
 var isRecoverableDisconnectedIncoming = (incoming) => !(incoming instanceof Http2ServerRequest) && !!incoming.complete && !!incoming.readableAborted && typeof incoming.read === "function" && isByteExactEncoding(incoming.readableEncoding);
 var recordBodyBufferedBeforeDisconnect = (incoming) => {
   if (incoming.readableDidRead || !isRecoverableDisconnectedIncoming(incoming)) return;
@@ -242,8 +242,8 @@ var readBodyBufferedBeforeDisconnect = (incoming, chunks) => {
   else if (incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey] !== void 0 && incoming.readableLength !== incomingWithRecovery[bodyBufferedLengthBeforeDisconnectKey]) result = newBodyUnusableError();
   else {
     const bodyChunks = chunks ?? [];
-    const chunk = incoming.read();
-    if (chunk !== null) bodyChunks.push(toBufferChunk(chunk, incoming.readableEncoding));
+    const chunk2 = incoming.read();
+    if (chunk2 !== null) bodyChunks.push(toBufferChunk(chunk2, incoming.readableEncoding));
     const buffer = bodyChunks.length === 1 ? bodyChunks[0] : Buffer.concat(bodyChunks);
     result = buffer;
     const contentLength = incoming.headers["content-length"];
@@ -439,8 +439,8 @@ var readBodyDirect = (request) => {
       });
       return true;
     };
-    const onData = (chunk) => {
-      chunks.push(toBufferChunk(chunk, incoming.readableEncoding));
+    const onData = (chunk2) => {
+      chunks.push(toBufferChunk(chunk2, incoming.readableEncoding));
     };
     const onEnd = () => {
       finish2(() => {
@@ -842,8 +842,8 @@ var drainIncoming = (incoming) => {
   };
   const timer = setTimeout(forceClose, DRAIN_TIMEOUT_MS);
   timer.unref?.();
-  const onData = (chunk) => {
-    bytesRead += chunk.length;
+  const onData = (chunk2) => {
+    bytesRead += chunk2.length;
     if (bytesRead > MAX_DRAIN_BYTES) forceClose();
   };
   incoming.on("data", onData);
@@ -987,11 +987,11 @@ var responseViaResponseObject = async (res, outgoing, options = {}) => {
       let maxReadCount = 2;
       for (let i = 0; i < maxReadCount; i++) {
         currentReadPromise ||= reader.read();
-        const chunk = await readWithoutBlocking(currentReadPromise).catch((e) => {
+        const chunk2 = await readWithoutBlocking(currentReadPromise).catch((e) => {
           console.error(e);
           done = true;
         });
-        if (!chunk) {
+        if (!chunk2) {
           if (i === 1) {
             await new Promise((resolve) => setTimeout(resolve));
             maxReadCount = 3;
@@ -1000,8 +1000,8 @@ var responseViaResponseObject = async (res, outgoing, options = {}) => {
           break;
         }
         currentReadPromise = void 0;
-        if (chunk.value) values.push(chunk.value);
-        if (chunk.done) {
+        if (chunk2.value) values.push(chunk2.value);
+        if (chunk2.done) {
           done = true;
           break;
         }
@@ -3462,7 +3462,9 @@ var ADMIN_HTML = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Key rotator control</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1014'/%3E%3Cpath d='M9 20l5-9 4 6 5-3' stroke='%23e8a33d' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/favicon.svg">
 <style>
   :root {
     --bg: #0d1014;
@@ -4306,6 +4308,136 @@ var ADMIN_HTML = `<!doctype html>
 </body>
 </html>`;
 
+// src/favicon.ts
+var TILE = "#0d1014";
+var ACCENT = "#e8a33d";
+var FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Key rotator">
+  <rect width="32" height="32" rx="7" fill="${TILE}"/>
+  <path d="M9 20l5-9 4 6 5-3" fill="none" stroke="${ACCENT}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+var CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf) {
+  let c = 4294967295;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 255] ^ c >>> 8;
+  return (c ^ 4294967295) >>> 0;
+}
+function chunk(type, data) {
+  const out = new Uint8Array(12 + data.length);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, data.length);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+  return out;
+}
+function hex(h) {
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+}
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  const cx = ax + t * dx;
+  const cy = ay + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+var SIZE = 32;
+var SS = 4;
+function renderRgba() {
+  const [tr, tg, tb] = hex(TILE);
+  const [ar, ag, ab] = hex(ACCENT);
+  const pts = [
+    [9, 20],
+    [14, 11],
+    [18, 17],
+    [23, 14]
+  ];
+  const radius = 1.3;
+  const corner = 7;
+  const px = new Uint8Array(SIZE * SIZE * 4);
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      let tileHits = 0;
+      let accentHits = 0;
+      for (let sy = 0; sy < SS; sy++) {
+        for (let sx = 0; sx < SS; sx++) {
+          const fx = x + (sx + 0.5) / SS;
+          const fy = y + (sy + 0.5) / SS;
+          const qx = Math.max(corner - fx, fx - (SIZE - corner), 0);
+          const qy = Math.max(corner - fy, fy - (SIZE - corner), 0);
+          if (Math.hypot(qx, qy) <= corner) tileHits++;
+          let d = Infinity;
+          for (let i2 = 0; i2 < pts.length - 1; i2++) {
+            d = Math.min(d, distToSegment(fx, fy, pts[i2][0], pts[i2][1], pts[i2 + 1][0], pts[i2 + 1][1]));
+          }
+          if (d <= radius) accentHits++;
+        }
+      }
+      const total = SS * SS;
+      const alpha = tileHits / total;
+      const accent = accentHits / total;
+      const i = (y * SIZE + x) * 4;
+      px[i] = Math.round((ar * accent + tr * (1 - accent)) * alpha);
+      px[i + 1] = Math.round((ag * accent + tg * (1 - accent)) * alpha);
+      px[i + 2] = Math.round((ab * accent + tb * (1 - accent)) * alpha);
+      px[i + 3] = Math.round(alpha * 255);
+    }
+  }
+  return px;
+}
+function buildFaviconIco(deflate) {
+  const rgba = renderRgba();
+  const raw2 = new Uint8Array(SIZE * (SIZE * 4 + 1));
+  for (let y = 0; y < SIZE; y++) {
+    raw2[y * (SIZE * 4 + 1)] = 0;
+    raw2.set(rgba.subarray(y * SIZE * 4, (y + 1) * SIZE * 4), y * (SIZE * 4 + 1) + 1);
+  }
+  const ihdr = new Uint8Array(13);
+  const dv = new DataView(ihdr.buffer);
+  dv.setUint32(0, SIZE);
+  dv.setUint32(4, SIZE);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const idat = deflate(raw2);
+  const parts = [
+    new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", idat),
+    chunk("IEND", new Uint8Array(0))
+  ];
+  const pngLen = parts.reduce((n, p) => n + p.length, 0);
+  const png = new Uint8Array(pngLen);
+  let off = 0;
+  for (const p of parts) {
+    png.set(p, off);
+    off += p.length;
+  }
+  const ico = new Uint8Array(22 + png.length);
+  const iv = new DataView(ico.buffer);
+  iv.setUint16(0, 0);
+  iv.setUint16(2, 1);
+  iv.setUint16(4, 1);
+  ico[6] = SIZE;
+  ico[7] = SIZE;
+  ico[8] = 0;
+  ico[9] = 0;
+  iv.setUint16(10, 1);
+  iv.setUint16(12, 32);
+  iv.setUint32(14, png.length);
+  iv.setUint32(18, 22);
+  ico.set(png, 22);
+  return ico;
+}
+
 // src/models-ui.ts
 var MODELS_HTML = `<!doctype html>
 <html lang="en">
@@ -4313,7 +4445,9 @@ var MODELS_HTML = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Models \xB7 key rotator</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230e1116'/%3E%3Cpath d='M8 22V10h3l5 8 5-8h3v12h-2.6v-7.4L16.6 22h-1.2l-4.8-7.4V22z' fill='%2367e8a1'/%3E%3C/svg%3E">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/favicon.svg">
 <style>
 :root{
   --bg:#0b0d11; --panel:#12161c; --panel-2:#161b22; --line:#232a33; --line-soft:#1b2129;
@@ -5506,6 +5640,9 @@ async function probeOnce(rawKey, model) {
   };
 }
 
+// src/app.ts
+import { deflateSync } from "node:zlib";
+
 // src/usage.ts
 import { createHash as createHash2 } from "node:crypto";
 function ledgerKeyId(masked) {
@@ -6453,7 +6590,9 @@ var USAGE_HTML = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Usage ledger</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1014'/%3E%3Cpath d='M8 22V14M14 22V9M20 22V16M26 22V12' stroke='%23e8a33d' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/favicon.svg">
 <style>
   :root {
     --bg: #0d1014;
@@ -7150,6 +7289,33 @@ app.post("/v1/audio/speech", (c) => speech(c.req.raw));
 app.post("/v1/embeddings", (c) => embeddings(c.req.raw));
 app.get("/v1/models", () => models());
 app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.url).pathname));
+var LEGACY_PATHS = {
+  "/admin": "/pengatur",
+  "/admin/keys": "/pengatur/keys",
+  "/admin/keys/test": "/pengatur/keys/test",
+  "/admin/keys/test-all": "/pengatur/keys/test-all",
+  "/admin/models": "/pengatur/models/list",
+  "/admin/models/test": "/pengatur/models/test",
+  "/models": "/pengatur/models"
+};
+app.all("/admin", (c) => c.redirect(LEGACY_PATHS["/admin"], 308));
+app.all("/admin/*", (c) => {
+  const p = new URL(c.req.url).pathname;
+  return c.redirect(LEGACY_PATHS[p] ?? "/pengatur" + p.slice("/admin".length), 308);
+});
+app.all("/models", (c) => c.redirect(LEGACY_PATHS["/models"], 308));
+var icoCache = null;
+app.get("/favicon.svg", (c) => {
+  c.header("content-type", "image/svg+xml; charset=utf-8");
+  c.header("cache-control", "public, max-age=604800");
+  return c.body(FAVICON_SVG);
+});
+app.get("/favicon.ico", (c) => {
+  if (!icoCache) icoCache = buildFaviconIco((raw2) => deflateSync(raw2));
+  c.header("content-type", "image/x-icon");
+  c.header("cache-control", "public, max-age=604800");
+  return c.body(icoCache);
+});
 app.get("/pengatur", (c) => c.html(ADMIN_HTML));
 app.get("/pengatur/models", (c) => c.html(MODELS_HTML));
 app.get("/pengatur/models/list", async (c) => {

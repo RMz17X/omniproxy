@@ -17,9 +17,11 @@ import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
 import { addKey, KEY_TIERS, keyId, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, storageMode, tierCounts, type KeyTier } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
+import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
 import { listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey } from "./probe.ts";
+import { deflateSync } from "node:zlib";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { chatCompletions, embeddings, models } from "./openai.ts";
 import {
@@ -126,10 +128,45 @@ app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.ur
 /* ---------- admin ---------- */
 
 /* ---------- legacy paths ---------- */
-// Deliberately gone: /admin and /models used to 308-redirect to /pengatur and
-// /pengatur/models, which handed anyone probing the old paths a map straight to
-// the admin console. Legacy paths now fall through to the normal 404 so the
-// console location is not discoverable from the outside.
+// The console moved from /admin to /pengatur, and the model inventory from
+// /models to /pengatur/models. Redirects are permanent so bookmarks and any
+// external caller keep resolving to a live URL instead of 404.
+const LEGACY_PATHS: Record<string, string> = {
+  "/admin": "/pengatur",
+  "/admin/keys": "/pengatur/keys",
+  "/admin/keys/test": "/pengatur/keys/test",
+  "/admin/keys/test-all": "/pengatur/keys/test-all",
+  "/admin/models": "/pengatur/models/list",
+  "/admin/models/test": "/pengatur/models/test",
+  "/models": "/pengatur/models",
+};
+
+app.all("/admin", (c) => c.redirect(LEGACY_PATHS["/admin"], 308));
+app.all("/admin/*", (c) => {
+  const p = new URL(c.req.url).pathname;
+  return c.redirect(LEGACY_PATHS[p] ?? "/pengatur" + p.slice("/admin".length), 308);
+});
+app.all("/models", (c) => c.redirect(LEGACY_PATHS["/models"], 308));
+
+/* ---------- favicon ---------- */
+
+// The consoles are reached without a build step, so the icon is generated once
+// per process instead of shipping binaries in the repo. `cache-control` is long
+// and immutable: the bytes only change when the accent colour does.
+let icoCache: Uint8Array | null = null;
+
+app.get("/favicon.svg", (c) => {
+  c.header("content-type", "image/svg+xml; charset=utf-8");
+  c.header("cache-control", "public, max-age=604800");
+  return c.body(FAVICON_SVG);
+});
+
+app.get("/favicon.ico", (c) => {
+  if (!icoCache) icoCache = buildFaviconIco((raw) => deflateSync(raw));
+  c.header("content-type", "image/x-icon");
+  c.header("cache-control", "public, max-age=604800");
+  return c.body(icoCache as unknown as ArrayBuffer);
+});
 
 /* ---------- console shells ---------- */
 
