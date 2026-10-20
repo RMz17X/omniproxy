@@ -279,8 +279,8 @@ function parseCandidate(cand: GeminiCandidate | undefined): ParsedReply {
 }
 
 const metaHeaders = (attempts: number, rotated: boolean): Record<string, string> => ({
-  "x-gkr-attempts": String(attempts),
-  "x-gkr-rotated": rotated ? "1" : "0",
+  "x-geminesx-attempts": String(attempts),
+  "x-geminesx-rotated": rotated ? "1" : "0",
 });
 
 export async function chatCompletions(req: Request): Promise<Response> {
@@ -719,9 +719,9 @@ export async function models(): Promise<Response> {
           created: 1700000000,
           owned_by: "google",
         })),
-        gkr: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() },
+        geminesx: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() },
       },
-      { headers: { "x-gkr-models": "fallback" } },
+      { headers: { "x-geminesx-models": "fallback" } },
     );
   }
 
@@ -746,9 +746,9 @@ export async function models(): Promise<Response> {
             : null,
         };
       }),
-      gkr: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() },
+      geminesx: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() },
     },
-    { headers: { "x-gkr-models": cached ? "live-cached" : "live" } },
+    { headers: { "x-geminesx-models": cached ? "live-cached" : "live" } },
   );
 }
 

@@ -298,7 +298,7 @@ export const USAGE_HTML = `<!doctype html>
 (function () {
   "use strict";
 
-  var STORE = "gkr.admin.token";
+  var STORE = "geminesx.admin.token";
   var el = {
     gate: document.getElementById("gate"),
     gateErr: document.getElementById("gateErr"),
@@ -592,7 +592,7 @@ export const USAGE_HTML = `<!doctype html>
       .then(function (blob) {
         var a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "gkr-usage-" + new Date().toISOString().slice(0, 10) + ".csv";
+        a.download = "geminesx-usage-" + new Date().toISOString().slice(0, 10) + ".csv";
         document.body.appendChild(a);
         a.click();
         a.remove();

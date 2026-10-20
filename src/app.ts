@@ -1,5 +1,5 @@
 /**
- * gemini-key-rotator — Hono gateway for a pool of Gemini API keys.
+ * geminesx — Hono gateway for a pool of Gemini API keys.
  *
  * Routes
  *   GET  /                      health + pool snapshot
@@ -97,7 +97,7 @@ app.get("/", async (c) => {
   const snap = await snapshot();
   return c.json({
     ok: true,
-    service: "gemini-key-rotator",
+    service: "geminesx",
     storage: storageMode,
     pool: snap,
     defaults: {
@@ -381,7 +381,7 @@ app.notFound((c) =>
 );
 
 app.onError((e, c) => {
-  console.error("[gkr] unhandled:", e);
+  console.error("[geminesx] unhandled:", e);
   return c.json({ error: { message: e.message } }, 500);
 });
 
@@ -421,7 +421,7 @@ app.get("/pengatur/usage/export.csv", (c) => {
   return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="gkr-usage-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "content-disposition": `attachment; filename="geminesx-usage-${new Date().toISOString().slice(0, 10)}.csv"`,
     },
   });
 });

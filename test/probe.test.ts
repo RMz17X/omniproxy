@@ -23,7 +23,7 @@ const AUTH = { authorization: "Bearer test-admin-token", "content-type": "applic
 
 const adminPost = (path: string, body?: unknown) =>
   app.fetch(
-    new Request(`http://gkr.test${path}`, {
+    new Request(`http://geminesx.test${path}`, {
       method: "POST",
       headers: AUTH,
       body: body === undefined ? undefined : JSON.stringify(body),

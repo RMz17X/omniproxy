@@ -29,8 +29,8 @@ export type Counters = {
   networkErrors: number;
   /** client disconnects that aborted an upstream fetch */
   clientAborts: number;
-  /** requests served while the Redis breaker was open */
-  redisDegraded: number;
+  /** requests served while the Postgres breaker was open */
+  dbDegraded: number;
   /** OpenAI embeddings requests */
   embeddings: number;
   /** Gemini functionCall parts translated to OpenAI tool_calls */
@@ -48,7 +48,7 @@ export const counters: Counters = {
   upstream5xx: 0,
   networkErrors: 0,
   clientAborts: 0,
-  redisDegraded: 0,
+  dbDegraded: 0,
   embeddings: 0,
   toolCalls: 0,
 };

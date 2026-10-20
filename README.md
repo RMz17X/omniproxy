@@ -1,4 +1,4 @@
-# gemini-key-rotator
+# GeminesX
 
 Hono + Bun gateway that fronts a pool of Gemini API keys. Deploys to Vercel
 (Bun runtime) or runs as a plain Bun process. Rotates on quota exhaustion,
@@ -57,7 +57,7 @@ for the soonest key to recover before returning a `429 pool_exhausted`.
 ## State store
 
 * `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` set → keys live in
-  Redis (`gkr:idx` set + `gkr:k:<key>` strings), so every instance shares health.
+  Redis (`geminesx:idx` set + `geminesx:k:<key>` strings), so every instance shares health.
 * Otherwise → process-local map. Fine for one container, wrong for serverless
   with more than one warm instance.
 

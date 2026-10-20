@@ -1,5 +1,9 @@
 /**
  * Runtime configuration, all overridable by env.
+ *
+ * Every storage key is optional. An absent `DATABASE_URL` disables the whole
+ * persistence layer: the gateway still boots, serves traffic, and keeps the
+ * pool in process memory exactly as it did before Postgres existed.
  */
 
 const num = (v: string | undefined, d: number) => {
@@ -33,6 +37,23 @@ export const cfg = {
   clientToken: process.env.CLIENT_TOKEN ?? "",
   /** inject Google Search grounding when the client asks for "search" */
   searchModel: process.env.SEARCH_MODEL ?? "gemini-3.8-flash",
+
+  /* ---------- storage (all optional) ---------- */
+
+  /** Postgres connection string. Unset disables every persistence path. */
+  databaseUrl: (process.env.DATABASE_URL ?? "").trim(),
+  /** per-statement ceiling for one Neon HTTP query */
+  dbQueryTimeoutMs: num(process.env.DB_QUERY_TIMEOUT_MS, 3000),
+  /** flush the ledger batch after this long */
+  ledgerFlushMs: num(process.env.LEDGER_FLUSH_MS, 2000),
+  /** flush the ledger batch once it holds this many rows */
+  ledgerMaxRows: num(process.env.LEDGER_MAX_ROWS, 200),
+  /** rows kept for the live tail view */
+  ledgerTailRows: num(process.env.LEDGER_TAIL_ROWS, 500),
+  /** how long raw usage_events survive a rollup run */
+  retentionDays: num(process.env.RETENTION_DAYS, 30),
+  /** bearer for POST /internal/rollup; unset disables the route */
+  rollupToken: process.env.ROLLUP_TOKEN ?? "",
 };
 
 export const VOICE_MAP: Record<string, string> = {

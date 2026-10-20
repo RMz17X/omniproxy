@@ -1,8 +1,8 @@
 /**
  * Test environment pinning and mock-upstream lifecycle.
  *
- * `cfg`, `USE_KV` and the pool's storage mode are all read at *module import*
- * time, so this module must be imported FIRST in every test file — before any
+ * `cfg` and the pool's storage mode are both read at *module import* time, so
+ * this module must be imported FIRST in every test file — before any
  * `../src/*` module. It deliberately imports nothing from `src/`.
  *
  * The shared key universe and `setPool()` live in `./fixture.ts`, which test
@@ -22,12 +22,11 @@ process.env.ADMIN_TOKEN = "test-admin-token";
 process.env.CLIENT_TOKEN = "";
 /** Force the in-memory store and an empty seed: tests manage their own keys. */
 delete process.env.GEMINI_API_KEYS;
-delete process.env.UPSTASH_REDIS_REST_URL;
-delete process.env.UPSTASH_REDIS_REST_TOKEN;
+delete process.env.DATABASE_URL;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __gkrMockStarted: Promise<void> | undefined;
+  var __geminesxMockStarted: Promise<void> | undefined;
 }
 
 async function probe(url: string): Promise<boolean> {
@@ -44,8 +43,8 @@ async function probe(url: string): Promise<boolean> {
  * answers. Idempotent across test files; the child dies with the runner.
  */
 export async function ensureMock(): Promise<void> {
-  if (globalThis.__gkrMockStarted) return globalThis.__gkrMockStarted;
-  globalThis.__gkrMockStarted = (async () => {
+  if (globalThis.__geminesxMockStarted) return globalThis.__geminesxMockStarted;
+  globalThis.__geminesxMockStarted = (async () => {
     const proc = Bun.spawn(
       ["bun", "run", new URL("./mock-upstream.ts", import.meta.url).pathname],
       { stdout: "ignore", stderr: "ignore" },
@@ -59,8 +58,8 @@ export async function ensureMock(): Promise<void> {
       await Bun.sleep(50);
     }
     proc.kill();
-    globalThis.__gkrMockStarted = undefined;
+    globalThis.__geminesxMockStarted = undefined;
     throw new Error(`mock upstream did not come up on ${MOCK_BASE}`);
   })();
-  return globalThis.__gkrMockStarted;
+  return globalThis.__geminesxMockStarted;
 }
