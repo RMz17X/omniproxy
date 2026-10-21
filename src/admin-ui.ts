@@ -10,6 +10,8 @@
  * by its sha256 id, so the browser never holds a raw credential.
  */
 
+import { BASE_CSS, stateBlock } from "./ui.ts";
+
 export const ADMIN_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -20,244 +22,83 @@ export const ADMIN_HTML = `<!doctype html>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
-<style>
-  :root {
-    --bg: #0d1014;
-    --panel: #12161b;
-    --panel-2: #171c22;
-    --line: #242b34;
-    --line-soft: #1c222a;
-    --text: #e6eaf0;
-    --muted: #8c96a5;
-    --accent: #e8a33d;
-    --ready: #57c98a;
-    --cool: #e0b64a;
-    --dead: #e8737b;
-    --focus: #7fb4ff;
-    --radius: 8px;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
-
-  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
-  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-  .brand .sub { font-size: 12px; color: var(--muted); }
-  .top-right { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
-  .top-right .mono { font-size: 12px; }
-
-  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
-
-  /* one-line health strip, not a card grid */
-  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
-  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .strip .kv span { font-size: 12px; color: var(--muted); }
-  .strip .kv.ready b { color: var(--ready); }
-  .strip .kv.cooling b { color: var(--cool); }
-  .strip .kv.dead b { color: var(--dead); }
-  .strip .spacer { flex: 1; }
-  .strip .meta { font-size: 12px; color: var(--muted); }
-
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-  .card + .card { margin-top: 12px; }
-
-  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], input[type=text], select, textarea {
-    width: 100%;
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 11px 12px;
-    font: inherit;
-    font-size: 13.5px;
-  }
-  textarea { resize: vertical; min-height: 84px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6; }
-  select { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; cursor: pointer; }
-  input[type=text] { min-height: 44px; }
-  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-  input::placeholder, textarea::placeholder { color: #5f6875; }
-
-  button {
-    font: inherit;
-    font-size: 13.5px;
-    font-weight: 550;
-    color: var(--text);
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    min-height: 44px;
-    padding: 0 16px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 120ms ease, border-color 120ms ease;
-  }
-  button:hover:not(:disabled) { background: #1e242c; border-color: #333d49; }
-  button:disabled { opacity: 0.45; cursor: not-allowed; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 650; }
-  button.primary:hover:not(:disabled) { background: #f0b154; border-color: #f0b154; }
-  button.small { min-height: 34px; padding: 0 11px; font-size: 12.5px; }
-  button.danger { color: var(--dead); border-color: #3d272b; background: transparent; }
-  button.danger:hover:not(:disabled) { background: #22161a; border-color: var(--dead); }
-
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-  .row > .grow { flex: 1 1 260px; min-width: 0; }
-
-  .msg { border-radius: var(--radius); padding: 10px 12px; font-size: 13px; margin-top: 12px; display: none; border: 1px solid; }
-  .msg.show { display: block; }
-  .msg.ok { background: #101f18; border-color: #1f4c36; color: #b8f5d2; }
-  .msg.err { background: #211416; border-color: #4a2b30; color: #ffc3c6; }
-  .msg.info { background: #101a24; border-color: #1f3548; color: #c2e0ff; }
-
-  /* table */
-  .tablewrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th {
-    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
-    color: var(--muted); font-weight: 600; padding: 0 10px 9px; border-bottom: 1px solid var(--line);
-    white-space: nowrap;
-  }
-  thead th.right, tbody td.right { text-align: right; }
-  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
-  tbody tr:last-child td { border-bottom: 0; }
-  tbody tr { transition: background 120ms ease; }
-  tbody tr:hover { background: #151a20; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .num { font-variant-numeric: tabular-nums; }
-  td.actions { text-align: right; white-space: nowrap; }
-  td.actions button + button { margin-left: 6px; }
-
-  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; border: 1px solid; }
-  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .badge.ready { color: var(--ready); border-color: #1f4c36; background: #101f18; }
-  .badge.cooling { color: var(--cool); border-color: #4d3d12; background: #221d0c; }
-  .badge.dead { color: var(--dead); border-color: #4a2b30; background: #211416; }
-
-  /* cooldown cell: number plus a thin drain bar, both functional */
-  .cool { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
-  .cool .bar { width: 54px; height: 3px; border-radius: 2px; background: #232a33; overflow: hidden; }
-  .cool .bar i { display: block; height: 100%; background: var(--cool); }
-
-  .empty { padding: 30px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
-  .empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; font-weight: 600; }
-
-  .skeleton { height: 11px; border-radius: 4px; background: linear-gradient(90deg, #1b2027, #262d37, #1b2027); background-size: 200% 100%; animation: sh 1.2s linear infinite; }
-  @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-  @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } tbody tr, button { transition: none; } }
-
-  /* pagination */
-  .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
-  .pager:empty { display: none; }
-  .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .pager .pages span { color: var(--muted); padding: 0 2px; }
-  .pager button.small { min-width: 36px; padding: 0 9px; font-variant-numeric: tabular-nums; }
-  .pager button.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; }
-
-  .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
-  .muted { color: var(--muted); font-size: 12px; }
-  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
-  .check input { width: 17px; height: 17px; accent-color: var(--accent); }
-
-  .probe { font-size: 12px; color: var(--muted); }
-  .probe.ok { color: var(--ready); }
-  .probe.bad { color: var(--dead); }
-  .probe.warn { color: var(--cool); }
-
-  @media (max-width: 760px) {
-    .wrap { padding: 20px 14px 56px; }
-    thead { display: none; }
-    tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-    tbody td { border: 0; padding: 0; }
-    tbody td::before { content: attr(data-l); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    tbody td.key { grid-column: 1 / -1; margin-bottom: 4px; }
-    tbody td.key::before { display: none; }
-    tbody td.actions { grid-column: 1 / -1; text-align: left; margin-top: 8px; }
-    tbody td.actions::before { display: none; }
-    td.actions button { min-height: 40px; }
-    .strip { gap: 0 14px; }
-  }
-</style>
+<style>${BASE_CSS}</style>
 </head>
 <body>
-<div class="wrap">
 
-  <header class="top">
-    <div class="brand">
-      <span class="dot"></span>
-      <div>
-        <h1>Key rotator control</h1>
-        <div class="sub">Pool health, key intake, live probe</div>
-      </div>
-    </div>
-    <div class="top-right">
-      <a href="/pengatur/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
-      <a href="/pengatur/usage" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">usage &rarr;</a>
-      <span id="storage" class="mono">storage: -</span>
-      <span id="synced">-</span>
-    </div>
-  </header>
+<header class="topbar">
+  <a class="wordmark" href="/pengatur">GeminesX</a>
+  <nav class="nav">
+    <a href="/pengatur" class="active" aria-current="page">Keys</a>
+    <a href="/pengatur/usage">Usage</a>
+    <a href="/pengatur/models">Models</a>
+  </nav>
+  <div class="meta">
+    <span id="storage">storage: -</span>
+    <span id="synced">-</span>
+  </div>
+</header>
+
+<main class="page">
+
+  <div class="page-head">
+    <h1>Keys</h1>
+    <span class="meta">Pool health, key intake, live probe</span>
+  </div>
 
   <!-- auth -->
-  <section id="authPanel" class="card" style="margin-top:18px">
-    <label class="field" for="token">Admin token</label>
-    <div class="row">
-      <div class="grow">
-        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+  <section id="authPanel" class="panel">
+    <div class="panel-body">
+      <label class="field" for="token">Admin token</label>
+      <div class="row">
+        <div class="grow">
+          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+        </div>
+        <button id="connect" class="btn btn-primary" type="button">Connect</button>
       </div>
-      <button id="connect" class="primary" type="button">Connect</button>
+      <div id="authHint" class="msg err"></div>
+      <p class="dimtext" style="margin-top:12px">The token stays in this browser. It is never sent anywhere except this deployment.</p>
     </div>
-    <div id="authHint" class="msg err"></div>
-    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is never sent anywhere except this deployment.</p>
   </section>
 
   <!-- health strip -->
   <section id="statsPanel" hidden>
     <div class="strip">
-      <div class="kv"><b id="sTotal">0</b><span>keys</span></div>
-      <div class="kv ready"><b id="sReady">0</b><span>ready</span></div>
-      <div class="kv cooling"><b id="sCooling">0</b><span>cooling</span></div>
-      <div class="kv dead"><b id="sDead">0</b><span>dead</span></div>
-      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span>plans</span></div>
+      <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
+      <div class="kv ready"><b id="sReady">0</b><span class="k">ready</span></div>
+      <div class="kv cooling"><b id="sCooling">0</b><span class="k">cooling</span></div>
+      <div class="kv dead"><b id="sDead">0</b><span class="k">dead</span></div>
+      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span class="k">plans</span></div>
       <div class="spacer"></div>
       <div class="meta" id="nextReady">-</div>
     </div>
   </section>
 
   <!-- add -->
-  <section id="addPanel" class="card" hidden>
-    <h2 class="sec" style="margin-top:0">Add keys</h2>
-    <label class="field" for="newKeys">One key per line, or separated by commas</label>
-    <textarea id="newKeys" spellcheck="false" placeholder="AIzaSy...&#10;AIzaSy..."></textarea>
-    <div class="row" style="margin-top:10px">
-      <button id="addBtn" class="primary" type="button">Add to pool</button>
-      <span id="addCount" class="muted"></span>
+  <section id="addPanel" class="panel" hidden>
+    <div class="panel-head"><div class="panel-title">Add keys</div></div>
+    <div class="panel-body">
+      <label class="field" for="newKeys">One key per line, or separated by commas</label>
+      <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button id="addBtn" class="btn btn-primary" type="button">Add to pool</button>
+        <span id="addCount" class="muted"></span>
+      </div>
+      <div id="addMsg" class="msg"></div>
     </div>
-    <div id="addMsg" class="msg"></div>
   </section>
 
   <!-- keys -->
-  <section id="keysPanel" hidden>
-    <h2 class="sec">Pool</h2>
-    <div class="row" style="margin-bottom:10px">
-      <button id="testAllBtn" type="button">Test all live keys</button>
-      <span id="testAllNote" class="muted"></span>
+  <section id="keysPanel" class="panel" hidden>
+    <div class="panel-head">
+      <div class="panel-title">Pool <span class="meta" id="testAllNote"></span></div>
+      <button id="testAllBtn" class="btn" type="button">Test all live keys</button>
     </div>
-    <div class="row" style="margin-bottom:10px">
-      <div class="grow">
-        <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
-      </div>
-      <div>
+    <div class="panel-body">
+      <div class="row">
+        <div class="grow">
+          <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
+        </div>
         <select id="keySize" aria-label="Keys per page">
           <option value="10">10 / page</option>
           <option value="25" selected>25 / page</option>
@@ -265,33 +106,19 @@ export const ADMIN_HTML = `<!doctype html>
           <option value="100">100 / page</option>
         </select>
       </div>
-      <div>
-        <select id="tierBulk" aria-label="Declare billing plan for keys">
-          <option value="">Set plan for...</option>
-          <option value="free">Free tier</option>
-          <option value="paid">Pay-as-you-go</option>
-          <option value="pro">Google AI Pro / Ultra</option>
-          <option value="unknown">Unspecified</option>
-        </select>
-      </div>
-      <div>
-        <button id="tierApply" type="button" class="small">Apply to page</button>
-      </div>
-      <div>
-        <button id="tierApplyAll" type="button" class="small">Apply to all</button>
-      </div>
     </div>
-    <div id="keysBody" class="card tablewrap"><div class="empty">Loading pool...</div></div>
-    <div id="keyPager" class="pager"></div>
-    <div id="keyMsg" class="msg"></div>
-
+    <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading pool...")}</div>
+    <div class="panel-body">
+      <div id="keyPager" class="pager"></div>
+      <div id="keyMsg" class="msg"></div>
+    </div>
     <div class="foot">
       <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
       <button id="forget" class="small" type="button">Forget token</button>
     </div>
   </section>
 
-</div>
+</main>
 
 <script>
 (function () {
