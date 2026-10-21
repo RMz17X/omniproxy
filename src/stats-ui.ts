@@ -5,59 +5,54 @@
  * shell carries no data: the browser picks a range, then reads
  * /pengatur/stats/data with the admin token it holds in localStorage.
  *
- * Layout: a segmented range control in the page header, the totals strip, the
- * heatmap with a legend and a readable peak line, then the four breakdowns.
+ * Layout: the range control in the page header, the totals as figures, then
+ * the heatmap with its legend and peak line, then the breakdowns.
  */
 
-import { authGate, consolePage } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
 
-const PAGE_BODY = `
-
+const STATS_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
-    <div class="kv ok"><b id="sOk">0</b><span class="k">ok</span></div>
-    <div class="kv bad"><b id="sErr">0</b><span class="k">errors</span></div>
-    <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
-    <div class="kv"><b id="sTokens">0</b><span class="k">tokens</span></div>
-    <div class="kv"><b id="sCost">$0</b><span class="k">cost</span></div>
-    <div class="kv"><b id="sP50">0</b><span class="k">p50 ms</span></div>
-    <div class="kv"><b id="sP95">0</b><span class="k">p95 ms</span></div>
-    <div class="kv"><b id="sProj">$0</b><span class="k">per 30d</span></div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Statistics</h1>
+      <p class="sub" id="meta">-</p>
+    </div>
+    <div class="seg" id="range" role="group" aria-label="Time range"></div>
   </div>
 
-  <div class="row" style="justify-content:space-between">
-    <p class="hint" id="meta"></p>
-    <div id="dataErr" class="notice err" role="status" aria-live="polite"></div>
-  </div>
+  <div class="grid kpis" id="kpis"></div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Hour and weekday heatmap <span class="meta">WIB</span></div>
-      <div class="row">
+  <section class="card">
+    <div class="card-head">
+      <h2>Hour and weekday heatmap <span class="meta">WIB</span></h2>
+      <div class="actions">
         <label class="check"><input id="heatValues" type="checkbox"> show values</label>
         <div class="heat-legend">
           <span>low</span>
-          <i style="background:var(--heat-1)"></i>
-          <i style="background:var(--heat-2)"></i>
-          <i style="background:var(--heat-3)"></i>
-          <i style="background:var(--heat-4)"></i>
-          <i style="background:var(--heat-5)"></i>
+          <i style="background:rgba(79,209,197,0.18)"></i>
+          <i style="background:rgba(79,209,197,0.36)"></i>
+          <i style="background:rgba(79,209,197,0.56)"></i>
+          <i style="background:rgba(79,209,197,0.78)"></i>
+          <i style="background:rgba(79,209,197,0.96)"></i>
           <span>high</span>
         </div>
       </div>
     </div>
-    <div class="panel-body">
+    <div class="card-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
-      <p class="hint" id="heatNote" style="margin-top:12px"></p>
+      <p class="hint" id="heatNote" style="margin-top:14px"></p>
       <div id="heatEmpty"></div>
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By model</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By model</h2>
+      <span class="meta" id="byModelMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byModel">
         <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
@@ -67,8 +62,11 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By key</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By key</h2>
+      <span class="meta" id="byKeyMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byKey">
         <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
@@ -79,8 +77,11 @@ ${authGate()}
   </section>
 
   <div class="grid split">
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">By route</div></div>
+    <section class="card">
+      <div class="card-head">
+        <h2>By route</h2>
+        <span class="meta" id="byRouteMeta"></span>
+      </div>
       <div class="tablewrap">
         <table class="table" id="byRoute">
           <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
@@ -90,8 +91,11 @@ ${authGate()}
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">By status</div></div>
+    <section class="card">
+      <div class="card-head">
+        <h2>By status</h2>
+        <span class="meta" id="byStatusMeta"></span>
+      </div>
       <div class="tablewrap">
         <table class="table" id="byStatus">
           <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
@@ -101,29 +105,22 @@ ${authGate()}
       </div>
     </section>
   </div>
-</section>
+</div>
 `;
 
-const PAGE_SCRIPT = `(function () {
+const STATS_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sReq: document.getElementById("sReq"),
-    sOk: document.getElementById("sOk"),
-    sErr: document.getElementById("sErr"),
-    sRot: document.getElementById("sRot"),
-    sTokens: document.getElementById("sTokens"),
-    sCost: document.getElementById("sCost"),
-    sP50: document.getElementById("sP50"),
-    sP95: document.getElementById("sP95"),
-    sProj: document.getElementById("sProj"),
+    kpis: document.getElementById("kpis"),
+    meta: document.getElementById("meta"),
     heat: document.getElementById("heat"),
     heatNote: document.getElementById("heatNote"),
     heatEmpty: document.getElementById("heatEmpty"),
     heatValues: document.getElementById("heatValues"),
-    err: document.getElementById("dataErr"),
-    meta: document.getElementById("meta")
+    err: document.getElementById("dataErr")
   };
 
   var RANGES = [
@@ -136,12 +133,24 @@ const PAGE_SCRIPT = `(function () {
   var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   var state = { range: "24h" };
 
-  function fillBucket(tableId, emptyId, rows, cols) {
+  function renderKpis(d) {
+    var t = d.totals || {};
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), d.source === "ring" ? "in-memory ring" : "usage_daily rollup"));
+    el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic in range", t.errors ? "bad" : "ok"));
+    el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
+    el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt and completion"));
+    el.kpis.appendChild(GX.kpi("Cost", GX.fmt.money(t.costUsd), "in this window"));
+    el.kpis.appendChild(GX.kpi("Projected", GX.fmt.money(d.projectedMonthlyUsd), "per 30 days"));
+  }
+
+  function fillBucket(tableId, emptyId, metaId, rows, cols) {
     var table = document.getElementById(tableId);
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
     empty.textContent = "";
+    document.getElementById(metaId).textContent = rows && rows.length ? rows.length + (rows.length === 1 ? " row" : " rows") : "";
     if (!rows || !rows.length) {
       empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
       return;
@@ -149,7 +158,7 @@ const PAGE_SCRIPT = `(function () {
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       cols.forEach(function (c, index) {
-        var td = GX.el("td", { class: index > 0 ? "num" : null, "data-l": c.label || null });
+        var td = GX.el("td", { class: index > 0 ? "num" : "", "data-l": c.label || null });
         td.textContent = c.value(r);
         tr.appendChild(td);
       });
@@ -163,6 +172,7 @@ const PAGE_SCRIPT = `(function () {
     body.textContent = "";
     var empty = document.getElementById("byStatusEmpty");
     empty.textContent = "";
+    document.getElementById("byStatusMeta").textContent = rows && rows.length ? rows.length + " codes" : "";
     if (!rows || !rows.length) {
       empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
       return;
@@ -205,13 +215,12 @@ const PAGE_SCRIPT = `(function () {
       for (var hour = 0; hour < 24; hour++) {
         var value = grid[d + ":" + hour] || 0;
         var level = value === 0 ? 0 : Math.max(1, Math.min(5, Math.ceil((value / max) * 5)));
-        var cell = GX.el("div", {
+        el.heat.appendChild(GX.el("div", {
           class: "cell",
           "data-level": level,
           "data-v": value,
           title: DAYS[d] + " " + (hour < 10 ? "0" + hour : hour) + ":00, " + value + " requests"
-        });
-        el.heat.appendChild(cell);
+        }));
       }
     }
 
@@ -222,40 +231,30 @@ const PAGE_SCRIPT = `(function () {
   }
 
   function paint(d) {
-    var t = d.totals || {};
-    el.sReq.textContent = GX.fmt.num(t.requests);
-    el.sOk.textContent = GX.fmt.num((t.requests || 0) - (t.errors || 0));
-    el.sErr.textContent = GX.fmt.num(t.errors);
-    el.sRot.textContent = GX.fmt.num(t.rotated);
-    el.sTokens.textContent = GX.fmt.num(t.totalTokens);
-    el.sCost.textContent = GX.fmt.money(t.costUsd);
-    el.sP50.textContent = GX.fmt.num(t.p50Ms);
-    el.sP95.textContent = GX.fmt.num(t.p95Ms);
-    el.sProj.textContent = GX.fmt.money(d.projectedMonthlyUsd);
-
+    renderKpis(d);
     el.meta.textContent = (d.source === "ring" ? "Source: in-memory ring. " : "Source: usage_daily. ") + (d.note || "");
     fillHeat(d.heatmap);
-    fillBucket("byModel", "byModelEmpty", d.byModel, [
+    fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
       { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
       { label: "ms", value: function (r) { return GX.fmt.num(r.avgLatencyMs); } }
     ]);
-    fillBucket("byKey", "byKeyEmpty", d.byKey, [
+    fillBucket("byKey", "byKeyEmpty", "byKeyMeta", d.byKey, [
       { label: "key", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "rot", value: function (r) { return GX.fmt.num(r.rotated); } },
-      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
       { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
-    fillBucket("byRoute", "byRouteEmpty", d.byRoute, [
+    fillBucket("byRoute", "byRouteEmpty", "byRouteMeta", d.byRoute, [
       { label: "route", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
       { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
     fillStatus(d.byStatus);
@@ -265,7 +264,6 @@ const PAGE_SCRIPT = `(function () {
     return GX.api("/pengatur/stats/data?range=" + encodeURIComponent(state.range))
       .then(function (d) {
         if (d.ok === false) throw new Error(d.error && d.error.message ? d.error.message : "Statistics unavailable.");
-        GX.say(el.err, "");
         paint(d);
         el.console.hidden = false;
       })
@@ -309,13 +307,13 @@ const PAGE_SCRIPT = `(function () {
 
   buildRange();
   GX.gate({ onSuccess: load });
-})();`;
+})();
+`;
 
 export const STATS_HTML = consolePage({
   title: "Statistics",
   subtitle: "Range breakdowns, heatmap and cost projection",
   active: "/pengatur/stats",
-  actions: `<div class="seg" id="range" role="group" aria-label="Time range">`,
-  body: PAGE_BODY,
-  script: PAGE_SCRIPT,
+  body: STATS_BODY,
+  script: STATS_SCRIPT,
 });
