@@ -1,8 +1,6 @@
 {
   "version": 2,
-  "regions": [
-    "sin1"
-  ],
+  "regions": ["sin1"],
   "builds": [
     {
       "src": "api/index.js",
@@ -13,6 +11,12 @@
     {
       "source": "/(.*)",
       "destination": "/api/index.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/internal/rollup",
+      "schedule": "0 19 * * *"
     }
   ]
 }

@@ -10,7 +10,7 @@ OpenAI speech.
 Free-tier Gemini keys are limited per project (~15 RPM, daily caps). Stacking
 keys behind one endpoint multiplies the ceiling, but only if the gateway knows
 which key is cooling and which is dead. This one does, and it keeps the state
-either in memory or in Upstash Redis so multiple Vercel instances agree.
+either in process memory or in Postgres so multiple Vercel instances agree.
 
 ## Surfaces
 
@@ -56,10 +56,11 @@ for the soonest key to recover before returning a `429 pool_exhausted`.
 
 ## State store
 
-* `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` set → keys live in
-  Redis (`geminesx:idx` set + `geminesx:k:<key>` strings), so every instance shares health.
-* Otherwise → process-local map. Fine for one container, wrong for serverless
-  with more than one warm instance.
+* `DATABASE_URL` set → key identities, health and the usage ledger live in
+  Postgres (Neon HTTP driver), so every instance shares one pool.
+* Otherwise → process-local map and a memory-only ledger. Fine for one
+  container, wrong for serverless with more than one warm instance, and usage
+  rows are lost on redeploy.
 
 ## Deploy
 
@@ -70,13 +71,24 @@ bunx vercel link
 bunx vercel env add ADMIN_TOKEN production
 bunx vercel env add CLIENT_TOKEN production
 bunx vercel env add GEMINI_API_KEYS production
-bunx vercel env add UPSTASH_REDIS_REST_URL production
-bunx vercel env add UPSTASH_REDIS_REST_TOKEN production
+bunx vercel env add DATABASE_URL production
+bunx vercel env add ROLLUP_TOKEN production
 bunx vercel --prod
 ```
 
-`vercel.json` pins `bunVersion: 1.x` so Vercel runs `src/index.ts` on Bun, which
-is what the runtime already exports.
+`vercel.json` defines one daily cron, `0 19 * * *` (02:00 WIB), calling
+`POST /internal/rollup`. The route requires `Authorization: Bearer
+$ROLLUP_TOKEN` (or `X-Rollup-Token`); with `ROLLUP_TOKEN` unset it returns 403.
+Each run recomputes yesterday's `usage_daily` buckets from `usage_events` and
+then prunes events older than `RETENTION_DAYS`.
+
+## Ledger and rollup
+
+The gateway writes one `usage_events` row per request (identifiers, counts,
+timings, status only — never a prompt or completion). Writes are batched:
+`LEDGER_MAX_ROWS` rows or `LEDGER_FLUSH_MS` milliseconds, whichever comes first,
+and a database failure degrades to the in-memory tail instead of failing the
+request. The console tail keeps `LEDGER_TAIL_ROWS` rows.
 
 ### Plain Bun
 
@@ -102,7 +114,7 @@ curl -s http://localhost:3000/v1/audio/speech \
   -d '{"input":"halo dunia","voice":"nova"}' -o out.wav
 
 # Add keys at runtime
-curl -s http://localhost:3000/admin/keys \
+curl -s http://localhost:3000/pengatur/keys \
   -H 'authorization: Bearer $ADMIN_TOKEN' \
   -H 'content-type: application/json' \
   -d '{"keys":["AIza...","AIza..."]}'

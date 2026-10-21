@@ -27,26 +27,25 @@ import { chatCompletions, embeddings, models } from "./openai.ts";
 import {
   beginUsage,
   commitUsage,
-  noteUsage,
+  flush as flushLedger,
   routeOf,
   toCsv,
   usageOverview,
   type RowFilter,
-} from "./usage.ts";
+} from "./ledger.ts";
+import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 
 const app = new Hono();
 
 app.use("*", cors());
 
-/* ---------- usage ledger (in-memory, no Redis) ---------- */
+/* ---------- usage ledger ---------- */
 
 /**
- * One row per gateway request. Deliberately process-local: the ledger is
- * operator telemetry, so it dies with the instance and never consumes a single
- * Upstash command. Non-stream responses are committed here; streaming handlers
- * call `finalizeStream()` themselves because their token counts are only final
- * once the last byte leaves.
+ * One row per gateway request. The collector lives on the Request object; the
+ * row is committed after the handler returns, and the batch is flushed off the
+ * response path so no client ever waits on Postgres.
  */
 app.use("*", async (c, next) => {
   const path = new URL(c.req.url).pathname;
@@ -56,6 +55,16 @@ app.use("*", async (c, next) => {
   beginUsage(c.req.raw, path, route);
   await next();
   commitUsage(c.req.raw, c.res.status);
+  // The flush is detached: `void` keeps it off the critical path, and
+  // `waitUntil` (when the platform provides it) keeps the instance alive
+  // long enough for the batch to land. Reading `executionCtx` THROWS on a
+  // runtime that has none (plain Bun, `app.fetch` in tests), so it is probed.
+  const flushed = flushLedger().catch(() => {});
+  try {
+    c.executionCtx.waitUntil(flushed);
+  } catch {
+    // No platform context: the detached promise is all we get.
+  }
 });
 
 /* ---------- auth ---------- */
@@ -374,6 +383,50 @@ app.post("/pengatur/keys/test-all", async (c) => {
 
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
+});
+
+/* ---------- cron ---------- */
+
+/**
+ * Daily rollup entry point. Vercel cron calls this with no body; the day
+ * defaults to yesterday in WIB. Auth is a shared bearer token, and an unset
+ * `ROLLUP_TOKEN` disables the route entirely rather than leaving it open.
+ */
+app.post("/internal/rollup", async (c) => {
+  if (!cfg.rollupToken) {
+    return c.json({ error: { message: "Rollup disabled: ROLLUP_TOKEN is not set." } }, 403);
+  }
+  const presented =
+    (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() ||
+    c.req.header("x-rollup-token") ||
+    "";
+  if (presented !== cfg.rollupToken) {
+    return c.json({ error: { message: "Unauthorized." } }, 401);
+  }
+
+  let bodyDay: string | undefined;
+  try {
+    const body = (await c.req.json()) as { day?: string } | null;
+    bodyDay = body?.day;
+  } catch {
+    // No body is the normal cron case; fall through to query/default.
+  }
+  const requested = bodyDay ?? new URL(c.req.url).searchParams.get("day") ?? undefined;
+
+  // Neither call throws; a failed query returns ok:false with its reason, so a
+  // broken aggregation surfaces as 500 instead of a silent zero-bucket success.
+  const rolled = await rollupDay(requested ?? defaultDay());
+  if (!rolled.ok) {
+    return c.json({ error: { message: `Rollup failed: ${rolled.error}` } }, 500);
+  }
+  const pruned = await pruneOlderThan();
+  if (!pruned.ok) {
+    return c.json(
+      { day: rolled.day, buckets: rolled.buckets, error: { message: `Prune failed: ${pruned.error}` } },
+      500,
+    );
+  }
+  return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
 });
 
 app.notFound((c) =>

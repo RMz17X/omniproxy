@@ -10,7 +10,7 @@
 import { cfg } from "./config.ts";
 import { counters } from "./metrics.ts";
 import { execute } from "./upstream.ts";
-import { finalizeStream, noteUsage } from "./usage.ts";
+import { finalizeStream, noteUsage } from "./ledger.ts";
 import { listLiveModels, pricingMeta, type LiveModel } from "./models.ts";
 import { catalogFor, PRICING_AS_OF } from "./models-catalog.ts";
 

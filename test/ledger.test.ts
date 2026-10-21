@@ -1,24 +1,30 @@
 /**
- * Usage ledger: row shape, token capture, cost maths and the read-side
+* Ledger: row shape, token capture, cost maths and the read-side
  * aggregation the console renders.
  *
- * The ledger is process-local by design (no Redis), so every test here works
+ * The console tail is process-local by design, so every test here works
  * against the same in-process ring the gateway uses in production.
  */
 import { expect, test } from "bun:test";
 
 import "./env.ts";
 
+import { setSqlRunner, type SqlResult, type SqlRunner } from "../src/db.ts";
 import {
   beginUsage,
   commitUsage,
   costFor,
+  droppedCount,
   finalizeStream,
+  flush,
   noteUsage,
+  pendingCount,
+  record,
   routeOf,
   toCsv,
   usageOverview,
-} from "../src/usage.ts";
+  type UsageRow,
+} from "../src/ledger.ts";
 
 /** Current ring size, read through the public overview. */
 function ringSize(): number {
@@ -173,4 +179,114 @@ test("pagination clamps to the ring and never returns page 0 rows", () => {
   expect(snap.page).toBe(9999);
   expect(usageOverview(0, 25).page).toBe(1);
   expect(usageOverview(1, 100_000).pageSize).toBe(200);
+});
+/* ---------- batched writer ---------- */
+
+const event = (ts: number): UsageRow => ({
+  id: crypto.randomUUID(),
+  ts,
+  route: "chat.completions",
+  path: "/v1/chat/completions",
+  method: "POST",
+  model: "gemini-3.8-flash",
+  keyId: "0123456789ab",
+  keyMasked: "AIzaSy…WXYZ",
+  status: 200,
+  ok: true,
+  errorCode: null,
+  attempts: 1,
+  rotated: false,
+  stream: false,
+  latencyMs: 12,
+  promptTokens: 3,
+  completionTokens: 2,
+  totalTokens: 5,
+  cachedTokens: 0,
+  costUsd: 0.00001,
+});
+
+type Call = { text: string; params: unknown[] };
+
+/** Install a fake executor and count what the ledger writes. */
+function fakeDb(reply: () => Promise<SqlResult<unknown>> = async () => ({ ok: true, rows: [] })) {
+  const calls: Call[] = [];
+  setSqlRunner((async (text: string, params: unknown[]) => {
+    calls.push({ text, params });
+    return reply();
+  }) as SqlRunner);
+  return calls;
+}
+
+test("record never awaits the database and never throws", () => {
+  const calls = fakeDb();
+  try {
+    // Synchronous by contract: a row that reached the batch at return time
+    // proves no round trip happened inside `record`.
+    record(event(Date.now()));
+    expect(pendingCount()).toBeGreaterThanOrEqual(1);
+    expect(calls.length).toBe(0);
+  } finally {
+    setSqlRunner(null);
+  }
+});
+
+test("a full batch flushes itself", async () => {
+  const calls = fakeDb();
+  try {
+    await flush();
+    const rowsBefore = calls.reduce((n, c) => n + c.params.length, 0);
+    for (let i = 0; i < 4; i++) record(event(Date.now()));
+    await Bun.sleep(30);
+    // The batch ceiling is 4, so the fourth `record` starts the write. How the
+    // rows split across statements does not matter; each row must land once.
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    expect(calls[0].text).toContain("insert into usage_events");
+    expect(calls.reduce((n, c) => n + c.params.length, 0) - rowsBefore).toBe(15 * 4);
+  } finally {
+    setSqlRunner(null);
+  }
+});
+
+test("a partial batch flushes on age", async () => {
+  const calls = fakeDb();
+  try {
+    await flush();
+    record(event(Date.now()));
+    expect(calls.length).toBe(0);
+    await Bun.sleep(120);
+    expect(calls.length).toBe(1);
+    expect(pendingCount()).toBe(0);
+  } finally {
+    setSqlRunner(null);
+  }
+});
+
+test("overflow drops the oldest pending rows and counts them", async () => {
+  // A never-settling write keeps `flushing` true, which is exactly the state
+  // the database being unavailable produces: the batch in flight is stuck and
+  // the pending queue keeps growing until the overflow cap evicts the oldest.
+  let release = (): void => {};
+  const held = new Promise<void>((r) => {
+    release = r;
+  });
+  const calls: Call[] = [];
+  setSqlRunner((async (text: string, params: unknown[]) => {
+    calls.push({ text, params });
+    await held;
+    return { ok: false, reason: "error", message: "down" };
+  }) as SqlRunner);
+
+  const before = droppedCount();
+  try {
+    await flush();
+    // Ceiling is twice LEDGER_MAX_ROWS (8). The fourth row starts a stuck
+    // flush (4 rows in flight), the next nine pile up, and the ninth is one
+    // past the cap, so exactly the oldest pending row is evicted.
+    for (let i = 0; i < 13; i++) record(event(1_700_000_000_000 + i));
+    expect(pendingCount()).toBe(8);
+    expect(droppedCount() - before).toBe(1);
+  } finally {
+    release();
+    setSqlRunner(null);
+  }
 });
