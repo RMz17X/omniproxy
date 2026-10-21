@@ -63,3 +63,12 @@ create table if not exists admin_audit (
   detail jsonb
 );
 create index if not exists admin_audit_ts_idx on admin_audit (ts desc);
+
+-- Raw key material, stored as-is and NOT encrypted. `keys` keeps the masked
+-- identity; this table is what makes a key survive a cold start. Anyone who can
+-- read this table can read every live API key — the deliberate trade.
+create table if not exists key_material (
+  id         text primary key,          -- sha256(raw)[:12], joins keys.id
+  raw_key    text not null,             -- stored as-is, NOT encrypted
+  updated_at timestamptz not null default now()
+);

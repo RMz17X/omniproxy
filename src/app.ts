@@ -15,7 +15,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, KEY_TIERS, keyId, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, storageMode, tierCounts, type KeyTier } from "./pool.ts";
+import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, storageMode, tierCounts, type KeyTier } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
@@ -112,8 +112,12 @@ const KEY_PAGE = /^\/pengatur\/keys\/[0-9a-f]{12}$/;
 
 app.use("/pengatur/*", async (c, next) => {
   // The console shells carry no data and must load before a token exists.
+  // Only read verbs are public: a POST/DELETE to a shell path is a mutating
+  // admin call and must present the token.
   const adminPath = new URL(c.req.url).pathname;
-  if (SHELL_PATHS.includes(adminPath) || KEY_PAGE.test(adminPath)) return next();
+  const method = c.req.method.toUpperCase();
+  const readOnly = method === "GET" || method === "HEAD" || method === "OPTIONS";
+  if (readOnly && (SHELL_PATHS.includes(adminPath) || KEY_PAGE.test(adminPath))) return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -424,7 +428,11 @@ app.post("/pengatur/keys", async (c) => {
     target: ids.join(","),
     detail: { received: clean.length, added },
   });
-  return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
+  const durable = keyMaterialDurable();
+  const warning = durable
+    ? {}
+    : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
+  return c.json({ ok: true, received: clean.length, added, ids, durable, ...warning, pool: await snapshot() });
 });
 
 app.delete("/pengatur/keys", async (c) => {
