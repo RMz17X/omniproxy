@@ -5,39 +5,36 @@
  * data: it asks for the admin token, stores it in localStorage, and reads
  * /pengatur/usage/data. The CSV export uses the same filters.
  *
- * Layout: instrument strip with the totals, a filter toolbar, the three
- * breakdowns side by side, then the request log with its pager.
+ * Layout: the totals first as figures, then the filters, then the three
+ * breakdowns, then the request log itself. Every table gets the full width,
+ * because a report that scrolls sideways is a report nobody reads.
  */
 
-import { authGate, consolePage } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
 
-const PAGE_BODY = `
-
+const USAGE_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
-    <div class="kv ok"><b id="sOk">0</b><span class="k">ok</span></div>
-    <div class="kv bad"><b id="sErr">0</b><span class="k">errors</span></div>
-    <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
-    <div class="kv"><b id="sPrompt">0</b><span class="k">prompt tok</span></div>
-    <div class="kv"><b id="sCompletion">0</b><span class="k">output tok</span></div>
-    <div class="kv"><b id="sCached">0</b><span class="k">cached</span></div>
-    <div class="kv"><b id="sCost">-</b><span class="k">est. usd</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="sLatency">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Logs</h1>
+      <p class="sub">Every request that passed through the gateway.</p>
+    </div>
+    <span class="meta" id="stamp">-</span>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Filters</div>
-      <div class="row">
+  <div class="grid kpis" id="kpis"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Filters</h2>
+      <div class="actions">
         <label class="check"><input id="auto" type="checkbox"> Auto refresh every 60s</label>
       </div>
     </div>
-    <div class="panel-body">
-      <div class="row">
+    <div class="card-body">
+      <div class="toolbar">
         <div class="grow">
           <label class="field" for="fDay">Day</label>
           <select id="fDay"><option value="">all</option></select>
@@ -59,17 +56,20 @@ ${authGate()}
             <option value="rotated">rotated</option>
           </select>
         </div>
+        <div class="row" style="gap:8px">
+          <button id="apply" class="btn btn-primary" type="button">Apply</button>
+          <button id="reset" class="btn" type="button">Reset</button>
+        </div>
       </div>
-      <div class="row" style="margin-top:12px">
-        <button id="apply" class="btn btn-primary" type="button">Apply</button>
-        <button id="reset" class="btn" type="button">Reset</button>
-      </div>
-      <div id="err" class="notice err" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <div id="err" class="notice err" role="status" aria-live="polite" style="margin-top:12px"></div>
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By model</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By model</h2>
+      <span class="meta" id="byModelMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byModel">
         <thead><tr>
@@ -81,8 +81,11 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By key</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By key</h2>
+      <span class="meta" id="byKeyMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byKey">
         <thead><tr>
@@ -94,8 +97,11 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By day</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By day</h2>
+      <span class="meta" id="byDayMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byDay">
         <thead><tr>
@@ -107,9 +113,9 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Request log</div>
+  <section class="card">
+    <div class="card-head">
+      <h2>Request log</h2>
       <span class="meta" id="logMeta"></span>
     </div>
     <div class="tablewrap">
@@ -121,25 +127,21 @@ ${authGate()}
       </table>
       <div id="logEmpty"></div>
     </div>
-    <div class="panel-foot"><div id="pager" class="pager"></div></div>
+    <div class="card-foot">
+      <div id="pager" class="pager" style="width:100%"></div>
+    </div>
   </section>
-</section>
+</div>
 `;
 
-const PAGE_SCRIPT = `(function () {
+const USAGE_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sReq: document.getElementById("sReq"),
-    sOk: document.getElementById("sOk"),
-    sErr: document.getElementById("sErr"),
-    sRot: document.getElementById("sRot"),
-    sPrompt: document.getElementById("sPrompt"),
-    sCompletion: document.getElementById("sCompletion"),
-    sCached: document.getElementById("sCached"),
-    sCost: document.getElementById("sCost"),
-    sLatency: document.getElementById("sLatency"),
+    kpis: document.getElementById("kpis"),
+    stamp: document.getElementById("stamp"),
     fDay: document.getElementById("fDay"),
     fModel: document.getElementById("fModel"),
     fKey: document.getElementById("fKey"),
@@ -149,6 +151,9 @@ const PAGE_SCRIPT = `(function () {
     byModel: document.getElementById("byModel"),
     byKey: document.getElementById("byKey"),
     byDay: document.getElementById("byDay"),
+    byModelMeta: document.getElementById("byModelMeta"),
+    byKeyMeta: document.getElementById("byKeyMeta"),
+    byDayMeta: document.getElementById("byDayMeta"),
     log: document.getElementById("log"),
     logMeta: document.getElementById("logMeta"),
     pager: document.getElementById("pager"),
@@ -190,11 +195,23 @@ const PAGE_SCRIPT = `(function () {
     sel.value = keep;
   }
 
-  function renderBuckets(table, emptyId, buckets, cols) {
+  function renderKpis(data) {
+    var t = data.totals || {};
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), data.mode + " ring, capacity " + GX.fmt.num(data.capacity)));
+    el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic yet", t.errors ? "bad" : "ok"));
+    el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
+    el.kpis.appendChild(GX.kpi("Prompt tokens", GX.fmt.compact(t.promptTokens), "input side"));
+    el.kpis.appendChild(GX.kpi("Output tokens", GX.fmt.compact(t.completionTokens), "completion side"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "avg " + GX.fmt.num(t.avgLatencyMs) + " ms per request"));
+  }
+
+  function renderBuckets(table, emptyId, metaId, buckets, cols) {
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
     empty.textContent = "";
+    document.getElementById(metaId).textContent = buckets.length + (buckets.length === 1 ? " row" : " rows");
     if (!buckets.length) {
       empty.appendChild(GX.state("empty", "No traffic in this view", "Send a request through the gateway and it shows up here."));
       return;
@@ -225,10 +242,8 @@ const PAGE_SCRIPT = `(function () {
       GX.cell(tr, r.model || "-", "mono", "model");
       GX.cell(tr, r.keyMasked || "-", "mono", "key");
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.badge(String(r.status) + (r.errorCode ? " " + r.errorCode : ""), r.ok ? "ok" : "bad"));
-      if (r.rotated) {
-        statusCell.appendChild(GX.el("span", { class: "badge info", text: "rotated", style: "margin-left:6px" }));
-      }
+      statusCell.appendChild(GX.tag(String(r.status) + (r.errorCode ? " " + r.errorCode : ""), r.ok ? "ok" : "bad"));
+      if (r.rotated) statusCell.appendChild(GX.el("span", { class: "tag info", text: "rotated", style: "margin-left:6px" }));
       tr.appendChild(statusCell);
       GX.cell(tr, GX.fmt.num(r.promptTokens), "num", "prompt");
       GX.cell(tr, GX.fmt.num(r.completionTokens), "num", "output");
@@ -253,15 +268,13 @@ const PAGE_SCRIPT = `(function () {
     var box = GX.el("div", { class: "pages" });
     function pageBtn(label, n, active, disabled) {
       var b = GX.el("button", {
-        class: "small" + (active ? " active" : ""),
+        class: active ? "active" : "",
         type: "button",
         text: label,
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
-      if (!active && !disabled) {
-        b.addEventListener("click", function () { state.page = n; load(); });
-      }
+      if (!active && !disabled) b.addEventListener("click", function () { state.page = n; load(); });
       box.appendChild(b);
     }
     pageBtn("first", 1, false, data.page === 1);
@@ -276,24 +289,12 @@ const PAGE_SCRIPT = `(function () {
   }
 
   function paint(data) {
-    var t = data.totals || {};
-    el.sReq.textContent = GX.fmt.num(t.requests);
-    el.sOk.textContent = GX.fmt.num(t.ok);
-    el.sErr.textContent = GX.fmt.num(t.errors);
-    el.sRot.textContent = GX.fmt.num(t.rotated);
-    el.sPrompt.textContent = GX.fmt.num(t.promptTokens);
-    el.sCompletion.textContent = GX.fmt.num(t.completionTokens);
-    el.sCached.textContent = GX.fmt.num(t.cachedTokens);
-    el.sCost.textContent = GX.fmt.money(t.costUsd);
-    el.sLatency.textContent = "avg " + GX.fmt.num(t.avgLatencyMs) + " ms" +
-      (data.since ? " · oldest " + new Date(data.since).toLocaleString() : "");
-    el.logMeta.textContent = data.mode + " ring, capacity " + GX.fmt.num(data.capacity);
-
+    renderKpis(data);
     fillSelect(el.fDay, data.byDay);
     fillSelect(el.fModel, data.byModel);
     fillSelect(el.fKey, data.byKey);
 
-    renderBuckets(el.byModel, "byModelEmpty", data.byModel || [], [
+    renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
@@ -304,7 +305,7 @@ const PAGE_SCRIPT = `(function () {
       { k: "avgLatencyMs", num: true, label: "ms" }
     ]);
 
-    renderBuckets(el.byKey, "byKeyEmpty", data.byKey || [], [
+    renderBuckets(el.byKey, "byKeyEmpty", "byKeyMeta", data.byKey || [], [
       { k: "key", label: "key" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
@@ -315,7 +316,7 @@ const PAGE_SCRIPT = `(function () {
       { k: "avgLatencyMs", num: true, label: "ms" }
     ]);
 
-    renderBuckets(el.byDay, "byDayEmpty", data.byDay || [], [
+    renderBuckets(el.byDay, "byDayEmpty", "byDayMeta", data.byDay || [], [
       { k: "key", label: "day" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
@@ -326,6 +327,8 @@ const PAGE_SCRIPT = `(function () {
 
     renderLog(data.rows || []);
     renderPager(data);
+    el.logMeta.textContent = (data.rows || []).length + " rows on this page";
+    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
   }
 
   function load() {
@@ -351,9 +354,7 @@ const PAGE_SCRIPT = `(function () {
   function exportCsv() {
     GX.busy(el.csv, "Exporting");
     GX.download("/pengatur/usage/export.csv" + filterQuery(), "geminesx-usage.csv")
-      .catch(function (err) {
-        GX.say(el.err, err.message, "err");
-      })
+      .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });
   }
 
@@ -382,13 +383,20 @@ const PAGE_SCRIPT = `(function () {
   });
 
   GX.gate({ onSuccess: load });
-})();`;
+})();
+`;
 
 export const USAGE_HTML = consolePage({
   title: "Logs",
   subtitle: "Every request that passed through the gateway",
   active: "/pengatur/logs",
-  actions: `<button id="csvBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/></svg>Export CSV</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
-  body: PAGE_BODY,
-  script: PAGE_SCRIPT,
+  actions:
+    '<button id="csvBtn" class="btn btn-sm" type="button">' +
+    icon("download") +
+    "Export CSV</button>" +
+    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
+    icon("refresh") +
+    "Refresh</button>",
+  body: USAGE_BODY,
+  script: USAGE_SCRIPT,
 });
