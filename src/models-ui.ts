@@ -9,31 +9,31 @@
  * performs an actual generateContent call against the selected model.
  */
 
-import { authGate, consolePage, stateBlock } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
 
-const PAGE_BODY = `
-
+const MODELS_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="cTotal">0</b><span class="k">models</span></div>
-    <div class="kv ok"><b id="cFree">0</b><span class="k">free tier</span></div>
-    <div class="kv warn"><b id="cPaid">0</b><span class="k">paid only</span></div>
-    <div class="kv"><b id="cTested">0</b><span class="k">tested</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="cTier">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Models</h1>
+      <p class="sub">Live inventory from the Generative Language API, joined with published pricing.</p>
+    </div>
+    <span class="meta" id="asOf">-</span>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Inventory</div>
-      <div class="row">
-        <button id="reloadBtn" class="btn small" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh live list</button>
+  <div class="grid kpis" id="kpis"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Find a model</h2>
+      <div class="actions">
+        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh live list</button>
       </div>
     </div>
-    <div class="panel-body">
-      <div class="row">
+    <div class="card-body">
+      <div class="toolbar">
         <div class="grow">
           <label class="field" for="q">Search</label>
           <input id="q" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
@@ -59,7 +59,7 @@ ${authGate()}
           <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
         </div>
       </div>
-      <div class="row" style="margin-top:12px">
+      <div class="row" style="margin-top:14px">
         <span class="field" style="margin:0">Your plan</span>
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
@@ -68,34 +68,33 @@ ${authGate()}
           <button type="button" data-tier="any" aria-pressed="false">Everything</button>
         </div>
       </div>
-      <p class="hint" id="tierNote" style="margin-top:8px"></p>
+      <p class="hint" id="tierNote" style="margin-top:10px"></p>
       <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Models <span class="meta" id="listMeta"></span></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>Models</h2>
+      <span class="meta" id="listMeta"></span>
     </div>
-    <div id="body" class="tablewrap">stateBlock("loading", "Loading the model list")</div>
-    <div class="panel-foot">
-      <div id="pager" class="pager"></div>
+    <div id="body" class="tablewrap">${stateBlock("loading", "Loading the model list")}</div>
+    <div class="card-foot">
+      <div id="pager" class="pager" style="width:100%"></div>
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
     </div>
   </section>
-</section>
+</div>
 `;
 
-const PAGE_SCRIPT = `(function () {
+const MODELS_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    cTotal: document.getElementById("cTotal"),
-    cFree: document.getElementById("cFree"),
-    cPaid: document.getElementById("cPaid"),
-    cTested: document.getElementById("cTested"),
-    cTier: document.getElementById("cTier"),
+    kpis: document.getElementById("kpis"),
+    asOf: document.getElementById("asOf"),
     tier: document.getElementById("tier"),
     tierNote: document.getElementById("tierNote"),
     q: document.getElementById("q"),
@@ -148,17 +147,19 @@ const PAGE_SCRIPT = `(function () {
     });
   }
 
-  function stats() {
-    el.cTotal.textContent = state.models.length;
-    el.cFree.textContent = state.models.filter(function (m) { return m.free === true; }).length;
-    el.cPaid.textContent = state.models.filter(function (m) { return m.free === false; }).length;
-    el.cTested.textContent = Object.keys(state.testing).length;
+  function renderKpis() {
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Models", GX.fmt.num(state.models.length), "returned by Google"));
+    el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
+    el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
+    el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
+    el.kpis.appendChild(GX.kpi("Your plan", TIER_LABELS[state.tier], "changes which models are listed"));
   }
 
   function badgeFor(m) {
-    if (m.free === true) return GX.badge("free tier", "ok");
-    if (m.free === false) return GX.badge("paid only", "warn");
-    return GX.badge("unlisted", "");
+    if (m.free === true) return GX.tag("free tier", "ok");
+    if (m.free === false) return GX.tag("paid only", "warn");
+    return GX.tag("unlisted", "plain");
   }
 
   function probeText(r) {
@@ -182,8 +183,8 @@ const PAGE_SCRIPT = `(function () {
     if (state.page < 1) state.page = 1;
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
-    stats();
-    el.listMeta.textContent = rows.length + " match";
+    renderKpis();
+    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model" : " models");
 
     if (!rows.length) {
       el.body.textContent = "";
@@ -248,13 +249,13 @@ const PAGE_SCRIPT = `(function () {
 
       var probeCell = GX.el("td", { "data-l": "test" });
       var known = state.testing[m.id];
-      var pv = GX.el("span", { class: "probe " + probeClass(known), text: probeText(known) });
+      var pv = GX.el("span", { class: "mono", text: probeText(known) });
       if (known && known.message) pv.title = known.message;
       probeCell.appendChild(pv);
       tr.appendChild(probeCell);
 
       var actions = GX.el("td", { class: "actions" });
-      var btn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      var btn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
       btn.addEventListener("click", function () { testModel(m, btn, pv); });
       actions.appendChild(btn);
       tr.appendChild(actions);
@@ -279,7 +280,7 @@ const PAGE_SCRIPT = `(function () {
     var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
       var b = GX.el("button", {
-        class: "small" + (active ? " active" : ""),
+        class: active ? "active" : "",
         type: "button",
         text: label,
         disabled: disabled ? true : null
@@ -314,6 +315,7 @@ const PAGE_SCRIPT = `(function () {
         state.models = data.models || [];
         var source = data.source || "upstream";
         GX.say(el.msg, state.models.length + " models from " + source + (data.cached ? " (cached)" : ""), "ok");
+        el.asOf.textContent = "pricing " + (data.pricing && data.pricing.asOf ? data.pricing.asOf : "-");
         el.console.hidden = false;
         render();
       })
@@ -323,6 +325,7 @@ const PAGE_SCRIPT = `(function () {
           throw err;
         }
         el.console.hidden = false;
+        renderKpis();
         GX.say(el.msg, "Could not load the model list: " + err.message, "err");
         el.body.textContent = "";
         el.body.appendChild(GX.state(
@@ -340,14 +343,12 @@ const PAGE_SCRIPT = `(function () {
 
   function testModel(m, btn, node) {
     btn.disabled = true;
-    node.className = "probe";
     node.textContent = "testing...";
     GX.say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "");
     GX.api("/pengatur/models/test", { method: "POST", body: { model: m.id } })
       .then(function (data) {
         var r = data.result;
         state.testing[m.id] = r;
-        node.className = "probe " + probeClass(r);
         node.textContent = probeText(r);
         node.title = r.message || "";
         if (r.status === "ok") {
@@ -355,10 +356,9 @@ const PAGE_SCRIPT = `(function () {
         } else {
           GX.say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "" : "err");
         }
-        stats();
+        renderKpis();
       })
       .catch(function (err) {
-        node.className = "probe bad";
         node.textContent = "error";
         GX.say(el.rowMsg, "Test failed: " + err.message, "err");
         if (err.status === 401 || err.status === 403) GX.lock(err.message + " Re-enter the token.");
@@ -387,7 +387,6 @@ const PAGE_SCRIPT = `(function () {
       Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (other) {
         other.setAttribute("aria-pressed", other === button ? "true" : "false");
       });
-      el.cTier.textContent = TIER_LABELS[state.tier];
       el.tierNote.textContent = TIER_NOTES[state.tier];
       state.page = 1;
       render();
@@ -402,20 +401,16 @@ const PAGE_SCRIPT = `(function () {
       button.setAttribute("aria-pressed", button.getAttribute("data-tier") === savedTier ? "true" : "false");
     });
   }
-  el.cTier.textContent = TIER_LABELS[state.tier];
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
-  GX.gate({
-    onSuccess: function () {
-      return load(false);
-    }
-  });
-})();`;
+  GX.gate({ onSuccess: load });
+})();
+`;
 
 export const MODELS_HTML = consolePage({
   title: "Models",
   subtitle: "Live inventory from the Generative Language API",
   active: "/pengatur/models",
-  body: PAGE_BODY,
-  script: PAGE_SCRIPT,
+  body: MODELS_BODY,
+  script: MODELS_SCRIPT,
 });
