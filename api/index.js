@@ -1,12 +1,12 @@
-// ../../node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
 var X_ALREADY_SENT = "x-hono-already-sent";
 
-// ../../node_modules/@hono/node-server/dist/index.mjs
+// node_modules/@hono/node-server/dist/index.mjs
 import { STATUS_CODES, ServerResponse, createServer } from "node:http";
 import { Http2ServerRequest, constants } from "node:http2";
 import { Readable } from "node:stream";
 
-// ../../node_modules/hono/dist/helper/websocket/index.js
+// node_modules/hono/dist/helper/websocket/index.js
 var defineWebSocketHelper = (handler2) => {
   return (...args) => {
     if (typeof args[0] === "function") {
@@ -27,7 +27,7 @@ var defineWebSocketHelper = (handler2) => {
   };
 };
 
-// ../../node_modules/@hono/node-server/dist/index.mjs
+// node_modules/@hono/node-server/dist/index.mjs
 var RequestError = class extends Error {
   constructor(message, options) {
     super(message, options);
@@ -1194,15 +1194,15 @@ var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
   return new Response();
 });
 
-// ../../node_modules/hono/dist/request/constants.js
+// node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = Symbol();
 
-// ../../node_modules/hono/dist/utils/buffer.js
+// node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType2) => {
   return new Response(arrayBuffer, { headers: { "Content-Type": contentType2.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase()) } }).formData();
 };
 
-// ../../node_modules/hono/dist/utils/body.js
+// node_modules/hono/dist/utils/body.js
 var MAX_NESTED_OBJECTS = 1e4;
 var isRawRequest = (request) => "headers" in request;
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
@@ -1266,7 +1266,7 @@ var throwNestingLimitExceeded = () => {
   throw new Error("Nesting limit exceeded");
 };
 
-// ../../node_modules/hono/dist/utils/url.js
+// node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split("/");
   if (paths[0] === "") paths.shift();
@@ -1437,7 +1437,7 @@ var getQueryParams = (url, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// ../../node_modules/hono/dist/request.js
+// node_modules/hono/dist/request.js
 var HonoRequest = class {
   /**
   * `.raw` can get the raw Request object.
@@ -1707,7 +1707,7 @@ var HonoRequest = class {
   }
 };
 
-// ../../node_modules/hono/dist/utils/html.js
+// node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -1737,7 +1737,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   else return resStr;
 };
 
-// ../../node_modules/hono/dist/context.js
+// node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType2, headers) => {
   return {
@@ -2115,7 +2115,7 @@ var Context = class {
   };
 };
 
-// ../../node_modules/hono/dist/compose.js
+// node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -2146,7 +2146,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// ../../node_modules/hono/dist/router.js
+// node_modules/hono/dist/router.js
 var METHODS = [
   "get",
   "post",
@@ -2160,10 +2160,10 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 var UnsupportedPathError = class extends Error {
 };
 
-// ../../node_modules/hono/dist/utils/constants.js
+// node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
-// ../../node_modules/hono/dist/hono-base.js
+// node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -2504,10 +2504,10 @@ var Hono = class Hono2 {
   };
 };
 
-// ../../node_modules/hono/dist/router/utils.js
+// node_modules/hono/dist/router/utils.js
 var createNullObject = () => /* @__PURE__ */ Object.create(null);
 
-// ../../node_modules/hono/dist/router/reg-exp-router/matcher.js
+// node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -2524,7 +2524,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// ../../node_modules/hono/dist/router/reg-exp-router/node.js
+// node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
 var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
 var PATH_ERROR = Symbol();
@@ -2605,7 +2605,7 @@ var Node = class Node2 {
   }
 };
 
-// ../../node_modules/hono/dist/router/reg-exp-router/trie.js
+// node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -2670,7 +2670,7 @@ var Trie = class {
   }
 };
 
-// ../../node_modules/hono/dist/router/reg-exp-router/router.js
+// node_modules/hono/dist/router/reg-exp-router/router.js
 var wildcardRegExpCache = createNullObject();
 function buildWildcardRegExp(path) {
   return wildcardRegExpCache[path] ??= new RegExp(`^${path.replace(/\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g, (match2, metaChar) => metaChar ? `\\${metaChar}` : match2 === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match2 === "*" ? ".*" : `/:${LABEL_REG_EXP_STR}`)}$`);
@@ -2764,7 +2764,7 @@ var RegExpRouter = class {
   }
 };
 
-// ../../node_modules/hono/dist/router/smart-router/router.js
+// node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = "SmartRouter";
   #routers = [];
@@ -2811,7 +2811,7 @@ var SmartRouter = class {
   }
 };
 
-// ../../node_modules/hono/dist/router/trie-router/node.js
+// node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = createNullObject();
 var order = 0;
 var Node3 = class Node4 {
@@ -2941,7 +2941,7 @@ var Node3 = class Node4 {
   }
 };
 
-// ../../node_modules/hono/dist/router/trie-router/router.js
+// node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = "TrieRouter";
   #node = new Node3();
@@ -2953,7 +2953,7 @@ var TrieRouter = class {
   }
 };
 
-// ../../node_modules/hono/dist/hono.js
+// node_modules/hono/dist/hono.js
 var Hono3 = class extends Hono {
   /**
   * Creates an instance of the Hono class.
@@ -2966,7 +2966,7 @@ var Hono3 = class extends Hono {
   }
 };
 
-// ../../node_modules/hono/dist/middleware/cors/index.js
+// node_modules/hono/dist/middleware/cors/index.js
 var cors = (options) => {
   const opts = {
     origin: "*",
@@ -3142,7 +3142,7 @@ var counters = {
   toolCalls: 0
 };
 
-// ../../node_modules/@neondatabase/serverless/index.mjs
+// node_modules/@neondatabase/serverless/index.mjs
 var Po = Object.create;
 var Ie = Object.defineProperty;
 var Ro = Object.getOwnPropertyDescriptor;
@@ -8770,6 +8770,459 @@ async function snapshot() {
   };
 }
 
+// src/ui.ts
+var BASE_CSS = `
+:root {
+  --bg: #0c0e11;
+  --surface: #12151a;
+  --surface-2: #171b21;
+  --line: #232932;
+  --line-strong: #2f3742;
+  --text: #e3e7ec;
+  --text-2: #9aa4b2;
+  --text-3: #6b7684;
+  --accent: #6f93ad;
+  --ok: #4f9e6a;
+  --warn: #c08b3e;
+  --danger: #c05c5c;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --tap: 30px;
+  --tap-sm: 26px;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+html { background: var(--bg); }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3 { margin: 0; line-height: 1.25; font-weight: 600; }
+h1 { font-size: 14px; }
+h2 { font-size: 14px; }
+p { margin: 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+b, strong { font-weight: 600; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* shell ------------------------------------------------------------------ */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 48px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.wordmark {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+.wordmark:hover { text-decoration: none; color: var(--text); }
+.nav { display: flex; gap: 16px; height: 100%; }
+.nav a {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-2);
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+}
+.nav a:hover { color: var(--text); text-decoration: none; }
+.nav a.active { color: var(--text); border-bottom-color: var(--accent); }
+.topbar .meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.page-head .meta { font-size: 12px; color: var(--text-2); }
+
+/* instrument strip ------------------------------------------------------- */
+
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 52px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.strip .kv {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 16px;
+  border-left: 1px solid var(--line);
+}
+.strip .kv:first-child { border-left: 0; padding-left: 8px; }
+.strip .kv .k {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+.strip .kv b {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.strip .kv.ready b { color: var(--ok); }
+.strip .kv.cooling b { color: var(--warn); }
+.strip .kv.dead b { color: var(--danger); }
+.strip .spacer { flex: 1; }
+.strip .meta {
+  padding: 0 8px 0 16px;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* panels ----------------------------------------------------------------- */
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.panel-title .meta { font-size: 12px; color: var(--text-2); font-weight: 400; }
+.panel-body { padding: 16px; }
+.panel-body.tight { padding: 0; }
+.panel .foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+.tablewrap { overflow-x: auto; }
+.dialog {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 16px;
+  color: var(--text);
+}
+
+/* layout helpers --------------------------------------------------------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.row.tight { gap: 4px; }
+.grow { flex: 1; min-width: 160px; }
+.spacer { flex: 1; }
+.stack { display: flex; flex-direction: column; gap: 24px; }
+.muted { color: var(--text-2); }
+.dimtext { color: var(--text-3); }
+.mono { font-family: var(--mono); font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+.right { text-align: right; }
+.nowrap { white-space: nowrap; }
+.field {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* tables ----------------------------------------------------------------- */
+
+.table, table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table thead th, table thead th {
+  padding: 8px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table tbody td, table tbody td {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td, table tbody tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover, table tbody tr:hover { background: var(--surface-2); }
+.key {
+  font-family: var(--mono);
+  font-size: 12px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mid { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions { white-space: nowrap; text-align: right; }
+
+/* controls --------------------------------------------------------------- */
+
+.btn, button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--tap);
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover, button:hover { border-color: var(--text-3); }
+.btn:active, button:active { background: var(--surface); }
+.btn[disabled], button[disabled] { color: var(--text-3); cursor: default; }
+.btn-primary {
+  background: var(--surface-2);
+  border-color: var(--text-3);
+  color: var(--text);
+  font-weight: 600;
+}
+.btn-danger { background: transparent; border-color: var(--line-strong); color: var(--danger); }
+.btn-danger:hover { border-color: var(--danger); }
+.small, .act {
+  height: var(--tap-sm);
+  padding: 0 8px;
+  font-size: 12px;
+}
+.tier { height: var(--tap-sm); font-size: 12px; width: auto; }
+
+.input, input[type="text"], input[type="password"], input[type="search"], textarea, select {
+  width: 100%;
+  height: var(--tap);
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+textarea {
+  height: auto;
+  min-height: 96px;
+  padding: 8px;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.select, select { cursor: pointer; }
+.input::placeholder, input::placeholder, textarea::placeholder { color: var(--text-3); }
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.check input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* status ----------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.badge.ok, .probe.ok { color: var(--ok); }
+.badge.warn, .probe.warn { color: var(--warn); }
+.badge.bad, .badge.dead, .probe.bad { color: var(--danger); }
+.badge.free { color: var(--ok); }
+.badge.paid { color: var(--warn); }
+.badge.unknown { color: var(--text-3); }
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 4px;
+  background: var(--text-3);
+  vertical-align: middle;
+}
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.bad, .dot.dead { background: var(--danger); }
+.cool { font-family: var(--mono); font-size: 12px; color: var(--warn); }
+
+/* messages and states ---------------------------------------------------- */
+
+.msg, .notice {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 8px;
+}
+.msg:empty, .notice:empty { display: none; }
+.msg.ok, .notice.ok { color: var(--ok); }
+.msg.warn, .notice.warn { color: var(--warn); }
+.msg.err, .notice.err { color: var(--danger); }
+.msg.show { display: block; }
+
+.state, .empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.state.loading { color: var(--text-2); }
+.state.error { color: var(--danger); }
+.state .retry { margin-top: 12px; }
+
+/* pager ------------------------------------------------------------------ */
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.pager .pages { display: flex; gap: 4px; flex-wrap: wrap; }
+.pager button {
+  min-width: var(--tap-sm);
+  padding: 0 8px;
+  font-size: 12px;
+}
+.pager button.active {
+  background: var(--surface-2);
+  border-color: var(--text-3);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* responsive ------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .page { padding: 16px; gap: 16px; }
+  .topbar { padding: 0 16px; gap: 16px; }
+  .topbar .meta { display: none; }
+  .strip { display: none; }
+  .panel-head { flex-wrap: wrap; }
+  .panel .foot { flex-wrap: wrap; }
+
+  .table thead, .table thead th, table thead th { display: none; }
+  .table, .table tbody, .table tr, .table td,
+  table, table tbody, table tr, table td { display: block; width: auto; }
+  .table tbody tr, table tbody tr {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .table tbody tr:last-child, table tbody tr:last-child { border-bottom: 0; }
+  .table tbody td, table tbody td {
+    display: grid;
+    grid-template-columns: 104px 1fr;
+    gap: 8px;
+    padding: 4px 12px;
+    border-bottom: 0;
+  }
+  .table tbody td::before, table tbody td::before {
+    content: attr(data-l);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-3);
+  }
+  .table tbody td:not([data-l])::before, table tbody td:not([data-l])::before { content: none; }
+  .table td.key, .table td.mid, .table td.actions,
+  table td.key, table td.mid, table td.actions {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+  .actions { text-align: left; }
+}
+
+@media (pointer: coarse) {
+  :root { --tap: 44px; --tap-sm: 44px; }
+}
+`;
+function stateBlock(kind, message) {
+  return '<div class="state ' + kind + '">' + message + "</div>";
+}
+
 // src/admin-ui.ts
 var ADMIN_HTML = `<!doctype html>
 <html lang="en">
@@ -8781,244 +9234,83 @@ var ADMIN_HTML = `<!doctype html>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
-<style>
-  :root {
-    --bg: #0d1014;
-    --panel: #12161b;
-    --panel-2: #171c22;
-    --line: #242b34;
-    --line-soft: #1c222a;
-    --text: #e6eaf0;
-    --muted: #8c96a5;
-    --accent: #e8a33d;
-    --ready: #57c98a;
-    --cool: #e0b64a;
-    --dead: #e8737b;
-    --focus: #7fb4ff;
-    --radius: 8px;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
-
-  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
-  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-  .brand .sub { font-size: 12px; color: var(--muted); }
-  .top-right { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
-  .top-right .mono { font-size: 12px; }
-
-  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
-
-  /* one-line health strip, not a card grid */
-  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
-  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .strip .kv span { font-size: 12px; color: var(--muted); }
-  .strip .kv.ready b { color: var(--ready); }
-  .strip .kv.cooling b { color: var(--cool); }
-  .strip .kv.dead b { color: var(--dead); }
-  .strip .spacer { flex: 1; }
-  .strip .meta { font-size: 12px; color: var(--muted); }
-
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-  .card + .card { margin-top: 12px; }
-
-  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], input[type=text], select, textarea {
-    width: 100%;
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 11px 12px;
-    font: inherit;
-    font-size: 13.5px;
-  }
-  textarea { resize: vertical; min-height: 84px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6; }
-  select { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; cursor: pointer; }
-  input[type=text] { min-height: 44px; }
-  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-  input::placeholder, textarea::placeholder { color: #5f6875; }
-
-  button {
-    font: inherit;
-    font-size: 13.5px;
-    font-weight: 550;
-    color: var(--text);
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    min-height: 44px;
-    padding: 0 16px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 120ms ease, border-color 120ms ease;
-  }
-  button:hover:not(:disabled) { background: #1e242c; border-color: #333d49; }
-  button:disabled { opacity: 0.45; cursor: not-allowed; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 650; }
-  button.primary:hover:not(:disabled) { background: #f0b154; border-color: #f0b154; }
-  button.small { min-height: 34px; padding: 0 11px; font-size: 12.5px; }
-  button.danger { color: var(--dead); border-color: #3d272b; background: transparent; }
-  button.danger:hover:not(:disabled) { background: #22161a; border-color: var(--dead); }
-
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-  .row > .grow { flex: 1 1 260px; min-width: 0; }
-
-  .msg { border-radius: var(--radius); padding: 10px 12px; font-size: 13px; margin-top: 12px; display: none; border: 1px solid; }
-  .msg.show { display: block; }
-  .msg.ok { background: #101f18; border-color: #1f4c36; color: #b8f5d2; }
-  .msg.err { background: #211416; border-color: #4a2b30; color: #ffc3c6; }
-  .msg.info { background: #101a24; border-color: #1f3548; color: #c2e0ff; }
-
-  /* table */
-  .tablewrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th {
-    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
-    color: var(--muted); font-weight: 600; padding: 0 10px 9px; border-bottom: 1px solid var(--line);
-    white-space: nowrap;
-  }
-  thead th.right, tbody td.right { text-align: right; }
-  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
-  tbody tr:last-child td { border-bottom: 0; }
-  tbody tr { transition: background 120ms ease; }
-  tbody tr:hover { background: #151a20; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .num { font-variant-numeric: tabular-nums; }
-  td.actions { text-align: right; white-space: nowrap; }
-  td.actions button + button { margin-left: 6px; }
-
-  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; border: 1px solid; }
-  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .badge.ready { color: var(--ready); border-color: #1f4c36; background: #101f18; }
-  .badge.cooling { color: var(--cool); border-color: #4d3d12; background: #221d0c; }
-  .badge.dead { color: var(--dead); border-color: #4a2b30; background: #211416; }
-
-  /* cooldown cell: number plus a thin drain bar, both functional */
-  .cool { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
-  .cool .bar { width: 54px; height: 3px; border-radius: 2px; background: #232a33; overflow: hidden; }
-  .cool .bar i { display: block; height: 100%; background: var(--cool); }
-
-  .empty { padding: 30px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
-  .empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; font-weight: 600; }
-
-  .skeleton { height: 11px; border-radius: 4px; background: linear-gradient(90deg, #1b2027, #262d37, #1b2027); background-size: 200% 100%; animation: sh 1.2s linear infinite; }
-  @keyframes sh { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-  @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } tbody tr, button { transition: none; } }
-
-  /* pagination */
-  .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
-  .pager:empty { display: none; }
-  .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .pager .pages span { color: var(--muted); padding: 0 2px; }
-  .pager button.small { min-width: 36px; padding: 0 9px; font-variant-numeric: tabular-nums; }
-  .pager button.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; }
-
-  .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
-  .muted { color: var(--muted); font-size: 12px; }
-  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
-  .check input { width: 17px; height: 17px; accent-color: var(--accent); }
-
-  .probe { font-size: 12px; color: var(--muted); }
-  .probe.ok { color: var(--ready); }
-  .probe.bad { color: var(--dead); }
-  .probe.warn { color: var(--cool); }
-
-  @media (max-width: 760px) {
-    .wrap { padding: 20px 14px 56px; }
-    thead { display: none; }
-    tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-    tbody td { border: 0; padding: 0; }
-    tbody td::before { content: attr(data-l); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    tbody td.key { grid-column: 1 / -1; margin-bottom: 4px; }
-    tbody td.key::before { display: none; }
-    tbody td.actions { grid-column: 1 / -1; text-align: left; margin-top: 8px; }
-    tbody td.actions::before { display: none; }
-    td.actions button { min-height: 40px; }
-    .strip { gap: 0 14px; }
-  }
-</style>
+<style>${BASE_CSS}</style>
 </head>
 <body>
-<div class="wrap">
 
-  <header class="top">
-    <div class="brand">
-      <span class="dot"></span>
-      <div>
-        <h1>Key rotator control</h1>
-        <div class="sub">Pool health, key intake, live probe</div>
-      </div>
-    </div>
-    <div class="top-right">
-      <a href="/pengatur/models" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">models &rarr;</a>
-      <a href="/pengatur/usage" class="mono" style="color:var(--accent);text-decoration:none;min-height:32px;display:inline-flex;align-items:center">usage &rarr;</a>
-      <span id="storage" class="mono">storage: -</span>
-      <span id="synced">-</span>
-    </div>
-  </header>
+<header class="topbar">
+  <a class="wordmark" href="/pengatur">GeminesX</a>
+  <nav class="nav">
+    <a href="/pengatur" class="active" aria-current="page">Keys</a>
+    <a href="/pengatur/usage">Usage</a>
+    <a href="/pengatur/models">Models</a>
+  </nav>
+  <div class="meta">
+    <span id="storage">storage: -</span>
+    <span id="synced">-</span>
+  </div>
+</header>
+
+<main class="page">
+
+  <div class="page-head">
+    <h1>Keys</h1>
+    <span class="meta">Pool health, key intake, live probe</span>
+  </div>
 
   <!-- auth -->
-  <section id="authPanel" class="card" style="margin-top:18px">
-    <label class="field" for="token">Admin token</label>
-    <div class="row">
-      <div class="grow">
-        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+  <section id="authPanel" class="panel">
+    <div class="panel-body">
+      <label class="field" for="token">Admin token</label>
+      <div class="row">
+        <div class="grow">
+          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+        </div>
+        <button id="connect" class="btn btn-primary" type="button">Connect</button>
       </div>
-      <button id="connect" class="primary" type="button">Connect</button>
+      <div id="authHint" class="msg err"></div>
+      <p class="dimtext" style="margin-top:12px">The token stays in this browser. It is never sent anywhere except this deployment.</p>
     </div>
-    <div id="authHint" class="msg err"></div>
-    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is never sent anywhere except this deployment.</p>
   </section>
 
   <!-- health strip -->
   <section id="statsPanel" hidden>
     <div class="strip">
-      <div class="kv"><b id="sTotal">0</b><span>keys</span></div>
-      <div class="kv ready"><b id="sReady">0</b><span>ready</span></div>
-      <div class="kv cooling"><b id="sCooling">0</b><span>cooling</span></div>
-      <div class="kv dead"><b id="sDead">0</b><span>dead</span></div>
-      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span>plans</span></div>
+      <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
+      <div class="kv ready"><b id="sReady">0</b><span class="k">ready</span></div>
+      <div class="kv cooling"><b id="sCooling">0</b><span class="k">cooling</span></div>
+      <div class="kv dead"><b id="sDead">0</b><span class="k">dead</span></div>
+      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span class="k">plans</span></div>
       <div class="spacer"></div>
       <div class="meta" id="nextReady">-</div>
     </div>
   </section>
 
   <!-- add -->
-  <section id="addPanel" class="card" hidden>
-    <h2 class="sec" style="margin-top:0">Add keys</h2>
-    <label class="field" for="newKeys">One key per line, or separated by commas</label>
-    <textarea id="newKeys" spellcheck="false" placeholder="AIzaSy...&#10;AIzaSy..."></textarea>
-    <div class="row" style="margin-top:10px">
-      <button id="addBtn" class="primary" type="button">Add to pool</button>
-      <span id="addCount" class="muted"></span>
+  <section id="addPanel" class="panel" hidden>
+    <div class="panel-head"><div class="panel-title">Add keys</div></div>
+    <div class="panel-body">
+      <label class="field" for="newKeys">One key per line, or separated by commas</label>
+      <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button id="addBtn" class="btn btn-primary" type="button">Add to pool</button>
+        <span id="addCount" class="muted"></span>
+      </div>
+      <div id="addMsg" class="msg"></div>
     </div>
-    <div id="addMsg" class="msg"></div>
   </section>
 
   <!-- keys -->
-  <section id="keysPanel" hidden>
-    <h2 class="sec">Pool</h2>
-    <div class="row" style="margin-bottom:10px">
-      <button id="testAllBtn" type="button">Test all live keys</button>
-      <span id="testAllNote" class="muted"></span>
+  <section id="keysPanel" class="panel" hidden>
+    <div class="panel-head">
+      <div class="panel-title">Pool <span class="meta" id="testAllNote"></span></div>
+      <button id="testAllBtn" class="btn" type="button">Test all live keys</button>
     </div>
-    <div class="row" style="margin-bottom:10px">
-      <div class="grow">
-        <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
-      </div>
-      <div>
+    <div class="panel-body">
+      <div class="row">
+        <div class="grow">
+          <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
+        </div>
         <select id="keySize" aria-label="Keys per page">
           <option value="10">10 / page</option>
           <option value="25" selected>25 / page</option>
@@ -9026,33 +9318,19 @@ var ADMIN_HTML = `<!doctype html>
           <option value="100">100 / page</option>
         </select>
       </div>
-      <div>
-        <select id="tierBulk" aria-label="Declare billing plan for keys">
-          <option value="">Set plan for...</option>
-          <option value="free">Free tier</option>
-          <option value="paid">Pay-as-you-go</option>
-          <option value="pro">Google AI Pro / Ultra</option>
-          <option value="unknown">Unspecified</option>
-        </select>
-      </div>
-      <div>
-        <button id="tierApply" type="button" class="small">Apply to page</button>
-      </div>
-      <div>
-        <button id="tierApplyAll" type="button" class="small">Apply to all</button>
-      </div>
     </div>
-    <div id="keysBody" class="card tablewrap"><div class="empty">Loading pool...</div></div>
-    <div id="keyPager" class="pager"></div>
-    <div id="keyMsg" class="msg"></div>
-
+    <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading pool...")}</div>
+    <div class="panel-body">
+      <div id="keyPager" class="pager"></div>
+      <div id="keyMsg" class="msg"></div>
+    </div>
     <div class="foot">
       <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
       <button id="forget" class="small" type="button">Forget token</button>
     </div>
   </section>
 
-</div>
+</main>
 
 <script>
 (function () {
@@ -9396,7 +9674,7 @@ var ADMIN_HTML = `<!doctype html>
       box.appendChild(mk("1", 1, false, state.page === 1));
       if (from > 2) {
         var d = document.createElement("span");
-        d.textContent = "\u2026";
+        d.textContent = "...";
         box.appendChild(d);
       }
     }
@@ -9404,7 +9682,7 @@ var ADMIN_HTML = `<!doctype html>
     if (to < pages) {
       if (to < pages - 1) {
         var d2 = document.createElement("span");
-        d2.textContent = "\u2026";
+        d2.textContent = "...";
         box.appendChild(d2);
       }
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
@@ -9760,181 +10038,119 @@ var MODELS_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
 <title>Models \xB7 GeminesX</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
-<style>
-:root{
-  --bg:#0b0d11; --panel:#12161c; --panel-2:#161b22; --line:#232a33; --line-soft:#1b2129;
-  --ink:#e6edf3; --muted:#8b98a5; --dim:#5f6b78;
-  --ok:#67e8a1; --warn:#f0c04a; --bad:#f0705f; --cool:#68a8f0; --accent:#67e8a1;
-  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-a{color:var(--accent)}
-.wrap{max-width:1240px;margin:0 auto;padding:22px 18px 64px}
-header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
-h1{font-size:19px;margin:0;letter-spacing:-0.01em}
-.sub{color:var(--muted);font-size:12.5px;margin-top:2px}
-.top-right{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--muted)}
-.mono{font-family:var(--mono);font-size:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
-label.field{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:6px}
-input[type=password],input[type=text],select,textarea{width:100%;background:#0d1116;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:9px 11px;font:inherit;outline:none}
-input:focus,select:focus{border-color:#3a4756;box-shadow:0 0 0 3px rgba(103,232,161,.09)}
-button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:9px 14px;font:inherit;cursor:pointer;transition:background 120ms ease,border-color 120ms ease}
-button:hover:not(:disabled){background:#1d242c;border-color:#33404e}
-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-button:disabled{opacity:.5;cursor:not-allowed}
-button.primary{background:var(--accent);color:#08130c;border-color:var(--accent);font-weight:600}
-button.primary:hover:not(:disabled){background:#7defb3}
-button.small{padding:5px 10px;font-size:12px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.grow{flex:1;min-width:200px}
-.muted{color:var(--muted)}
-.msg{display:none;margin-top:10px;padding:9px 12px;border-radius:7px;font-size:12.5px;border:1px solid transparent}
-.msg.show{display:block}
-.msg.err{background:rgba(240,112,95,.1);border-color:rgba(240,112,95,.35);color:#ffb3a8}
-.msg.ok{background:rgba(103,232,161,.1);border-color:rgba(103,232,161,.32);color:#b9f7d4}
-.msg.info{background:rgba(104,168,240,.1);border-color:rgba(104,168,240,.3);color:#b6d6fb}
-.strip{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);margin:18px 0}
-.kv{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
-.kv:last-child{border-right:0}
-.kv b{display:block;font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-.kv span{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
-.kv.ok b{color:var(--ok)} .kv.warn b{color:var(--warn)} .kv.bad b{color:var(--bad)} .kv.cool b{color:var(--cool)}
-.spacer{flex:1;border:0}
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 12px}
-.toolbar .grow{min-width:180px}
-.tablewrap{overflow-x:auto;padding:0}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);font-weight:600;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel)}
-thead th.right{text-align:right}
-tbody td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
-tbody tr:last-child td{border-bottom:0}
-tbody tr{transition:background 120ms ease}
-tbody tr:hover{background:#151a20}
-td.right{text-align:right;font-variant-numeric:tabular-nums}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;border:1px solid transparent;white-space:nowrap}
-.badge.free{background:rgba(103,232,161,.13);color:#8ff0bb;border-color:rgba(103,232,161,.3)}
-.badge.paid{background:rgba(240,192,74,.12);color:#f3d489;border-color:rgba(240,192,74,.3)}
-.badge.unknown{background:rgba(139,152,165,.12);color:#a9b5c1;border-color:rgba(139,152,165,.26)}
-.tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;background:#1a212a;color:var(--muted);border:1px solid var(--line);font-family:var(--mono)}
-.mid{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all}
-.dimtext{color:var(--dim);font-size:11.5px}
-.probe{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
-.probe.ok{color:var(--ok)} .probe.warn{color:var(--warn)} .probe.bad{color:var(--bad)}
-.pager{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--muted)}
-.pager .pages{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.pager button.small{min-width:34px;text-align:center}
-.pager button.active{background:var(--accent);color:#08130c;border-color:var(--accent);font-weight:700}
-.empty{padding:34px 18px;text-align:center;color:var(--muted)}
-.empty b{display:block;color:var(--ink);margin-bottom:4px}
-.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--muted)}
-.check{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);cursor:pointer}
-.skeleton{height:44px;background:linear-gradient(90deg,#141a21,#1b222b,#141a21);background-size:200% 100%;animation:sh 1.2s ease-in-out infinite;border-radius:6px;margin:6px 12px}
-@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
-@media (prefers-reduced-motion:reduce){.skeleton{animation:none}tbody tr,button{transition:none}}
-@media (max-width:860px){
-  .strip{flex-wrap:wrap}
-  .kv{flex:1 1 45%;border-bottom:1px solid var(--line)}
-  .kv:nth-child(2n){border-right:0}
-  thead{display:none}
-  tbody tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:12px 4px;border-bottom:1px solid var(--line-soft)}
-  tbody td{border:0;padding:0}
-  tbody td::before{content:attr(data-l);display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-top:4px}
-  tbody td.mid{grid-column:1/-1}
-  tbody td.mid::before{display:none}
-  tbody td.act{grid-column:1/-1;text-align:left;margin-top:8px}
-  tbody td.act::before{display:none}
-}
-</style>
+<style>${BASE_CSS}</style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div>
-      <h1>Models</h1>
-      <div class="sub">Live inventory from the Generative Language API, joined with published pricing</div>
-    </div>
-    <div class="top-right">
-      <a href="/pengatur" class="mono">admin</a>
-      <a href="/pengatur/usage" class="mono">usage</a>
-      <span id="asOf" class="mono">pricing: -</span>
-      <span id="synced">-</span>
-    </div>
-  </header>
 
-  <section id="authPanel" class="card" style="margin-top:18px">
-    <label class="field" for="token">Admin token</label>
-    <div class="row">
-      <div class="grow"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN"></div>
-      <button id="connect" class="primary" type="button">Connect</button>
-    </div>
-    <div id="authHint" class="msg err"></div>
-    <p class="muted" style="margin:12px 0 0">The token stays in this browser and is only sent to this deployment.</p>
-  </section>
+<header class="topbar">
+  <a class="wordmark" href="/pengatur">GeminesX</a>
+  <nav class="nav">
+    <a href="/pengatur">Keys</a>
+    <a href="/pengatur/usage">Usage</a>
+    <a href="/pengatur/models" class="active" aria-current="page">Models</a>
+  </nav>
+  <div class="meta">
+    <span id="asOf">pricing: -</span>
+    <span id="synced">-</span>
+  </div>
+</header>
 
-  <section id="main" hidden>
-    <div class="strip">
-      <div class="kv ok"><b id="cTotal">0</b><span>models</span></div>
-      <div class="kv ok"><b id="cFree">0</b><span>free tier</span></div>
-      <div class="kv warn"><b id="cPaid">0</b><span>paid only</span></div>
-      <div class="kv cool"><b id="cTested">0</b><span>tested</span></div>
-      <div class="spacer"></div>
-      <div class="kv" style="border-right:0"><b id="cTier">-</b><span>your tier</span></div>
-    </div>
+<main class="page">
 
-    <div class="card" style="padding:14px">
+  <div class="page-head">
+    <h1>Models</h1>
+    <span class="meta">Live inventory from the Generative Language API, joined with published pricing</span>
+  </div>
+
+  <!-- auth -->
+  <section id="authPanel" class="panel">
+    <div class="panel-body">
+      <label class="field" for="token">Admin token</label>
       <div class="row">
-        <div style="min-width:210px">
-          <label class="field" for="tier">Your plan</label>
-          <select id="tier">
-            <option value="free">Free tier (no billing)</option>
-            <option value="paid">Pay-as-you-go (billing enabled)</option>
-            <option value="pro">Google AI Pro / Ultra</option>
-            <option value="any">Show everything</option>
-          </select>
-        </div>
         <div class="grow">
-          <label class="field" for="q">Search</label>
-          <input id="q" type="text" spellcheck="false" placeholder="gemini, tts, image, embedding...">
+          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
         </div>
-        <div style="min-width:150px">
-          <label class="field" for="kind">Capability</label>
-          <select id="kind">
-            <option value="">All</option>
-            <option value="text">Text</option>
-            <option value="tts">TTS</option>
-            <option value="image">Image</option>
-            <option value="video">Video</option>
-            <option value="audio">Audio</option>
-            <option value="live">Live</option>
-            <option value="transcribe">Transcribe</option>
-            <option value="embedding">Embedding</option>
-            <option value="omni">Omni</option>
-            <option value="robotics">Robotics</option>
-          </select>
-        </div>
-        <div style="min-width:130px">
-          <label class="field" for="size">Per page</label>
-          <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
-        </div>
-        <div style="align-self:flex-end">
-          <button id="reload" type="button">Refresh live list</button>
-        </div>
+        <button id="connect" class="btn btn-primary" type="button">Connect</button>
       </div>
-      <div id="msg" class="msg"></div>
-      <div id="tierNote" class="muted" style="margin-top:10px;font-size:12.5px"></div>
+      <div id="authHint" class="notice err"></div>
+      <p class="dimtext" style="margin-top:12px">The token stays in this browser and is only sent to this deployment.</p>
+    </div>
+  </section>
+
+  <section id="main" class="stack" hidden>
+
+    <div class="strip">
+      <div class="kv"><b id="cTotal">0</b><span class="k">models</span></div>
+      <div class="kv ready"><b id="cFree">0</b><span class="k">free tier</span></div>
+      <div class="kv cooling"><b id="cPaid">0</b><span class="k">paid only</span></div>
+      <div class="kv"><b id="cTested">0</b><span class="k">tested</span></div>
+      <div class="spacer"></div>
+      <div class="kv"><b id="cTier">-</b><span class="k">your tier</span></div>
     </div>
 
-    <div id="body" class="card tablewrap" style="margin-top:14px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
-    <div id="pager" class="pager"></div>
-    <div id="rowMsg" class="msg"></div>
+    <!-- controls -->
+    <section class="panel">
+      <div class="panel-body">
+        <div class="row">
+          <div class="grow">
+            <label class="field" for="tier">Your plan</label>
+            <select id="tier">
+              <option value="free">Free tier (no billing)</option>
+              <option value="paid">Pay-as-you-go (billing enabled)</option>
+              <option value="pro">Google AI Pro / Ultra</option>
+              <option value="any">Show everything</option>
+            </select>
+          </div>
+          <div class="grow">
+            <label class="field" for="q">Search</label>
+            <input id="q" type="text" spellcheck="false" placeholder="gemini, tts, image, embedding...">
+          </div>
+          <div class="grow">
+            <label class="field" for="kind">Capability</label>
+            <select id="kind">
+              <option value="">All</option>
+              <option value="text">Text</option>
+              <option value="tts">TTS</option>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+              <option value="live">Live</option>
+              <option value="transcribe">Transcribe</option>
+              <option value="embedding">Embedding</option>
+              <option value="omni">Omni</option>
+              <option value="robotics">Robotics</option>
+            </select>
+          </div>
+          <div class="grow">
+            <label class="field" for="size">Per page</label>
+            <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="reload" class="btn" type="button">Refresh live list</button>
+        </div>
+        <div id="msg" class="notice"></div>
+        <div id="tierNote" class="dimtext" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <!-- inventory -->
+    <section class="panel">
+      <div id="body" class="tablewrap">${stateBlock("loading", "Loading model list...")}</div>
+      <div class="panel-body">
+        <div id="pager" class="pager"></div>
+        <div id="rowMsg" class="notice"></div>
+      </div>
+    </section>
+
   </section>
-</div>
+
+</main>
 
 <script>
 (function () {
@@ -10181,11 +10397,11 @@ td.right{text-align:right;font-variant-numeric:tabular-nums}
     from = Math.max(1, to - windowSize + 1);
     if (from > 1) {
       box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) { var dots = document.createElement("span"); dots.textContent = "\u2026"; box.appendChild(dots); }
+      if (from > 2) { var dots = document.createElement("span"); dots.textContent = "..."; box.appendChild(dots); }
     }
     for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
     if (to < pages) {
-      if (to < pages - 1) { var d2 = document.createElement("span"); d2.textContent = "\u2026"; box.appendChild(d2); }
+      if (to < pages - 1) { var d2 = document.createElement("span"); d2.textContent = "..."; box.appendChild(d2); }
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
     }
 
@@ -12793,278 +13009,166 @@ var USAGE_HTML = `<!doctype html>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
-<style>
-  :root {
-    --bg: #0d1014;
-    --panel: #12161b;
-    --panel-2: #171c22;
-    --line: #242b34;
-    --line-soft: #1c222a;
-    --text: #e6eaf0;
-    --muted: #8c96a5;
-    --accent: #e8a33d;
-    --ready: #57c98a;
-    --cool: #e0b64a;
-    --dead: #e8737b;
-    --focus: #7fb4ff;
-    --radius: 8px;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
-
-  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
-  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-  .brand .sub { font-size: 12px; color: var(--muted); }
-  .top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
-  .top-right a { color: var(--accent); text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
-  .top-right .mono { font-size: 12px; }
-
-  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
-
-  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
-  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .strip .kv span { font-size: 12px; color: var(--muted); }
-  .strip .kv.ready b { color: var(--ready); }
-  .strip .kv.dead b { color: var(--dead); }
-  .strip .spacer { flex: 1; }
-  .strip .meta { font-size: 12px; color: var(--muted); }
-
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-  .card + .card { margin-top: 12px; }
-
-  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], input[type=text], select {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 9px 11px;
-    font-size: 13px;
-    font-family: inherit;
-    min-height: 40px;
-  }
-  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-  }
-  button {
-    background: var(--accent);
-    color: #1a1206;
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 650;
-    padding: 0 14px;
-    min-height: 40px;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  button.small { min-height: 32px; padding: 0 10px; font-size: 12px; font-weight: 600; }
-  button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
-  button:disabled { opacity: 0.45; cursor: default; }
-
-  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-  .row > * { flex: 0 1 auto; }
-  .row .grow { flex: 1 1 200px; }
-
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  thead th {
-    text-align: left;
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    font-weight: 600;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--line);
-    white-space: nowrap;
-  }
-  thead th.num, tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
-  tbody tr { transition: background 120ms ease; }
-  tbody tr:hover { background: #161b21; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; }
-  .dim { color: var(--muted); }
-  .nowrap { white-space: nowrap; }
-
-  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
-  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .badge.ok { color: var(--ready); border-color: #1f4c36; background: #101f18; }
-  .badge.err { color: var(--dead); border-color: #4a2b30; background: #211416; }
-  .badge.rot { color: var(--cool); border-color: #4d3d12; background: #221d0c; }
-
-  .empty { padding: 30px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
-  .empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; font-weight: 600; }
-
-  .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
-  .pager:empty { display: none; }
-  .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .pager button.small { min-width: 36px; font-variant-numeric: tabular-nums; }
-  .pager button.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; }
-
-  .err-box { border: 1px solid #4a2b30; background: #211416; color: var(--dead); border-radius: 6px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
-  .err-box:empty { display: none; }
-
-  .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
-  .muted { color: var(--muted); font-size: 12px; }
-  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
-  .check input { width: 17px; height: 17px; accent-color: var(--accent); }
-
-  @media (max-width: 820px) {
-    .wrap { padding: 20px 14px 56px; }
-    thead { display: none; }
-    tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-    tbody td { border: 0; padding: 0; }
-    tbody td::before { content: attr(data-l); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    tbody td.wide { grid-column: 1 / -1; }
-    tbody td.num { text-align: left; }
-  }
-</style>
+<style>${BASE_CSS}</style>
 </head>
 <body>
-<div class="wrap">
 
-  <header class="top">
-    <div class="brand">
-      <span class="dot"></span>
-      <div>
-        <h1>Usage ledger</h1>
-        <div class="sub">Requests, tokens, cost &mdash; in-memory, reset on redeploy</div>
-      </div>
-    </div>
-    <div class="top-right">
-      <a href="/pengatur">keys &rarr;</a>
-      <a href="/pengatur/models">models &rarr;</a>
-      <span id="mode" class="mono">-</span>
-    </div>
-  </header>
+<header class="topbar">
+  <a class="wordmark" href="/pengatur">GeminesX</a>
+  <nav class="nav">
+    <a href="/pengatur">Keys</a>
+    <a href="/pengatur/usage" class="active" aria-current="page">Usage</a>
+    <a href="/pengatur/models">Models</a>
+  </nav>
+  <div class="meta">
+    <span id="mode">-</span>
+  </div>
+</header>
 
-  <div class="card" id="gate">
-    <label class="field" for="token">Admin token</label>
-    <div class="row">
-      <div class="grow">
-        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
-      </div>
-      <button id="connect" type="button">Connect</button>
-    </div>
-    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is only sent to this deployment.</p>
-    <div id="gateErr" class="err-box"></div>
+<main class="page">
+
+  <div class="page-head">
+    <h1>Usage ledger</h1>
+    <span class="meta">Requests, tokens, cost. In-memory, reset on redeploy.</span>
   </div>
 
-  <div id="console" hidden>
+  <!-- auth -->
+  <section id="gate" class="panel">
+    <div class="panel-body">
+      <label class="field" for="token">Admin token</label>
+      <div class="row">
+        <div class="grow">
+          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+        </div>
+        <button id="connect" class="btn btn-primary" type="button">Connect</button>
+      </div>
+      <p class="dimtext" style="margin-top:12px">The token stays in this browser. It is only sent to this deployment.</p>
+      <div id="gateErr" class="notice err"></div>
+    </div>
+  </section>
+
+  <div id="console" class="stack" hidden>
+
+    <div id="loadState" hidden>${stateBlock("loading", "Loading usage...")}</div>
 
     <div class="strip">
-      <div class="kv"><b id="sReq">0</b><span>requests</span></div>
-      <div class="kv ready"><b id="sOk">0</b><span>ok</span></div>
-      <div class="kv dead"><b id="sErr">0</b><span>errors</span></div>
-      <div class="kv"><b id="sRot">0</b><span>rotated</span></div>
-      <div class="kv"><b id="sPrompt">0</b><span>prompt tok</span></div>
-      <div class="kv"><b id="sCompletion">0</b><span>output tok</span></div>
-      <div class="kv"><b id="sCached">0</b><span>cached</span></div>
-      <div class="kv"><b id="sCost">-</b><span>est. USD</span></div>
+      <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
+      <div class="kv ready"><b id="sOk">0</b><span class="k">ok</span></div>
+      <div class="kv dead"><b id="sErr">0</b><span class="k">errors</span></div>
+      <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
+      <div class="kv"><b id="sPrompt">0</b><span class="k">prompt tok</span></div>
+      <div class="kv"><b id="sCompletion">0</b><span class="k">output tok</span></div>
+      <div class="kv"><b id="sCached">0</b><span class="k">cached</span></div>
+      <div class="kv"><b id="sCost">-</b><span class="k">est. USD</span></div>
       <div class="spacer"></div>
       <div class="meta" id="sLatency">-</div>
     </div>
 
-    <h2 class="sec">Filter</h2>
-    <div class="card">
-      <div class="row">
-        <div style="flex:1 1 140px">
-          <label class="field" for="fDay">Day</label>
-          <select id="fDay"><option value="">all</option></select>
+    <!-- filters -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Filters</div></div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="grow">
+            <label class="field" for="fDay">Day</label>
+            <select id="fDay"><option value="">all</option></select>
+          </div>
+          <div class="grow">
+            <label class="field" for="fModel">Model</label>
+            <select id="fModel"><option value="">all</option></select>
+          </div>
+          <div class="grow">
+            <label class="field" for="fKey">Key</label>
+            <select id="fKey"><option value="">all</option></select>
+          </div>
+          <div class="grow">
+            <label class="field" for="fStatus">Status</label>
+            <select id="fStatus">
+              <option value="">all</option>
+              <option value="ok">ok</option>
+              <option value="error">error</option>
+              <option value="rotated">rotated</option>
+            </select>
+          </div>
         </div>
-        <div style="flex:1 1 160px">
-          <label class="field" for="fModel">Model</label>
-          <select id="fModel"><option value="">all</option></select>
+        <div class="row" style="margin-top:12px">
+          <button id="apply" class="btn btn-primary" type="button">Apply</button>
+          <button id="reset" class="btn" type="button">Reset</button>
         </div>
-        <div style="flex:1 1 160px">
-          <label class="field" for="fKey">Key</label>
-          <select id="fKey"><option value="">all</option></select>
-        </div>
-        <div style="flex:1 1 130px">
-          <label class="field" for="fStatus">Status</label>
-          <select id="fStatus">
-            <option value="">all</option>
-            <option value="ok">ok</option>
-            <option value="error">error</option>
-            <option value="rotated">rotated</option>
-          </select>
-        </div>
-        <button id="apply" type="button">Apply</button>
-        <button id="reset" class="ghost" type="button">Reset</button>
       </div>
-    </div>
+    </section>
 
-    <h2 class="sec">By model</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byModel">
-        <thead><tr>
-          <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>No traffic yet</b>Send a request through the gateway and it shows up here.</div>
-    </div>
+    <!-- by model -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By model</div></div>
+      <div class="tablewrap">
+        <table id="byModel">
+          <thead><tr>
+            <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No traffic yet</b><br>Send a request through the gateway and it shows up here.</div>
+      </div>
+    </section>
 
-    <h2 class="sec">By key</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byKey">
-        <thead><tr>
-          <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>No key attributed yet</b>A request that reached a key is listed here by its masked form.</div>
-    </div>
+    <!-- by key -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By key</div></div>
+      <div class="tablewrap">
+        <table id="byKey">
+          <thead><tr>
+            <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No key attributed yet</b><br>A request that reached a key is listed here by its masked form.</div>
+      </div>
+    </section>
 
-    <h2 class="sec">By day</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byDay">
-        <thead><tr>
-          <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <!-- by day -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By day</div></div>
+      <div class="tablewrap">
+        <table id="byDay">
+          <thead><tr>
+            <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No daily rollup yet</b><br>Days appear once traffic has been recorded.</div>
+      </div>
+    </section>
 
-    <h2 class="sec">Request log</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="log">
-        <thead><tr>
-          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>No requests match</b>Loosen the filter or send traffic through the gateway.</div>
-    </div>
+    <!-- request log -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Request log</div></div>
+      <div class="tablewrap">
+        <table id="log">
+          <thead><tr>
+            <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No requests match</b><br>Loosen the filter or send traffic through the gateway.</div>
+      </div>
+    </section>
 
-    <div class="pager" id="pager"></div>
+    <div id="pager" class="pager"></div>
 
-    <div class="foot">
-      <div class="row" style="gap:10px">
-        <button id="refresh" type="button" class="small">Refresh</button>
-        <button id="csv" type="button" class="small ghost">Export CSV</button>
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <button id="refresh" class="btn small" type="button">Refresh</button>
+        <button id="csv" class="btn small" type="button">Export CSV</button>
         <label class="check"><input id="auto" type="checkbox"> auto-refresh 60s</label>
       </div>
-      <div class="muted" id="stamp">-</div>
+      <span class="dimtext" id="stamp">-</span>
     </div>
 
-    <div id="err" class="err-box"></div>
+    <div id="err" class="notice err"></div>
   </div>
-</div>
+
+</main>
 
 <script>
 (function () {
@@ -13077,6 +13181,7 @@ var USAGE_HTML = `<!doctype html>
     token: document.getElementById("token"),
     connect: document.getElementById("connect"),
     console: document.getElementById("console"),
+    loadState: document.getElementById("loadState"),
     mode: document.getElementById("mode"),
     sReq: document.getElementById("sReq"),
     sOk: document.getElementById("sOk"),
@@ -13275,6 +13380,7 @@ var USAGE_HTML = `<!doctype html>
 
   function paint(data) {
     state.last = data;
+    el.loadState.hidden = true;
     el.mode.textContent = "mode: " + data.mode + " / cap " + fmt(data.capacity);
     var t = data.totals;
     el.sReq.textContent = fmt(t.requests);
@@ -13339,6 +13445,7 @@ var USAGE_HTML = `<!doctype html>
   function load() {
     if (!state.token) return;
     el.refresh.disabled = true;
+    if (!state.last) el.loadState.hidden = false;
     api(query()).then(function (data) {
       setErr("");
       paint(data);
