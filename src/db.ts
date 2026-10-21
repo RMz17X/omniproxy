@@ -136,8 +136,11 @@ export async function sql<T = Record<string, unknown>>(
 /**
  * Fire-and-forget wrapper: runs on a detached task, swallows every failure.
  * Use it only off the request critical path.
+ *
+ * Gated on `dbEnabled()`, not `client`, so a runner installed by a test or
+ * fixture observes the same writes production would send.
  */
 export function sqlLater(query: string, params: unknown[] = []): void {
-  if (!client) return;
+  if (!dbEnabled()) return;
   void sql(query, params);
 }
