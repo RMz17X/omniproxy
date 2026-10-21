@@ -9,12 +9,17 @@
 
 import { cfg } from "./config.ts";
 import { counters } from "./metrics.ts";
-import { execute } from "./upstream.ts";
+import { execute, executeWithFallback, modelChain } from "./upstream.ts";
 import { finalizeStream, noteUsage } from "./ledger.ts";
 import { listLiveModels, pricingMeta, type LiveModel } from "./models.ts";
 import { catalogFor, PRICING_AS_OF } from "./models-catalog.ts";
 
-const UP = cfg.upstream.replace(/\/$/, "");
+/**
+ * The upstream base, read per call. `cfg.upstream` is a getter on purpose: the
+ * test harness boots its mock on an OS-assigned port, and a module-level
+ * constant would freeze the value before the harness knew it.
+ */
+const up = (): string => cfg.upstream.replace(/\/$/, "");
 
 type OAIContentPart =
   | { type: "text"; text?: string }
@@ -294,27 +299,37 @@ export async function chatCompletions(req: Request): Promise<Response> {
     return err(400, "invalid_request_error", "`messages` must be a non-empty array.");
   }
 
-  const { model, payload, wantsSearch } = toGemini(body);
+  const { model: requested, payload, wantsSearch } = toGemini(body);
   const stream = Boolean(body.stream);
   const method = stream ? "streamGenerateContent" : "generateContent";
   const search = stream ? "?alt=sse" : "";
-  const url = `${UP}/v1beta/models/${model}:${method}${search}`;
 
-  const result = await execute(
-    url,
-    {
-      method: "POST",
-      headers: new Headers({
-        "content-type": "application/json",
-        accept: stream ? "text/event-stream" : "application/json",
-      }),
-      body: JSON.stringify(payload),
-      // @ts-expect-error Bun streaming body
-      duplex: "half",
-    },
-    `/v1beta/models/${model}:${method}`,
+  // A retired model (404) or an overloaded one (503 "high demand") is a model
+  // problem: `executeWithFallback` moves to the next model in the chain with
+  // the key state untouched, so one dead model cannot burn the key pool.
+  const result = await executeWithFallback(
+    modelChain(requested),
+    (candidate) => ({
+      url: `${up()}/v1beta/models/${candidate}:${method}${search}`,
+      init: {
+        method: "POST",
+        headers: new Headers({
+          "content-type": "application/json",
+          accept: stream ? "text/event-stream" : "application/json",
+        }),
+        body: JSON.stringify(payload),
+        // Bun wants `duplex` on a streaming body; the DOM `RequestInit` does
+        // not declare it, so the cast keeps the intent without silencing the
+        // whole literal.
+        duplex: "half",
+      } as RequestInit & { method: string; duplex: "half" },
+      path: `/v1beta/models/${candidate}:${method}`,
+    }),
     req.signal,
   );
+
+  /** The model that actually served this request, not the one requested. */
+  const model = result.model;
 
   noteUsage(req, {
     model,
@@ -630,7 +645,7 @@ export async function embeddings(req: Request): Promise<Response> {
 
   const path = `/v1beta/models/${model}:batchEmbedContents`;
   const result = await execute(
-    `${UP}${path}`,
+    `${up()}${path}`,
     {
       method: "POST",
       headers: new Headers({ "content-type": "application/json", accept: "application/json" }),
@@ -684,26 +699,38 @@ export async function embeddings(req: Request): Promise<Response> {
 }
 
 /**
- * GET /v1/models — the live upstream inventory, annotated with the catalog's
- * price and free-tier verdict. Falls back to the configured defaults only when
- * the pool cannot answer, so a client still gets a usable list.
+ * Drop models the upstream has retired. A retired model answers 404 "no longer
+ * available to new users" for every key, so advertising it in the catalog
+ * only steers clients into a fallback.
+ *
+ * The list is the measured one in `cfg.retiredModels` (2026-10-22:
+ * `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro`). The other
+ * 2.5 ids stay listed on purpose: the image and TTS variants answer 429
+ * because their quota is spent, not because the model is gone, and the
+ * native-audio ids answer 400 because they serve live bidirectional
+ * streaming instead of generateContent.
  */
+export function visibleModels(ids: string[]): string[] {
+  const retired = new Set(cfg.retiredModels.map((m) => m.replace(/^models\//, "").toLowerCase()));
+  return ids.filter((id) => !retired.has(id.replace(/^models\//, "").toLowerCase()));
+}
+
 export async function models(): Promise<Response> {
-  const fallback = [
+  const fallback = visibleModels([
     cfg.defaultModel,
     cfg.searchModel,
     cfg.defaultTtsModel,
     cfg.defaultEmbedModel,
-    "gemini-2.5-pro",
+    "gemini-3-flash-preview",
     "gemini-2.0-flash",
-  ];
+  ]);
 
   let live: LiveModel[] = [];
   let cached = false;
   let degraded = false;
   try {
     const r = await listLiveModels();
-    live = r.models;
+    live = r.models.filter((m) => visibleModels([m.id]).length > 0);
     cached = r.cached;
   } catch {
     degraded = true;

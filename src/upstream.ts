@@ -30,6 +30,23 @@ export type ExecResult = {
   key: string;
   attempts: number;
   rotated: boolean;
+  /**
+   * The upstream refused the *model*, not the key (404 retired model, 503
+   * high demand). No key verdict was applied, so the caller may retry the
+   * same request against the next model in the chain.
+   */
+  modelRefused?: boolean;
+  /**
+   * The upstream says this credential has no quota for this model.
+   *
+   * A project can hold quota for one model and none for another, so this is a
+   * verdict about the *pair*, not about the credential. The caller decides
+   * what it means: with a model chain it tries the next model first and only
+   * retires the key when every model agrees; without one it retires at once.
+   */
+  quotaRefused?: boolean;
+  /** the keys that answered zero-quota on this model */
+  quotaRefusedKeys?: string[];
 };
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -93,6 +110,20 @@ export function isZeroQuota(body: string): boolean {
 }
 
 /**
+ * True when the body blames the model rather than the credential: a retired
+ * model ("no longer available to new users"), a model that does not implement
+ * generateContent, or a model the upstream says is under too much load.
+ *
+ * Both verdicts are properties of the model: no amount of key rotation can
+ * fix them, and parking the key would punish a healthy credential.
+ */
+export function isModelUnavailable(body: string): boolean {
+  return /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported|experiencing high demand|currently unavailable/i.test(
+    body,
+  );
+}
+
+/**
  * Build the upstream headers. The inbound credential headers are stripped and
  * replaced by the one bound to the selected key, so callers can send a dummy
  * Authorization (needed by OpenAI-compatible SDKs) without leaking it.
@@ -125,9 +156,10 @@ function urlWithoutKey(raw: string): string {
  * Combine the caller's abort signal with the per-attempt timeout so either one
  * tears the upstream fetch down. A client disconnect must not hold a key.
  */
-function attemptSignal(client: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+function attemptSignal(client: AbortSignal | undefined, timeoutMs: number) {
   const timeout = AbortSignal.timeout(timeoutMs);
-  return client ? AbortSignal.any([client, timeout]) : timeout;
+  const signal = client ? AbortSignal.any([client, timeout]) : timeout;
+  return { signal, timeout };
 }
 
 export async function execute(
@@ -135,9 +167,12 @@ export async function execute(
   init: RequestInit & { method: string },
   path: string,
   signal?: AbortSignal,
+  opts?: { timeoutMs?: number; deferQuotaRetire?: boolean },
 ): Promise<ExecResult> {
   const tried = new Set<string>();
   const deadline = Date.now() + cfg.maxWaitMs;
+  /** keys that answered zero-quota on this model */
+  const quotaRefused = new Set<string>();
   let attempts = 0;
   let rotated = false;
 
@@ -162,6 +197,25 @@ export async function execute(
       const wait = Math.max(120, Math.min(snap.soonestReadyMs || 500, 2_000));
       if (Date.now() + wait > deadline || signal?.aborted) {
         counters.poolExhausted++;
+        // Every key in the pool answered zero-quota for THIS model. That is a
+        // verdict about the model, not about the keys, so it is reported as
+        // such: the caller can move to the next model instead of telling the
+        // client the pool is exhausted.
+        if (quotaRefused.size > 0) {
+          log("warn", "model.zero_quota", { path, keys: [...quotaRefused] });
+          return {
+            response: jsonError(
+              429,
+              "model_zero_quota",
+              "This model has no quota left on any key in the pool.",
+            ),
+            key: "",
+            attempts,
+            rotated,
+            quotaRefused: true,
+            quotaRefusedKeys: [...quotaRefused],
+          };
+        }
         log("warn", "pool.exhausted", {
           path,
           total: snap.total,
@@ -202,6 +256,7 @@ export async function execute(
 
     const headers = headersFor(new Headers(init.headers), st.key);
     const target = urlWithoutKey(url);
+    const { signal: attempt, timeout } = attemptSignal(signal, opts?.timeoutMs ?? cfg.upstreamTimeoutMs);
 
     let res: Response;
     counters.upstreamRequests++;
@@ -213,13 +268,38 @@ export async function execute(
         headers,
         // Never follow redirects into a different credential scope.
         redirect: "manual",
-        signal: attemptSignal(signal, cfg.upstreamTimeoutMs),
+        signal: attempt,
       });
     } catch (err) {
       if (signal?.aborted) {
         counters.clientAborts++;
         log("warn", "client.aborted", { path, attempt: attempts, key: st.key });
         return aborted();
+      }
+      // A timeout that is not the client's disconnect is a property of the
+      // *model* (a congested one stalls for tens of seconds before answering),
+      // not of the credential. Rotating keys would burn a healthy key per
+      // attempt and still end in the same stall, so the chain moves on to the
+      // next model instead.
+      if (timeout.aborted) {
+        counters.networkErrors++;
+        log("warn", "model.timeout", {
+          path,
+          key: st.key,
+          attempt: attempts,
+          timeoutMs: opts?.timeoutMs ?? cfg.upstreamTimeoutMs,
+        });
+        return {
+          response: jsonError(
+            504,
+            "model_timeout",
+            `The upstream did not answer within ${opts?.timeoutMs ?? cfg.upstreamTimeoutMs}ms.`,
+          ),
+          key: st.key,
+          attempts,
+          rotated,
+          modelRefused: true,
+        };
       }
       counters.networkErrors++;
       await markSoftError(st.key, cfg.serverErrCooldownMs);
@@ -241,9 +321,28 @@ export async function execute(
       counters.upstream429++;
       const body = await safeText(res);
       if (isZeroQuota(body)) {
-        const claimed = await markInvalid(st.key);
-        log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
-        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        quotaRefused.add(st.key);
+        // With a model chain, "no quota for this model" is not yet a verdict
+        // about the key: the chain may serve it through another model. The
+        // retirement is deferred to the chain, which retires only when every
+        // model agrees. Without a chain there is nothing to defer to, so the
+        // key is retired here as before.
+        if (!opts?.deferQuotaRetire) {
+          const claimed = await markInvalid(st.key);
+          log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+        } else {
+          log("warn", "model.zero_quota", { path, key: st.key });
+        }
+        if (attempts >= cfg.maxAttempts) {
+          return {
+            response: rebuild(res, body),
+            key: st.key,
+            attempts,
+            rotated,
+            quotaRefused: true,
+            quotaRefusedKeys: [...quotaRefused],
+          };
+        }
         continue;
       }
       const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
@@ -261,9 +360,23 @@ export async function execute(
       } else if (isQuotaText(body)) {
         counters.upstream429++;
         if (isZeroQuota(body)) {
-          const claimed = await markInvalid(st.key);
-          log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
-          if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+          quotaRefused.add(st.key);
+          if (!opts?.deferQuotaRetire) {
+            const claimed = await markInvalid(st.key);
+            log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+          } else {
+            log("warn", "model.zero_quota", { path, key: st.key });
+          }
+          if (attempts >= cfg.maxAttempts) {
+            return {
+              response: rebuild(res, body),
+              key: st.key,
+              attempts,
+              rotated,
+              quotaRefused: true,
+              quotaRefusedKeys: [...quotaRefused],
+            };
+          }
           continue;
         }
         const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
@@ -285,6 +398,10 @@ export async function execute(
         if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       }
+      if (isModelUnavailable(body)) {
+        log("warn", "model.unavailable", { path, key: st.key, status });
+        return { response: rebuild(res, body), key: st.key, attempts, rotated, modelRefused: true };
+      }
       // Bad request / Not found from the client — no amount of rotation fixes it.
       return { response: rebuild(res, body), key: st.key, attempts, rotated };
     }
@@ -292,6 +409,12 @@ export async function execute(
     if (status >= 500) {
       counters.upstream5xx++;
       const body = await safeText(res);
+      // 503 UNAVAILABLE "high demand" is the model being overloaded, not the
+      // key; parking the key would burn a healthy credential per attempt.
+      if (isModelUnavailable(body)) {
+        log("warn", "model.unavailable", { path, key: st.key, status });
+        return { response: rebuild(res, body), key: st.key, attempts, rotated, modelRefused: true };
+      }
       await markSoftError(st.key, cfg.serverErrCooldownMs);
       log("warn", "key.soft_error", { path, key: st.key, status, attempt: attempts });
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
@@ -373,4 +496,94 @@ function jsonError(status: number, code: string, message: string): Response {
     status,
     headers: { "content-type": "application/json" },
   });
+}
+
+export type ModelAttempt = {
+  url: string;
+  init: RequestInit & { method: string };
+  path: string;
+};
+
+/**
+ * Ordered models to try for a request: the requested one first, then the
+ * configured fallback chain, de-duplicated. `MODEL_FALLBACK_MODELS` wins over
+ * the code default, mirroring `PROBE_FALLBACK_MODELS` on the probe path.
+ */
+export function modelChain(primary: string): string[] {
+  return [primary, ...cfg.modelFallback].filter((m, i, all) => Boolean(m) && all.indexOf(m) === i);
+}
+
+/**
+ * Run one logical request down a model chain. Each model gets the full key
+ * rotation; a model-level refusal moves to the next model with the key state
+ * exactly as it was (no invalidation, no cooldown, no fail counter).
+ *
+ * The first model in the chain is the one the client asked for, so it gets the
+ * full upstream timeout. A fallback model is tried *because* the previous one
+ * was congested, and a congested model typically stalls for tens of seconds
+ * before answering 503; waiting the full timeout on each fallback would turn
+ * one bad request into a minute of silence. Fallbacks therefore get
+ * `cfg.fallbackTimeoutMs`, and the whole chain is bounded by
+ * `cfg.modelChainBudgetMs` so the client is answered rather than left waiting.
+ */
+export async function executeWithFallback(
+  models: string[],
+  build: (model: string) => ModelAttempt,
+  signal?: AbortSignal,
+): Promise<ExecResult & { model: string }> {
+  const chain = models.length ? models : [cfg.defaultModel];
+  const chainDeadline = Date.now() + cfg.modelChainBudgetMs;
+  let last: ExecResult | null = null;
+  let lastModel = chain[0];
+  /**
+   * key -> the models that said "no quota for this model". A key is retired
+   * only when every model in the chain refused it, so a project that is out
+   * of quota for one model but healthy on another keeps serving.
+   */
+  const quotaRefusedBy = new Map<string, Set<string>>();
+  let chainQuotaRefused = false;
+
+  for (const [index, model] of chain.entries()) {
+    if (index > 0) {
+      const left = chainDeadline - Date.now();
+      if (left <= 0) break;
+    }
+    const timeoutMs =
+      index === 0
+        ? cfg.upstreamTimeoutMs
+        : Math.max(1_000, Math.min(cfg.fallbackTimeoutMs, chainDeadline - Date.now()));
+    const { url, init, path } = build(model);
+    const result = await execute(url, init, path, signal, { timeoutMs, deferQuotaRetire: true });
+    last = result;
+    lastModel = model;
+
+    if (result.quotaRefused) {
+      chainQuotaRefused = true;
+      for (const key of result.quotaRefusedKeys ?? []) {
+        const seen = quotaRefusedBy.get(key) ?? new Set<string>();
+        seen.add(model);
+        quotaRefusedBy.set(key, seen);
+      }
+    }
+
+    if (!result.modelRefused && !result.quotaRefused) return { ...result, model };
+    if (result.modelRefused) {
+      log("warn", "model.fallback", { path, model, status: result.response.status });
+    } else {
+      log("warn", "model.quota_fallback", { path, model, status: result.response.status });
+    }
+  }
+
+  // Every model agreed: the key has no quota anywhere in the chain, so it is
+  // dead for this gateway and is retired now.
+  if (chainQuotaRefused) {
+    for (const [key, seen] of quotaRefusedBy) {
+      if (seen.size >= chain.length) {
+        const claimed = await markInvalid(key);
+        log("warn", "key.zero_quota", { key, models: [...seen], first: claimed });
+      }
+    }
+  }
+
+  return { ...(last as ExecResult), model: lastModel };
 }

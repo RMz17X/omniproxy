@@ -11,11 +11,16 @@ import { cfg, VOICE_MAP } from "./config.ts";
 import { execute } from "./upstream.ts";
 import { noteUsage } from "./ledger.ts";
 
-const UP = cfg.upstream.replace(/\/$/, "");
+/**
+ * The upstream base, read per call. `cfg.upstream` is a getter on purpose: the
+ * test harness boots its mock on an OS-assigned port, and a module-level
+ * constant would freeze the value before the harness knew it.
+ */
+const up = (): string => cfg.upstream.replace(/\/$/, "");
 
 export async function geminiPassthrough(req: Request, path: string): Promise<Response> {
   const url = new URL(req.url);
-  const upstreamUrl = `${UP}${path}${url.search}`;
+  const upstreamUrl = `${up()}${path}${url.search}`;
 
   // The body is buffered before the first attempt on purpose. `execute()` may
   // retry with a different key, and a ReadableStream can only be consumed once:
@@ -103,7 +108,7 @@ export async function speech(req: Request): Promise<Response> {
 
   const path = `/v1beta/models/${model}:generateContent`;
   const result = await execute(
-    `${UP}${path}`,
+    `${up()}${path}`,
     {
       method: "POST",
       headers: new Headers({

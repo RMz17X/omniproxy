@@ -9,7 +9,7 @@
  */
 
 import { cfg } from "./config.ts";
-import { isInvalidKeyText, isZeroQuota, parseRetryAfter } from "./upstream.ts";
+import { isInvalidKeyText, isModelUnavailable, isZeroQuota, parseRetryAfter } from "./upstream.ts";
 
 export type ProbeStatus =
   | "ok"
@@ -46,39 +46,108 @@ function messageOf(body: string): string {
 }
 
 /**
- * Models Google may accept when the configured default is refused for a key.
- * Newly created projects are denied retired models ("no longer available to
- * new users"), and that verdict is a property of the model, not of the key, so
- * the probe retries down this list before reporting anything to the pool.
+ * Probe chain: the requested model (or the default) leads, then the
+ * configurable `PROBE_MODELS` list. A model Google has retired or a model
+ * that is overloaded says nothing about the key, so neither may decide a
+ * key verdict — the probe walks down this chain before reporting anything.
  */
-const FALLBACK_MODELS = (process.env.PROBE_FALLBACK_MODELS ?? "")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean)
-  .concat(["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]);
-
-/** True when the body says the *model* is unavailable, not the key. */
-function isModelUnavailable(body: string): boolean {
-  return /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported/i.test(
-    body,
+function probeChain(model?: string): string[] {
+  return [model ?? cfg.defaultModel, ...cfg.probeModels].filter(
+    (m, i, all) => Boolean(m) && all.indexOf(m) === i,
   );
 }
 
-export async function probeKey(rawKey: string, model?: string): Promise<ProbeResult> {
-  const chain = [model ?? cfg.defaultModel, ...FALLBACK_MODELS].filter(
-    (m, i, all) => Boolean(m) && all.indexOf(m) === i,
-  );
+/**
+ * True when the answer blames the *model* rather than the credential: a
+ * retired model (404 "no longer available to new users"), a model that does
+ * not implement generateContent, or a model the upstream says is overloaded
+ * (503 "experiencing high demand"). Marking a key cooling for any of these
+ * punishes a healthy credential for the model's condition.
+ */
+function isModelLevelFailure(res: ProbeResult): boolean {
+  if (res.httpStatus !== 400 && res.httpStatus !== 404 && res.httpStatus !== 503) return false;
+  return isModelUnavailable(res.message);
+}
 
-  let last: ProbeResult | null = null;
-  for (const candidate of chain) {
-    const res = await probeOnce(rawKey, candidate);
-    if (res.status !== "unexpected" || res.httpStatus !== 404) return res;
-    if (!isModelUnavailable(res.message)) return res;
-    // The model was refused; try the next one. Keep the message for the end.
-    last = res;
+/**
+ * The next model to try after a model-level failure, or null when the chain
+ * is exhausted.
+ */
+function nextCandidate(chain: string[], current: string): string | null {
+  const at = chain.indexOf(current);
+  if (at < 0) return null;
+  return chain[at + 1] ?? null;
+}
+
+/**
+ * The verdict to report when the models disagree.
+ *
+ * A key must never be retired on the strength of one model alone: a project
+ * can be out of quota for `gemini-3.5-flash` and still serve
+ * `gemini-3-flash-preview`. So the two verdicts that retire a key
+ * (`invalid`, `zero_quota`) are cross-checked against one more model, and the
+ * recoverable verdicts win when the models disagree:
+ *
+ *   - any model served        -> `ok` (the credential works)
+ *   - any model rejected      -> `invalid` (a revoked key is revoked everywhere)
+ *   - any model rate limited  -> `rate_limited` (a window that resets)
+ *   - only then                -> `zero_quota` (out of quota on every model)
+ *
+ * A 429 that is only per-minute is reported as `rate_limited` and cools the
+ * key; that is recoverable, so it outranks a permanent-looking `zero_quota`
+ * seen on a different model.
+ */
+function reconcile(first: ProbeResult, second: ProbeResult): ProbeResult {
+  if (second.status === "ok") return second;
+  if (first.status === "invalid" || second.status === "invalid") {
+    return first.status === "invalid" ? first : second;
   }
+  if (first.status === "rate_limited" || second.status === "rate_limited") {
+    return first.status === "rate_limited" ? first : second;
+  }
+  if (first.status === "zero_quota" || second.status === "zero_quota") {
+    return first.status === "zero_quota" ? first : second;
+  }
+  return first;
+}
+
+export async function probeKey(rawKey: string, model?: string): Promise<ProbeResult> {
+  const chain = probeChain(model);
+  let candidate: string | null = chain[0] ?? null;
+  let refused: ProbeResult | null = null;
+
+  while (candidate) {
+    const res = await probeOnce(rawKey, candidate);
+
+    // The model served: the key is healthy, nothing else to ask.
+    if (res.status === "ok") return res;
+
+    // The model is the problem. Try the next one; the key is untouched.
+    if (isModelLevelFailure(res)) {
+      refused = res;
+      candidate = nextCandidate(chain, candidate);
+      continue;
+    }
+
+    // A per-minute 429 is recoverable, so it is reported without spending
+    // another call: cooling a key for a window that resets is the correct
+    // and cheap answer.
+    if (res.status === "rate_limited" || res.status === "server_error" || res.status === "network_error") {
+      return res;
+    }
+
+    // `invalid` and `zero_quota` retire the key, so they are cross-checked
+    // against one more model before the pool acts on them.
+    const next = nextCandidate(chain, candidate);
+    if (!next) return res;
+    const other = await probeOnce(rawKey, next);
+    if (other.status === "ok") return other;
+    if (isModelLevelFailure(other)) return res;
+    return reconcile(res, other);
+  }
+
   return (
-    last ?? {
+    refused ?? {
       status: "unexpected",
       httpStatus: 0,
       latencyMs: 0,

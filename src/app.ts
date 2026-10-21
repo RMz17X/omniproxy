@@ -130,7 +130,33 @@ app.use("/pengatur/*", async (c, next) => {
 
 /* ---------- health ---------- */
 
+/**
+ * Anonymous liveness only. The pool snapshot, the storage backend and the
+ * configured defaults describe the whole key inventory, so an unauthenticated
+ * caller gets one boolean and nothing else; the full view lives behind the
+ * admin token at `/pengatur/status`.
+ */
+async function liveness(): Promise<{ ok: boolean; status: 200 | 503 }> {
+  const snap = await snapshot();
+  return snap.ready > 0 ? { ok: true, status: 200 } : { ok: false, status: 503 };
+}
+
 app.get("/", async (c) => {
+  const { ok, status } = await liveness();
+  return c.json({ ok, service: "geminesx" }, status);
+});
+
+app.get("/health", async (c) => {
+  const { ok, status } = await liveness();
+  return c.json({ ok }, status);
+});
+
+/**
+ * The full operator view of the router: the pool snapshot, the storage
+ * backend and the configured defaults. Admin-gated, because it describes the
+ * whole key inventory and the anonymous liveness routes deliberately do not.
+ */
+app.get("/pengatur/status", async (c) => {
   const snap = await snapshot();
   return c.json({
     ok: true,
@@ -140,15 +166,14 @@ app.get("/", async (c) => {
     defaults: {
       model: cfg.defaultModel,
       tts: cfg.defaultTtsModel,
+      embed: cfg.defaultEmbedModel,
       voice: cfg.defaultVoice,
       search: cfg.searchModel,
+      modelFallback: cfg.modelFallback,
+      probeModels: cfg.probeModels,
+      retiredModels: cfg.retiredModels,
     },
   });
-});
-
-app.get("/health", async (c) => {
-  const snap = await snapshot();
-  return c.json({ ok: snap.ready > 0, pool: snap }, snap.ready > 0 ? 200 : 503);
 });
 
 /* ---------- OpenAI-compatible ---------- */
