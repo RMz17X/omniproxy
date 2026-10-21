@@ -12,3 +12,4 @@ data/
 /graft/
 .vercel
 .env*
+node_modules
