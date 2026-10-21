@@ -462,7 +462,7 @@ export const ADMIN_HTML = `<!doctype html>
       box.appendChild(mk("1", 1, false, state.page === 1));
       if (from > 2) {
         var d = document.createElement("span");
-        d.textContent = "…";
+        d.textContent = "...";
         box.appendChild(d);
       }
     }
@@ -470,7 +470,7 @@ export const ADMIN_HTML = `<!doctype html>
     if (to < pages) {
       if (to < pages - 1) {
         var d2 = document.createElement("span");
-        d2.textContent = "…";
+        d2.textContent = "...";
         box.appendChild(d2);
       }
       box.appendChild(mk(String(pages), pages, false, state.page === pages));

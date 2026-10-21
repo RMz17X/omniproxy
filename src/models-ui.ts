@@ -373,11 +373,11 @@ export const MODELS_HTML = `<!doctype html>
     from = Math.max(1, to - windowSize + 1);
     if (from > 1) {
       box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) { var dots = document.createElement("span"); dots.textContent = "…"; box.appendChild(dots); }
+      if (from > 2) { var dots = document.createElement("span"); dots.textContent = "..."; box.appendChild(dots); }
     }
     for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
     if (to < pages) {
-      if (to < pages - 1) { var d2 = document.createElement("span"); d2.textContent = "…"; box.appendChild(d2); }
+      if (to < pages - 1) { var d2 = document.createElement("span"); d2.textContent = "..."; box.appendChild(d2); }
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
     }
 
