@@ -10,8 +10,8 @@
  * ascending key-rotation trace.
  */
 
-const TILE = "#0d1014";
-const ACCENT = "#e8a33d";
+const TILE = "#0a0c0f";
+const ACCENT = "#4fb0c4";
 
 export const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Key rotator">
   <rect width="32" height="32" rx="7" fill="${TILE}"/>
