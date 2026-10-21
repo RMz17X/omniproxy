@@ -305,6 +305,15 @@ const STATS_SCRIPT = `
     return load().catch(function () {});
   }
 
+  function writeUrl() {
+    GX.url.write({ range: state.range });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    if (params.range && ["1h", "24h", "7d", "30d"].indexOf(params.range) >= 0) state.range = params.range;
+  }
+
   function buildRange() {
     var box = document.getElementById("range");
     box.textContent = "";
@@ -319,6 +328,7 @@ const STATS_SCRIPT = `
         Array.prototype.forEach.call(box.querySelectorAll("button"), function (other) {
           other.setAttribute("aria-pressed", other === b ? "true" : "false");
         });
+        writeUrl();
         load();
       });
       box.appendChild(b);
@@ -330,7 +340,14 @@ const STATS_SCRIPT = `
   });
 
   buildRange();
-  GX.gate({ onSuccess: load });
+  GX.shortcuts({ refresh: "refreshBtn" });
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      buildRange();
+      return load();
+    }
+  });
 })();
 `;
 

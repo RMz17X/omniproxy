@@ -32,7 +32,6 @@ ${authGate()}
       <h2>Filters</h2>
       <div class="actions">
         <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
-        <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       </div>
     </div>
     <div class="card-body">
@@ -88,6 +87,21 @@ const AUDIT_SCRIPT = `
   };
 
   var state = { timer: null };
+
+  function writeUrl() {
+    GX.url.write({
+      action: el.action.value.trim(),
+      since: el.since.value,
+      limit: el.limit.value
+    });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    if (params.action) el.action.value = params.action;
+    if (params.since) el.since.value = params.since;
+    if (params.limit) el.limit.value = params.limit;
+  }
 
   function query() {
     var q = [];
@@ -163,8 +177,8 @@ const AUDIT_SCRIPT = `
   }
 
   el.refresh.addEventListener("click", function () { reload(); });
-  el.limit.addEventListener("change", function () { reload(); });
-  el.since.addEventListener("change", function () { reload(); });
+  el.limit.addEventListener("change", function () { writeUrl(); reload(); });
+  el.since.addEventListener("change", function () { writeUrl(); reload(); });
   el.action.addEventListener("keydown", function (event) {
     if (event.key === "Enter") reload();
   });
@@ -173,13 +187,23 @@ const AUDIT_SCRIPT = `
     if (el.auto.checked) state.timer = GX.every(15000, reload);
   });
 
-  GX.gate({ onSuccess: refresh });
+  GX.shortcuts({ filter: "action", refresh: "refreshBtn" });
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      return refresh();
+    }
+  });
 })();
 `;
 
 export const AUDIT_HTML = consolePage({
   title: "Audit",
   active: "/pengatur/audit",
+  actions:
+    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
+    icon("refresh") +
+    "Refresh</button>",
   body: AUDIT_BODY,
   script: AUDIT_SCRIPT,
 });

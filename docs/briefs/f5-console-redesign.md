@@ -109,6 +109,21 @@ rhythm: tight where things belong together, generous where they do not.
 - Every figure comes from a real endpoint. When an endpoint cannot answer,
   the figure says so instead of showing a zero.
 
+## Operating the console
+
+- **Keyboard.** `/` focuses the filter of the page, `r` refreshes it, `?` opens
+  the help, `Esc` clears the filter or closes a dialog. The shortcuts never
+  fire while the operator is typing.
+- **Help.** Every page carries the same help dialog: the shortcuts, and what
+  the words of this console mean (ready, cooling, dead, rotated, 429, WIB, ring
+  against rollup, memory against postgres, masked key).
+- **Shareable state.** The filter, the status, the range and the page live in
+  the URL, so a view can be bookmarked or pasted to a colleague and a reload
+  lands on the same view.
+- **One request for a bulk removal.** `DELETE /pengatur/keys` takes `{ ids }`
+  and removes the selection in one call, reporting the keys it removed and the
+  ones it could not. It used to be one request per key.
+
 ## Production readiness
 
 - Skip link, landmarks, `aria-current` on the active section, `aria-live` on
@@ -118,7 +133,11 @@ rhythm: tight where things belong together, generous where they do not.
 - Responsive down to 320px: the section strip scrolls, the hero stacks, the
   figures go two by two, every table folds into labelled rows.
 - Every page renders loading, empty and error states from the real fetch
-  result. An empty result never leaves a table frame behind.
+  result. An empty result never leaves a table frame behind: the table is
+  hidden and the state takes its place.
+- Every outcome the operator triggers lands in a notice band that is always
+  mounted under the page head, so nothing is written into a closed dialog or a
+  hidden panel.
 - An upstream error body is reduced to one sentence before it is shown.
 - No control is decorative: the enable and disable buttons that had no route
   behind them are gone.

@@ -9161,7 +9161,38 @@ select {
 .field { display: block; margin-bottom: var(--sp-1); color: var(--text-3); font-size: 12.5px; }
 .check { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12.5px; cursor: pointer; }
 .check { min-height: 24px; }
-.check input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--info); }
+.check input[type="checkbox"], .table input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: var(--card-2);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+}
+.check input[type="checkbox"]::before, .table input[type="checkbox"]::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  transform: scale(0);
+  background: var(--accent-ink);
+  clip-path: polygon(14% 44%, 0 59%, 39% 100%, 100% 18%, 85% 5%, 38% 71%);
+}
+.check input[type="checkbox"]:checked, .table input[type="checkbox"]:checked {
+  background: var(--info);
+  border-color: var(--info);
+}
+.check input[type="checkbox"]:checked::before, .table input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+.check input[type="checkbox"]:focus-visible, .table input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
 .tablewrap :focus-visible { outline-offset: -2px; }
 
 .toolbar { display: flex; align-items: flex-end; gap: var(--sp-3); flex-wrap: wrap; }
@@ -9301,6 +9332,31 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 .donut-legend i.bad { background: var(--bad); }
 
 .pickbox { display: inline-grid; place-items: center; width: 24px; height: 24px; }
+.help-h {
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: var(--sp-2);
+}
+.help-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-2) var(--sp-4); margin: 0 0 var(--sp-5); }
+.help-list dt { margin: 0; }
+.help-list dd { margin: 0; color: var(--text-2); font-size: 13px; }
+.help-list kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: var(--card-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-align: center;
+}
+.help-words dt { color: var(--text); font-size: 13px; font-weight: 550; }
+.help-words dd { font-size: 12.5px; }
 .sr-only {
   position: absolute;
   width: 1px;
@@ -9420,6 +9476,7 @@ var ICON_PATHS = {
   copy: '<path d="M8 8h8v9H8z"/><path d="M12 8V4H4v9h4"/>',
   clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.5l3 1.5"/>',
   back: '<path d="M12 4 6 10l6 6"/>',
+  help: '<circle cx="10" cy="10" r="7"/><path d="M8 8a2 2 0 1 1 2.6 1.9c-.6.3-.6.8-.6 1.1"/><path d="M10 14h.01"/>',
   external: '<path d="M8 4h8v8"/><path d="M16 4 7 13"/>',
   filter: '<path d="M3 5h14l-5.5 6.5V16l-3 1.5v-6L3 5Z"/>'
 };
@@ -9447,10 +9504,10 @@ function navBar(active, actions = "") {
     const isActive = item.href === current;
     return '<a href="' + item.href + '"' + (isActive ? ' aria-current="page"' : "") + ">" + item.label + "</a>";
   }).join("");
-  return '<header class="topbar"><a class="brand" href="/pengatur"><span class="logo" aria-hidden="true">G</span>GeminesX</a><nav class="nav" aria-label="Console sections">' + links + `</nav><div class="topbar-right"><span class="status-pill warn" id="railSession"><i></i>no token</span><span class="status-pill${storageMode === "memory" ? " warn" : ""}" id="railStorage" title="${storageMode === "memory" ? "The key pool and the request ledger live in this process. A restart empties them." : "Key identities and the usage ledger are stored in Postgres."}"><i></i>${storageMode}</span>` + actions + "</div></header>";
+  return '<header class="topbar"><a class="brand" href="/pengatur"><span class="logo" aria-hidden="true">G</span>GeminesX</a><nav class="nav" aria-label="Console sections">' + links + `</nav><div class="topbar-right"><span class="status-pill warn" id="railSession"><i></i>no token</span><span class="status-pill${storageMode === "memory" ? " warn" : ""}" id="railStorage" title="${storageMode === "memory" ? "The key pool and the request ledger live in this process. A restart empties them." : "Key identities and the usage ledger are stored in Postgres."}"><i></i>${storageMode}</span>` + actions + '<button class="btn btn-ghost btn-sm icon-btn" type="button" id="helpBtn" aria-label="Shortcuts and help">' + icon("help") + "</button></div></header>";
 }
 function consolePage(o) {
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n' + navBar(o.active, o.actions ?? "") + '<main id="main" class="page">\n' + o.body + "\n</main>\n<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n' + navBar(o.active, o.actions ?? "") + helpDialog() + '<main id="main" class="page">\n' + o.body + "\n</main>\n<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function escapeHtml(v2) {
   return String(v2 ?? "").replace(/[&<>"']/g, (c) => {
@@ -9477,6 +9534,30 @@ function noticeBand() {
 }
 function authGate() {
   return '<section class="card" id="gate"><div class="card-head"><h1>Admin token</h1></div><div class="card-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>';
+}
+function helpDialog() {
+  const keys = [
+    ["/", "Focus the filter of this page"],
+    ["r", "Refresh the data on this page"],
+    ["?", "Open this help"],
+    ["Esc", "Clear the filter, or close a dialog"],
+    ["Tab", "Move through the table, row by row"]
+  ];
+  const words = [
+    ["ready", "The key can serve a request right now"],
+    ["cooling", "The key hit its quota and is parked until the cooldown ends"],
+    ["dead", "The key was revoked or has no quota left"],
+    ["rotated", "The gateway handed the request to another key"],
+    ["429", "The upstream rate limit answered"],
+    ["WIB", "The timezone the daily rollup and the heatmap use"],
+    ["ring", "1h and 24h read the live ring: the last requests in this process"],
+    ["rollup", "7d and 30d read the daily rollup in Postgres"],
+    ["memory", "The pool and the ledger live in this process. A restart empties them"],
+    ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"]
+  ];
+  const keyRows = keys.map(([k, v2]) => "<dt><kbd>" + escapeHtml(k) + "</kbd></dt><dd>" + escapeHtml(v2) + "</dd>").join("");
+  const wordRows = words.map(([k, v2]) => "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(v2) + "</dd>").join("");
+  return '<dialog id="helpDialog" aria-labelledby="helpTitle"><div class="card-head"><h2 id="helpTitle">Shortcuts and words</h2><button class="btn btn-ghost btn-sm icon-btn" type="button" id="helpClose" aria-label="Close">' + icon("close") + '</button></div><div class="card-body"><h3 class="help-h">Keyboard</h3><dl class="help-list">' + keyRows + '</dl><h3 class="help-h">What the words mean</h3><dl class="help-list help-words">' + wordRows + "</dl></div></dialog>";
 }
 function confirmDialog() {
   return '<dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage"><div class="card-head"><h2 id="confirmTitle">Are you sure?</h2></div><div class="card-body"><p id="confirmMessage" class="hint"></p></div><div class="card-foot"><button id="confirmCancel" class="btn" type="button">Cancel</button><span class="spacer"></span><button id="confirmOk" class="btn btn-danger" type="button">Confirm</button></div></dialog>';
@@ -9921,6 +10002,73 @@ var CLIENT_JS = `
       }
     },
 
+    /* URL state. A filtered view is a link the operator can share, and a
+       reload lands on the same view. */
+    url: {
+      read: function () {
+        var out = {};
+        var q = new URLSearchParams(location.search);
+        q.forEach(function (value, key) { out[key] = value; });
+        return out;
+      },
+      write: function (values) {
+        var q = new URLSearchParams();
+        Object.keys(values).forEach(function (key) {
+          var value = values[key];
+          if (value !== undefined && value !== null && value !== "") q.set(key, value);
+        });
+        var next = q.toString();
+        history.replaceState(null, "", location.pathname + (next ? "?" + next : ""));
+      }
+    },
+
+    /* Keyboard shortcuts. They never fire while the operator is typing. */
+    shortcuts: function (opts) {
+      opts = opts || {};
+      var filter = opts.filter ? document.getElementById(opts.filter) : null;
+      var refresh = opts.refresh ? document.getElementById(opts.refresh) : null;
+      document.addEventListener("keydown", function (event) {
+        var target = event.target;
+        var typing = target && (
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable
+        );
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (event.key === "Escape") {
+          if (opts.onEscape) opts.onEscape();
+          return;
+        }
+        if (typing) return;
+        if (event.key === "/") {
+          if (!filter) return;
+          event.preventDefault();
+          filter.focus();
+          filter.select();
+          return;
+        }
+        if (event.key === "r" || event.key === "R") {
+          if (!refresh) return;
+          event.preventDefault();
+          refresh.click();
+          return;
+        }
+        if (event.key === "?") {
+          event.preventDefault();
+          GX.openDialog(document.getElementById("helpDialog"));
+        }
+      });
+      var help = document.getElementById("helpBtn");
+      if (help) {
+        help.addEventListener("click", function () { GX.openDialog(document.getElementById("helpDialog")); });
+      }
+      var close = document.getElementById("helpClose");
+      if (close) {
+        close.addEventListener("click", function () { GX.closeDialog(document.getElementById("helpDialog")); });
+      }
+    },
+
     /* The page level notice band. Always mounted, so every outcome the
        operator triggers is seen and announced. */
     notice: function (text, kind) {
@@ -10292,6 +10440,19 @@ var OVERVIEW_SCRIPT = `
     return label + " (" + res.latencyMs + "ms)";
   }
 
+  function writeUrl() {
+    GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    state.query = (params.q || "").toLowerCase();
+    state.status = params.status || "";
+    state.page = Number(params.page) || 1;
+    if (el.keyFilter) el.keyFilter.value = params.q || "";
+    if (el.keyStatus) el.keyStatus.value = params.status || "";
+  }
+
   function visibleKeys() {
     var query = state.query;
     return state.keys.filter(function (k) {
@@ -10396,7 +10557,7 @@ var OVERVIEW_SCRIPT = `
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
-      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      b.addEventListener("click", function () { state.page = page; writeUrl(); drawTable(); });
       return b;
     }
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
@@ -10580,11 +10741,13 @@ var OVERVIEW_SCRIPT = `
   el.keyFilter.addEventListener("input", GX.debounce(function () {
     state.query = el.keyFilter.value.trim().toLowerCase();
     state.page = 1;
+    writeUrl();
     drawTable();
   }, 140));
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
     state.page = 1;
+    writeUrl();
     drawTable();
   });
   el.keySize.addEventListener("change", function () {
@@ -10593,8 +10756,24 @@ var OVERVIEW_SCRIPT = `
     drawTable();
   });
 
+  GX.shortcuts({
+    filter: "keyFilter",
+    refresh: "refreshBtn",
+    onEscape: function () {
+      if (!state.query && !state.status) return;
+      state.query = "";
+      state.status = "";
+      state.page = 1;
+      el.keyFilter.value = "";
+      el.keyStatus.value = "";
+      writeUrl();
+      drawTable();
+    }
+  });
+
   GX.gate({
     onSuccess: function () {
+      readUrl();
       return refresh().then(function () { startAuto(); });
     }
   });
@@ -10865,6 +11044,23 @@ var MODELS_SCRIPT = `
     return true;
   }
 
+  function writeUrl() {
+    GX.url.write({
+      q: el.q.value.trim(),
+      kind: el.kind.value,
+      tier: state.tier,
+      page: state.page > 1 ? state.page : ""
+    });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    if (params.q) el.q.value = params.q;
+    if (params.kind) el.kind.value = params.kind;
+    if (params.tier && TIER_LABELS[params.tier]) state.tier = params.tier;
+    state.page = Number(params.page) || 1;
+  }
+
   function visible() {
     var q = el.q.value.trim().toLowerCase();
     var kind = el.kind.value;
@@ -11105,10 +11301,12 @@ var MODELS_SCRIPT = `
   });
   el.q.addEventListener("input", GX.debounce(function () {
     state.page = 1;
+    writeUrl();
     render();
   }, 140));
   el.kind.addEventListener("change", function () {
     state.page = 1;
+    writeUrl();
     render();
   });
   Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
@@ -11120,6 +11318,7 @@ var MODELS_SCRIPT = `
       });
       el.tierNote.textContent = TIER_NOTES[state.tier];
       state.page = 1;
+      writeUrl();
       render();
     });
   });
@@ -11134,7 +11333,17 @@ var MODELS_SCRIPT = `
   }
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
-  GX.gate({ onSuccess: load });
+  GX.shortcuts({ filter: "q", refresh: "reloadBtn" });
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
+        button.setAttribute("aria-pressed", button.getAttribute("data-tier") === state.tier ? "true" : "false");
+      });
+      el.tierNote.textContent = TIER_NOTES[state.tier];
+      return load();
+    }
+  });
 })();
 `;
 var MODELS_HTML = consolePage({
@@ -13298,6 +13507,15 @@ var STATS_SCRIPT = `
     return load().catch(function () {});
   }
 
+  function writeUrl() {
+    GX.url.write({ range: state.range });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    if (params.range && ["1h", "24h", "7d", "30d"].indexOf(params.range) >= 0) state.range = params.range;
+  }
+
   function buildRange() {
     var box = document.getElementById("range");
     box.textContent = "";
@@ -13312,6 +13530,7 @@ var STATS_SCRIPT = `
         Array.prototype.forEach.call(box.querySelectorAll("button"), function (other) {
           other.setAttribute("aria-pressed", other === b ? "true" : "false");
         });
+        writeUrl();
         load();
       });
       box.appendChild(b);
@@ -13323,7 +13542,14 @@ var STATS_SCRIPT = `
   });
 
   buildRange();
-  GX.gate({ onSuccess: load });
+  GX.shortcuts({ refresh: "refreshBtn" });
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      buildRange();
+      return load();
+    }
+  });
 })();
 `;
 var STATS_HTML = consolePage({
@@ -13717,6 +13943,25 @@ var USAGE_SCRIPT = `
 
   var state = { page: 1, size: 25, filter: { day: "", model: "", key: "", status: "" }, timer: null };
 
+  function writeUrl() {
+    GX.url.write({
+      day: state.filter.day,
+      model: state.filter.model,
+      key: state.filter.key,
+      status: state.filter.status,
+      page: state.page > 1 ? state.page : ""
+    });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    state.filter.day = params.day || "";
+    state.filter.model = params.model || "";
+    state.filter.key = params.key || "";
+    state.filter.status = params.status || "";
+    state.page = Number(params.page) || 1;
+  }
+
   function query() {
     var q = ["page=" + state.page, "pageSize=" + state.size];
     for (var k in state.filter) {
@@ -13920,6 +14165,7 @@ var USAGE_SCRIPT = `
     state.filter.key = el.fKey.value;
     state.filter.status = el.fStatus.value;
     state.page = 1;
+    writeUrl();
     load();
   });
   el.reset.addEventListener("click", function () {
@@ -13929,6 +14175,7 @@ var USAGE_SCRIPT = `
     el.fKey.value = "";
     el.fStatus.value = "";
     state.page = 1;
+    writeUrl();
     load();
   });
   el.refresh.addEventListener("click", function () { reload(); });
@@ -13938,7 +14185,27 @@ var USAGE_SCRIPT = `
     if (el.auto.checked) state.timer = GX.every(60000, reload);
   });
 
-  GX.gate({ onSuccess: load });
+  GX.shortcuts({
+    refresh: "refreshBtn",
+    onEscape: function () {
+      if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.status) return;
+      state.filter = { day: "", model: "", key: "", status: "" };
+      el.fDay.value = "";
+      el.fModel.value = "";
+      el.fKey.value = "";
+      el.fStatus.value = "";
+      state.page = 1;
+      writeUrl();
+      load();
+    }
+  });
+
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      return load();
+    }
+  });
 })();
 `;
 var USAGE_HTML = consolePage({
@@ -13972,7 +14239,6 @@ ${authGate()}
       <span class="meta" id="listMeta"></span>
       <div class="actions">
         <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all</button>
-        <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       </div>
     </div>
 
@@ -14093,6 +14359,19 @@ var KEYS_SCRIPT = `
   function tierLabel(value) {
     for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
     return value;
+  }
+
+  function writeUrl() {
+    GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    state.query = (params.q || "").toLowerCase();
+    state.status = params.status || "";
+    state.page = Number(params.page) || 1;
+    if (el.keyFilter) el.keyFilter.value = params.q || "";
+    if (el.keyStatus) el.keyStatus.value = params.status || "";
   }
 
   function visibleKeys() {
@@ -14256,7 +14535,7 @@ var KEYS_SCRIPT = `
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
-      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      b.addEventListener("click", function () { state.page = page; writeUrl(); drawTable(); });
       return b;
     }
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
@@ -14370,16 +14649,17 @@ var KEYS_SCRIPT = `
 
   function removeSelectedNow(ids) {
     GX.busy(el.bulkRemove, "Removing");
-    var chain = Promise.resolve();
-    ids.forEach(function (id) {
-      chain = chain.then(function () {
-        return GX.api("/pengatur/keys", { method: "DELETE", body: { id: id } });
-      });
-    });
-    chain
-      .then(function () {
-        GX.notice("Removed " + ids.length + " key(s).", "ok");
+    GX.api("/pengatur/keys", { method: "DELETE", body: { ids: ids } })
+      .then(function (data) {
+        var removed = (data.removed || []).length;
+        var failed = (data.failed || []).length;
         state.selected = {};
+        GX.notice(
+          failed
+            ? "Removed " + removed + " key(s), " + failed + " could not be removed."
+            : "Removed " + removed + (removed === 1 ? " key." : " keys."),
+          failed ? "warn" : "ok"
+        );
         return reload();
       })
       .catch(function (err) {
@@ -14481,11 +14761,13 @@ var KEYS_SCRIPT = `
   el.keyFilter.addEventListener("input", GX.debounce(function () {
     state.query = el.keyFilter.value.trim().toLowerCase();
     state.page = 1;
+    writeUrl();
     drawTable();
   }, 140));
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
     state.page = 1;
+    writeUrl();
     drawTable();
   });
   el.keySize.addEventListener("change", function () {
@@ -14494,8 +14776,24 @@ var KEYS_SCRIPT = `
     drawTable();
   });
 
+  GX.shortcuts({
+    filter: "keyFilter",
+    refresh: "refreshBtn",
+    onEscape: function () {
+      if (!state.query && !state.status) return;
+      state.query = "";
+      state.status = "";
+      state.page = 1;
+      el.keyFilter.value = "";
+      el.keyStatus.value = "";
+      writeUrl();
+      drawTable();
+    }
+  });
+
   GX.gate({
     onSuccess: function () {
+      readUrl();
       return refresh().then(function () { startAuto(); });
     }
   });
@@ -14705,7 +15003,7 @@ var DETAIL_SCRIPT = `
 var KEYS_HTML = consolePage({
   title: "Keys",
   active: "/pengatur/keys",
-  actions: '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
+  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + 'Refresh</button><button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
   body: KEYS_BODY,
   script: KEYS_SCRIPT
 });
@@ -14875,6 +15173,7 @@ var SETTINGS_SCRIPT = `
       .then(function () { GX.idle(el.exportBtn); });
   });
 
+  GX.shortcuts({ refresh: "refreshBtn" });
   GX.gate({ onSuccess: refresh });
 })();
 `;
@@ -14983,7 +15282,6 @@ ${authGate()}
       <h2>Filters</h2>
       <div class="actions">
         <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
-        <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       </div>
     </div>
     <div class="card-body">
@@ -15038,6 +15336,21 @@ var AUDIT_SCRIPT = `
   };
 
   var state = { timer: null };
+
+  function writeUrl() {
+    GX.url.write({
+      action: el.action.value.trim(),
+      since: el.since.value,
+      limit: el.limit.value
+    });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    if (params.action) el.action.value = params.action;
+    if (params.since) el.since.value = params.since;
+    if (params.limit) el.limit.value = params.limit;
+  }
 
   function query() {
     var q = [];
@@ -15113,8 +15426,8 @@ var AUDIT_SCRIPT = `
   }
 
   el.refresh.addEventListener("click", function () { reload(); });
-  el.limit.addEventListener("change", function () { reload(); });
-  el.since.addEventListener("change", function () { reload(); });
+  el.limit.addEventListener("change", function () { writeUrl(); reload(); });
+  el.since.addEventListener("change", function () { writeUrl(); reload(); });
   el.action.addEventListener("keydown", function (event) {
     if (event.key === "Enter") reload();
   });
@@ -15123,12 +15436,19 @@ var AUDIT_SCRIPT = `
     if (el.auto.checked) state.timer = GX.every(15000, reload);
   });
 
-  GX.gate({ onSuccess: refresh });
+  GX.shortcuts({ filter: "action", refresh: "refreshBtn" });
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      return refresh();
+    }
+  });
 })();
 `;
 var AUDIT_HTML = consolePage({
   title: "Audit",
   active: "/pengatur/audit",
+  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
   body: AUDIT_BODY,
   script: AUDIT_SCRIPT
 });
@@ -15406,6 +15726,22 @@ app.delete("/pengatur/keys", async (c) => {
     body = await c.req.json();
   } catch {
     return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  if (Array.isArray(body.ids) && body.ids.length) {
+    const ids = body.ids.filter((x2) => typeof x2 === "string" && x2.length > 0);
+    const removed = [];
+    const failed = [];
+    for (const id of ids) {
+      const ok = await removeKeyById(id);
+      if (ok) removed.push(id);
+      else failed.push(id);
+    }
+    record2("keys.delete", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: removed.join(","),
+      detail: { by: "id", bulk: true, removed: removed.length, failed: failed.length }
+    });
+    return c.json({ ok: failed.length === 0, removed, failed, pool: await snapshot() });
   }
   if (typeof body.id === "string" && body.id) {
     const removed = await removeKeyById(body.id);

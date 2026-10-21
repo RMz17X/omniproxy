@@ -411,7 +411,38 @@ select {
 .field { display: block; margin-bottom: var(--sp-1); color: var(--text-3); font-size: 12.5px; }
 .check { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12.5px; cursor: pointer; }
 .check { min-height: 24px; }
-.check input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--info); }
+.check input[type="checkbox"], .table input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: var(--card-2);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+}
+.check input[type="checkbox"]::before, .table input[type="checkbox"]::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  transform: scale(0);
+  background: var(--accent-ink);
+  clip-path: polygon(14% 44%, 0 59%, 39% 100%, 100% 18%, 85% 5%, 38% 71%);
+}
+.check input[type="checkbox"]:checked, .table input[type="checkbox"]:checked {
+  background: var(--info);
+  border-color: var(--info);
+}
+.check input[type="checkbox"]:checked::before, .table input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+.check input[type="checkbox"]:focus-visible, .table input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
 .tablewrap :focus-visible { outline-offset: -2px; }
 
 .toolbar { display: flex; align-items: flex-end; gap: var(--sp-3); flex-wrap: wrap; }
@@ -551,6 +582,31 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 .donut-legend i.bad { background: var(--bad); }
 
 .pickbox { display: inline-grid; place-items: center; width: 24px; height: 24px; }
+.help-h {
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: var(--sp-2);
+}
+.help-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-2) var(--sp-4); margin: 0 0 var(--sp-5); }
+.help-list dt { margin: 0; }
+.help-list dd { margin: 0; color: var(--text-2); font-size: 13px; }
+.help-list kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: var(--card-2);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  text-align: center;
+}
+.help-words dt { color: var(--text); font-size: 13px; font-weight: 550; }
+.help-words dd { font-size: 12.5px; }
 .sr-only {
   position: absolute;
   width: 1px;
@@ -677,6 +733,7 @@ const ICON_PATHS: Record<string, string> = {
   copy: '<path d="M8 8h8v9H8z"/><path d="M12 8V4H4v9h4"/>',
   clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.5l3 1.5"/>',
   back: '<path d="M12 4 6 10l6 6"/>',
+  help: '<circle cx="10" cy="10" r="7"/><path d="M8 8a2 2 0 1 1 2.6 1.9c-.6.3-.6.8-.6 1.1"/><path d="M10 14h.01"/>',
   external: '<path d="M8 4h8v8"/><path d="M16 4 7 13"/>',
   filter: '<path d="M3 5h14l-5.5 6.5V16l-3 1.5v-6L3 5Z"/>',
 };
@@ -743,6 +800,9 @@ export function navBar(active: string, actions = ""): string {
         : "Key identities and the usage ledger are stored in Postgres."
     }"><i></i>${storageMode}</span>` +
     actions +
+    '<button class="btn btn-ghost btn-sm icon-btn" type="button" id="helpBtn" aria-label="Shortcuts and help">' +
+    icon("help") +
+    "</button>" +
     "</div>" +
     "</header>"
   );
@@ -786,9 +846,11 @@ export function consolePage(o: PageOptions): string {
     "</style>\n</head>\n<body>\n" +
     '<a class="skip" href="#main">Skip to content</a>\n' +
     navBar(o.active, o.actions ?? "") +
+    helpDialog() +
     '<main id="main" class="page">\n' +
     o.body +
-    "\n</main>\n" +    "<script>" +
+    "\n</main>\n" +
+    "<script>" +
     CLIENT_JS +
     "</script>\n" +
     (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") +
@@ -865,6 +927,60 @@ export function authGate(): string {
     '<div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>' +
     "</div>" +
     "</section>"
+  );
+}
+
+/**
+ * The help dialog. Every page carries it, so the words this console uses are
+ * always one key away.
+ */
+export function helpDialog(): string {
+  const keys: [string, string][] = [
+    ["/", "Focus the filter of this page"],
+    ["r", "Refresh the data on this page"],
+    ["?", "Open this help"],
+    ["Esc", "Clear the filter, or close a dialog"],
+    ["Tab", "Move through the table, row by row"],
+  ];
+  const words: [string, string][] = [
+    ["ready", "The key can serve a request right now"],
+    ["cooling", "The key hit its quota and is parked until the cooldown ends"],
+    ["dead", "The key was revoked or has no quota left"],
+    ["rotated", "The gateway handed the request to another key"],
+    ["429", "The upstream rate limit answered"],
+    ["WIB", "The timezone the daily rollup and the heatmap use"],
+    ["ring", "1h and 24h read the live ring: the last requests in this process"],
+    ["rollup", "7d and 30d read the daily rollup in Postgres"],
+    ["memory", "The pool and the ledger live in this process. A restart empties them"],
+    ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
+  ];
+
+  const keyRows = keys
+    .map(([k, v]) => "<dt><kbd>" + escapeHtml(k) + "</kbd></dt><dd>" + escapeHtml(v) + "</dd>")
+    .join("");
+  const wordRows = words
+    .map(([k, v]) => "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(v) + "</dd>")
+    .join("");
+
+  return (
+    '<dialog id="helpDialog" aria-labelledby="helpTitle">' +
+    '<div class="card-head">' +
+    '<h2 id="helpTitle">Shortcuts and words</h2>' +
+    '<button class="btn btn-ghost btn-sm icon-btn" type="button" id="helpClose" aria-label="Close">' +
+    icon("close") +
+    "</button>" +
+    "</div>" +
+    '<div class="card-body">' +
+    '<h3 class="help-h">Keyboard</h3>' +
+    '<dl class="help-list">' +
+    keyRows +
+    "</dl>" +
+    '<h3 class="help-h">What the words mean</h3>' +
+    '<dl class="help-list help-words">' +
+    wordRows +
+    "</dl>" +
+    "</div>" +
+    "</dialog>"
   );
 }
 
@@ -1330,6 +1446,73 @@ export const CLIENT_JS = `
       if (emptyNode) {
         emptyNode.textContent = "";
         if (isEmpty && stateNode) emptyNode.appendChild(stateNode);
+      }
+    },
+
+    /* URL state. A filtered view is a link the operator can share, and a
+       reload lands on the same view. */
+    url: {
+      read: function () {
+        var out = {};
+        var q = new URLSearchParams(location.search);
+        q.forEach(function (value, key) { out[key] = value; });
+        return out;
+      },
+      write: function (values) {
+        var q = new URLSearchParams();
+        Object.keys(values).forEach(function (key) {
+          var value = values[key];
+          if (value !== undefined && value !== null && value !== "") q.set(key, value);
+        });
+        var next = q.toString();
+        history.replaceState(null, "", location.pathname + (next ? "?" + next : ""));
+      }
+    },
+
+    /* Keyboard shortcuts. They never fire while the operator is typing. */
+    shortcuts: function (opts) {
+      opts = opts || {};
+      var filter = opts.filter ? document.getElementById(opts.filter) : null;
+      var refresh = opts.refresh ? document.getElementById(opts.refresh) : null;
+      document.addEventListener("keydown", function (event) {
+        var target = event.target;
+        var typing = target && (
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable
+        );
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (event.key === "Escape") {
+          if (opts.onEscape) opts.onEscape();
+          return;
+        }
+        if (typing) return;
+        if (event.key === "/") {
+          if (!filter) return;
+          event.preventDefault();
+          filter.focus();
+          filter.select();
+          return;
+        }
+        if (event.key === "r" || event.key === "R") {
+          if (!refresh) return;
+          event.preventDefault();
+          refresh.click();
+          return;
+        }
+        if (event.key === "?") {
+          event.preventDefault();
+          GX.openDialog(document.getElementById("helpDialog"));
+        }
+      });
+      var help = document.getElementById("helpBtn");
+      if (help) {
+        help.addEventListener("click", function () { GX.openDialog(document.getElementById("helpDialog")); });
+      }
+      var close = document.getElementById("helpClose");
+      if (close) {
+        close.addEventListener("click", function () { GX.closeDialog(document.getElementById("helpDialog")); });
       }
     },
 

@@ -38,7 +38,6 @@ ${authGate()}
       <span class="meta" id="listMeta"></span>
       <div class="actions">
         <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all</button>
-        <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       </div>
     </div>
 
@@ -160,6 +159,19 @@ const KEYS_SCRIPT = `
   function tierLabel(value) {
     for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
     return value;
+  }
+
+  function writeUrl() {
+    GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    state.query = (params.q || "").toLowerCase();
+    state.status = params.status || "";
+    state.page = Number(params.page) || 1;
+    if (el.keyFilter) el.keyFilter.value = params.q || "";
+    if (el.keyStatus) el.keyStatus.value = params.status || "";
   }
 
   function visibleKeys() {
@@ -323,7 +335,7 @@ const KEYS_SCRIPT = `
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
-      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      b.addEventListener("click", function () { state.page = page; writeUrl(); drawTable(); });
       return b;
     }
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
@@ -437,16 +449,17 @@ const KEYS_SCRIPT = `
 
   function removeSelectedNow(ids) {
     GX.busy(el.bulkRemove, "Removing");
-    var chain = Promise.resolve();
-    ids.forEach(function (id) {
-      chain = chain.then(function () {
-        return GX.api("/pengatur/keys", { method: "DELETE", body: { id: id } });
-      });
-    });
-    chain
-      .then(function () {
-        GX.notice("Removed " + ids.length + " key(s).", "ok");
+    GX.api("/pengatur/keys", { method: "DELETE", body: { ids: ids } })
+      .then(function (data) {
+        var removed = (data.removed || []).length;
+        var failed = (data.failed || []).length;
         state.selected = {};
+        GX.notice(
+          failed
+            ? "Removed " + removed + " key(s), " + failed + " could not be removed."
+            : "Removed " + removed + (removed === 1 ? " key." : " keys."),
+          failed ? "warn" : "ok"
+        );
         return reload();
       })
       .catch(function (err) {
@@ -548,11 +561,13 @@ const KEYS_SCRIPT = `
   el.keyFilter.addEventListener("input", GX.debounce(function () {
     state.query = el.keyFilter.value.trim().toLowerCase();
     state.page = 1;
+    writeUrl();
     drawTable();
   }, 140));
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
     state.page = 1;
+    writeUrl();
     drawTable();
   });
   el.keySize.addEventListener("change", function () {
@@ -561,8 +576,24 @@ const KEYS_SCRIPT = `
     drawTable();
   });
 
+  GX.shortcuts({
+    filter: "keyFilter",
+    refresh: "refreshBtn",
+    onEscape: function () {
+      if (!state.query && !state.status) return;
+      state.query = "";
+      state.status = "";
+      state.page = 1;
+      el.keyFilter.value = "";
+      el.keyStatus.value = "";
+      writeUrl();
+      drawTable();
+    }
+  });
+
   GX.gate({
     onSuccess: function () {
+      readUrl();
       return refresh().then(function () { startAuto(); });
     }
   });
@@ -778,6 +809,9 @@ export const KEYS_HTML = consolePage({
   title: "Keys",
   active: "/pengatur/keys",
   actions:
+    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
+    icon("refresh") +
+    "Refresh</button>" +
     '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' +
     icon("plus") +
     "Add keys</button>",

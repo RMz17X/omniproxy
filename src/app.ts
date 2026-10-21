@@ -428,11 +428,29 @@ app.post("/pengatur/keys", async (c) => {
 });
 
 app.delete("/pengatur/keys", async (c) => {
-  let body: { key?: string; id?: string };
+  let body: { key?: string; id?: string; ids?: string[] };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  // `ids` removes a selection in one request. The console used to send one
+  // request per key, which turned a bulk removal into a queue of round trips.
+  if (Array.isArray(body.ids) && body.ids.length) {
+    const ids = body.ids.filter((x): x is string => typeof x === "string" && x.length > 0);
+    const removed: string[] = [];
+    const failed: string[] = [];
+    for (const id of ids) {
+      const ok = await removeKeyById(id);
+      if (ok) removed.push(id);
+      else failed.push(id);
+    }
+    auditRecord("keys.delete", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: removed.join(","),
+      detail: { by: "id", bulk: true, removed: removed.length, failed: failed.length },
+    });
+    return c.json({ ok: failed.length === 0, removed, failed, pool: await snapshot() });
   }
   // `id` is the handle the console holds (sha256 prefix); `key` stays for curl.
   if (typeof body.id === "string" && body.id) {

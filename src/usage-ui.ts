@@ -168,6 +168,25 @@ const USAGE_SCRIPT = `
 
   var state = { page: 1, size: 25, filter: { day: "", model: "", key: "", status: "" }, timer: null };
 
+  function writeUrl() {
+    GX.url.write({
+      day: state.filter.day,
+      model: state.filter.model,
+      key: state.filter.key,
+      status: state.filter.status,
+      page: state.page > 1 ? state.page : ""
+    });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    state.filter.day = params.day || "";
+    state.filter.model = params.model || "";
+    state.filter.key = params.key || "";
+    state.filter.status = params.status || "";
+    state.page = Number(params.page) || 1;
+  }
+
   function query() {
     var q = ["page=" + state.page, "pageSize=" + state.size];
     for (var k in state.filter) {
@@ -371,6 +390,7 @@ const USAGE_SCRIPT = `
     state.filter.key = el.fKey.value;
     state.filter.status = el.fStatus.value;
     state.page = 1;
+    writeUrl();
     load();
   });
   el.reset.addEventListener("click", function () {
@@ -380,6 +400,7 @@ const USAGE_SCRIPT = `
     el.fKey.value = "";
     el.fStatus.value = "";
     state.page = 1;
+    writeUrl();
     load();
   });
   el.refresh.addEventListener("click", function () { reload(); });
@@ -389,7 +410,27 @@ const USAGE_SCRIPT = `
     if (el.auto.checked) state.timer = GX.every(60000, reload);
   });
 
-  GX.gate({ onSuccess: load });
+  GX.shortcuts({
+    refresh: "refreshBtn",
+    onEscape: function () {
+      if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.status) return;
+      state.filter = { day: "", model: "", key: "", status: "" };
+      el.fDay.value = "";
+      el.fModel.value = "";
+      el.fKey.value = "";
+      el.fStatus.value = "";
+      state.page = 1;
+      writeUrl();
+      load();
+    }
+  });
+
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      return load();
+    }
+  });
 })();
 `;
 

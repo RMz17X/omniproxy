@@ -138,6 +138,23 @@ const MODELS_SCRIPT = `
     return true;
   }
 
+  function writeUrl() {
+    GX.url.write({
+      q: el.q.value.trim(),
+      kind: el.kind.value,
+      tier: state.tier,
+      page: state.page > 1 ? state.page : ""
+    });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    if (params.q) el.q.value = params.q;
+    if (params.kind) el.kind.value = params.kind;
+    if (params.tier && TIER_LABELS[params.tier]) state.tier = params.tier;
+    state.page = Number(params.page) || 1;
+  }
+
   function visible() {
     var q = el.q.value.trim().toLowerCase();
     var kind = el.kind.value;
@@ -378,10 +395,12 @@ const MODELS_SCRIPT = `
   });
   el.q.addEventListener("input", GX.debounce(function () {
     state.page = 1;
+    writeUrl();
     render();
   }, 140));
   el.kind.addEventListener("change", function () {
     state.page = 1;
+    writeUrl();
     render();
   });
   Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
@@ -393,6 +412,7 @@ const MODELS_SCRIPT = `
       });
       el.tierNote.textContent = TIER_NOTES[state.tier];
       state.page = 1;
+      writeUrl();
       render();
     });
   });
@@ -407,7 +427,17 @@ const MODELS_SCRIPT = `
   }
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
-  GX.gate({ onSuccess: load });
+  GX.shortcuts({ filter: "q", refresh: "reloadBtn" });
+  GX.gate({
+    onSuccess: function () {
+      readUrl();
+      Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
+        button.setAttribute("aria-pressed", button.getAttribute("data-tier") === state.tier ? "true" : "false");
+      });
+      el.tierNote.textContent = TIER_NOTES[state.tier];
+      return load();
+    }
+  });
 })();
 `;
 

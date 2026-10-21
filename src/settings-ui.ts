@@ -171,6 +171,7 @@ const SETTINGS_SCRIPT = `
       .then(function () { GX.idle(el.exportBtn); });
   });
 
+  GX.shortcuts({ refresh: "refreshBtn" });
   GX.gate({ onSuccess: refresh });
 })();
 `;

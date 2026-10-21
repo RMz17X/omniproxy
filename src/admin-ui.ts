@@ -370,6 +370,19 @@ const OVERVIEW_SCRIPT = `
     return label + " (" + res.latencyMs + "ms)";
   }
 
+  function writeUrl() {
+    GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    state.query = (params.q || "").toLowerCase();
+    state.status = params.status || "";
+    state.page = Number(params.page) || 1;
+    if (el.keyFilter) el.keyFilter.value = params.q || "";
+    if (el.keyStatus) el.keyStatus.value = params.status || "";
+  }
+
   function visibleKeys() {
     var query = state.query;
     return state.keys.filter(function (k) {
@@ -474,7 +487,7 @@ const OVERVIEW_SCRIPT = `
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
-      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      b.addEventListener("click", function () { state.page = page; writeUrl(); drawTable(); });
       return b;
     }
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
@@ -658,11 +671,13 @@ const OVERVIEW_SCRIPT = `
   el.keyFilter.addEventListener("input", GX.debounce(function () {
     state.query = el.keyFilter.value.trim().toLowerCase();
     state.page = 1;
+    writeUrl();
     drawTable();
   }, 140));
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
     state.page = 1;
+    writeUrl();
     drawTable();
   });
   el.keySize.addEventListener("change", function () {
@@ -671,8 +686,24 @@ const OVERVIEW_SCRIPT = `
     drawTable();
   });
 
+  GX.shortcuts({
+    filter: "keyFilter",
+    refresh: "refreshBtn",
+    onEscape: function () {
+      if (!state.query && !state.status) return;
+      state.query = "";
+      state.status = "";
+      state.page = 1;
+      el.keyFilter.value = "";
+      el.keyStatus.value = "";
+      writeUrl();
+      drawTable();
+    }
+  });
+
   GX.gate({
     onSuccess: function () {
+      readUrl();
       return refresh().then(function () { startAuto(); });
     }
   });
