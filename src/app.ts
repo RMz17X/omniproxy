@@ -31,6 +31,8 @@ import {
   routeOf,
   toCsv,
   usageOverview,
+  allRows,
+  ledgerKeyId,
   type RowFilter,
 } from "./ledger.ts";
 import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
@@ -38,6 +40,9 @@ import { actorFrom, record as auditRecord } from "./audit.ts";
 import { STATS_HTML } from "./stats-ui.ts";
 import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
+import { KEYS_HTML, KEY_DETAIL_HTML } from "./keys-ui.ts";
+import { loadKeys } from "./keys-repo.ts";
+import { dbEnabled, sql } from "./db.ts";
 
 const app = new Hono();
 
@@ -87,12 +92,25 @@ app.use("/v1/*", async (c, next) => {
   return next();
 });
 
+/** Shells carry no data; their client scripts fetch `/data` with the token. */
+const SHELL_PATHS = [
+  "/pengatur",
+  "/pengatur/models",
+  "/pengatur/usage",
+  "/pengatur/stats",
+  "/pengatur/keys",
+  "/pengatur/settings",
+  "/pengatur/audit",
+  "/pengatur/logs",
+];
+
+/** The key detail shell. `/data` carries a suffix and so stays gated. */
+const KEY_PAGE = /^\/pengatur\/keys\/[0-9a-f]{12}$/;
+
 app.use("/pengatur/*", async (c, next) => {
-  // The console shells carry no data and must load before a token exists;
-  // /pengatur and /pengatur/models are the only admin paths reachable
-  // without credentials.
+  // The console shells carry no data and must load before a token exists.
   const adminPath = new URL(c.req.url).pathname;
-  if (adminPath === "/pengatur" || adminPath === "/pengatur/models" || adminPath === "/pengatur/usage") return next();
+  if (SHELL_PATHS.includes(adminPath) || KEY_PAGE.test(adminPath)) return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -236,9 +254,108 @@ app.post("/pengatur/models/test", async (c) => {
   return c.json({ ok: true, model, result });
 });
 
-app.get("/pengatur/keys", async (c) => {
-  const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
-  return c.json({ pool: snap, keys, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+/** Keys console shell. Public like the other shells; its data routes are not. */
+app.get("/pengatur/keys", (c) => c.html(KEYS_HTML));
+
+/**
+ * Pool state plus one row per key. Moved off /pengatur/keys so the shell can
+ * live there; `enabled`/`label` are merged in from the durable identities.
+ */
+app.get("/pengatur/keys/list", async (c) => {
+  const [keys, snap, identities] = await Promise.all([listKeys(), snapshot(), loadKeys()]);
+  const byId = new Map(identities.map((k) => [k.id, k]));
+  const merged = keys.map((k) => {
+    const identity = byId.get(k.id);
+    return { ...k, enabled: identity ? identity.enabled : true, label: identity?.label ?? null };
+  });
+  return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+});
+
+/** Keys detail shell. Public like the list shell; its /data sibling is gated. */
+app.get("/pengatur/keys/:id", async (c) => {
+  const id = c.req.param("id");
+  const keys = await listKeys();
+  if (!keys.some((k) => k.id === id)) return c.text("not found", 404);
+  return c.html(KEY_DETAIL_HTML);
+});
+
+/**
+ * Everything the detail page shows about one key: pool state, the daily
+ * rollup chart, the requests still in the ring, and the cooldown timeline.
+ * The ledger hashes the masked form rather than the raw key, so the history
+ * lookup goes through `ledgerKeyId` instead of the pool id.
+ */
+app.get("/pengatur/keys/:id/data", async (c) => {
+  const id = c.req.param("id");
+  const key = (await listKeys()).find((k) => k.id === id);
+  if (!key) return c.json({ error: { message: "No key with that id." } }, 404);
+
+  const ledgerId = ledgerKeyId(key.key);
+  const daily: { day: string; requests: number; errors: number; costUsd: number | null }[] = [];
+  let dailyNote = "";
+  if (!dbEnabled()) {
+    dailyNote = "Database disabled: no daily history.";
+  } else {
+    const res = await sql<{
+      day: string;
+      requests: number | string;
+      errors: number | string;
+      cost_usd: number | string | null;
+    }>(
+      `select day::text as day,
+              sum(requests)::int as requests,
+              sum(errors)::int as errors,
+              sum(cost_usd)::numeric as cost_usd
+         from usage_daily
+        where key_id = $1 and day >= current_date - 30
+        group by day
+        order by day`,
+      [ledgerId],
+    );
+    if (!res.ok) {
+      return c.json({ ok: false, error: { message: res.message ?? "Daily history unavailable." } }, 500);
+    }
+    for (const row of res.rows) {
+      daily.push({
+        day: row.day,
+        requests: Number(row.requests) || 0,
+        errors: Number(row.errors) || 0,
+        costUsd: row.cost_usd == null ? null : Number(row.cost_usd),
+      });
+    }
+  }
+
+  const recent = allRows()
+    .filter((r) => r.keyId === ledgerId)
+    .slice(0, 100);
+  const events = recent
+    .filter((r) => !r.ok || r.rotated)
+    .slice(0, 50)
+    .map((r) => ({ ts: r.ts, status: r.status, ok: r.ok, errorCode: r.errorCode, rotated: r.rotated }));
+
+  const identity = (await loadKeys()).find((k) => k.id === id);
+  return c.json({
+    ok: true,
+    key: {
+      id: key.id,
+      masked: key.key,
+      plan: key.tier,
+      status: key.status,
+      enabled: identity ? identity.enabled : true,
+      label: identity?.label ?? null,
+      failures: key.failures,
+      invalidations: key.invalidations,
+      invalid: key.invalid,
+      lastUsed: key.lastUsed,
+      cooldownUntil: key.cooldownUntil,
+      cooldownLeftMs: key.cooldownLeftMs,
+    },
+    daily,
+    dailyNote,
+    recent,
+    events,
+    cooldown: { status: key.status, until: key.cooldownUntil, leftMs: key.cooldownLeftMs },
+  });
 });
 
 /**

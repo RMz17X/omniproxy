@@ -674,7 +674,7 @@ export const ADMIN_HTML = `<!doctype html>
   function refresh() {
     if (!state.token || state.busy) return Promise.resolve();
     state.busy = true;
-    return api("/pengatur/keys")
+    return api("/pengatur/keys/list")
       .then(function (data) {
         renderStats(data.pool);
         state.tiers = data.tiers;
@@ -710,7 +710,7 @@ export const ADMIN_HTML = `<!doctype html>
     if (!t) { say(el.authHint, "Token is empty.", "err"); return; }
     state.token = t;
     el.connect.disabled = true;
-    api("/pengatur/keys")
+    api("/pengatur/keys/list")
       .then(function (data) {
         try { localStorage.setItem(STORE, t); } catch (e) {}
         renderStats(data.pool);
