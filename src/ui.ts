@@ -457,6 +457,22 @@ textarea {
   .actions { text-align: left; }
 }
 
+/* heat grid -------------------------------------------------------------- */
+
+.heatgrid {
+  display: grid;
+  grid-template-columns: 34px repeat(24, minmax(18px, 1fr));
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.heatgrid .h { text-align: center; }
+.heatgrid .cell {
+  height: 18px;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
 @media (pointer: coarse) {
   :root { --tap: 44px; --tap-sm: 44px; }
 }
@@ -470,4 +486,35 @@ export type StateKind = "empty" | "loading" | "error";
  */
 export function stateBlock(kind: StateKind, message: string): string {
   return '<div class="state ' + kind + '">' + message + "</div>";
+}
+
+export interface NavItem {
+  href: string;
+  label: string;
+}
+
+export const NAV_ITEMS: NavItem[] = [
+  { href: "/pengatur", label: "Overview" },
+  { href: "/pengatur/logs", label: "Logs" },
+  { href: "/pengatur/stats", label: "Statistics" },
+  { href: "/pengatur/keys", label: "Keys" },
+  { href: "/pengatur/models", label: "Models" },
+  { href: "/pengatur/settings", label: "Settings" },
+  { href: "/pengatur/audit", label: "Audit" },
+];
+
+/**
+ * Top bar for every console page. `active` is matched against the href; the
+ * alias /pengatur/usage belongs to /pengatur/logs.
+ */
+export function navBar(active: string): string {
+  const current = active === "/pengatur/usage" ? "/pengatur/logs" : active;
+  const links = NAV_ITEMS.map((item) => {
+    const on = item.href === current;
+    return '<a href="' + item.href + '"' + (on ? ' class="active" aria-current="page"' : "") + ">" + item.label + "</a>";
+  }).join("\n    ");
+  return '<header class="topbar">\n' +
+    '  <a class="wordmark" href="/pengatur">geminesx</a>\n' +
+    '  <nav class="nav">\n    ' + links + "\n  </nav>\n" +
+    "</header>";
 }
