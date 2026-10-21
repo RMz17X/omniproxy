@@ -6,51 +6,51 @@
  * value, only set or unset. The shell carries no data; it reads
  * /pengatur/settings/data with the pasted admin token.
  *
- * Layout: one panel per configuration group, each a two column definition
- * grid, then the environment table and the caveat note.
+ * Layout: the counts first, then the configuration groups side by side, then
+ * the environment table and the caveat line.
  */
 
-import { authGate, consolePage } from "./ui.ts";
+import { authGate, consolePage, icon } from "./ui.ts";
 
-const PAGE_BODY = `
-
+const SETTINGS_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sDefaults">0</b><span class="k">defaults</span></div>
-    <div class="kv"><b id="sLimits">0</b><span class="k">limits</span></div>
-    <div class="kv"><b id="sLedger">0</b><span class="k">ledger</span></div>
-    <div class="kv"><b id="sEnv">0</b><span class="k">env vars</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="sStorage">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Settings</h1>
+      <p class="sub">The effective configuration of this deployment. Read only.</p>
+    </div>
+    <span class="meta" id="sStorage">-</span>
   </div>
 
-  <div class="grid cols2">
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Defaults</div></div>
-      <div class="panel-body"><div class="defs" id="defaults"></div></div>
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid split">
+    <section class="card">
+      <div class="card-head"><h2>Defaults</h2></div>
+      <div class="card-body"><div class="defs" id="defaults"></div></div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Limits</div></div>
-      <div class="panel-body"><div class="defs" id="limits"></div></div>
+    <section class="card">
+      <div class="card-head"><h2>Limits</h2></div>
+      <div class="card-body"><div class="defs" id="limits"></div></div>
     </section>
   </div>
 
-  <div class="grid cols2">
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Ledger and storage</div></div>
-      <div class="panel-body">
+  <div class="grid split">
+    <section class="card">
+      <div class="card-head"><h2>Ledger and storage</h2></div>
+      <div class="card-body">
         <div class="defs" id="ledger"></div>
-        <div class="sep" style="margin:12px 0"></div>
+        <div class="sep" style="margin:14px 0"></div>
         <div class="defs" id="storage"></div>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Environment</div>
+    <section class="card">
+      <div class="card-head">
+        <h2>Environment</h2>
         <span class="meta">values are never shown</span>
       </div>
       <div class="tablewrap scroll-y">
@@ -62,27 +62,23 @@ ${authGate()}
     </section>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Caveats</div>
-    </div>
-    <div class="panel-body">
+  <section class="card">
+    <div class="card-head"><h2>Caveats</h2></div>
+    <div class="card-body">
       <p class="hint" id="note"></p>
       <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
   </section>
-</section>
+</div>
 `;
 
-const PAGE_SCRIPT = `(function () {
+const SETTINGS_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sDefaults: document.getElementById("sDefaults"),
-    sLimits: document.getElementById("sLimits"),
-    sLedger: document.getElementById("sLedger"),
-    sEnv: document.getElementById("sEnv"),
+    kpis: document.getElementById("kpis"),
     sStorage: document.getElementById("sStorage"),
     defaults: document.getElementById("defaults"),
     limits: document.getElementById("limits"),
@@ -105,7 +101,7 @@ const PAGE_SCRIPT = `(function () {
     keys.forEach(function (key) {
       node.appendChild(GX.el("div", { class: "def" }, [
         GX.el("dt", { text: key }),
-        GX.el("dd", { class: "mono", text: obj[key] === null || obj[key] === undefined ? "-" : String(obj[key]) })
+        GX.el("dd", { text: obj[key] === null || obj[key] === undefined ? "-" : String(obj[key]) })
       ]));
     });
     return keys.length;
@@ -118,21 +114,28 @@ const PAGE_SCRIPT = `(function () {
       var tr = GX.el("tr");
       GX.cell(tr, row.name, "mono", "name");
       var stateCell = GX.el("td", { "data-l": "state" });
-      stateCell.appendChild(GX.badge(row.state === "set" ? "set" : "unset", row.state === "set" ? "ok" : ""));
+      stateCell.appendChild(GX.tag(row.state === "set" ? "set" : "unset", row.state === "set" ? "ok" : "plain"));
       tr.appendChild(stateCell);
       body.appendChild(tr);
     });
   }
 
   function render(d) {
-    el.sDefaults.textContent = defs(el.defaults, d.defaults);
-    el.sLimits.textContent = defs(el.limits, d.limits);
-    el.sLedger.textContent = defs(el.ledger, d.ledger);
+    var nDefaults = defs(el.defaults, d.defaults);
+    var nLimits = defs(el.limits, d.limits);
+    var nLedger = defs(el.ledger, d.ledger);
     defs(el.storage, d.storage);
     renderEnv(d.env);
-    el.sEnv.textContent = (d.env || []).length;
-    el.sStorage.textContent = (d.storage && d.storage.mode) ? d.storage.mode : "-";
-    GX.storage((d.storage && d.storage.mode) ? d.storage.mode : "-");
+
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Defaults", String(nDefaults), "model, voice and search model"));
+    el.kpis.appendChild(GX.kpi("Limits", String(nLimits), "cooldown, attempts and timeouts"));
+    el.kpis.appendChild(GX.kpi("Ledger", String(nLedger), "batch size, flush and retention"));
+    el.kpis.appendChild(GX.kpi("Environment", String((d.env || []).length), "variables read by the process"));
+    el.kpis.appendChild(GX.kpi("Storage", d.storage ? d.storage.mode : "-", d.storage && d.storage.regionHostSuffix ? d.storage.regionHostSuffix : "no database configured"));
+
+    el.sStorage.textContent = d.storage ? d.storage.mode + " storage" : "-";
+    GX.storage(d.storage ? d.storage.mode : "-", d.storage && d.storage.mode === "memory" ? "warn" : "");
     el.note.textContent = d.note || "";
   }
 
@@ -160,20 +163,25 @@ const PAGE_SCRIPT = `(function () {
   el.exportBtn.addEventListener("click", function () {
     GX.busy(el.exportBtn, "Exporting");
     GX.download("/pengatur/settings/export", "geminesx-config.json")
-      .catch(function (err) {
-        GX.say(el.msg, err.message, "err");
-      })
+      .catch(function (err) { GX.say(el.msg, err.message, "err"); })
       .then(function () { GX.idle(el.exportBtn); });
   });
 
   GX.gate({ onSuccess: refresh });
-})();`;
+})();
+`;
 
 export const SETTINGS_HTML = consolePage({
   title: "Settings",
   subtitle: "The effective configuration of this deployment",
   active: "/pengatur/settings",
-  actions: `<button id="exportBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/></svg>Export JSON</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
-  body: PAGE_BODY,
-  script: PAGE_SCRIPT,
+  actions:
+    '<button id="exportBtn" class="btn btn-sm" type="button">' +
+    icon("download") +
+    "Export JSON</button>" +
+    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
+    icon("refresh") +
+    "Refresh</button>",
+  body: SETTINGS_BODY,
+  script: SETTINGS_SCRIPT,
 });
