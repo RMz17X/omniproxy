@@ -1,623 +1,767 @@
 /**
- * Keys console shell, served at GET /pengatur/keys, plus the per-key detail
- * shell at GET /pengatur/keys/:id.
+ * Keys console, served at GET /pengatur/keys, plus the per-key detail shell
+ * at GET /pengatur/keys/:id.
  *
- * Same visual language as the other /pengatur shells. Both carry no data: the
- * browser pastes the admin token once, then reads /pengatur/keys/list and
- * /pengatur/keys/:id/data.
+ * Both shells carry no data: the browser pastes the admin token once, then
+ * reads /pengatur/keys/list and /pengatur/keys/:id/data. Every mutation
+ * addresses a key by its sha256 id, so no raw credential ever reaches the
+ * browser.
+ *
+ * The list is the bulk console: pick rows, declare a plan for the whole
+ * selection, probe, remove. The detail page is the single key view: counters,
+ * the daily request chart, the cooldown timeline and the recent requests.
  */
 
-export const KEYS_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keys · geminesx</title>
-<style>
-:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
-header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
-header h1 { font-size:15px; margin:0; font-weight:600; }
-header a { color:var(--accent); text-decoration:none; }
-header .dim, .dim { color:var(--dim); }
-main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
-.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
-.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
-button:hover:not(:disabled) { border-color:var(--accent); }
-button:disabled { opacity:.45; cursor:not-allowed; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
-button.danger { color:var(--err); }
-input, select, textarea { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
-textarea { width:100%; min-height:88px; resize:vertical; }
-input[type=password] { width:280px; }
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
-th { color:var(--dim); font-weight:500; font-size:12px; }
-tr:last-child td { border-bottom:none; }
-td.id a { color:var(--accent); text-decoration:none; }
-.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
-.tag.ok { color:var(--ok); border-color:var(--ok); }
-.tag.warn { color:var(--warn); border-color:var(--warn); }
-.tag.err { color:var(--err); border-color:var(--err); }
-.msg { min-height:20px; font-size:13px; }
-.msg.err { color:var(--err); }
-.msg.ok { color:var(--ok); }
-.hint { color:var(--dim); font-size:12px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; }
-.stat b { display:block; font-size:20px; font-variant-numeric:tabular-nums; }
-.stat span { color:var(--dim); font-size:12px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Keys</h1>
-  <a href="/pengatur/stats">stats</a>
-  <a href="/pengatur/settings">settings</a>
-  <a href="/pengatur/audit">audit</a>
-  <a href="/pengatur/logs">logs</a>
-  <span class="dim" id="authState">token required</span>
-</header>
-<main>
-  <section class="panel" id="authPanel">
-    <h2>Admin token</h2>
-    <div class="row">
-      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-      <button class="primary" id="connect">Connect</button>
-      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+import { authGate, consolePage, stateBlock } from "./ui.ts";
+
+const PAGE_BODY = `
+
+${authGate()}
+
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
+    <div class="kv ok"><b id="sReady">0</b><span class="k">ready</span></div>
+    <div class="kv warn"><b id="sCooling">0</b><span class="k">cooling</span></div>
+    <div class="kv bad"><b id="sDead">0</b><span class="k">dead</span></div>
+    <div class="kv"><b id="sStorage">-</b><span class="k">storage</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="poolMeta">-</div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Pool <span class="meta" id="listMeta"></span></div>
+      <div class="row">
+        <button id="testAllBtn" class="btn small" type="button">Test all</button>
+        <button id="refreshBtn" class="btn small" type="button">Refresh</button>
+      </div>
     </div>
-    <div class="msg" id="authHint"></div>
-  </section>
 
-  <section class="panel" id="statsPanel" hidden>
-    <h2>Pool</h2>
-    <div class="grid" id="stats"></div>
-  </section>
-
-  <section class="panel" id="bulkPanel" hidden>
-    <h2>Bulk actions</h2>
-    <div class="row">
-      <select id="tierSel"></select>
-      <button id="applyTier">Set tier on selected</button>
-      <button id="testAll">Test all</button>
-      <button id="refresh">Refresh</button>
-      <label class="hint"><input type="checkbox" id="auto"> auto-refresh 15s</label>
+    <div class="panel-body">
+      <div class="row">
+        <div class="grow">
+          <label class="field" for="keyFilter">Filter</label>
+          <input id="keyFilter" type="search" spellcheck="false" placeholder="masked key, id or plan">
+        </div>
+        <div class="grow">
+          <label class="field" for="keyStatus">Status</label>
+          <select id="keyStatus">
+            <option value="">all</option>
+            <option value="ready">ready</option>
+            <option value="cooling">cooling</option>
+            <option value="dead">dead</option>
+          </select>
+        </div>
+        <div class="grow">
+          <label class="field" for="keySize">Per page</label>
+          <select id="keySize">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button id="enableBtn" disabled>Enable selected</button>
-      <button id="disableBtn" disabled>Disable selected</button>
-      <span class="hint">Enable/disable is not implemented by the admin API yet — no route toggles the keys table. Remove and re-add a key to reset it.</span>
+
+    <div id="bulkBar" class="panel-body" hidden style="border-top:1px solid var(--line)">
+      <div class="row">
+        <b id="selCount" style="font-variant-numeric:tabular-nums">0 selected</b>
+        <select id="bulkTier" class="tier" aria-label="Billing plan for the selected keys"></select>
+        <button id="bulkApply" class="btn small" type="button">Apply plan</button>
+        <button id="bulkRemove" class="btn small btn-danger" type="button">Remove selected</button>
+        <span class="spacer"></span>
+        <button id="bulkClear" class="btn btn-ghost small" type="button">Clear</button>
+      </div>
+      <div id="bulkMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
-    <div class="msg" id="bulkMsg"></div>
-  </section>
 
-  <section class="panel" id="addPanel" hidden>
-    <h2>Add keys</h2>
-    <textarea id="newKeys" placeholder="One raw key per line"></textarea>
-    <div class="row" style="margin-top:10px">
-      <button class="primary" id="addBtn">Add</button>
-      <span class="hint">Raw values are never returned by the API; only masked ids are.</span>
+    <div id="keysBody" class="tablewrap">stateBlock("loading", "Loading the pool")</div>
+
+    <div class="panel-foot">
+      <div id="keyPager" class="pager"></div>
+      <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
     </div>
-    <div class="msg" id="addMsg"></div>
   </section>
+</section>
 
-  <section class="panel" id="keysPanel" hidden>
-    <h2>Keys</h2>
-    <table>
-      <thead><tr>
-        <th><input type="checkbox" id="all"></th>
-        <th>id</th><th>masked</th><th>plan</th><th>state</th><th>enabled</th><th>fails</th><th>last seen</th><th></th>
-      </tr></thead>
-      <tbody id="keyRows"></tbody>
-    </table>
-    <div class="msg" id="keyMsg"></div>
-  </section>
-</main>
-<script>
-const TOKEN_KEY = "geminesx.admin.token";
+<dialog id="addDialog" aria-labelledby="addTitle">
+  <form id="addForm" method="dialog">
+    <div class="panel-head">
+      <div class="panel-title" id="addTitle">Add keys</div>
+      <button class="btn btn-ghost small" type="button" id="addClose" aria-label="Close"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10"/><path d="M15 5 5 15"/></svg></button>
+    </div>
+    <div class="panel-body">
+      <label class="field" for="newKeys">One key per line, or separated by commas</label>
+      <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
+        <span id="addCount" class="hint"></span>
+      </div>
+      <div id="addMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <p class="hint" style="margin-top:12px">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+    </div>
+  </form>
+</dialog>
+`;
 
-function token() {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
+const PAGE_SCRIPT = `(function () {
+  "use strict";
 
-/** Fetch helper. Every console request carries the pasted token. */
-async function api(path, opts) {
-  const init = Object.assign({ headers: {} }, opts ?? {});
-  init.headers = Object.assign({}, init.headers, { authorization: "Bearer " + token() });
-  if (init.body !== undefined) {
-    init.headers["content-type"] = "application/json";
-    init.body = JSON.stringify(init.body);
-  }
-  const res = await fetch(path, init);
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
-  if (!res.ok) {
-    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
-    throw new Error(message);
-  }
-  return data;
-}
-
-function say(node, text, cls) {
-  node.textContent = text;
-  node.className = "msg" + (cls ? " " + cls : "");
-}
-
-function when(ms) {
-  if (!ms) return "never";
-  const d = new Date(ms);
-  return d.toISOString().replace("T", " ").slice(0, 19);
-}
-
-function left(ms) {
-  if (!ms || ms <= 0) return "-";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return s + "s";
-  if (s < 3600) return Math.round(s / 60) + "m";
-  return Math.round(s / 3600) + "h";
-}
-
-const state = { keys: [], tiers: [], knownTiers: [], timer: null };
-
-function row(k) {
-  const tr = document.createElement("tr");
-  const status = k.status ?? "ready";
-  const badge = status === "ready" ? "ok" : status === "cooling" ? "warn" : "err";
-  tr.innerHTML =
-    '<td><input type="checkbox" data-id="' + k.id + '"></td>' +
-    '<td class="id"><a href="/pengatur/keys/' + k.id + '">' + k.id + "</a></td>" +
-    "<td>" + k.key + "</td>" +
-    "<td>" + k.tier + "</td>" +
-    '<td><span class="tag ' + badge + '">' + status + "</span></td>" +
-    "<td>" + (k.enabled === false ? "no" : "yes") + "</td>" +
-    "<td>" + k.failures + "</td>" +
-    "<td>" + when(k.lastUsed) + "</td>" +
-    '<td><button data-test="' + k.id + '">test</button> <button class="danger" data-del="' + k.id + '">delete</button></td>';
-  return tr;
-}
-
-function selected() {
-  return [...document.querySelectorAll("#keyRows input[type=checkbox]:checked")].map((n) => n.dataset.id);
-}
-
-function render(data) {
-  state.keys = data.keys ?? [];
-  state.tiers = data.tiers ?? [];
-  state.knownTiers = data.knownTiers ?? [];
-
-  const pool = data.pool ?? {};
-  const stats = document.getElementById("stats");
-  stats.innerHTML = "";
-  for (const [label, value] of [
-    ["total", pool.total],
-    ["ready", pool.ready],
-    ["cooling", pool.cooling],
-    ["dead", pool.dead],
-    ["storage", pool.storage],
-    ["degraded", pool.degraded ? "yes" : "no"],
-  ]) {
-    const cell = document.createElement("div");
-    cell.className = "stat";
-    cell.innerHTML = "<b>" + (value ?? 0) + "</b><span>" + label + "</span>";
-    stats.appendChild(cell);
-  }
-
-  const sel = document.getElementById("tierSel");
-  const keep = sel.value;
-  sel.innerHTML = "";
-  for (const t of state.knownTiers) {
-    const opt = document.createElement("option");
-    opt.value = t;
-    opt.textContent = t;
-    sel.appendChild(opt);
-  }
-  if (keep) sel.value = keep;
-
-  const body = document.getElementById("keyRows");
-  body.innerHTML = "";
-  for (const k of state.keys) body.appendChild(row(k));
-
-  document.getElementById("keysPanel").hidden = false;
-  document.getElementById("bulkPanel").hidden = false;
-  document.getElementById("addPanel").hidden = false;
-  document.getElementById("statsPanel").hidden = false;
-}
-
-async function refresh() {
-  try {
-    const data = await api("/pengatur/keys/list");
-    render(data);
-    say(document.getElementById("keyMsg"), state.keys.length + " keys", "ok");
-  } catch (err) {
-    say(document.getElementById("keyMsg"), err.message, "err");
-  }
-}
-
-function act(fn) {
-  return async (ev) => {
-    const id = ev.currentTarget.dataset.test ?? ev.currentTarget.dataset.del;
-    ev.currentTarget.disabled = true;
-    try {
-      await fn(id);
-    } catch (err) {
-      say(document.getElementById("keyMsg"), err.message, "err");
-    } finally {
-      ev.currentTarget.disabled = false;
-    }
+  var el = {
+    console: document.getElementById("console"),
+    sTotal: document.getElementById("sTotal"),
+    sReady: document.getElementById("sReady"),
+    sCooling: document.getElementById("sCooling"),
+    sDead: document.getElementById("sDead"),
+    sStorage: document.getElementById("sStorage"),
+    poolMeta: document.getElementById("poolMeta"),
+    listMeta: document.getElementById("listMeta"),
+    keysBody: document.getElementById("keysBody"),
+    keyFilter: document.getElementById("keyFilter"),
+    keyStatus: document.getElementById("keyStatus"),
+    keySize: document.getElementById("keySize"),
+    keyPager: document.getElementById("keyPager"),
+    testAllBtn: document.getElementById("testAllBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    auto: document.getElementById("auto"),
+    bulkBar: document.getElementById("bulkBar"),
+    bulkTier: document.getElementById("bulkTier"),
+    bulkApply: document.getElementById("bulkApply"),
+    bulkRemove: document.getElementById("bulkRemove"),
+    bulkClear: document.getElementById("bulkClear"),
+    selCount: document.getElementById("selCount"),
+    bulkMsg: document.getElementById("bulkMsg"),
+    addBtn: document.getElementById("addBtn"),
+    addDialog: document.getElementById("addDialog"),
+    addClose: document.getElementById("addClose"),
+    addForm: document.getElementById("addForm"),
+    addSubmit: document.getElementById("addSubmit"),
+    newKeys: document.getElementById("newKeys"),
+    addCount: document.getElementById("addCount"),
+    addMsg: document.getElementById("addMsg")
   };
-}
 
-document.getElementById("token").value = token();
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", selected: {}, timer: null };
 
-document.getElementById("connect").addEventListener("click", async () => {
-  const value = document.getElementById("token").value.trim();
-  if (!value) {
-    say(document.getElementById("authHint"), "Paste the admin token.", "err");
-    return;
+  var TIERS = [
+    { value: "unknown", label: "Unspecified" },
+    { value: "free", label: "Free tier" },
+    { value: "paid", label: "Pay-as-you-go" },
+    { value: "pro", label: "AI Pro / Ultra" }
+  ];
+
+  function tierLabel(value) {
+    for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
+    return value;
   }
-  localStorage.setItem(TOKEN_KEY, value);
-  document.getElementById("authHint").textContent = "";
-  await refresh();
-});
 
-document.getElementById("refresh").addEventListener("click", refresh);
-
-document.getElementById("auto").addEventListener("change", (ev) => {
-  clearInterval(state.timer);
-  state.timer = ev.target.checked ? setInterval(refresh, 15000) : null;
-});
-
-document.getElementById("all").addEventListener("change", (ev) => {
-  for (const box of document.querySelectorAll("#keyRows input[type=checkbox]")) box.checked = ev.target.checked;
-});
-
-document.getElementById("applyTier").addEventListener("click", async () => {
-  const ids = selected();
-  if (!ids.length) {
-    say(document.getElementById("bulkMsg"), "Select at least one key.", "err");
-    return;
+  function statusKind(status) {
+    if (status === "ready") return "ok";
+    if (status === "cooling") return "warn";
+    return "bad";
   }
-  try {
-    const res = await api("/pengatur/keys/tier", {
-      method: "POST",
-      body: { ids: ids, tier: document.getElementById("tierSel").value },
+
+  function visibleKeys() {
+    var query = state.query;
+    return state.keys.filter(function (k) {
+      if (state.status && k.status !== state.status) return false;
+      if (!query) return true;
+      return (k.key + " " + k.id + " " + k.status + " " + (k.tier || "unknown")).toLowerCase().indexOf(query) >= 0;
     });
-    say(document.getElementById("bulkMsg"), "updated " + (res.updated ?? ids.length) + " keys", "ok");
-    await refresh();
-  } catch (err) {
-    say(document.getElementById("bulkMsg"), err.message, "err");
   }
+
+  function selectedIds() {
+    var out = [];
+    for (var id in state.selected) if (state.selected[id]) out.push(id);
+    return out;
+  }
+
+  function paintBulk() {
+    var ids = selectedIds();
+    el.bulkBar.hidden = ids.length === 0;
+    el.selCount.textContent = ids.length + " selected";
+  }
+
+  function drawTable() {
+    var filtered = visibleKeys();
+    el.listMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
+
+    if (!filtered.length) {
+      el.keysBody.textContent = "";
+      el.keysBody.appendChild(GX.state(
+        "empty",
+        state.keys.length ? "No key matches this filter" : "Pool is empty",
+        state.keys.length
+          ? "Clear the filter box to see the whole pool."
+          : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
+      ));
+      renderPager(0, 1);
+      return;
+    }
+
+    var pages = Math.max(1, Math.ceil(filtered.length / state.size));
+    if (state.page > pages) state.page = pages;
+    if (state.page < 1) state.page = 1;
+    var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
+
+    var table = GX.el("table", { class: "table" });
+    var head = GX.el("thead", null, GX.el("tr", null, [
+      GX.el("th", { class: "num" }, GX.el("input", {
+        type: "checkbox",
+        id: "selectAll",
+        "aria-label": "Select every key on this page"
+      })),
+      GX.el("th", { text: "Id" }),
+      GX.el("th", { text: "Key" }),
+      GX.el("th", { text: "Plan" }),
+      GX.el("th", { text: "Status" }),
+      GX.el("th", { class: "num", text: "Fails" }),
+      GX.el("th", { class: "num", text: "Cooldown" }),
+      GX.el("th", { text: "Last used" }),
+      GX.el("th", { class: "num", text: "" })
+    ]));
+    table.appendChild(head);
+
+    var body = GX.el("tbody");
+    slice.forEach(function (k) {
+      var tr = GX.el("tr");
+
+      var pick = GX.el("td", { class: "num pick" });
+      var box = GX.el("input", { type: "checkbox", "aria-label": "Select key " + k.key });
+      box.checked = Boolean(state.selected[k.id]);
+      box.addEventListener("change", function () {
+        state.selected[k.id] = box.checked;
+        paintBulk();
+      });
+      pick.appendChild(box);
+      tr.appendChild(pick);
+
+      var idCell = GX.el("td", { "data-l": "id" });
+      idCell.appendChild(GX.el("a", {
+        class: "mono",
+        href: "/pengatur/keys/" + encodeURIComponent(k.id),
+        text: k.id
+      }));
+      tr.appendChild(idCell);
+
+      var keyCell = GX.el("td", { class: "key", "data-l": "key" });
+      keyCell.textContent = k.key;
+      tr.appendChild(keyCell);
+
+      var tierCell = GX.el("td", { "data-l": "plan" });
+      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
+      TIERS.forEach(function (t) {
+        var option = GX.el("option", { value: t.value, text: t.label });
+        if ((k.tier || "unknown") === t.value) option.selected = true;
+        select.appendChild(option);
+      });
+      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
+      tierCell.appendChild(select);
+      tr.appendChild(tierCell);
+
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(GX.badge(k.status, statusKind(k.status)));
+      tr.appendChild(statusCell);
+
+      GX.cell(tr, k.failures, "num", "fails");
+      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num cool", "cooldown");
+      GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
+
+      var actions = GX.el("td", { class: "actions" });
+      var testBtn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      testBtn.addEventListener("click", function () { testKey(k, testBtn); });
+      var delBtn = GX.el("button", { class: "small btn-danger", type: "button", text: "Remove" });
+      delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
+      actions.appendChild(testBtn);
+      actions.appendChild(delBtn);
+      tr.appendChild(actions);
+
+      body.appendChild(tr);
+    });
+
+    table.appendChild(body);
+    el.keysBody.textContent = "";
+    el.keysBody.appendChild(table);
+
+    var all = document.getElementById("selectAll");
+    all.addEventListener("change", function () {
+      slice.forEach(function (k) { state.selected[k.id] = all.checked; });
+      drawTable();
+    });
+
+    renderPager(filtered.length, pages);
+    paintBulk();
+  }
+
+  function renderPager(total, pages) {
+    el.keyPager.textContent = "";
+    if (!total) return;
+    el.keyPager.appendChild(GX.el("span", {
+      text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
+        Math.min(total, state.page * state.size) + " of " + total
+    }));
+
+    var box = GX.el("div", { class: "pages" });
+    function mk(label, page, disabled, active) {
+      var b = GX.el("button", {
+        class: "small" + (active ? " active" : ""),
+        type: "button",
+        text: label,
+        disabled: disabled ? true : null
+      });
+      if (active) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      return b;
+    }
+    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
+    var win = 5;
+    var from = Math.max(1, state.page - Math.floor(win / 2));
+    var to = Math.min(pages, from + win - 1);
+    from = Math.max(1, to - win + 1);
+    if (from > 1) {
+      box.appendChild(mk("1", 1, false, state.page === 1));
+      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
+    }
+    for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
+    if (to < pages) {
+      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
+      box.appendChild(mk(String(pages), pages, false, state.page === pages));
+    }
+    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
+    el.keyPager.appendChild(box);
+  }
+
+  function setTier(ids, tier, control) {
+    if (!ids.length) { GX.say(el.bulkMsg, "Select at least one key.", "err"); return; }
+    if (control) control.disabled = true;
+    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
+      .then(function (data) {
+        GX.say(el.bulkMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Plan update failed: " + err.message, "err");
+      })
+      .then(function () { if (control) control.disabled = false; });
+  }
+
+  function testKey(k, btn) {
+    btn.disabled = true;
+    btn.textContent = "Testing";
+    GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
+      .then(function (data) {
+        GX.say(el.bulkMsg, k.key + ": " + data.probe.status + " (" + data.applied + ")", data.probe.status === "ok" ? "ok" : "");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Test failed: " + err.message, "err");
+      })
+      .then(function () {
+        btn.disabled = false;
+        btn.textContent = "Test";
+      });
+  }
+
+  function testAll() {
+    GX.busy(el.testAllBtn, "Testing");
+    GX.api("/pengatur/keys/test-all", { method: "POST" })
+      .then(function (data) {
+        GX.say(el.bulkMsg, "Tested " + data.tested + " keys.", "ok");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Test all failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.testAllBtn); });
+  }
+
+  function removeKey(k, btn) {
+    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    btn.disabled = true;
+    GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
+      .then(function (data) {
+        GX.say(el.bulkMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        delete state.selected[k.id];
+        return reload();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        GX.say(el.bulkMsg, "Remove failed: " + err.message, "err");
+      });
+  }
+
+  function removeSelected() {
+    var ids = selectedIds();
+    if (!ids.length) return;
+    if (!window.confirm("Remove " + ids.length + " key(s) from the pool? This cannot be undone.")) return;
+    GX.busy(el.bulkRemove, "Removing");
+    var chain = Promise.resolve();
+    ids.forEach(function (id) {
+      chain = chain.then(function () {
+        return GX.api("/pengatur/keys", { method: "DELETE", body: { id: id } });
+      });
+    });
+    chain
+      .then(function () {
+        GX.say(el.bulkMsg, "Removed " + ids.length + " key(s).", "ok");
+        state.selected = {};
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Remove failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.bulkRemove); });
+  }
+
+  function addKeys() {
+    var raw = el.newKeys.value;
+    var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
+    GX.busy(el.addSubmit, "Adding");
+    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
+      .then(function (data) {
+        el.newKeys.value = "";
+        el.addCount.textContent = "";
+        GX.say(el.addMsg, "Sent " + data.received + ", added " + data.added + ".", data.added ? "ok" : "");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.addMsg, "Add failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.addSubmit); });
+  }
+
+  function refresh() {
+    return GX.api("/pengatur/keys/list")
+      .then(function (data) {
+        state.keys = data.keys || [];
+        state.knownTiers = data.knownTiers || [];
+        var pool = data.pool || {};
+        el.sTotal.textContent = pool.total;
+        el.sReady.textContent = pool.ready;
+        el.sCooling.textContent = pool.cooling;
+        el.sDead.textContent = pool.dead;
+        el.sStorage.textContent = pool.storage;
+        GX.storage(pool.storage + (pool.degraded ? " degraded" : ""));
+        el.poolMeta.textContent = (pool.degraded ? "storage degraded, serving from memory · " : "") +
+          "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+        var keep = el.bulkTier.value;
+        el.bulkTier.textContent = "";
+        state.knownTiers.forEach(function (t) {
+          el.bulkTier.appendChild(GX.el("option", { value: t, text: tierLabel(t) }));
+        });
+        if (keep) el.bulkTier.value = keep;
+        drawTable();
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        GX.say(el.bulkMsg, "Refresh failed: " + err.message, "err");
+      });
+  }
+
+  function reload() {
+    return refresh().catch(function () {});
+  }
+
+  function startAuto() {
+    if (state.timer || !el.auto.checked) return;
+    state.timer = GX.every(15000, reload);
+  }
+  function stopAuto() {
+    if (state.timer) { state.timer(); state.timer = null; }
+  }
+
+  el.addBtn.addEventListener("click", function () {
+    GX.say(el.addMsg, "");
+    GX.openDialog(el.addDialog);
+    if (el.newKeys) el.newKeys.focus();
+  });
+  el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
+  el.newKeys.addEventListener("input", function () {
+    var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
+    el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
+  });
+  el.refreshBtn.addEventListener("click", function () { reload(); });
+  el.testAllBtn.addEventListener("click", testAll);
+  el.auto.addEventListener("change", function () {
+    if (el.auto.checked) startAuto(); else stopAuto();
+  });
+  el.bulkApply.addEventListener("click", function () { setTier(selectedIds(), el.bulkTier.value, el.bulkApply); });
+  el.bulkRemove.addEventListener("click", removeSelected);
+  el.bulkClear.addEventListener("click", function () {
+    state.selected = {};
+    drawTable();
+  });
+  el.keyFilter.addEventListener("input", GX.debounce(function () {
+    state.query = el.keyFilter.value.trim().toLowerCase();
+    state.page = 1;
+    drawTable();
+  }, 140));
+  el.keyStatus.addEventListener("change", function () {
+    state.status = el.keyStatus.value;
+    state.page = 1;
+    drawTable();
+  });
+  el.keySize.addEventListener("change", function () {
+    state.size = Number(el.keySize.value) || 25;
+    state.page = 1;
+    drawTable();
+  });
+
+  GX.gate({
+    onSuccess: function () {
+      return refresh().then(function () { startAuto(); });
+    }
+  });
+})();`;
+
+export const KEYS_HTML = consolePage({
+  title: "Keys",
+  subtitle: "Every pooled key, its plan and its health",
+  active: "/pengatur/keys",
+  actions: `<button id="addBtn" class="btn btn-primary" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 4.5v11"/><path d="M4.5 10h11"/></svg>Add keys</button>`,
+  body: PAGE_BODY,
+  script: PAGE_SCRIPT,
 });
 
-document.getElementById("testAll").addEventListener("click", async (ev) => {
-  ev.currentTarget.disabled = true;
-  say(document.getElementById("bulkMsg"), "testing…", "");
-  try {
-    const res = await api("/pengatur/keys/test-all", { method: "POST" });
-    say(document.getElementById("bulkMsg"), "tested " + (res.tested ?? 0) + " keys", "ok");
-    await refresh();
-  } catch (err) {
-    say(document.getElementById("bulkMsg"), err.message, "err");
-  } finally {
-    ev.currentTarget.disabled = false;
-  }
-});
+/**
+ * Key detail shell, served at GET /pengatur/keys/:id.
+ *
+ * One key: its counters, the daily request chart, the cooldown timeline and
+ * the requests still in the live ring. Carries no data, the browser reads
+ * /pengatur/keys/:id/data with the admin token.
+ */
 
-document.getElementById("addBtn").addEventListener("click", async () => {
-  const raw = document.getElementById("newKeys").value;
-  const keys = raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-  if (!keys.length) {
-    say(document.getElementById("addMsg"), "Paste at least one key.", "err");
-    return;
-  }
-  try {
-    const res = await api("/pengatur/keys", { method: "POST", body: { keys: keys } });
-    say(document.getElementById("addMsg"), "added " + (res.added ?? keys.length) + " keys", "ok");
-    document.getElementById("newKeys").value = "";
-    await refresh();
-  } catch (err) {
-    say(document.getElementById("addMsg"), err.message, "err");
-  }
-});
+const DETAIL_BODY = `
 
-document.getElementById("keyRows").addEventListener("click", async (ev) => {
-  const testId = ev.target.dataset?.test;
-  const delId = ev.target.dataset?.del;
-  if (testId) await act(async (id) => {
-    const res = await api("/pengatur/keys/test", { method: "POST", body: { id: id } });
-    say(document.getElementById("keyMsg"), id + ": " + (res.probe?.status ?? "tested") + " (" + (res.applied ?? "none") + ")", "ok");
-    await refresh();
-  })({ currentTarget: ev.target });
-  else if (delId) await act(async (id) => {
-    await api("/pengatur/keys", { method: "DELETE", body: { id: id } });
-    say(document.getElementById("keyMsg"), "deleted " + id, "ok");
-    await refresh();
-  })({ currentTarget: ev.target });
-});
+<section id="gate" class="panel"><div class="panel-head"><div class="panel-title">Admin token</div></div><div class="panel-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>
 
-refresh();
-</script>
-</body>
-</html>`;
+<section id="console" hidden>
+  <div class="row" style="margin-bottom:4px">
+    <a class="btn btn-ghost small" href="/pengatur/keys"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4 6 10l6 6"/></svg>All keys</a>
+    <span class="hint" id="keyPath"></span>
+  </div>
 
-export const KEY_DETAIL_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Key detail</title>
-<style>
-:root { --bg:#0b0d12; --panel:#12151d; --line:#242938; --ink:#e6e9f0; --dim:#8b93a7; --accent:#6ea8fe; --ok:#3ecf8e; --warn:#e0b341; --err:#ef6b6b; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
-header { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--line); }
-header h1 { font-size:16px; margin:0; font-weight:600; }
-header a { color:var(--dim); text-decoration:none; }
-header a:hover { color:var(--accent); }
-.dim { color:var(--dim); margin-left:auto; font-size:12px; }
-main { padding:18px 20px; display:grid; gap:14px; max-width:1200px; }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
-.panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:0 0 10px; font-weight:600; }
-.row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-button { background:#1a1f2b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 11px; font:inherit; cursor:pointer; }
-button:hover { border-color:var(--accent); }
-button:disabled { opacity:.45; cursor:not-allowed; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0d12; font-weight:600; }
-input { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
-input[type=password] { width:280px; }
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
-th { color:var(--dim); font-weight:500; font-size:12px; }
-tr:last-child td { border-bottom:none; }
-.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
-.tag.ok { color:var(--ok); border-color:var(--ok); }
-.tag.warn { color:var(--warn); border-color:var(--warn); }
-.tag.err { color:var(--err); border-color:var(--err); }
-.msg { min-height:20px; font-size:13px; }
-.msg.err { color:var(--err); }
-.msg.ok { color:var(--ok); }
-.hint { color:var(--dim); font-size:12px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
-.stat b { display:block; font-size:18px; font-variant-numeric:tabular-nums; }
-.stat span { color:var(--dim); font-size:12px; }
-.bar { height:8px; background:var(--accent); border-radius:2px; min-width:1px; }
-.barCell { width:180px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Key</h1>
-  <a href="/pengatur/keys">keys</a>
-  <a href="/pengatur/stats">stats</a>
-  <span class="dim" id="authState">token required</span>
-</header>
-<main>
-  <section class="panel" id="authPanel">
-    <h2>Admin token</h2>
-    <div class="row">
-      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-      <button class="primary" id="connect">Connect</button>
-      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+  <div class="stats" id="summary"></div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Daily requests <span class="meta" id="dailyNote"></span></div>
     </div>
-    <div class="msg" id="authHint"></div>
+    <div class="panel-body">
+      <div id="dailyBars" class="bars"></div>
+    </div>
+    <div class="tablewrap">
+      <table class="table" id="dailyTable">
+        <thead><tr><th>Day</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Cost</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </section>
 
-  <section class="panel" id="summaryPanel" hidden>
-    <h2 id="keyTitle">Summary</h2>
-    <div class="grid" id="summary"></div>
-    <div class="msg" id="summaryMsg"></div>
-  </section>
+  <div class="grid split">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Cooldown timeline</div>
+        <span class="meta" id="cooldownNote"></span>
+      </div>
+      <div class="tablewrap">
+        <table class="table" id="eventTable">
+          <thead><tr><th>When</th><th>Status</th><th>Error</th><th>Rotated</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="eventEmpty"></div>
+      </div>
+    </section>
 
-  <section class="panel" id="chartPanel" hidden>
-    <h2>Daily requests</h2>
-    <div class="msg" id="chartNote"></div>
-    <table>
-      <thead><tr><th>day</th><th>requests</th><th></th><th>errors</th><th>cost</th></tr></thead>
-      <tbody id="dailyRows"></tbody>
-    </table>
-  </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Recent requests</div>
+        <span class="meta" id="recentNote"></span>
+      </div>
+      <div class="tablewrap">
+        <table class="table" id="recentTable">
+          <thead><tr><th>When</th><th>Route</th><th>Model</th><th>Status</th><th class="num">ms</th><th class="num">Tokens</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="recentEmpty"></div>
+      </div>
+    </section>
+  </div>
+</section>
+`;
 
-  <section class="panel" id="cooldownPanel" hidden>
-    <h2>Cooldown timeline</h2>
-    <div class="msg" id="coolNow"></div>
-    <table>
-      <thead><tr><th>when</th><th>status</th><th>error</th><th>rotated</th></tr></thead>
-      <tbody id="eventRows"></tbody>
-    </table>
-  </section>
+const DETAIL_SCRIPT = `(function () {
+  "use strict";
 
-  <section class="panel" id="recentPanel" hidden>
-    <h2>Recent requests</h2>
-    <div class="msg" id="recentNote"></div>
-    <table>
-      <thead><tr><th>when</th><th>route</th><th>model</th><th>status</th><th>ms</th><th>tokens</th></tr></thead>
-      <tbody id="recentRows"></tbody>
-    </table>
-  </section>
-</main>
-<script>
-const TOKEN_KEY = "geminesx.admin.token";
-const keyId = location.pathname.split("/").filter(Boolean).pop();
+  var keyId = location.pathname.split("/").filter(Boolean).pop();
 
-function token() {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
+  var el = {
+    console: document.getElementById("console"),
+    summary: document.getElementById("summary"),
+    keyPath: document.getElementById("keyPath"),
+    dailyNote: document.getElementById("dailyNote"),
+    dailyBars: document.getElementById("dailyBars"),
+    dailyTable: document.getElementById("dailyTable"),
+    cooldownNote: document.getElementById("cooldownNote"),
+    eventTable: document.getElementById("eventTable"),
+    eventEmpty: document.getElementById("eventEmpty"),
+    recentNote: document.getElementById("recentNote"),
+    recentTable: document.getElementById("recentTable"),
+    recentEmpty: document.getElementById("recentEmpty")
+  };
 
-async function api(path) {
-  const res = await fetch(path, { headers: { authorization: "Bearer " + token() } });
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
+  function stat(label, value) {
+    return GX.el("div", { class: "stat" }, [
+      GX.el("b", { text: value === null || value === undefined ? "-" : String(value) }),
+      GX.el("span", { text: label })
+    ]);
   }
-  if (!res.ok || (data && data.ok === false)) {
-    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
-    throw new Error(message);
+
+  function statusKind(status) {
+    if (status === "ready") return "ok";
+    if (status === "cooling") return "warn";
+    return "bad";
   }
-  return data;
-}
 
-function say(node, text, cls) {
-  node.textContent = text;
-  node.className = "msg" + (cls ? " " + cls : "");
-}
-
-function when(ms) {
-  if (!ms) return "-";
-  const d = new Date(ms);
-  return d.toISOString().replace("T", " ").slice(0, 19);
-}
-
-function left(ms) {
-  if (!ms || ms <= 0) return "-";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return s + "s";
-  if (s < 3600) return Math.round(s / 60) + "m";
-  return Math.round(s / 3600) + "h";
-}
-
-function cell(text) {
-  const td = document.createElement("td");
-  td.textContent = text == null ? "-" : String(text);
-  return td;
-}
-
-function tagCell(status, ok) {
-  const td = document.createElement("td");
-  const span = document.createElement("span");
-  span.className = "tag " + (ok ? "ok" : status === 429 ? "warn" : "err");
-  span.textContent = String(status);
-  td.appendChild(span);
-  return td;
-}
-
-function summaryStat(label, value) {
-  const box = document.createElement("div");
-  box.className = "stat";
-  const b = document.createElement("b");
-  b.textContent = value == null ? "-" : String(value);
-  const s = document.createElement("span");
-  s.textContent = label;
-  box.appendChild(b);
-  box.appendChild(s);
-  document.getElementById("summary").appendChild(box);
-}
-
-function renderDaily(daily) {
-  const body = document.getElementById("dailyRows");
-  body.innerHTML = "";
-  const max = daily.reduce((m, d) => Math.max(m, Number(d.requests) || 0), 0);
-  for (const d of daily) {
-    const tr = document.createElement("tr");
-    const barTd = document.createElement("td");
-    barTd.className = "barCell";
-    const bar = document.createElement("div");
-    bar.className = "bar";
-    bar.style.width = max > 0 ? Math.round(((Number(d.requests) || 0) / max) * 100) + "%" : "0%";
-    barTd.appendChild(bar);
-    tr.appendChild(cell(d.day));
-    tr.appendChild(cell(d.requests));
-    tr.appendChild(barTd);
-    tr.appendChild(cell(d.errors));
-    tr.appendChild(cell(d.costUsd == null ? "-" : "$" + Number(d.costUsd).toFixed(4)));
-    body.appendChild(tr);
+  function renderSummary(k) {
+    el.summary.textContent = "";
+    el.summary.appendChild(stat("plan", k.plan));
+    el.summary.appendChild(stat("state", k.status));
+    el.summary.appendChild(stat("enabled", k.enabled === false ? "no" : "yes"));
+    el.summary.appendChild(stat("failures", k.failures));
+    el.summary.appendChild(stat("invalidations", k.invalidations));
+    el.summary.appendChild(stat("last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never"));
+    el.summary.appendChild(stat("cooldown left", GX.fmt.left(k.cooldownLeftMs)));
+    el.summary.appendChild(stat("cooldown until", k.cooldownUntil ? GX.fmt.stamp(k.cooldownUntil) : "-"));
   }
-}
 
-function renderEvents(events) {
-  const body = document.getElementById("eventRows");
-  body.innerHTML = "";
-  for (const e of events) {
-    const tr = document.createElement("tr");
-    tr.appendChild(cell(when(e.ts)));
-    tr.appendChild(tagCell(e.status, e.ok));
-    tr.appendChild(cell(e.errorCode));
-    tr.appendChild(cell(e.rotated ? "yes" : "no"));
-    body.appendChild(tr);
+  function renderDaily(daily) {
+    el.dailyNote.textContent = daily.length ? "last " + daily.length + " days" : "";
+    el.dailyBars.textContent = "";
+    el.dailyTable.querySelector("tbody").textContent = "";
+    el.dailyTable.hidden = !daily.length;
+
+    if (!daily.length) {
+      el.dailyBars.appendChild(GX.state("empty", "No daily history", "The rollup keeps one bucket per day for this key."));
+      return;
+    }
+
+    var max = 0;
+    daily.forEach(function (d) { max = Math.max(max, Number(d.requests) || 0); });
+
+    daily.forEach(function (d) {
+      var requests = Number(d.requests) || 0;
+      var width = max > 0 ? Math.round((requests / max) * 100) : 0;
+      var row = GX.el("div", { class: "bar-row" }, [
+        GX.el("span", { class: "label", text: d.day }),
+        GX.el("div", { class: "bar-track" }, GX.el("div", { class: "bar-fill", style: "width:" + width + "%" })),
+        GX.el("span", { class: "value", text: GX.fmt.num(requests) })
+      ]);
+      el.dailyBars.appendChild(row);
+    });
+
+    daily.forEach(function (d) {
+      var tr = GX.el("tr");
+      GX.cell(tr, d.day, "", "day");
+      GX.cell(tr, GX.fmt.num(d.requests), "num", "requests");
+      GX.cell(tr, GX.fmt.num(d.errors), "num", "errors");
+      GX.cell(tr, d.costUsd === null || d.costUsd === undefined ? "-" : GX.fmt.money(d.costUsd), "num", "cost");
+      el.dailyTable.querySelector("tbody").appendChild(tr);
+    });
   }
-}
 
-function renderRecent(recent) {
-  const body = document.getElementById("recentRows");
-  body.innerHTML = "";
-  for (const r of recent) {
-    const tr = document.createElement("tr");
-    tr.appendChild(cell(when(r.ts)));
-    tr.appendChild(cell(r.route));
-    tr.appendChild(cell(r.model));
-    tr.appendChild(tagCell(r.status, r.status >= 200 && r.status < 300));
-    tr.appendChild(cell(r.latencyMs));
-    tr.appendChild(cell(r.totalTokens));
-    body.appendChild(tr);
+  function renderEvents(events) {
+    var body = el.eventTable.querySelector("tbody");
+    body.textContent = "";
+    el.eventEmpty.textContent = "";
+    el.eventTable.hidden = !events.length;
+    el.cooldownNote.textContent = events.length ? events.length + " events" : "";
+    if (!events.length) {
+      el.eventEmpty.appendChild(GX.state("empty", "No failures recorded", "Every request this key served succeeded."));
+      return;
+    }
+    events.forEach(function (e) {
+      var tr = GX.el("tr");
+      GX.cell(tr, GX.fmt.stamp(e.ts), "mono", "when");
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(GX.badge(String(e.status), e.ok ? "ok" : e.status === 429 ? "warn" : "bad"));
+      tr.appendChild(statusCell);
+      GX.cell(tr, e.errorCode || "-", "", "error");
+      GX.cell(tr, e.rotated ? "yes" : "no", "", "rotated");
+      body.appendChild(tr);
+    });
   }
-}
 
-function render(d) {
-  const k = d.key;
-  document.getElementById("keyTitle").textContent = k.masked + " · " + k.id;
-  document.getElementById("summary").innerHTML = "";
-  summaryStat("plan", k.plan);
-  summaryStat("state", k.status);
-  summaryStat("enabled", k.enabled === false ? "no" : "yes");
-  summaryStat("failures", k.failures);
-  summaryStat("invalidations", k.invalidations);
-  summaryStat("last used", when(k.lastUsed));
-  summaryStat("cooldown left", left(k.cooldownLeftMs));
-  summaryStat("cooldown until", when(k.cooldownUntil));
-
-  say(document.getElementById("chartNote"), d.dailyNote ?? "", "");
-  renderDaily(d.daily ?? []);
-
-  const cool = d.cooldown ?? {};
-  say(
-    document.getElementById("coolNow"),
-    "status " + (cool.status ?? "ready") +
-      " · until " + when(cool.until) +
-      " · left " + left(cool.leftMs),
-    "",
-  );
-  renderEvents(d.events ?? []);
-
-  say(document.getElementById("recentNote"), (d.recent ?? []).length + " rows from the ring", "");
-  renderRecent(d.recent ?? []);
-
-  for (const id of ["summaryPanel", "chartPanel", "cooldownPanel", "recentPanel"]) {
-    document.getElementById(id).hidden = false;
+  function renderRecent(recent) {
+    var body = el.recentTable.querySelector("tbody");
+    body.textContent = "";
+    el.recentEmpty.textContent = "";
+    el.recentTable.hidden = !recent.length;
+    el.recentNote.textContent = recent.length ? recent.length + " rows" : "";
+    if (!recent.length) {
+      el.recentEmpty.appendChild(GX.state("empty", "No request in the ring", "The live ring keeps the last requests that passed through the gateway."));
+      return;
+    }
+    recent.forEach(function (r) {
+      var tr = GX.el("tr");
+      GX.cell(tr, GX.fmt.clock(r.ts), "mono", "when");
+      GX.cell(tr, r.route, "mono", "route");
+      GX.cell(tr, r.model || "-", "mono", "model");
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(GX.badge(String(r.status), r.ok ? "ok" : "bad"));
+      tr.appendChild(statusCell);
+      GX.cell(tr, GX.fmt.num(r.latencyMs), "num", "ms");
+      GX.cell(tr, GX.fmt.num(r.totalTokens), "num", "tokens");
+      body.appendChild(tr);
+    });
   }
-}
 
-async function refresh() {
-  try {
-    const data = await api("/pengatur/keys/" + encodeURIComponent(keyId) + "/data");
-    render(data);
-    document.getElementById("authState").textContent = "connected";
-    say(document.getElementById("summaryMsg"), "", "");
-  } catch (err) {
-    say(document.getElementById("summaryMsg"), err.message, "err");
+  function render(d) {
+    var k = d.key;
+    el.keyPath.textContent = k.masked + " · id " + k.id;
+    var head = document.querySelector(".pagebar h1");
+    if (head) head.textContent = k.masked;
+    renderSummary(k);
+    renderDaily(d.daily || []);
+    renderEvents(d.events || []);
+    renderRecent(d.recent || []);
+    el.dailyNote.textContent = d.dailyNote || el.dailyNote.textContent;
+    el.console.hidden = false;
   }
-}
 
-document.getElementById("token").value = token();
-
-document.getElementById("connect").addEventListener("click", async () => {
-  const value = document.getElementById("token").value.trim();
-  if (!value) {
-    say(document.getElementById("authHint"), "Paste the admin token.", "err");
-    return;
+  function refresh() {
+    return GX.api("/pengatur/keys/" + encodeURIComponent(keyId) + "/data")
+      .then(render)
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        if (err.status === 404) {
+          GX.lock("No key with that id.");
+          throw err;
+        }
+        el.console.hidden = false;
+        el.dailyBars.textContent = "";
+        el.dailyBars.appendChild(GX.state("error", "Could not load this key", err.message));
+      });
   }
-  localStorage.setItem(TOKEN_KEY, value);
-  say(document.getElementById("authHint"), "", "");
-  await refresh();
+
+  GX.gate({ onSuccess: refresh });
+})();`;
+
+export const KEY_DETAIL_HTML = consolePage({
+  title: "Key detail",
+  subtitle: "One key, its counters, its history",
+  active: "/pengatur/keys",
+  body: DETAIL_BODY,
+  script: DETAIL_SCRIPT,
 });
-
-refresh();
-</script>
-</body>
-</html>`;
