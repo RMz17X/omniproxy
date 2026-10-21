@@ -413,10 +413,19 @@ app.post("/internal/rollup", async (c) => {
   }
   const requested = bodyDay ?? new URL(c.req.url).searchParams.get("day") ?? undefined;
 
-  // Neither call throws: both return zeroed counts when the database is
-  // absent or the breaker is open.
+  // Neither call throws; a failed query returns ok:false with its reason, so a
+  // broken aggregation surfaces as 500 instead of a silent zero-bucket success.
   const rolled = await rollupDay(requested ?? defaultDay());
+  if (!rolled.ok) {
+    return c.json({ error: { message: `Rollup failed: ${rolled.error}` } }, 500);
+  }
   const pruned = await pruneOlderThan();
+  if (!pruned.ok) {
+    return c.json(
+      { day: rolled.day, buckets: rolled.buckets, error: { message: `Prune failed: ${pruned.error}` } },
+      500,
+    );
+  }
   return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
 });
 

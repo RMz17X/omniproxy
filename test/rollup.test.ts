@@ -34,18 +34,26 @@ test("rollup deletes the day's buckets and rebuilds them from raw events", async
   const calls = fakeDb([{ "?column?": 1 }, { "?column?": 1 }]);
   try {
     const res = await rollupDay("2026-10-21");
-    expect(res).toEqual({ day: "2026-10-21", buckets: 2 });
+    expect(res).toEqual({ day: "2026-10-21", buckets: 2, ok: true });
 
-    expect(calls.length).toBe(1);
-    const text = calls[0].text;
-    // Recompute-and-replace: the clear and the insert are one statement, so a
-    // second run cannot leave stale or duplicated buckets behind.
-    expect(text).toContain("delete from usage_daily where day = $1::date");
+    // Recompute-and-replace in two statements: clearing first is what makes a
+    // rerun converge instead of failing on the primary key.
+    expect(calls.length).toBe(2);
+    expect(calls[0].text).toContain("delete from usage_daily where day = $1::date");
+    expect(calls[0].params).toEqual(["2026-10-21"]);
+    const text = calls[1].text;
     expect(text).toContain("insert into usage_daily");
+    expect(text).toContain("on conflict (day, route, model, key_id) do update");
     expect(text).toContain("percentile_cont(0.5)");
     expect(text).toContain("percentile_cont(0.95)");
     expect(text).toContain("count(*) filter (where status >= 400)");
-    expect(calls[0].params).toEqual([
+    // usage_daily stores prompt and completion tokens only. Naming a column the
+    // table does not have makes the whole statement fail with 42703, and the
+    // failure is invisible unless ok:false is surfaced.
+    const insert = text.slice(text.indexOf("insert into usage_daily"));
+    expect(insert).not.toContain("total_tokens");
+    expect(insert).toContain("prompt_tokens, completion_tokens");
+    expect(calls[1].params).toEqual([
       "2026-10-21",
       "2026-10-20T17:00:00.000Z",
       "2026-10-21T17:00:00.000Z",
@@ -60,9 +68,11 @@ test("running the same day twice issues the same statement", async () => {
   try {
     await rollupDay("2026-10-21");
     await rollupDay("2026-10-21");
-    expect(calls.length).toBe(2);
-    expect(calls[0].text).toBe(calls[1].text);
-    expect(calls[0].params).toEqual(calls[1].params);
+    expect(calls.length).toBe(4);
+    expect(calls[0].text).toBe(calls[2].text);
+    expect(calls[1].text).toBe(calls[3].text);
+    expect(calls[0].params).toEqual(calls[2].params);
+    expect(calls[1].params).toEqual(calls[3].params);
   } finally {
     setSqlRunner(null);
   }
@@ -82,7 +92,7 @@ test("an invalid day falls back to yesterday instead of failing", async () => {
 test("retention deletes old events and keeps the daily table", async () => {
   const calls = fakeDb([{}, {}, {}]);
   try {
-    expect(await pruneOlderThan(30)).toEqual({ pruned: 3 });
+    expect(await pruneOlderThan(30)).toEqual({ pruned: 3, ok: true });
     expect(calls[0].text).toContain("delete from usage_events");
     expect(calls[0].text).not.toContain("usage_daily");
     expect(calls[0].params).toEqual([30]);
@@ -93,6 +103,27 @@ test("retention deletes old events and keeps the daily table", async () => {
 
 test("no database configured is a zero, not a throw", async () => {
   setSqlRunner(null);
-  expect(await rollupDay("2026-10-21")).toEqual({ day: "2026-10-21", buckets: 0 });
-  expect(await pruneOlderThan(30)).toEqual({ pruned: 0 });
+  expect(await rollupDay("2026-10-21")).toEqual({
+    day: "2026-10-21",
+    buckets: 0,
+    ok: false,
+    error: "database disabled",
+  });
+  expect(await pruneOlderThan(30)).toEqual({ pruned: 0, ok: false, error: "database disabled" });
+});
+
+test("a rejected query reports ok:false with its reason instead of a zero", async () => {
+  setSqlRunner((async () => ({
+    ok: false,
+    reason: "error",
+    message: 'column "total_tokens" does not exist',
+  })) as SqlRunner);
+  try {
+    const res = await rollupDay("2026-10-21");
+    expect(res.ok).toBe(false);
+    expect(res.buckets).toBe(0);
+    expect(res.error).toContain("total_tokens");
+  } finally {
+    setSqlRunner(null);
+  }
 });

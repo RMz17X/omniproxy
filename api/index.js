@@ -12047,17 +12047,18 @@ function normalizeDay(day) {
 }
 async function rollupDay(day) {
   const target = normalizeDay(day);
-  if (!dbEnabled()) return { day: target, buckets: 0 };
+  if (!dbEnabled()) return { day: target, buckets: 0, ok: false, error: "database disabled" };
   const start = dayStart(target);
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1e3);
+  const cleared = await sql("delete from usage_daily where day = $1::date", [target]);
+  if (!cleared.ok) {
+    return { day: target, buckets: 0, ok: false, error: `${cleared.reason}: ${cleared.message}` };
+  }
   const text = `
-with cleared as (
-  delete from usage_daily where day = $1::date returning 1
-)
 insert into usage_daily (
   day, route, model, key_id,
   requests, errors, rotated,
-  prompt_tokens, completion_tokens, total_tokens,
+  prompt_tokens, completion_tokens,
   cost_usd, p50_ms, p95_ms
 )
 select
@@ -12070,27 +12071,35 @@ select
   (count(*) filter (where rotated))::int,
   coalesce(sum(prompt_tokens), 0)::bigint,
   coalesce(sum(completion_tokens), 0)::bigint,
-  coalesce(sum(total_tokens), 0)::bigint,
   coalesce(sum(cost_usd), 0)::numeric,
   percentile_cont(0.5) within group (order by latency_ms)::int,
   percentile_cont(0.95) within group (order by latency_ms)::int
 from usage_events
 where ts >= $2::timestamptz and ts < $3::timestamptz
 group by route, coalesce(model, ''), coalesce(key_id, '')
+on conflict (day, route, model, key_id) do update set
+  requests = excluded.requests,
+  errors = excluded.errors,
+  rotated = excluded.rotated,
+  prompt_tokens = excluded.prompt_tokens,
+  completion_tokens = excluded.completion_tokens,
+  cost_usd = excluded.cost_usd,
+  p50_ms = excluded.p50_ms,
+  p95_ms = excluded.p95_ms
 returning 1`;
   const res = await sql(text, [target, start.toISOString(), end.toISOString()]);
-  if (!res.ok) return { day: target, buckets: 0 };
-  return { day: target, buckets: res.rows.length };
+  if (!res.ok) return { day: target, buckets: 0, ok: false, error: `${res.reason}: ${res.message}` };
+  return { day: target, buckets: res.rows.length, ok: true };
 }
 async function pruneOlderThan(days = cfg.retentionDays) {
-  if (!dbEnabled()) return { pruned: 0 };
+  if (!dbEnabled()) return { pruned: 0, ok: false, error: "database disabled" };
   const keep = Number.isFinite(days) && days > 0 ? Math.floor(days) : cfg.retentionDays;
   const res = await sql(
     "delete from usage_events where ts < now() - make_interval(days => $1::int) returning 1",
     [keep]
   );
-  if (!res.ok) return { pruned: 0 };
-  return { pruned: res.rows.length };
+  if (!res.ok) return { pruned: 0, ok: false, error: `${res.reason}: ${res.message}` };
+  return { pruned: res.rows.length, ok: true };
 }
 function defaultDay(now2 = Date.now()) {
   return yesterdayWib(now2);
@@ -13014,7 +13023,16 @@ app.post("/internal/rollup", async (c) => {
   }
   const requested = bodyDay ?? new URL(c.req.url).searchParams.get("day") ?? void 0;
   const rolled = await rollupDay(requested ?? defaultDay());
+  if (!rolled.ok) {
+    return c.json({ error: { message: `Rollup failed: ${rolled.error}` } }, 500);
+  }
   const pruned = await pruneOlderThan();
+  if (!pruned.ok) {
+    return c.json(
+      { day: rolled.day, buckets: rolled.buckets, error: { message: `Prune failed: ${pruned.error}` } },
+      500
+    );
+  }
   return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
 });
 app.notFound(

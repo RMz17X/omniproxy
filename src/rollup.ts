@@ -19,11 +19,19 @@ export type RollupResult = {
   day: WibDay;
   /** Buckets written into `usage_daily`. */
   buckets: number;
+  /** False when the database was absent, timed out, or rejected the query. */
+  ok: boolean;
+  /** Failure reason when `ok` is false. */
+  error?: string;
 };
 
 export type PruneResult = {
   /** `usage_events` rows deleted. */
   pruned: number;
+  /** False when the database was absent, timed out, or rejected the query. */
+  ok: boolean;
+  /** Failure reason when `ok` is false. */
+  error?: string;
 };
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -56,19 +64,25 @@ function normalizeDay(day: string | undefined): WibDay {
 /** Recompute one WIB day of `usage_daily` from `usage_events`. */
 export async function rollupDay(day?: string): Promise<RollupResult> {
   const target = normalizeDay(day);
-  if (!dbEnabled()) return { day: target, buckets: 0 };
+  if (!dbEnabled()) return { day: target, buckets: 0, ok: false, error: "database disabled" };
 
   const start = dayStart(target);
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
+  // Two statements, in this order. A data-modifying CTE cannot clear and refill
+  // the same key in one statement: the unique index check still sees the row the
+  // CTE is deleting, so the run dies with a duplicate key violation instead of
+  // rebuilding the bucket.
+  const cleared = await sql("delete from usage_daily where day = $1::date", [target]);
+  if (!cleared.ok) {
+    return { day: target, buckets: 0, ok: false, error: `${cleared.reason}: ${cleared.message}` };
+  }
+
   const text = `
-with cleared as (
-  delete from usage_daily where day = $1::date returning 1
-)
 insert into usage_daily (
   day, route, model, key_id,
   requests, errors, rotated,
-  prompt_tokens, completion_tokens, total_tokens,
+  prompt_tokens, completion_tokens,
   cost_usd, p50_ms, p95_ms
 )
 select
@@ -81,30 +95,38 @@ select
   (count(*) filter (where rotated))::int,
   coalesce(sum(prompt_tokens), 0)::bigint,
   coalesce(sum(completion_tokens), 0)::bigint,
-  coalesce(sum(total_tokens), 0)::bigint,
   coalesce(sum(cost_usd), 0)::numeric,
   percentile_cont(0.5) within group (order by latency_ms)::int,
   percentile_cont(0.95) within group (order by latency_ms)::int
 from usage_events
 where ts >= $2::timestamptz and ts < $3::timestamptz
 group by route, coalesce(model, ''), coalesce(key_id, '')
+on conflict (day, route, model, key_id) do update set
+  requests = excluded.requests,
+  errors = excluded.errors,
+  rotated = excluded.rotated,
+  prompt_tokens = excluded.prompt_tokens,
+  completion_tokens = excluded.completion_tokens,
+  cost_usd = excluded.cost_usd,
+  p50_ms = excluded.p50_ms,
+  p95_ms = excluded.p95_ms
 returning 1`;
 
   const res = await sql(text, [target, start.toISOString(), end.toISOString()]);
-  if (!res.ok) return { day: target, buckets: 0 };
-  return { day: target, buckets: res.rows.length };
+  if (!res.ok) return { day: target, buckets: 0, ok: false, error: `${res.reason}: ${res.message}` };
+  return { day: target, buckets: res.rows.length, ok: true };
 }
 
 /** Delete `usage_events` older than `days`. `usage_daily` is kept. */
 export async function pruneOlderThan(days: number = cfg.retentionDays): Promise<PruneResult> {
-  if (!dbEnabled()) return { pruned: 0 };
+  if (!dbEnabled()) return { pruned: 0, ok: false, error: "database disabled" };
   const keep = Number.isFinite(days) && days > 0 ? Math.floor(days) : cfg.retentionDays;
   const res = await sql(
     "delete from usage_events where ts < now() - make_interval(days => $1::int) returning 1",
     [keep],
   );
-  if (!res.ok) return { pruned: 0 };
-  return { pruned: res.rows.length };
+  if (!res.ok) return { pruned: 0, ok: false, error: `${res.reason}: ${res.message}` };
+  return { pruned: res.rows.length, ok: true };
 }
 
 /** Default target: yesterday WIB. */
