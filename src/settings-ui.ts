@@ -1,181 +1,179 @@
 /**
- * Settings console shell, served at GET /pengatur/settings.
+ * Settings console, served at GET /pengatur/settings.
  *
- * Read-only by design: cooldowns and tokens are deploy-time values on the
- * host, so the page reports them and says so, and never renders a token value
- * — only `set` or `unset`. The shell carries no data; it reads
+ * Read only by design: cooldowns and tokens are deploy time values on the
+ * host, so the page reports them and says so, and never renders a token
+ * value, only set or unset. The shell carries no data; it reads
  * /pengatur/settings/data with the pasted admin token.
+ *
+ * Layout: one panel per configuration group, each a two column definition
+ * grid, then the environment table and the caveat note.
  */
 
-export const SETTINGS_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Settings · geminesx</title>
-<style>
-:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
-header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
-header h1 { font-size:15px; margin:0; font-weight:600; }
-header a { color:var(--accent); text-decoration:none; }
-header .dim, .dim { color:var(--dim); }
-main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
-.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
-.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
-button:hover:not(:disabled) { border-color:var(--accent); }
-button:disabled { opacity:.45; cursor:not-allowed; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
-input { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
-input[type=password] { width:280px; }
-button:focus-visible, input:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
-th { color:var(--dim); font-weight:500; font-size:12px; }
-tr:last-child td { border-bottom:none; }
-code { color:var(--ink); }
-.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
-.tag.ok { color:var(--ok); border-color:var(--ok); }
-.tag.miss { color:var(--dim); }
-.msg { min-height:20px; font-size:13px; }
-.msg.err { color:var(--err); }
-.msg.ok { color:var(--ok); }
-.hint { color:var(--dim); font-size:12px; }
-.note { border-left:2px solid var(--warn); padding-left:10px; color:var(--dim); font-size:13px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Settings</h1>
-  <a href="/pengatur/stats">stats</a>
-  <a href="/pengatur/keys">keys</a>
-  <a href="/pengatur/audit">audit</a>
-  <a href="/pengatur/logs">logs</a>
-  <span class="dim" id="authState">token required</span>
-</header>
-<main>
-  <section class="panel" id="authPanel">
-    <h2>Admin token</h2>
-    <div class="row">
-      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-      <button class="primary" id="connect">Connect</button>
-      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+import { authGate, consolePage } from "./ui.ts";
+
+const PAGE_BODY = `
+
+${authGate()}
+
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sDefaults">0</b><span class="k">defaults</span></div>
+    <div class="kv"><b id="sLimits">0</b><span class="k">limits</span></div>
+    <div class="kv"><b id="sLedger">0</b><span class="k">ledger</span></div>
+    <div class="kv"><b id="sEnv">0</b><span class="k">env vars</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="sStorage">-</div>
+  </div>
+
+  <div class="grid cols2">
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Defaults</div></div>
+      <div class="panel-body"><div class="defs" id="defaults"></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Limits</div></div>
+      <div class="panel-body"><div class="defs" id="limits"></div></div>
+    </section>
+  </div>
+
+  <div class="grid cols2">
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Ledger and storage</div></div>
+      <div class="panel-body">
+        <div class="defs" id="ledger"></div>
+        <div class="sep" style="margin:12px 0"></div>
+        <div class="defs" id="storage"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Environment</div>
+        <span class="meta">values are never shown</span>
+      </div>
+      <div class="tablewrap scroll-y">
+        <table class="table" id="envTable">
+          <thead><tr><th>Name</th><th>State</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Caveats</div>
     </div>
-    <div class="msg" id="authMsg"></div>
-  </section>
-
-  <section class="panel" id="viewPanel" hidden>
-    <h2>Effective configuration</h2>
-    <div class="row" style="margin-bottom:12px">
-      <button id="refresh">Refresh</button>
-      <button id="exportBtn">Export JSON</button>
-      <span class="hint">Export contains no secret values.</span>
+    <div class="panel-body">
+      <p class="hint" id="note"></p>
+      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
-    <div class="msg" id="msg"></div>
-    <div id="body"></div>
-    <p class="note" id="note"></p>
   </section>
-</main>
-<script>
-const TOKEN_KEY = "geminesx.admin.token";
+</section>
+`;
 
-function token() {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
+const PAGE_SCRIPT = `(function () {
+  "use strict";
 
-async function api(path, opts) {
-  const init = Object.assign({ headers: {} }, opts ?? {});
-  init.headers = Object.assign({}, init.headers, { authorization: "Bearer " + token() });
-  const res = await fetch(path, init);
-  let data = null;
-  try { data = await res.json(); } catch { data = null; }
-  if (!res.ok) {
-    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
-    throw new Error(message);
+  var el = {
+    console: document.getElementById("console"),
+    sDefaults: document.getElementById("sDefaults"),
+    sLimits: document.getElementById("sLimits"),
+    sLedger: document.getElementById("sLedger"),
+    sEnv: document.getElementById("sEnv"),
+    sStorage: document.getElementById("sStorage"),
+    defaults: document.getElementById("defaults"),
+    limits: document.getElementById("limits"),
+    ledger: document.getElementById("ledger"),
+    storage: document.getElementById("storage"),
+    envTable: document.getElementById("envTable"),
+    note: document.getElementById("note"),
+    msg: document.getElementById("msg"),
+    refresh: document.getElementById("refreshBtn"),
+    exportBtn: document.getElementById("exportBtn")
+  };
+
+  function defs(node, obj) {
+    node.textContent = "";
+    var keys = Object.keys(obj || {});
+    if (!keys.length) {
+      node.appendChild(GX.state("empty", "Nothing reported", "This group is empty in the current configuration."));
+      return 0;
+    }
+    keys.forEach(function (key) {
+      node.appendChild(GX.el("div", { class: "def" }, [
+        GX.el("dt", { text: key }),
+        GX.el("dd", { class: "mono", text: obj[key] === null || obj[key] === undefined ? "-" : String(obj[key]) })
+      ]));
+    });
+    return keys.length;
   }
-  return data;
-}
 
-function say(node, text, cls) {
-  node.textContent = text;
-  node.className = "msg" + (cls ? " " + cls : "");
-}
-
-function esc(v) {
-  return String(v).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-}
-
-function table(title, obj) {
-  const rows = Object.entries(obj)
-    .map(([k, v]) => "<tr><th>" + esc(k) + "</th><td>" + esc(v) + "</td></tr>")
-    .join("");
-  return "<h2>" + esc(title) + "</h2><table><tbody>" + rows + "</tbody></table>";
-}
-
-function render(d) {
-  const parts = [];
-  parts.push(table("Defaults", d.defaults));
-  parts.push(table("Limits (ms)", d.limits));
-  parts.push(table("Ledger", d.ledger));
-  parts.push(table("Storage", d.storage));
-  const env = (d.env ?? [])
-    .map((e) => "<tr><td><code>" + esc(e.name) + "</code></td><td><span class=\"tag " + (e.state === "set" ? "ok\"\>set" : "miss\">unset") + "</span></td></tr>")
-    .join("");
-  parts.push("<h2>Environment</h2><table><thead><tr><th>name</th><th>state</th></tr></thead><tbody>" + env + "</tbody></table>");
-  document.getElementById("body").innerHTML = parts.join("");
-  document.getElementById("note").textContent = d.note ?? "";
-}
-
-async function refresh() {
-  try {
-    render(await api("/pengatur/settings/data"));
-    say(document.getElementById("msg"), "", "");
-    document.getElementById("viewPanel").hidden = false;
-    document.getElementById("authPanel").hidden = true;
-  } catch (err) {
-    say(document.getElementById("msg"), err.message, "err");
+  function renderEnv(rows) {
+    var body = el.envTable.querySelector("tbody");
+    body.textContent = "";
+    (rows || []).forEach(function (row) {
+      var tr = GX.el("tr");
+      GX.cell(tr, row.name, "mono", "name");
+      var stateCell = GX.el("td", { "data-l": "state" });
+      stateCell.appendChild(GX.badge(row.state === "set" ? "set" : "unset", row.state === "set" ? "ok" : ""));
+      tr.appendChild(stateCell);
+      body.appendChild(tr);
+    });
   }
-}
 
-document.getElementById("token").value = token();
+  function render(d) {
+    el.sDefaults.textContent = defs(el.defaults, d.defaults);
+    el.sLimits.textContent = defs(el.limits, d.limits);
+    el.sLedger.textContent = defs(el.ledger, d.ledger);
+    defs(el.storage, d.storage);
+    renderEnv(d.env);
+    el.sEnv.textContent = (d.env || []).length;
+    el.sStorage.textContent = (d.storage && d.storage.mode) ? d.storage.mode : "-";
+    GX.storage((d.storage && d.storage.mode) ? d.storage.mode : "-");
+    el.note.textContent = d.note || "";
+  }
 
-document.getElementById("connect").addEventListener("click", async () => {
-  const value = document.getElementById("token").value.trim();
-  if (!value) { say(document.getElementById("authMsg"), "Token is empty.", "err"); return; }
-  localStorage.setItem(TOKEN_KEY, value);
-  document.getElementById("authState").textContent = "token saved";
-  say(document.getElementById("authMsg"), "", "");
-  await refresh();
+  function refresh() {
+    return GX.api("/pengatur/settings/data")
+      .then(function (d) {
+        render(d);
+        GX.say(el.msg, "");
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        GX.say(el.msg, err.message, "err");
+      });
+  }
+
+  function reload() {
+    return refresh().catch(function () {});
+  }
+
+  el.refresh.addEventListener("click", function () { reload(); });
+  el.exportBtn.addEventListener("click", function () {
+    GX.busy(el.exportBtn, "Exporting");
+    GX.download("/pengatur/settings/export", "geminesx-config.json")
+      .catch(function (err) {
+        GX.say(el.msg, err.message, "err");
+      })
+      .then(function () { GX.idle(el.exportBtn); });
+  });
+
+  GX.gate({ onSuccess: refresh });
+})();`;
+
+export const SETTINGS_HTML = consolePage({
+  title: "Settings",
+  subtitle: "The effective configuration of this deployment",
+  active: "/pengatur/settings",
+  actions: `<button id="exportBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/></svg>Export JSON</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
+  body: PAGE_BODY,
+  script: PAGE_SCRIPT,
 });
-
-document.getElementById("refresh").addEventListener("click", refresh);
-
-document.getElementById("exportBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("exportBtn");
-  btn.disabled = true;
-  try {
-    const res = await fetch("/pengatur/settings/export", { headers: { authorization: "Bearer " + token() } });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (res.headers.get("content-disposition") ?? "").match(/filename="([^"]+)"/)?.[1] ?? "geminesx-config.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    say(document.getElementById("msg"), err.message, "err");
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-if (token()) refresh();
-</script>
-</body>
-</html>`;
