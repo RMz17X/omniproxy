@@ -11,7 +11,7 @@
  * so the browser never holds a raw credential.
  */
 
-import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
+import { authGate, confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
 
 const OVERVIEW_BODY = `
 ${authGate()}
@@ -129,6 +129,8 @@ ${authGate()}
     </div>
   </div>
 </div>
+
+${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
@@ -502,7 +504,7 @@ const OVERVIEW_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.addMsg, "Plan update failed: " + err.message, "err");
+        GX.notice("Plan update failed: " + err.message, "err");
       })
       .then(function () { if (control) control.disabled = false; });
   }
@@ -520,7 +522,7 @@ const OVERVIEW_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.addMsg, "Test failed: " + err.message, "err");
+        GX.notice("Test failed: " + err.message, "err");
       })
       .then(function () {
         btn.disabled = false;
@@ -540,7 +542,7 @@ const OVERVIEW_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.addMsg, "Test all failed: " + err.message, "err");
+        GX.notice("Test all failed: " + err.message, "err");
       })
       .then(function () {
         GX.idle(el.testAllBtn);
@@ -549,7 +551,19 @@ const OVERVIEW_SCRIPT = `
   }
 
   function removeKey(k, btn) {
-    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    GX.confirm({
+      title: "Remove this key?",
+      message:
+        "Remove " + k.key + " from the pool. The gateway stops serving with it. " +
+        "It cannot be restored from this console, because the raw key never reaches the browser.",
+      confirmLabel: "Remove key"
+    }).then(function (ok) {
+      if (!ok) return;
+      removeKeyNow(k, btn);
+    });
+  }
+
+  function removeKeyNow(k, btn) {
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
@@ -609,7 +623,7 @@ const OVERVIEW_SCRIPT = `
         GX.lock(err.message + " Re-enter the token.");
         throw err;
       }
-      GX.say(el.addMsg, "Refresh failed: " + err.message, "err");
+      GX.notice("Refresh failed: " + err.message, "err");
     });
   }
 

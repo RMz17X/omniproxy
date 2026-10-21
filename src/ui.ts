@@ -19,6 +19,8 @@
  * - every colour comes from a custom property, never from a literal
  */
 
+import { storageMode } from "./pool.ts";
+
 export const BASE_CSS = `
 :root {
   color-scheme: dark;
@@ -127,7 +129,10 @@ svg { display: block; }
   display: flex;
   align-items: center;
   gap: var(--sp-5);
+  width: 100%;
+  max-width: 1320px;
   min-height: 58px;
+  margin: 0 auto;
   padding: 0 var(--inset);
   border-bottom: 1px solid var(--line);
   background: var(--bg);
@@ -179,7 +184,7 @@ svg { display: block; }
 #console { display: grid; gap: var(--sp-6); align-content: start; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
 .page-head h1 { font-size: 24px; letter-spacing: -0.02em; }
-.page-head .sub { margin-top: 2px; color: var(--text-2); font-size: 13.5px; }
+.page-head .sub { margin-top: var(--sp-1); color: var(--text-2); font-size: 13.5px; }
 .page-head .meta { color: var(--text-3); font-size: 12.5px; }
 
 /* grids ------------------------------------------------------------------- */
@@ -205,7 +210,7 @@ svg { display: block; }
   padding: var(--sp-3) var(--inset);
   border-bottom: 1px solid var(--line);
 }
-.card-head h2, .card-head h3 { font-size: 14.5px; font-weight: 620; }
+.card-head h1, .card-head h2, .card-head h3 { font-size: 14.5px; font-weight: 620; }
 .card-head .meta { margin-left: auto; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
 .card-head .actions { display: flex; align-items: center; gap: var(--sp-2); }
 .card-body { padding: var(--sp-4) var(--inset); }
@@ -238,15 +243,15 @@ svg { display: block; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: var(--sp-3) var(--sp-4); flex: 1; min-width: 0; width: 100%; }
 .fact .l { color: var(--text-3); font-size: 12.5px; }
 .fact .v { font-size: 20px; font-weight: 650; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
-.fact .l { margin-bottom: 2px; }
+.fact .l { margin-bottom: var(--sp-1); }
 .fact .v.ok { color: var(--ok); }
 .fact .v.warn { color: var(--warn); }
 .fact .v.bad { color: var(--bad); }
 
 .donut { position: relative; width: 108px; height: 108px; flex: 0 0 108px; display: grid; place-items: center; border-radius: 50%; }
-.donut::after { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--card); }
-.donut b { position: relative; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
-.donut small { position: relative; display: block; margin-top: -4px; color: var(--text-3); font-size: 11.5px; text-align: center; }
+.donut::before { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--card); }
+.donut b { position: relative; z-index: 1; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.donut small { position: relative; z-index: 1; display: block; margin-top: -4px; color: var(--text-3); font-size: 11.5px; text-align: center; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -279,7 +284,7 @@ svg { display: block; }
 .attn-item { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-3) var(--inset); border-bottom: 1px solid var(--line); }
 .attn-item:last-child { border-bottom: 0; }
 .attn-item:hover { background: var(--card-2); text-decoration: none; }
-.attn-item .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: 0 0 8px; }
+.attn-item .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: var(--sp-2); flex: 0 0 7px; }
 .attn-item .t { display: block; font-size: 13.5px; font-weight: 580; }
 .attn-item .d { display: block; color: var(--text-3); font-size: 12.5px; }
 .attn-item .go { margin-left: auto; align-self: center; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
@@ -294,6 +299,7 @@ svg { display: block; }
 /* tables ------------------------------------------------------------------ */
 
 .tablewrap { overflow-x: auto; }
+.tablewrap .state { padding: var(--sp-5) var(--inset); }
 .scroll-y { max-height: 420px; overflow-y: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .table thead th {
@@ -314,7 +320,7 @@ svg { display: block; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table .key { font-family: var(--mono); font-size: 12.5px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table .actions { text-align: right; white-space: nowrap; }
-.table .actions .btn + .btn { margin-left: 6px; }
+.table .actions .btn + .btn { margin-left: var(--sp-2); }
 .table .sub { color: var(--text-3); font-size: 12px; }
 .table select { width: auto; min-width: 118px; height: 30px; padding: 0 var(--sp-6) 0 var(--sp-2); font-size: 12.5px; }
 .table .link { color: var(--text); }
@@ -330,7 +336,7 @@ svg { display: block; }
   font-weight: 550;
   white-space: nowrap;
 }
-.tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+.tag i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 7px; }
 .tag.ok { color: var(--ok); background: var(--wash-ok); }
 .tag.warn { color: var(--warn); background: var(--wash-warn); }
 .tag.bad { color: var(--bad); background: var(--wash-bad); }
@@ -402,7 +408,7 @@ select {
   background-size: 15px 15px;
 }
 .input::placeholder, input::placeholder, textarea::placeholder { color: var(--text-3); }
-.field { display: block; margin-bottom: 6px; color: var(--text-3); font-size: 12.5px; }
+.field { display: block; margin-bottom: var(--sp-1); color: var(--text-3); font-size: 12.5px; }
 .check { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12.5px; cursor: pointer; }
 .check { min-height: 24px; }
 .check input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--info); }
@@ -413,7 +419,7 @@ select {
 
 .seg { display: inline-flex; padding: var(--sp-1); gap: var(--sp-1); border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .seg button {
-  height: 28px;
+  height: var(--tap-sm);
   padding: 0 12px;
   border: 0;
   border-radius: 7px;
@@ -440,7 +446,7 @@ select {
 .state b { display: block; margin-bottom: 4px; color: var(--text); font-size: 14.5px; }
 .state.error, .state.error b { color: var(--bad); }
 .state .hint { margin-top: 4px; color: var(--text-3); font-size: 12.5px; }
-.state .retry { margin-top: 14px; }
+.state .retry { margin-top: var(--sp-4); }
 
 /* pager ------------------------------------------------------------------- */
 
@@ -528,14 +534,14 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
   display: none;
   padding: var(--sp-3) var(--inset);
   border: 1px solid var(--line);
-  border-left: 2px solid var(--warn);
   border-radius: var(--r-ctl);
   background: var(--card);
   color: var(--text-2);
   font-size: 13px;
 }
+.page-note b { color: var(--warn); }
 .page-note.show { display: block; }
-.page-note b { color: var(--text); font-weight: 620; }
+.page-note b { color: var(--warn); font-weight: 620; }
 
 .donut-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-3); }
 .donut-legend span { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--text-2); font-size: 12.5px; }
@@ -545,11 +551,21 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 .donut-legend i.bad { background: var(--bad); }
 
 .pickbox { display: inline-grid; place-items: center; width: 24px; height: 24px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* utilities --------------------------------------------------------------- */
 
 .row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
-.row.tight { gap: 6px; }
+.row.tight { gap: var(--sp-2); }
 .row.end { justify-content: flex-end; }
 .grow { flex: 1 1 180px; min-width: 0; }
 .spacer { flex: 1; }
@@ -578,7 +594,8 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 .def { display: flex; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
 .def dt { color: var(--text-2); }
 .def dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; overflow-wrap: anywhere; }
-.backlink { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+.def:last-child { border-bottom: 0; }
+.backlink { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-2); font-size: 13px; }
 .backlink:hover { color: var(--text); text-decoration: none; }
 
 /* responsive -------------------------------------------------------------- */
@@ -586,7 +603,6 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 @media (max-width: 900px) {
   .topbar { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
   .topbar-right { flex-wrap: wrap; }
-  #railStorage { display: none; }
   .nav { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; }
   .nav::-webkit-scrollbar { display: none; }
   .topbar-right { margin-left: auto; }
@@ -626,6 +642,7 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
   .table td.key { max-width: none; white-space: normal; overflow-wrap: anywhere; }
   .table td.pick { display: block; padding: 2px 0 6px; text-align: left; }
   .table tbody td.num { text-align: left; }
+  .table tbody td > .tag { justify-self: start; }
   .table td.actions { grid-template-columns: minmax(0, 1fr); text-align: left; display: flex; gap: 6px; padding-top: 10px; }
   .table td.actions .btn + .btn { margin-left: 0; }
   .card-head { flex-wrap: wrap; }
@@ -720,7 +737,11 @@ export function navBar(active: string, actions = ""): string {
     "</nav>" +
     '<div class="topbar-right">' +
     '<span class="status-pill warn" id="railSession"><i></i>no token</span>' +
-    '<span class="status-pill" id="railStorage" hidden><i></i></span>' +
+    `<span class="status-pill${storageMode === "memory" ? " warn" : ""}" id="railStorage" title="${
+      storageMode === "memory"
+        ? "The key pool and the request ledger live in this process. A restart empties them."
+        : "Key identities and the usage ledger are stored in Postgres."
+    }"><i></i>${storageMode}</span>` +
     actions +
     "</div>" +
     "</header>"
@@ -831,7 +852,7 @@ export function noticeBand(): string {
 export function authGate(): string {
   return (
     '<section class="card" id="gate">' +
-    '<div class="card-head"><h2>Admin token</h2></div>' +
+    '<div class="card-head"><h1>Admin token</h1></div>' +
     '<div class="card-body">' +
     '<form id="gateForm" autocomplete="off">' +
     '<label class="field" for="token">Paste the deployment admin token</label>' +
@@ -844,6 +865,24 @@ export function authGate(): string {
     '<div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>' +
     "</div>" +
     "</section>"
+  );
+}
+
+/**
+ * The confirmation dialog. It replaces the browser's own confirm box, which
+ * belongs to another product and cannot name the action.
+ */
+export function confirmDialog(): string {
+  return (
+    '<dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">' +
+    '<div class="card-head"><h2 id="confirmTitle">Are you sure?</h2></div>' +
+    '<div class="card-body"><p id="confirmMessage" class="hint"></p></div>' +
+    '<div class="card-foot">' +
+    '<button id="confirmCancel" class="btn" type="button">Cancel</button>' +
+    '<span class="spacer"></span>' +
+    '<button id="confirmOk" class="btn btn-danger" type="button">Confirm</button>' +
+    "</div>" +
+    "</dialog>"
   );
 }
 
@@ -1022,7 +1061,6 @@ export const CLIENT_JS = `
       var node = document.getElementById("railStorage");
       if (!node) return;
       node.textContent = text;
-      node.hidden = !text;
       node.className = "status-pill" + (tone ? " " + tone : "");
     },
 
@@ -1097,7 +1135,6 @@ export const CLIENT_JS = `
         ? "conic-gradient(var(--ok) 0 " + ok + "%, var(--warn) " + ok + "% " + (ok + warn) + "%, var(--bad) " + (ok + warn) + "% 100%)"
         : "var(--card-3)";
       ring.appendChild(GX.el("b", { text: String(ready) }));
-      ring.appendChild(GX.el("small", { text: "of " + total + " ready" }));
       return ring;
     },
 
@@ -1254,6 +1291,46 @@ export const CLIENT_JS = `
       if (!node) return;
       node.textContent = text || "";
       node.className = "notice" + (kind ? " " + kind : "");
+    },
+
+    /* A confirmation that looks like the product. Resolves true when the
+       operator confirms, false when they cancel or press Escape. */
+    confirm: function (opts) {
+      opts = opts || {};
+      var dialog = document.getElementById("confirmDialog");
+      if (!dialog) return Promise.resolve(window.confirm(opts.message || "Are you sure?"));
+      var title = document.getElementById("confirmTitle");
+      var message = document.getElementById("confirmMessage");
+      var ok = document.getElementById("confirmOk");
+      var cancel = document.getElementById("confirmCancel");
+      if (title) title.textContent = opts.title || "Are you sure?";
+      if (message) message.textContent = opts.message || "";
+      if (ok) ok.textContent = opts.confirmLabel || "Confirm";
+      return new Promise(function (resolve) {
+        function done(value) {
+          ok.removeEventListener("click", onOk);
+          cancel.removeEventListener("click", onCancel);
+          dialog.removeEventListener("close", onClose);
+          GX.closeDialog(dialog);
+          resolve(value);
+        }
+        function onOk() { done(true); }
+        function onCancel() { done(false); }
+        function onClose() { done(false); }
+        ok.addEventListener("click", onOk);
+        cancel.addEventListener("click", onCancel);
+        dialog.addEventListener("close", onClose);
+        GX.openDialog(dialog);
+      });
+    },
+
+    /* A table with no rows must not draw a frame. The state takes its place. */
+    tableState: function (table, emptyNode, isEmpty, stateNode) {
+      if (table) table.hidden = isEmpty;
+      if (emptyNode) {
+        emptyNode.textContent = "";
+        if (isEmpty && stateNode) emptyNode.appendChild(stateNode);
+      }
     },
 
     /* The page level notice band. Always mounted, so every outcome the

@@ -198,6 +198,7 @@ const MODELS_SCRIPT = `
       renderPager(0, 1);
       return;
     }
+    el.body.textContent = "";
 
     var table = GX.el("table", { class: "table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
@@ -329,11 +330,12 @@ const MODELS_SCRIPT = `
         el.console.hidden = false;
         renderKpis();
         GX.say(el.msg, "Could not load the model list: " + err.message, "err");
+        el.asOf.textContent = "pricing unavailable";
         el.body.textContent = "";
         el.body.appendChild(GX.state(
           "error",
           "Live list unavailable",
-          "The pool has no key that can answer the model list right now. Add or revive a key in Keys."
+          err.message + " Check the key in Keys, then refresh the list."
         ));
       })
       .then(function () { GX.idle(el.reloadBtn); });

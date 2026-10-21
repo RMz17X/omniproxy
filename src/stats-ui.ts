@@ -45,6 +45,7 @@ ${authGate()}
     </div>
     <div class="card-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
+      <table class="sr-only" id="heatTable"></table>
       <p class="hint u-mt-4" id="heatNote" ></p>
       <div id="heatEmpty"></div>
     </div>
@@ -151,12 +152,14 @@ const STATS_SCRIPT = `
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
-    empty.textContent = "";
     document.getElementById(metaId).textContent = rows && rows.length ? rows.length + (rows.length === 1 ? " row" : " rows") : "";
-    if (!rows || !rows.length) {
-      empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
-      return;
-    }
+    GX.tableState(
+      table,
+      empty,
+      !rows || !rows.length,
+      GX.state("empty", "Nothing in this range", "No request matched the selected window.")
+    );
+    if (!rows || !rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       cols.forEach(function (c, index) {
@@ -173,12 +176,14 @@ const STATS_SCRIPT = `
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById("byStatusEmpty");
-    empty.textContent = "";
     document.getElementById("byStatusMeta").textContent = rows && rows.length ? rows.length + " codes" : "";
-    if (!rows || !rows.length) {
-      empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
-      return;
-    }
+    GX.tableState(
+      table,
+      empty,
+      !rows || !rows.length,
+      GX.state("empty", "Nothing in this range", "No request matched the selected window.")
+    );
+    if (!rows || !rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       GX.cell(tr, r.key, "", "status");
@@ -230,6 +235,23 @@ const STATS_SCRIPT = `
       ? "Peak: " + DAYS[peak.weekday] + " " + (peak.hour < 10 ? "0" + peak.hour : peak.hour) +
         ":00 with " + GX.fmt.num(peak.requests) + " requests. " + GX.fmt.num(cells.length) + " cells carry traffic."
       : "";
+
+    /* The same numbers as a table, for anyone who cannot read a colour map. */
+    var sr = document.getElementById("heatTable");
+    if (sr) {
+      sr.textContent = "";
+      sr.appendChild(GX.el("caption", { text: "Requests by hour and weekday" }));
+      var head = GX.el("tr", null, [GX.el("th", { text: "Day" })]);
+      for (var hr = 0; hr < 24; hr++) head.appendChild(GX.el("th", { text: (hr < 10 ? "0" + hr : hr) + ":00" }));
+      sr.appendChild(GX.el("thead", null, head));
+      var body = GX.el("tbody");
+      for (var d = 0; d < 7; d++) {
+        var row = GX.el("tr", null, [GX.el("th", { scope: "row", text: DAYS[d] })]);
+        for (var h = 0; h < 24; h++) row.appendChild(GX.el("td", { text: String(grid[d + ":" + h] || 0) }));
+        body.appendChild(row);
+      }
+      sr.appendChild(body);
+    }
   }
 
   function paint(d) {

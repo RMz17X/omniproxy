@@ -8879,7 +8879,10 @@ svg { display: block; }
   display: flex;
   align-items: center;
   gap: var(--sp-5);
+  width: 100%;
+  max-width: 1320px;
   min-height: 58px;
+  margin: 0 auto;
   padding: 0 var(--inset);
   border-bottom: 1px solid var(--line);
   background: var(--bg);
@@ -8931,7 +8934,7 @@ svg { display: block; }
 #console { display: grid; gap: var(--sp-6); align-content: start; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
 .page-head h1 { font-size: 24px; letter-spacing: -0.02em; }
-.page-head .sub { margin-top: 2px; color: var(--text-2); font-size: 13.5px; }
+.page-head .sub { margin-top: var(--sp-1); color: var(--text-2); font-size: 13.5px; }
 .page-head .meta { color: var(--text-3); font-size: 12.5px; }
 
 /* grids ------------------------------------------------------------------- */
@@ -8957,7 +8960,7 @@ svg { display: block; }
   padding: var(--sp-3) var(--inset);
   border-bottom: 1px solid var(--line);
 }
-.card-head h2, .card-head h3 { font-size: 14.5px; font-weight: 620; }
+.card-head h1, .card-head h2, .card-head h3 { font-size: 14.5px; font-weight: 620; }
 .card-head .meta { margin-left: auto; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
 .card-head .actions { display: flex; align-items: center; gap: var(--sp-2); }
 .card-body { padding: var(--sp-4) var(--inset); }
@@ -8990,15 +8993,15 @@ svg { display: block; }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: var(--sp-3) var(--sp-4); flex: 1; min-width: 0; width: 100%; }
 .fact .l { color: var(--text-3); font-size: 12.5px; }
 .fact .v { font-size: 20px; font-weight: 650; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
-.fact .l { margin-bottom: 2px; }
+.fact .l { margin-bottom: var(--sp-1); }
 .fact .v.ok { color: var(--ok); }
 .fact .v.warn { color: var(--warn); }
 .fact .v.bad { color: var(--bad); }
 
 .donut { position: relative; width: 108px; height: 108px; flex: 0 0 108px; display: grid; place-items: center; border-radius: 50%; }
-.donut::after { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--card); }
-.donut b { position: relative; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
-.donut small { position: relative; display: block; margin-top: -4px; color: var(--text-3); font-size: 11.5px; text-align: center; }
+.donut::before { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--card); }
+.donut b { position: relative; z-index: 1; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.donut small { position: relative; z-index: 1; display: block; margin-top: -4px; color: var(--text-3); font-size: 11.5px; text-align: center; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -9031,7 +9034,7 @@ svg { display: block; }
 .attn-item { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-3) var(--inset); border-bottom: 1px solid var(--line); }
 .attn-item:last-child { border-bottom: 0; }
 .attn-item:hover { background: var(--card-2); text-decoration: none; }
-.attn-item .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: 0 0 8px; }
+.attn-item .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: var(--sp-2); flex: 0 0 7px; }
 .attn-item .t { display: block; font-size: 13.5px; font-weight: 580; }
 .attn-item .d { display: block; color: var(--text-3); font-size: 12.5px; }
 .attn-item .go { margin-left: auto; align-self: center; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
@@ -9046,6 +9049,7 @@ svg { display: block; }
 /* tables ------------------------------------------------------------------ */
 
 .tablewrap { overflow-x: auto; }
+.tablewrap .state { padding: var(--sp-5) var(--inset); }
 .scroll-y { max-height: 420px; overflow-y: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .table thead th {
@@ -9066,7 +9070,7 @@ svg { display: block; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table .key { font-family: var(--mono); font-size: 12.5px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table .actions { text-align: right; white-space: nowrap; }
-.table .actions .btn + .btn { margin-left: 6px; }
+.table .actions .btn + .btn { margin-left: var(--sp-2); }
 .table .sub { color: var(--text-3); font-size: 12px; }
 .table select { width: auto; min-width: 118px; height: 30px; padding: 0 var(--sp-6) 0 var(--sp-2); font-size: 12.5px; }
 .table .link { color: var(--text); }
@@ -9082,7 +9086,7 @@ svg { display: block; }
   font-weight: 550;
   white-space: nowrap;
 }
-.tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+.tag i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 7px; }
 .tag.ok { color: var(--ok); background: var(--wash-ok); }
 .tag.warn { color: var(--warn); background: var(--wash-warn); }
 .tag.bad { color: var(--bad); background: var(--wash-bad); }
@@ -9154,7 +9158,7 @@ select {
   background-size: 15px 15px;
 }
 .input::placeholder, input::placeholder, textarea::placeholder { color: var(--text-3); }
-.field { display: block; margin-bottom: 6px; color: var(--text-3); font-size: 12.5px; }
+.field { display: block; margin-bottom: var(--sp-1); color: var(--text-3); font-size: 12.5px; }
 .check { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12.5px; cursor: pointer; }
 .check { min-height: 24px; }
 .check input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--info); }
@@ -9165,7 +9169,7 @@ select {
 
 .seg { display: inline-flex; padding: var(--sp-1); gap: var(--sp-1); border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .seg button {
-  height: 28px;
+  height: var(--tap-sm);
   padding: 0 12px;
   border: 0;
   border-radius: 7px;
@@ -9192,7 +9196,7 @@ select {
 .state b { display: block; margin-bottom: 4px; color: var(--text); font-size: 14.5px; }
 .state.error, .state.error b { color: var(--bad); }
 .state .hint { margin-top: 4px; color: var(--text-3); font-size: 12.5px; }
-.state .retry { margin-top: 14px; }
+.state .retry { margin-top: var(--sp-4); }
 
 /* pager ------------------------------------------------------------------- */
 
@@ -9280,14 +9284,14 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
   display: none;
   padding: var(--sp-3) var(--inset);
   border: 1px solid var(--line);
-  border-left: 2px solid var(--warn);
   border-radius: var(--r-ctl);
   background: var(--card);
   color: var(--text-2);
   font-size: 13px;
 }
+.page-note b { color: var(--warn); }
 .page-note.show { display: block; }
-.page-note b { color: var(--text); font-weight: 620; }
+.page-note b { color: var(--warn); font-weight: 620; }
 
 .donut-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-3); }
 .donut-legend span { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--text-2); font-size: 12.5px; }
@@ -9297,11 +9301,21 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 .donut-legend i.bad { background: var(--bad); }
 
 .pickbox { display: inline-grid; place-items: center; width: 24px; height: 24px; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 /* utilities --------------------------------------------------------------- */
 
 .row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
-.row.tight { gap: 6px; }
+.row.tight { gap: var(--sp-2); }
 .row.end { justify-content: flex-end; }
 .grow { flex: 1 1 180px; min-width: 0; }
 .spacer { flex: 1; }
@@ -9330,7 +9344,8 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 .def { display: flex; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
 .def dt { color: var(--text-2); }
 .def dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; overflow-wrap: anywhere; }
-.backlink { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+.def:last-child { border-bottom: 0; }
+.backlink { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-2); font-size: 13px; }
 .backlink:hover { color: var(--text); text-decoration: none; }
 
 /* responsive -------------------------------------------------------------- */
@@ -9338,7 +9353,6 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
 @media (max-width: 900px) {
   .topbar { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
   .topbar-right { flex-wrap: wrap; }
-  #railStorage { display: none; }
   .nav { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; }
   .nav::-webkit-scrollbar { display: none; }
   .topbar-right { margin-left: auto; }
@@ -9378,6 +9392,7 @@ dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
   .table td.key { max-width: none; white-space: normal; overflow-wrap: anywhere; }
   .table td.pick { display: block; padding: 2px 0 6px; text-align: left; }
   .table tbody td.num { text-align: left; }
+  .table tbody td > .tag { justify-self: start; }
   .table td.actions { grid-template-columns: minmax(0, 1fr); text-align: left; display: flex; gap: 6px; padding-top: 10px; }
   .table td.actions .btn + .btn { margin-left: 0; }
   .card-head { flex-wrap: wrap; }
@@ -9432,7 +9447,7 @@ function navBar(active, actions = "") {
     const isActive = item.href === current;
     return '<a href="' + item.href + '"' + (isActive ? ' aria-current="page"' : "") + ">" + item.label + "</a>";
   }).join("");
-  return '<header class="topbar"><a class="brand" href="/pengatur"><span class="logo" aria-hidden="true">G</span>GeminesX</a><nav class="nav" aria-label="Console sections">' + links + '</nav><div class="topbar-right"><span class="status-pill warn" id="railSession"><i></i>no token</span><span class="status-pill" id="railStorage" hidden><i></i></span>' + actions + "</div></header>";
+  return '<header class="topbar"><a class="brand" href="/pengatur"><span class="logo" aria-hidden="true">G</span>GeminesX</a><nav class="nav" aria-label="Console sections">' + links + `</nav><div class="topbar-right"><span class="status-pill warn" id="railSession"><i></i>no token</span><span class="status-pill${storageMode === "memory" ? " warn" : ""}" id="railStorage" title="${storageMode === "memory" ? "The key pool and the request ledger live in this process. A restart empties them." : "Key identities and the usage ledger are stored in Postgres."}"><i></i>${storageMode}</span>` + actions + "</div></header>";
 }
 function consolePage(o) {
   return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n' + navBar(o.active, o.actions ?? "") + '<main id="main" class="page">\n' + o.body + "\n</main>\n<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
@@ -9461,7 +9476,10 @@ function noticeBand() {
   return '<div id="pageNotice" class="page-notice" role="status" aria-live="polite"></div>';
 }
 function authGate() {
-  return '<section class="card" id="gate"><div class="card-head"><h2>Admin token</h2></div><div class="card-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>';
+  return '<section class="card" id="gate"><div class="card-head"><h1>Admin token</h1></div><div class="card-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>';
+}
+function confirmDialog() {
+  return '<dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage"><div class="card-head"><h2 id="confirmTitle">Are you sure?</h2></div><div class="card-body"><p id="confirmMessage" class="hint"></p></div><div class="card-foot"><button id="confirmCancel" class="btn" type="button">Cancel</button><span class="spacer"></span><button id="confirmOk" class="btn btn-danger" type="button">Confirm</button></div></dialog>';
 }
 var CLIENT_JS = `
 (function () {
@@ -9631,7 +9649,6 @@ var CLIENT_JS = `
       var node = document.getElementById("railStorage");
       if (!node) return;
       node.textContent = text;
-      node.hidden = !text;
       node.className = "status-pill" + (tone ? " " + tone : "");
     },
 
@@ -9706,7 +9723,6 @@ var CLIENT_JS = `
         ? "conic-gradient(var(--ok) 0 " + ok + "%, var(--warn) " + ok + "% " + (ok + warn) + "%, var(--bad) " + (ok + warn) + "% 100%)"
         : "var(--card-3)";
       ring.appendChild(GX.el("b", { text: String(ready) }));
-      ring.appendChild(GX.el("small", { text: "of " + total + " ready" }));
       return ring;
     },
 
@@ -9865,6 +9881,46 @@ var CLIENT_JS = `
       node.className = "notice" + (kind ? " " + kind : "");
     },
 
+    /* A confirmation that looks like the product. Resolves true when the
+       operator confirms, false when they cancel or press Escape. */
+    confirm: function (opts) {
+      opts = opts || {};
+      var dialog = document.getElementById("confirmDialog");
+      if (!dialog) return Promise.resolve(window.confirm(opts.message || "Are you sure?"));
+      var title = document.getElementById("confirmTitle");
+      var message = document.getElementById("confirmMessage");
+      var ok = document.getElementById("confirmOk");
+      var cancel = document.getElementById("confirmCancel");
+      if (title) title.textContent = opts.title || "Are you sure?";
+      if (message) message.textContent = opts.message || "";
+      if (ok) ok.textContent = opts.confirmLabel || "Confirm";
+      return new Promise(function (resolve) {
+        function done(value) {
+          ok.removeEventListener("click", onOk);
+          cancel.removeEventListener("click", onCancel);
+          dialog.removeEventListener("close", onClose);
+          GX.closeDialog(dialog);
+          resolve(value);
+        }
+        function onOk() { done(true); }
+        function onCancel() { done(false); }
+        function onClose() { done(false); }
+        ok.addEventListener("click", onOk);
+        cancel.addEventListener("click", onCancel);
+        dialog.addEventListener("close", onClose);
+        GX.openDialog(dialog);
+      });
+    },
+
+    /* A table with no rows must not draw a frame. The state takes its place. */
+    tableState: function (table, emptyNode, isEmpty, stateNode) {
+      if (table) table.hidden = isEmpty;
+      if (emptyNode) {
+        emptyNode.textContent = "";
+        if (isEmpty && stateNode) emptyNode.appendChild(stateNode);
+      }
+    },
+
     /* The page level notice band. Always mounted, so every outcome the
        operator triggers is seen and announced. */
     notice: function (text, kind) {
@@ -9996,6 +10052,8 @@ ${authGate()}
     </div>
   </div>
 </div>
+
+${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
@@ -10368,7 +10426,7 @@ var OVERVIEW_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.addMsg, "Plan update failed: " + err.message, "err");
+        GX.notice("Plan update failed: " + err.message, "err");
       })
       .then(function () { if (control) control.disabled = false; });
   }
@@ -10386,7 +10444,7 @@ var OVERVIEW_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.addMsg, "Test failed: " + err.message, "err");
+        GX.notice("Test failed: " + err.message, "err");
       })
       .then(function () {
         btn.disabled = false;
@@ -10406,7 +10464,7 @@ var OVERVIEW_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.addMsg, "Test all failed: " + err.message, "err");
+        GX.notice("Test all failed: " + err.message, "err");
       })
       .then(function () {
         GX.idle(el.testAllBtn);
@@ -10415,7 +10473,19 @@ var OVERVIEW_SCRIPT = `
   }
 
   function removeKey(k, btn) {
-    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    GX.confirm({
+      title: "Remove this key?",
+      message:
+        "Remove " + k.key + " from the pool. The gateway stops serving with it. " +
+        "It cannot be restored from this console, because the raw key never reaches the browser.",
+      confirmLabel: "Remove key"
+    }).then(function (ok) {
+      if (!ok) return;
+      removeKeyNow(k, btn);
+    });
+  }
+
+  function removeKeyNow(k, btn) {
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
@@ -10475,7 +10545,7 @@ var OVERVIEW_SCRIPT = `
         GX.lock(err.message + " Re-enter the token.");
         throw err;
       }
-      GX.say(el.addMsg, "Refresh failed: " + err.message, "err");
+      GX.notice("Refresh failed: " + err.message, "err");
     });
   }
 
@@ -10855,6 +10925,7 @@ var MODELS_SCRIPT = `
       renderPager(0, 1);
       return;
     }
+    el.body.textContent = "";
 
     var table = GX.el("table", { class: "table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
@@ -10986,11 +11057,12 @@ var MODELS_SCRIPT = `
         el.console.hidden = false;
         renderKpis();
         GX.say(el.msg, "Could not load the model list: " + err.message, "err");
+        el.asOf.textContent = "pricing unavailable";
         el.body.textContent = "";
         el.body.appendChild(GX.state(
           "error",
           "Live list unavailable",
-          "The pool has no key that can answer the model list right now. Add or revive a key in Keys."
+          err.message + " Check the key in Keys, then refresh the list."
         ));
       })
       .then(function () { GX.idle(el.reloadBtn); });
@@ -12967,6 +13039,7 @@ ${authGate()}
     </div>
     <div class="card-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
+      <table class="sr-only" id="heatTable"></table>
       <p class="hint u-mt-4" id="heatNote" ></p>
       <div id="heatEmpty"></div>
     </div>
@@ -13072,12 +13145,14 @@ var STATS_SCRIPT = `
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
-    empty.textContent = "";
     document.getElementById(metaId).textContent = rows && rows.length ? rows.length + (rows.length === 1 ? " row" : " rows") : "";
-    if (!rows || !rows.length) {
-      empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
-      return;
-    }
+    GX.tableState(
+      table,
+      empty,
+      !rows || !rows.length,
+      GX.state("empty", "Nothing in this range", "No request matched the selected window.")
+    );
+    if (!rows || !rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       cols.forEach(function (c, index) {
@@ -13094,12 +13169,14 @@ var STATS_SCRIPT = `
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById("byStatusEmpty");
-    empty.textContent = "";
     document.getElementById("byStatusMeta").textContent = rows && rows.length ? rows.length + " codes" : "";
-    if (!rows || !rows.length) {
-      empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
-      return;
-    }
+    GX.tableState(
+      table,
+      empty,
+      !rows || !rows.length,
+      GX.state("empty", "Nothing in this range", "No request matched the selected window.")
+    );
+    if (!rows || !rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       GX.cell(tr, r.key, "", "status");
@@ -13151,6 +13228,23 @@ var STATS_SCRIPT = `
       ? "Peak: " + DAYS[peak.weekday] + " " + (peak.hour < 10 ? "0" + peak.hour : peak.hour) +
         ":00 with " + GX.fmt.num(peak.requests) + " requests. " + GX.fmt.num(cells.length) + " cells carry traffic."
       : "";
+
+    /* The same numbers as a table, for anyone who cannot read a colour map. */
+    var sr = document.getElementById("heatTable");
+    if (sr) {
+      sr.textContent = "";
+      sr.appendChild(GX.el("caption", { text: "Requests by hour and weekday" }));
+      var head = GX.el("tr", null, [GX.el("th", { text: "Day" })]);
+      for (var hr = 0; hr < 24; hr++) head.appendChild(GX.el("th", { text: (hr < 10 ? "0" + hr : hr) + ":00" }));
+      sr.appendChild(GX.el("thead", null, head));
+      var body = GX.el("tbody");
+      for (var d = 0; d < 7; d++) {
+        var row = GX.el("tr", null, [GX.el("th", { scope: "row", text: DAYS[d] })]);
+        for (var h = 0; h < 24; h++) row.appendChild(GX.el("td", { text: String(grid[d + ":" + h] || 0) }));
+        body.appendChild(row);
+      }
+      sr.appendChild(body);
+    }
   }
 
   function paint(d) {
@@ -13525,6 +13619,25 @@ ${authGate()}
 
   <section class="card">
     <div class="card-head">
+      <h2>Request log</h2>
+      <span class="meta" id="logMeta"></span>
+    </div>
+    <div class="tablewrap">
+      <table class="table" id="log">
+        <thead><tr>
+          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="logEmpty"></div>
+    </div>
+    <div class="card-foot">
+      <div id="pager" class="pager u-full" ></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
       <h2>By model</h2>
       <span class="meta" id="byModelMeta"></span>
     </div>
@@ -13571,24 +13684,6 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>Request log</h2>
-      <span class="meta" id="logMeta"></span>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="log">
-        <thead><tr>
-          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="logEmpty"></div>
-    </div>
-    <div class="card-foot">
-      <div id="pager" class="pager u-full" ></div>
-    </div>
-  </section>
 </div>
 `;
 var USAGE_SCRIPT = `
@@ -13667,12 +13762,14 @@ var USAGE_SCRIPT = `
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
-    empty.textContent = "";
     document.getElementById(metaId).textContent = buckets.length + (buckets.length === 1 ? " row" : " rows");
-    if (!buckets.length) {
-      empty.appendChild(GX.state("empty", "No traffic in this view", "Send a request through the gateway and it shows up here."));
-      return;
-    }
+    GX.tableState(
+      table,
+      empty,
+      !buckets.length,
+      GX.state("empty", "No traffic in this view", "Send a request through the gateway and it shows up here.")
+    );
+    if (!buckets.length) return;
     buckets.forEach(function (b) {
       var tr = GX.el("tr");
       cols.forEach(function (c) {
@@ -13687,11 +13784,13 @@ var USAGE_SCRIPT = `
     var body = el.log.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById("logEmpty");
-    empty.textContent = "";
-    if (!rows.length) {
-      empty.appendChild(GX.state("empty", "No request matches", "Loosen the filter or send traffic through the gateway."));
-      return;
-    }
+    GX.tableState(
+      el.log,
+      empty,
+      !rows.length,
+      GX.state("empty", "No request matches", "Loosen the filter or send traffic through the gateway.")
+    );
+    if (!rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       GX.cell(tr, GX.fmt.clock(r.ts), "mono nowrap", "time");
@@ -13902,6 +14001,7 @@ ${authGate()}
           </select>
         </div>
         <label class="check u-mb-2" ><input id="auto" type="checkbox"> Auto refresh every 15s</label>
+        <button id="selectAllBtn" class="btn btn-sm" type="button">Select all</button>
       </div>
     </div>
 
@@ -13924,6 +14024,8 @@ ${authGate()}
     </div>
   </section>
 </div>
+
+${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
@@ -13961,6 +14063,7 @@ var KEYS_SCRIPT = `
     testAllBtn: document.getElementById("testAllBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     auto: document.getElementById("auto"),
+    selectAllBtn: document.getElementById("selectAllBtn"),
     bulkBar: document.getElementById("bulkBar"),
     bulkTier: document.getElementById("bulkTier"),
     bulkApply: document.getElementById("bulkApply"),
@@ -14036,6 +14139,7 @@ var KEYS_SCRIPT = `
           : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
       ));
       renderPager(0, 1);
+      paintBulk();
       return;
     }
 
@@ -14218,7 +14322,19 @@ var KEYS_SCRIPT = `
   }
 
   function removeKey(k, btn) {
-    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    GX.confirm({
+      title: "Remove this key?",
+      message:
+        "Remove " + k.key + " from the pool. The gateway stops serving with it. " +
+        "It cannot be restored from this console, because the raw key never reaches the browser.",
+      confirmLabel: "Remove key"
+    }).then(function (ok) {
+      if (!ok) return;
+      removeKeyNow(k, btn);
+    });
+  }
+
+  function removeKeyNow(k, btn) {
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
@@ -14235,7 +14351,24 @@ var KEYS_SCRIPT = `
   function removeSelected() {
     var ids = selectedIds();
     if (!ids.length) return;
-    if (!window.confirm("Remove " + ids.length + " key(s) from the pool? This cannot be undone.")) return;
+    var names = state.keys
+      .filter(function (k) { return ids.indexOf(k.id) >= 0; })
+      .slice(0, 3)
+      .map(function (k) { return k.key; })
+      .join(", ");
+    GX.confirm({
+      title: "Remove " + ids.length + (ids.length === 1 ? " key" : " keys") + "?",
+      message:
+        "Remove " + (names || ids.length + " keys") + (ids.length > 3 ? " and " + (ids.length - 3) + " more" : "") +
+        " from the pool. The gateway stops serving with them, and they cannot be restored from this console.",
+      confirmLabel: "Remove " + ids.length + (ids.length === 1 ? " key" : " keys")
+    }).then(function (ok) {
+      if (!ok) return;
+      removeSelectedNow(ids);
+    });
+  }
+
+  function removeSelectedNow(ids) {
     GX.busy(el.bulkRemove, "Removing");
     var chain = Promise.resolve();
     ids.forEach(function (id) {
@@ -14333,6 +14466,11 @@ var KEYS_SCRIPT = `
   el.testAllBtn.addEventListener("click", testAll);
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
+  });
+  el.selectAllBtn.addEventListener("click", function () {
+    var all = visibleKeys().every(function (k) { return state.selected[k.id]; });
+    visibleKeys().forEach(function (k) { state.selected[k.id] = !all; });
+    drawTable();
   });
   el.bulkApply.addEventListener("click", function () { setTier(selectedIds(), el.bulkTier.value, el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);

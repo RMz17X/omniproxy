@@ -69,6 +69,25 @@ ${authGate()}
 
   <section class="card">
     <div class="card-head">
+      <h2>Request log</h2>
+      <span class="meta" id="logMeta"></span>
+    </div>
+    <div class="tablewrap">
+      <table class="table" id="log">
+        <thead><tr>
+          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="logEmpty"></div>
+    </div>
+    <div class="card-foot">
+      <div id="pager" class="pager u-full" ></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
       <h2>By model</h2>
       <span class="meta" id="byModelMeta"></span>
     </div>
@@ -115,24 +134,6 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>Request log</h2>
-      <span class="meta" id="logMeta"></span>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="log">
-        <thead><tr>
-          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="logEmpty"></div>
-    </div>
-    <div class="card-foot">
-      <div id="pager" class="pager u-full" ></div>
-    </div>
-  </section>
 </div>
 `;
 
@@ -212,12 +213,14 @@ const USAGE_SCRIPT = `
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
-    empty.textContent = "";
     document.getElementById(metaId).textContent = buckets.length + (buckets.length === 1 ? " row" : " rows");
-    if (!buckets.length) {
-      empty.appendChild(GX.state("empty", "No traffic in this view", "Send a request through the gateway and it shows up here."));
-      return;
-    }
+    GX.tableState(
+      table,
+      empty,
+      !buckets.length,
+      GX.state("empty", "No traffic in this view", "Send a request through the gateway and it shows up here.")
+    );
+    if (!buckets.length) return;
     buckets.forEach(function (b) {
       var tr = GX.el("tr");
       cols.forEach(function (c) {
@@ -232,11 +235,13 @@ const USAGE_SCRIPT = `
     var body = el.log.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById("logEmpty");
-    empty.textContent = "";
-    if (!rows.length) {
-      empty.appendChild(GX.state("empty", "No request matches", "Loosen the filter or send traffic through the gateway."));
-      return;
-    }
+    GX.tableState(
+      el.log,
+      empty,
+      !rows.length,
+      GX.state("empty", "No request matches", "Loosen the filter or send traffic through the gateway.")
+    );
+    if (!rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       GX.cell(tr, GX.fmt.clock(r.ts), "mono nowrap", "time");

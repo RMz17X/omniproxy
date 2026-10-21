@@ -12,7 +12,7 @@
  * browser.
  */
 
-import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
+import { authGate, confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
 
 /* ---------- list ---------- */
 
@@ -67,6 +67,7 @@ ${authGate()}
           </select>
         </div>
         <label class="check u-mb-2" ><input id="auto" type="checkbox"> Auto refresh every 15s</label>
+        <button id="selectAllBtn" class="btn btn-sm" type="button">Select all</button>
       </div>
     </div>
 
@@ -89,6 +90,8 @@ ${authGate()}
     </div>
   </section>
 </div>
+
+${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
@@ -127,6 +130,7 @@ const KEYS_SCRIPT = `
     testAllBtn: document.getElementById("testAllBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     auto: document.getElementById("auto"),
+    selectAllBtn: document.getElementById("selectAllBtn"),
     bulkBar: document.getElementById("bulkBar"),
     bulkTier: document.getElementById("bulkTier"),
     bulkApply: document.getElementById("bulkApply"),
@@ -202,6 +206,7 @@ const KEYS_SCRIPT = `
           : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
       ));
       renderPager(0, 1);
+      paintBulk();
       return;
     }
 
@@ -384,7 +389,19 @@ const KEYS_SCRIPT = `
   }
 
   function removeKey(k, btn) {
-    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    GX.confirm({
+      title: "Remove this key?",
+      message:
+        "Remove " + k.key + " from the pool. The gateway stops serving with it. " +
+        "It cannot be restored from this console, because the raw key never reaches the browser.",
+      confirmLabel: "Remove key"
+    }).then(function (ok) {
+      if (!ok) return;
+      removeKeyNow(k, btn);
+    });
+  }
+
+  function removeKeyNow(k, btn) {
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
@@ -401,7 +418,24 @@ const KEYS_SCRIPT = `
   function removeSelected() {
     var ids = selectedIds();
     if (!ids.length) return;
-    if (!window.confirm("Remove " + ids.length + " key(s) from the pool? This cannot be undone.")) return;
+    var names = state.keys
+      .filter(function (k) { return ids.indexOf(k.id) >= 0; })
+      .slice(0, 3)
+      .map(function (k) { return k.key; })
+      .join(", ");
+    GX.confirm({
+      title: "Remove " + ids.length + (ids.length === 1 ? " key" : " keys") + "?",
+      message:
+        "Remove " + (names || ids.length + " keys") + (ids.length > 3 ? " and " + (ids.length - 3) + " more" : "") +
+        " from the pool. The gateway stops serving with them, and they cannot be restored from this console.",
+      confirmLabel: "Remove " + ids.length + (ids.length === 1 ? " key" : " keys")
+    }).then(function (ok) {
+      if (!ok) return;
+      removeSelectedNow(ids);
+    });
+  }
+
+  function removeSelectedNow(ids) {
     GX.busy(el.bulkRemove, "Removing");
     var chain = Promise.resolve();
     ids.forEach(function (id) {
@@ -499,6 +533,11 @@ const KEYS_SCRIPT = `
   el.testAllBtn.addEventListener("click", testAll);
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
+  });
+  el.selectAllBtn.addEventListener("click", function () {
+    var all = visibleKeys().every(function (k) { return state.selected[k.id]; });
+    visibleKeys().forEach(function (k) { state.selected[k.id] = !all; });
+    drawTable();
   });
   el.bulkApply.addEventListener("click", function () { setTier(selectedIds(), el.bulkTier.value, el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);
