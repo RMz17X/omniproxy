@@ -34,6 +34,7 @@ import {
   type RowFilter,
 } from "./ledger.ts";
 import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
+import { actorFrom, record as auditRecord } from "./audit.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 
 const app = new Hono();
@@ -245,6 +246,11 @@ app.post("/pengatur/keys/tier", async (c) => {
 
   let updated = 0;
   for (const id of ids) if (await setTierById(id, tier)) updated++;
+  auditRecord("keys.tier", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { tier, updated },
+  });
   const keys = await listKeys();
   return c.json({ ok: true, tier, updated, tiers: tierCounts(keys), pool: await snapshot() });
 });
@@ -271,6 +277,11 @@ app.post("/pengatur/keys", async (c) => {
       ids.push(keyId(k));
     }
   }
+  auditRecord("keys.add", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { received: clean.length, added },
+  });
   return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
 });
 
@@ -285,12 +296,22 @@ app.delete("/pengatur/keys", async (c) => {
   if (typeof body.id === "string" && body.id) {
     const removed = await removeKeyById(body.id);
     if (!removed) return c.json({ error: { message: "No key with that id." } }, 404);
+    auditRecord("keys.delete", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: body.id,
+      detail: { by: "id" },
+    });
     return c.json({ ok: true, pool: await snapshot() });
   }
   if (typeof body.key !== "string" || !body.key) {
     return c.json({ error: { message: "`id` or `key` is required." } }, 400);
   }
   await removeKey(body.key);
+  auditRecord("keys.delete", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: keyId(body.key),
+    detail: { by: "raw-key" },
+  });
   return c.json({ ok: true, pool: await snapshot() });
 });
 
@@ -344,6 +365,12 @@ app.post("/pengatur/keys/test", async (c) => {
     }
   }
 
+  auditRecord("keys.test", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: id,
+    detail: { model: model ?? "default", status: result.status, applied },
+  });
+
   return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
 });
 
@@ -382,6 +409,10 @@ app.post("/pengatur/keys/test-all", async (c) => {
   };
 
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  auditRecord("keys.test-all", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { tested: results.length },
+  });
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
 });
 
