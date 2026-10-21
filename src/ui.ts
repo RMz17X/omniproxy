@@ -275,6 +275,7 @@ svg { display: block; }
 /* tables ------------------------------------------------------------------ */
 
 .tablewrap { overflow-x: auto; }
+.scroll-y { max-height: 420px; overflow-y: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .table thead th {
   padding: 10px 16px;
