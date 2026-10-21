@@ -10,7 +10,7 @@
  * the environment table and the caveat line.
  */
 
-import { authGate, consolePage, icon } from "./ui.ts";
+import { authGate, consolePage, icon, noticeBand } from "./ui.ts";
 
 const SETTINGS_BODY = `
 ${authGate()}
@@ -23,6 +23,8 @@ ${authGate()}
     </div>
     <span class="meta" id="sStorage">-</span>
   </div>
+
+  ${noticeBand()}
 
   <div class="grid kpis" id="kpis"></div>
 
@@ -38,12 +40,14 @@ ${authGate()}
     </section>
   </div>
 
+  
+
   <div class="grid split">
     <section class="card">
       <div class="card-head"><h2>Ledger and storage</h2></div>
       <div class="card-body">
         <div class="defs" id="ledger"></div>
-        <div class="sep" style="margin:14px 0"></div>
+        <div class="sep u-rule-gap" ></div>
         <div class="defs" id="storage"></div>
       </div>
     </section>
@@ -66,7 +70,7 @@ ${authGate()}
     <div class="card-head"><h2>Caveats</h2></div>
     <div class="card-body">
       <p class="hint" id="note"></p>
-      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <div id="msg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
     </div>
   </section>
 </div>
@@ -173,7 +177,6 @@ const SETTINGS_SCRIPT = `
 
 export const SETTINGS_HTML = consolePage({
   title: "Settings",
-  subtitle: "The effective configuration of this deployment",
   active: "/pengatur/settings",
   actions:
     '<button id="exportBtn" class="btn btn-sm" type="button">' +

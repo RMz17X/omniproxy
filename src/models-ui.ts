@@ -9,7 +9,7 @@
  * performs an actual generateContent call against the selected model.
  */
 
-import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 const MODELS_BODY = `
 ${authGate()}
@@ -22,6 +22,8 @@ ${authGate()}
     </div>
     <span class="meta" id="asOf">-</span>
   </div>
+
+  ${noticeBand()}
 
   <div class="grid kpis" id="kpis"></div>
 
@@ -59,8 +61,8 @@ ${authGate()}
           <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
         </div>
       </div>
-      <div class="row" style="margin-top:14px">
-        <span class="field" style="margin:0">Your plan</span>
+      <div class="row u-mt-4" >
+        <span class="field u-mb-0">Your plan</span>
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
           <button type="button" data-tier="paid" aria-pressed="false">Pay as you go</button>
@@ -68,8 +70,8 @@ ${authGate()}
           <button type="button" data-tier="any" aria-pressed="false">Everything</button>
         </div>
       </div>
-      <p class="hint" id="tierNote" style="margin-top:10px"></p>
-      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <p class="hint u-mt-3" id="tierNote" ></p>
+      <div id="msg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
     </div>
   </section>
 
@@ -80,7 +82,7 @@ ${authGate()}
     </div>
     <div id="body" class="tablewrap">${stateBlock("loading", "Loading the model list")}</div>
     <div class="card-foot">
-      <div id="pager" class="pager" style="width:100%"></div>
+      <div id="pager" class="pager u-full" ></div>
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
     </div>
   </section>
@@ -409,7 +411,6 @@ const MODELS_SCRIPT = `
 
 export const MODELS_HTML = consolePage({
   title: "Models",
-  subtitle: "Live inventory from the Generative Language API",
   active: "/pengatur/models",
   body: MODELS_BODY,
   script: MODELS_SCRIPT,

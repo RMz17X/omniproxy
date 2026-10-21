@@ -9,7 +9,7 @@
  * trail is a story told in time, so it reads as a feed and not as a grid.
  */
 
-import { authGate, consolePage, icon } from "./ui.ts";
+import { authGate, consolePage, icon, noticeBand } from "./ui.ts";
 
 const AUDIT_BODY = `
 ${authGate()}
@@ -22,6 +22,8 @@ ${authGate()}
     </div>
     <span class="meta" id="sWindow">-</span>
   </div>
+
+  ${noticeBand()}
 
   <div class="grid kpis" id="kpis"></div>
 
@@ -53,7 +55,7 @@ ${authGate()}
           </select>
         </div>
       </div>
-      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:10px"></div>
+      <div id="msg" class="notice u-mt-3" role="status" aria-live="polite" ></div>
     </div>
   </section>
 
@@ -177,7 +179,6 @@ const AUDIT_SCRIPT = `
 
 export const AUDIT_HTML = consolePage({
   title: "Audit",
-  subtitle: "Every admin action, newest first",
   active: "/pengatur/audit",
   body: AUDIT_BODY,
   script: AUDIT_SCRIPT,

@@ -12,7 +12,7 @@
  * browser.
  */
 
-import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 /* ---------- list ---------- */
 
@@ -27,6 +27,8 @@ ${authGate()}
     </div>
     <span class="meta" id="poolMeta">-</span>
   </div>
+
+  ${noticeBand()}
 
   <div class="grid kpis" id="kpis"></div>
 
@@ -64,26 +66,26 @@ ${authGate()}
             <option value="100">100</option>
           </select>
         </div>
-        <label class="check" style="margin-bottom:8px"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
+        <label class="check u-mb-2" ><input id="auto" type="checkbox"> Auto refresh every 15s</label>
       </div>
     </div>
 
-    <div id="bulkBar" class="card-body" hidden style="border-top:1px solid var(--line)">
+    <div id="bulkBar" class="card-body u-rule-top" hidden >
       <div class="toolbar">
-        <b id="selCount" style="font-variant-numeric:tabular-nums">0 selected</b>
-        <select id="bulkTier" aria-label="Billing plan for the selected keys" style="width:auto"></select>
+        <b id="selCount" class="u-tnum">0 selected</b>
+        <select id="bulkTier" aria-label="Billing plan for the selected keys" class="u-auto"></select>
         <button id="bulkApply" class="btn btn-sm" type="button">Apply plan</button>
         <button id="bulkRemove" class="btn btn-sm btn-danger" type="button">Remove selected</button>
         <span class="spacer"></span>
         <button id="bulkClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
       </div>
-      <div id="bulkMsg" class="notice" role="status" aria-live="polite" style="margin-top:10px"></div>
+      <div id="bulkMsg" class="notice u-mt-3" role="status" aria-live="polite" ></div>
     </div>
 
     <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading the pool")}</div>
 
     <div class="card-foot">
-      <div id="keyPager" class="pager" style="width:100%"></div>
+      <div id="keyPager" class="pager u-full" ></div>
     </div>
   </section>
 </div>
@@ -97,12 +99,12 @@ ${authGate()}
     <div class="card-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row" style="margin-top:14px">
+      <div class="row u-mt-4" >
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
-      <div id="addMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
-      <p class="hint" style="margin-top:14px">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+      <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
+      <p class="hint u-mt-4" >Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
     </div>
   </form>
 </dialog>
@@ -210,11 +212,11 @@ const KEYS_SCRIPT = `
 
     var table = GX.el("table", { class: "table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
-      GX.el("th", { class: "num" }, GX.el("input", {
+      GX.el("th", { class: "num" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
         type: "checkbox",
         id: "selectAll",
         "aria-label": "Select every key on this page"
-      })),
+      }))),
       GX.el("th", { text: "Id" }),
       GX.el("th", { text: "Key" }),
       GX.el("th", { text: "Plan" }),
@@ -231,13 +233,15 @@ const KEYS_SCRIPT = `
       var tr = GX.el("tr");
 
       var pick = GX.el("td", { class: "num pick" });
+      var pickLabel = GX.el("label", { class: "pickbox" });
       var box = GX.el("input", { type: "checkbox", "aria-label": "Select key " + k.key });
       box.checked = Boolean(state.selected[k.id]);
       box.addEventListener("change", function () {
         state.selected[k.id] = box.checked;
         paintBulk();
       });
-      pick.appendChild(box);
+      pickLabel.appendChild(box);
+      pick.appendChild(pickLabel);
       tr.appendChild(pick);
 
       var idCell = GX.el("td", { "data-l": "id" });
@@ -336,15 +340,15 @@ const KEYS_SCRIPT = `
   }
 
   function setTier(ids, tier, control) {
-    if (!ids.length) { GX.say(el.bulkMsg, "Select at least one key.", "err"); return; }
+    if (!ids.length) { GX.notice("Select at least one key.", "err"); return; }
     if (control) control.disabled = true;
     GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
       .then(function (data) {
-        GX.say(el.bulkMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        GX.notice("Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.bulkMsg, "Plan update failed: " + err.message, "err");
+        GX.notice("Plan update failed: " + err.message, "err");
       })
       .then(function () { if (control) control.disabled = false; });
   }
@@ -354,11 +358,11 @@ const KEYS_SCRIPT = `
     btn.textContent = "Testing";
     GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
-        GX.say(el.bulkMsg, k.key + ": " + data.probe.status + " (" + data.applied + ")", data.probe.status === "ok" ? "ok" : "");
+        GX.notice(k.key + ": " + data.probe.status + " (" + data.applied + ")", data.probe.status === "ok" ? "ok" : "");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.bulkMsg, "Test failed: " + err.message, "err");
+        GX.notice("Test failed: " + err.message, "err");
       })
       .then(function () {
         btn.disabled = false;
@@ -370,7 +374,7 @@ const KEYS_SCRIPT = `
     GX.busy(el.testAllBtn, "Testing");
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
-        GX.say(el.bulkMsg, "Tested " + data.tested + " keys.", "ok");
+        GX.notice("Tested " + data.tested + " keys.", "ok");
         return reload();
       })
       .catch(function (err) {
@@ -384,13 +388,13 @@ const KEYS_SCRIPT = `
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
-        GX.say(el.bulkMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        GX.notice("Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
         delete state.selected[k.id];
         return reload();
       })
       .catch(function (err) {
         btn.disabled = false;
-        GX.say(el.bulkMsg, "Remove failed: " + err.message, "err");
+        GX.notice("Remove failed: " + err.message, "err");
       });
   }
 
@@ -407,12 +411,12 @@ const KEYS_SCRIPT = `
     });
     chain
       .then(function () {
-        GX.say(el.bulkMsg, "Removed " + ids.length + " key(s).", "ok");
+        GX.notice("Removed " + ids.length + " key(s).", "ok");
         state.selected = {};
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.bulkMsg, "Remove failed: " + err.message, "err");
+        GX.notice("Remove failed: " + err.message, "err");
       })
       .then(function () { GX.idle(el.bulkRemove); });
   }
@@ -427,10 +431,16 @@ const KEYS_SCRIPT = `
         el.newKeys.value = "";
         el.addCount.textContent = "";
         GX.say(el.addMsg, "Sent " + data.received + ", added " + data.added + ".", data.added ? "ok" : "");
+        GX.closeDialog(el.addDialog);
+        GX.notice(
+          data.added ? "Added " + data.added + " key(s) to the pool." : "No key was added.",
+          data.added ? "ok" : "warn"
+        );
         return reload();
       })
       .catch(function (err) {
         GX.say(el.addMsg, "Add failed: " + err.message, "err");
+        GX.notice("Add failed: " + err.message, "err");
       })
       .then(function () { GX.idle(el.addSubmit); });
   }
@@ -458,7 +468,7 @@ const KEYS_SCRIPT = `
           GX.lock(err.message + " Re-enter the token.");
           throw err;
         }
-        GX.say(el.bulkMsg, "Refresh failed: " + err.message, "err");
+        GX.notice("Refresh failed: " + err.message, "err");
       });
   }
 
@@ -533,6 +543,8 @@ ${authGate()}
     </div>
     <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
   </div>
+
+  ${noticeBand()}
 
   <div class="grid kpis" id="summary"></div>
 
@@ -725,7 +737,6 @@ const DETAIL_SCRIPT = `
 
 export const KEYS_HTML = consolePage({
   title: "Keys",
-  subtitle: "Every pooled key, its plan and its health",
   active: "/pengatur/keys",
   actions:
     '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' +
@@ -737,7 +748,6 @@ export const KEYS_HTML = consolePage({
 
 export const KEY_DETAIL_HTML = consolePage({
   title: "Key",
-  subtitle: "One key, its counters and its history",
   active: "/pengatur/keys",
   body: DETAIL_BODY,
   script: DETAIL_SCRIPT,

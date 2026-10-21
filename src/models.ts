@@ -41,8 +41,26 @@ export type LiveModel = {
 type Cache = { at: number; models: LiveModel[]; source: string };
 let cache: Cache | null = null;
 
-function kindOf(id: string, methods: string[]): ModelKind {
-  const c = catalogFor(id);
+/**
+ * One sentence out of an upstream error body.
+ *
+ * The console shows this message to the operator, so it has to read like a
+ * sentence. Google answers with a JSON envelope; the useful part is
+ * `error.message`. Anything else is flattened and capped.
+ */
+function upstreamMessage(body: string, status: number): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string }; message?: string };
+    const msg = parsed?.error?.message ?? parsed?.message;
+    if (typeof msg === "string" && msg.trim()) return msg.trim().slice(0, 180);
+  } catch {
+    /* not JSON, fall through to the flat text */
+  }
+  const flat = body.replace(/\s+/g, " ").trim();
+  return flat ? flat.slice(0, 180) : `HTTP ${status}`;
+}
+
+function kindOf(id: string, methods: string[]): ModelKind {  const c = catalogFor(id);
   if (c) return c.kind;
   const m = id.toLowerCase();
   if (m.includes("embedding")) return "embedding";
@@ -107,7 +125,7 @@ export async function listLiveModels(force = false): Promise<{ models: LiveModel
     }
     const body = await res.text().catch(() => "");
     if (!res.ok) {
-      lastErr = `HTTP ${res.status}: ${body.slice(0, 180)}`;
+      lastErr = `HTTP ${res.status}: ${upstreamMessage(body, res.status)}`;
       log("warn", "models.list_key_failed", { status: res.status, zeroQuota: isZeroQuota(body) });
       continue;
     }

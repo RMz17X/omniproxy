@@ -10,7 +10,7 @@
  * because a report that scrolls sideways is a report nobody reads.
  */
 
-import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 const USAGE_BODY = `
 ${authGate()}
@@ -23,6 +23,8 @@ ${authGate()}
     </div>
     <span class="meta" id="stamp">-</span>
   </div>
+
+  ${noticeBand()}
 
   <div class="grid kpis" id="kpis"></div>
 
@@ -56,12 +58,12 @@ ${authGate()}
             <option value="rotated">rotated</option>
           </select>
         </div>
-        <div class="row" style="gap:8px">
+        <div class="row u-gap-2" >
           <button id="apply" class="btn btn-primary" type="button">Apply</button>
           <button id="reset" class="btn" type="button">Reset</button>
         </div>
       </div>
-      <div id="err" class="notice err" role="status" aria-live="polite" style="margin-top:12px"></div>
+      <div id="err" class="notice err u-mt-3" role="status" aria-live="polite" ></div>
     </div>
   </section>
 
@@ -128,7 +130,7 @@ ${authGate()}
       <div id="logEmpty"></div>
     </div>
     <div class="card-foot">
-      <div id="pager" class="pager" style="width:100%"></div>
+      <div id="pager" class="pager u-full" ></div>
     </div>
   </section>
 </div>
@@ -388,7 +390,6 @@ const USAGE_SCRIPT = `
 
 export const USAGE_HTML = consolePage({
   title: "Logs",
-  subtitle: "Every request that passed through the gateway",
   active: "/pengatur/logs",
   actions:
     '<button id="csvBtn" class="btn btn-sm" type="button">' +

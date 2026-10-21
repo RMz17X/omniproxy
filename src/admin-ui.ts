@@ -11,7 +11,7 @@
  * so the browser never holds a raw credential.
  */
 
-import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 const OVERVIEW_BODY = `
 ${authGate()}
@@ -22,8 +22,15 @@ ${authGate()}
       <h1>Overview</h1>
       <p class="sub">Pool health, key intake and live probe for this deployment.</p>
     </div>
-    <span class="meta" id="updated">-</span>
+    <div class="row">
+      <label class="check"><input id="auto" type="checkbox" checked> Auto refresh 15s</label>
+      <span class="meta" id="updated">-</span>
+    </div>
   </div>
+
+  ${noticeBand()}
+
+  <div id="storageNote" class="page-note"></div>
 
   <div class="grid hero">
     <section class="card">
@@ -34,11 +41,14 @@ ${authGate()}
       <div class="card-body">
         <div class="hero-row">
           <div id="donut"></div>
-          <div class="facts" id="facts" style="flex:1"></div>
+          <div class="facts u-grow" id="facts"></div>
         </div>
-      </div>
-      <div class="card-body" style="padding-top:0">
-        <div class="chips" id="chips"></div>
+        <div class="donut-legend">
+          <span><i class="ok"></i>ready</span>
+          <span><i class="warn"></i>cooling</span>
+          <span><i class="bad"></i>dead</span>
+        </div>
+        <div class="chips u-mt-4" id="chips"></div>
       </div>
     </section>
 
@@ -54,6 +64,8 @@ ${authGate()}
       </div>
     </section>
   </div>
+
+  
 
   <div class="grid kpis" id="kpis"></div>
 
@@ -91,7 +103,7 @@ ${authGate()}
       </div>
       <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading the pool")}</div>
       <div class="card-foot">
-        <div id="keyPager" class="pager" style="width:100%"></div>
+        <div id="keyPager" class="pager u-full" ></div>
       </div>
     </section>
 
@@ -103,7 +115,7 @@ ${authGate()}
         </div>
         <div class="card-body">
           <div class="meters" id="planMix"></div>
-          <p class="hint" style="margin-top:14px">Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
+          <p class="hint u-mt-4" >Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
         </div>
       </section>
 
@@ -127,11 +139,11 @@ ${authGate()}
     <div class="card-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row" style="margin-top:14px">
+      <div class="row u-mt-4" >
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
-      <div id="addMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
     </div>
   </form>
 </dialog>
@@ -151,6 +163,7 @@ const OVERVIEW_SCRIPT = `
     attn: document.getElementById("attn"),
     attnMeta: document.getElementById("attnMeta"),
     testAllBtn: document.getElementById("testAllBtn"),
+    auto: document.getElementById("auto"),
     testAllNote: document.getElementById("testAllNote"),
     kpis: document.getElementById("kpis"),
     poolMeta: document.getElementById("poolMeta"),
@@ -225,6 +238,26 @@ const OVERVIEW_SCRIPT = `
     }
     el.healthMeta.textContent = pool.degraded ? "storage degraded, serving from memory" : pool.storage + " storage";
     GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
+
+    var note = document.getElementById("storageNote");
+    if (note) {
+      note.textContent = "";
+      if (pool.storage === "memory") {
+        note.appendChild(GX.el("b", { text: "In memory." }));
+        note.appendChild(document.createTextNode(
+          " The key pool and the request ledger live in this process. A restart empties them."
+        ));
+        note.classList.add("show");
+      } else if (pool.degraded) {
+        note.appendChild(GX.el("b", { text: "Storage degraded." }));
+        note.appendChild(document.createTextNode(
+          " The database is not reachable, so the gateway is serving from memory only."
+        ));
+        note.classList.add("show");
+      } else {
+        note.classList.remove("show");
+      }
+    }
   }
 
   function renderAttention(pool, tiers) {
@@ -465,7 +498,7 @@ const OVERVIEW_SCRIPT = `
     if (control) control.disabled = true;
     GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
       .then(function (data) {
-        GX.say(el.addMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        GX.notice("Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
         return reload();
       })
       .catch(function (err) {
@@ -483,7 +516,7 @@ const OVERVIEW_SCRIPT = `
         var note = data.applied === "revived" ? " back in rotation"
           : data.applied === "cooling" ? " parked again"
           : data.applied === "retired" ? " retired from the pool" : "";
-        GX.say(el.addMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
+        GX.notice(k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
         return reload();
       })
       .catch(function (err) {
@@ -503,7 +536,7 @@ const OVERVIEW_SCRIPT = `
         var results = data.results || [];
         results.forEach(function (r) { state.testing[r.id] = r.probe; });
         var ok = results.filter(function (r) { return r.probe.status === "ok"; }).length;
-        GX.say(el.addMsg, "Probed " + data.tested + " keys, " + ok + " serving.", ok ? "ok" : "");
+        GX.notice("Probed " + data.tested + " keys, " + ok + " serving.", ok ? "ok" : "");
         return reload();
       })
       .catch(function (err) {
@@ -520,13 +553,13 @@ const OVERVIEW_SCRIPT = `
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
-        GX.say(el.addMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        GX.notice("Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
         delete state.testing[k.id];
         return reload();
       })
       .catch(function (err) {
         btn.disabled = false;
-        GX.say(el.addMsg, "Remove failed: " + err.message, "err");
+        GX.notice("Remove failed: " + err.message, "err");
       });
   }
 
@@ -540,10 +573,16 @@ const OVERVIEW_SCRIPT = `
         el.newKeys.value = "";
         el.addCount.textContent = "";
         GX.say(el.addMsg, "Sent " + data.received + ", added " + data.added + ".", data.added ? "ok" : "");
+        GX.closeDialog(el.addDialog);
+        GX.notice(
+          data.added ? "Added " + data.added + " key(s) to the pool." : "No key was added.",
+          data.added ? "ok" : "warn"
+        );
         return reload();
       })
       .catch(function (err) {
         GX.say(el.addMsg, "Add failed: " + err.message, "err");
+        GX.notice("Add failed: " + err.message, "err");
       })
       .then(function () { GX.idle(el.addSubmit); });
   }
@@ -579,8 +618,11 @@ const OVERVIEW_SCRIPT = `
   }
 
   function startAuto() {
-    if (state.timer) return;
+    if (state.timer || !el.auto.checked) return;
     state.timer = GX.every(15000, reload);
+  }
+  function stopAuto() {
+    if (state.timer) { state.timer(); state.timer = null; }
   }
 
   el.addBtn.addEventListener("click", function () {
@@ -596,6 +638,9 @@ const OVERVIEW_SCRIPT = `
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
   });
   el.testAllBtn.addEventListener("click", testAll);
+  el.auto.addEventListener("change", function () {
+    if (el.auto.checked) startAuto(); else stopAuto();
+  });
   el.keyFilter.addEventListener("input", GX.debounce(function () {
     state.query = el.keyFilter.value.trim().toLowerCase();
     state.page = 1;
@@ -622,7 +667,6 @@ const OVERVIEW_SCRIPT = `
 
 export const ADMIN_HTML = consolePage({
   title: "Overview",
-  subtitle: "Pool health, key intake and live probe",
   active: "/pengatur",
   actions:
     '<button id="refreshBtn" class="btn btn-sm" type="button">' +

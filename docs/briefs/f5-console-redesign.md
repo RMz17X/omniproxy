@@ -78,6 +78,30 @@ above.
 - Type: 11, 12, 13, 14, 16, 18, 20, 26, 28. A product console needs a wider
   scale than a control panel, because hierarchy has to be visible.
 - Colours only from the `src/ui.ts` custom properties.
+
+### Spacing
+
+One scale, declared once and used everywhere:
+
+| Token | Value | Used for |
+|---|---|---|
+| `--sp-1` | 4px | inside a control, between a label and its value |
+| `--sp-2` | 8px | between controls, between a table cell and its content |
+| `--sp-3` | 12px | inside a card band, between a field and its label |
+| `--sp-4` | 16px | the one horizontal inset: card padding, table cells |
+| `--sp-5` | 20px | between cards in a grid |
+| `--sp-6` | 24px | between the bands of a page |
+| `--sp-7` | 32px | the bottom of the page, an empty state |
+
+`--inset: 16px` is shared by the card padding, the table cells and the page
+padding, so a table's first column sits exactly under the card title. No
+padding or gap outside the scale, and the only exceptions are a browser
+default (the `<option>` box) and the hairline seams of the segmented
+controls.
+
+The page bands are separated by 24px, the inside of a card by 12 to 16px, and
+the tight pairs (a label and its value) by 4 to 8px. That contrast is the
+rhythm: tight where things belong together, generous where they do not.
 - Inline SVG only, no Unicode glyph as a control, no emoji.
 - No em dash, English copy only.
 - Keys render as the 12 char id or the masked form, truncated to one line.

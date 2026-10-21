@@ -9,7 +9,7 @@
  * the heatmap with its legend and peak line, then the breakdowns.
  */
 
-import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 const STATS_BODY = `
 ${authGate()}
@@ -22,6 +22,8 @@ ${authGate()}
     </div>
     <div class="seg" id="range" role="group" aria-label="Time range"></div>
   </div>
+
+  ${noticeBand()}
 
   <div class="grid kpis" id="kpis"></div>
 
@@ -43,7 +45,7 @@ ${authGate()}
     </div>
     <div class="card-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
-      <p class="hint" id="heatNote" style="margin-top:14px"></p>
+      <p class="hint u-mt-4" id="heatNote" ></p>
       <div id="heatEmpty"></div>
     </div>
   </section>
@@ -312,7 +314,6 @@ const STATS_SCRIPT = `
 
 export const STATS_HTML = consolePage({
   title: "Statistics",
-  subtitle: "Range breakdowns, heatmap and cost projection",
   active: "/pengatur/stats",
   body: STATS_BODY,
   script: STATS_SCRIPT,
