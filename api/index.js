@@ -9804,6 +9804,7 @@ var CLIENT_JS = `
         ? "conic-gradient(var(--ok) 0 " + ok + "%, var(--warn) " + ok + "% " + (ok + warn) + "%, var(--bad) " + (ok + warn) + "% 100%)"
         : "var(--card-3)";
       ring.appendChild(GX.el("b", { text: String(ready) }));
+      ring.appendChild(GX.el("small", { text: "of " + total + " ready" }));
       return ring;
     },
 
