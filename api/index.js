@@ -8501,6 +8501,10 @@ async function sql(query, params = [], opts = {}) {
     clearTimeout(timer2);
   }
 }
+function sqlLater(query, params = []) {
+  if (!dbEnabled()) return;
+  void sql(query, params);
+}
 
 // src/keys-repo.ts
 var isTier = (v2) => v2 === "free" || v2 === "paid" || v2 === "pro";
@@ -8560,6 +8564,39 @@ async function deleteKey(id) {
   await sql(`delete from keys where id = $1`, [id]);
 }
 
+// src/key-material.ts
+function materialEnabled() {
+  return dbEnabled();
+}
+async function loadMaterial() {
+  const out = /* @__PURE__ */ new Map();
+  if (!dbEnabled()) return out;
+  const res = await sql(`select id, raw_key from key_material`);
+  if (!res.ok) {
+    log("warn", "key_material.load_failed", { reason: res.reason });
+    return out;
+  }
+  for (const row of res.rows) {
+    const raw2 = typeof row.raw_key === "string" ? row.raw_key.trim() : "";
+    if (!raw2) continue;
+    out.set(row.id, raw2);
+  }
+  return out;
+}
+function saveMaterial(id, raw2) {
+  if (!dbEnabled()) return;
+  sqlLater(
+    `insert into key_material (id, raw_key) values ($1, $2)
+     on conflict (id) do update
+       set raw_key = excluded.raw_key, updated_at = now()`,
+    [id, raw2]
+  );
+}
+function deleteMaterial(id) {
+  if (!dbEnabled()) return;
+  sqlLater(`delete from key_material where id = $1`, [id]);
+}
+
 // src/pool.ts
 var storageMode = dbEnabled() ? "postgres" : "memory";
 var KEY_TIERS = ["unknown", "free", "paid", "pro"];
@@ -8607,14 +8644,22 @@ function persistHealth(st) {
   later(() => touchLastSeen(id));
   if (st.failures > 0) later(() => bumpFailCount(id));
 }
+function seed(key) {
+  if (!local.has(key)) local.set(key, blank(key));
+}
 async function hydrate() {
-  const seed = (process.env.GEMINI_API_KEYS ?? "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-  for (const k of seed) {
-    if (!local.has(k)) local.set(k, blank(k));
-  }
+  const env = (process.env.GEMINI_API_KEYS ?? "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  for (const k of env) seed(k);
   if (!dbEnabled()) {
-    log("info", "pool.hydrated", { source: "env", keys: local.size });
+    log("info", "pool.hydrated", { source: "env", keys: local.size, material: 0 });
     return local.size;
+  }
+  let material = 0;
+  if (materialEnabled()) {
+    for (const raw2 of (await loadMaterial()).values()) {
+      seed(raw2);
+      material++;
+    }
   }
   const rows = await loadKeys();
   const byId = new Map([...local.values()].map((s) => [keyId(s.key), s]));
@@ -8628,8 +8673,16 @@ async function hydrate() {
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
     }
   }
-  log("info", "pool.hydrated", { source: "postgres+env", keys: local.size, rows: rows.length });
+  log("info", "pool.hydrated", {
+    source: "postgres+env",
+    keys: local.size,
+    rows: rows.length,
+    material
+  });
   return local.size;
+}
+function keyMaterialDurable() {
+  return materialEnabled();
 }
 async function addKey(key) {
   const k = key.trim();
@@ -8639,6 +8692,7 @@ async function addKey(key) {
   const st = blank(k);
   local.set(k, st);
   persistIdentity(st);
+  saveMaterial(keyId(k), k);
   return true;
 }
 async function removeKey(key) {
@@ -8647,6 +8701,7 @@ async function removeKey(key) {
   if (had) {
     const id = keyId(k);
     later(() => deleteKey(id));
+    deleteMaterial(id);
   }
   return had;
 }
@@ -15497,7 +15552,9 @@ var SHELL_PATHS = [
 var KEY_PAGE = /^\/pengatur\/keys\/[0-9a-f]{12}$/;
 app.use("/pengatur/*", async (c, next) => {
   const adminPath = new URL(c.req.url).pathname;
-  if (SHELL_PATHS.includes(adminPath) || KEY_PAGE.test(adminPath)) return next();
+  const method = c.req.method.toUpperCase();
+  const readOnly = method === "GET" || method === "HEAD" || method === "OPTIONS";
+  if (readOnly && (SHELL_PATHS.includes(adminPath) || KEY_PAGE.test(adminPath))) return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -15719,7 +15776,9 @@ app.post("/pengatur/keys", async (c) => {
     target: ids.join(","),
     detail: { received: clean.length, added }
   });
-  return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
+  const durable = keyMaterialDurable();
+  const warning = durable ? {} : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
+  return c.json({ ok: true, received: clean.length, added, ids, durable, ...warning, pool: await snapshot() });
 });
 app.delete("/pengatur/keys", async (c) => {
   let body;
