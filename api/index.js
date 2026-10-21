@@ -8773,29 +8773,46 @@ async function snapshot() {
 // src/ui.ts
 var BASE_CSS = `
 :root {
-  --bg: #0c0e11;
-  --surface: #12151a;
-  --surface-2: #171b21;
-  --line: #232932;
-  --line-strong: #2f3742;
-  --text: #e3e7ec;
-  --text-2: #9aa4b2;
-  --text-3: #6b7684;
-  --accent: #6f93ad;
-  --ok: #4f9e6a;
-  --warn: #c08b3e;
-  --danger: #c05c5c;
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+
+  --bg: #0a0c0f;
+  --surface: #101317;
+  --surface-2: #161a20;
+  --surface-3: #1c212a;
+  --line: #21262e;
+  --line-2: #2e343d;
+
+  --text: #e8ebef;
+  --text-2: #9aa3ae;
+  --text-3: #7b8490;
+
+  --accent: #4fb0c4;
+  --accent-wash: rgba(79, 176, 196, 0.12);
+  --accent-line: rgba(79, 176, 196, 0.42);
+  --accent-ink: #06222a;
+
+  --ok: #5fae7d;
+  --warn: #cb9440;
+  --danger: #c96464;
+
+  --heat-1: rgba(79, 176, 196, 0.18);
+  --heat-2: rgba(79, 176, 196, 0.34);
+  --heat-3: rgba(79, 176, 196, 0.52);
+  --heat-4: rgba(79, 176, 196, 0.74);
+  --heat-5: rgba(79, 176, 196, 0.95);
+
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   --tap: 30px;
   --tap-sm: 26px;
-  color-scheme: dark;
+  --rail: 236px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
-html { background: var(--bg); }
+html { background: var(--bg); -webkit-text-size-adjust: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -8806,84 +8823,143 @@ body {
   text-rendering: optimizeLegibility;
 }
 h1, h2, h3 { margin: 0; line-height: 1.25; font-weight: 600; }
-h1 { font-size: 14px; }
-h2 { font-size: 14px; }
 p { margin: 0; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 b, strong { font-weight: 600; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+svg { display: block; }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* shell ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
-.topbar {
+/* shell ------------------------------------------------------------------- */
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.skip:focus { left: 8px; top: 8px; }
+
+.app {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+.brand {
   display: flex;
   align-items: center;
-  gap: 24px;
-  height: 48px;
-  padding: 0 24px;
+  gap: 9px;
+  height: 56px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--line);
-  background: var(--surface);
-}
-.wordmark {
+  color: var(--text);
   font-size: 18px;
   font-weight: 600;
-  color: var(--text);
   letter-spacing: -0.01em;
-  text-decoration: none;
 }
-.wordmark:hover { text-decoration: none; color: var(--text); }
-.nav { display: flex; gap: 16px; height: 100%; }
+.brand:hover { text-decoration: none; color: var(--text); }
+.brand .mark { width: 20px; height: 20px; color: var(--accent); flex: 0 0 20px; }
+
+.nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; overflow-y: auto; }
 .nav a {
   display: flex;
   align-items: center;
-  font-size: 13px;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-left: 2px solid transparent;
+  border-radius: 6px;
   color: var(--text-2);
-  border-bottom: 2px solid transparent;
-  text-decoration: none;
+  font-size: 13px;
 }
-.nav a:hover { color: var(--text); text-decoration: none; }
-.nav a.active { color: var(--text); border-bottom-color: var(--accent); }
-.topbar .meta {
-  margin-left: auto;
+.nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+.nav a[aria-current="page"] {
+  background: var(--accent-wash);
+  border-left-color: var(--accent);
+  color: var(--text);
+}
+.nav .icon { width: 16px; height: 16px; flex: 0 0 16px; color: var(--text-3); }
+.nav a[aria-current="page"] .icon { color: var(--accent); }
+
+.rail-foot {
+  margin-top: auto;
+  display: grid;
+  gap: 3px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--text-3);
+}
+.rail-foot .row { display: flex; justify-content: space-between; gap: 8px; }
+.rail-foot .k { text-transform: uppercase; letter-spacing: 0.05em; }
+.rail-foot .v { color: var(--text-2); font-family: var(--mono); }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+.pagebar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.page-head {
-  display: flex;
-  align-items: baseline;
   justify-content: space-between;
   gap: 16px;
+  min-height: 56px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
 }
-.page-head .meta { font-size: 12px; color: var(--text-2); }
+.pagebar h1 { font-size: 18px; letter-spacing: -0.01em; }
+.pagebar .sub { font-size: 12px; color: var(--text-2); }
+.pagebar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 1320px;
+}
 
-/* instrument strip ------------------------------------------------------- */
+/* instrument strip -------------------------------------------------------- */
 
 .strip {
   display: flex;
   align-items: center;
   gap: 0;
-  min-height: 52px;
-  padding: 0 8px;
+  min-height: 48px;
+  padding: 0 4px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  overflow: hidden;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .strip .kv {
   display: flex;
@@ -8891,39 +8967,31 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
   gap: 8px;
   padding: 0 16px;
   border-left: 1px solid var(--line);
+  white-space: nowrap;
 }
-.strip .kv:first-child { border-left: 0; padding-left: 8px; }
+.strip .kv:first-child { border-left: 0; padding-left: 12px; }
+.strip .kv b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .strip .kv .k {
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-3);
 }
-.strip .kv b {
-  font-size: 14px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.strip .kv.ready b { color: var(--ok); }
-.strip .kv.cooling b { color: var(--warn); }
-.strip .kv.dead b { color: var(--danger); }
+.strip .kv.ok b { color: var(--ok); }
+.strip .kv.warn b { color: var(--warn); }
+.strip .kv.bad b { color: var(--danger); }
 .strip .spacer { flex: 1; }
 .strip .meta {
-  padding: 0 8px 0 16px;
+  padding: 0 12px 0 16px;
   font-size: 12px;
   color: var(--text-2);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
-/* panels ----------------------------------------------------------------- */
+/* panels ------------------------------------------------------------------ */
 
-.panel {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  overflow: hidden;
-}
+.panel { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .panel-head {
   display: flex;
   align-items: center;
@@ -8932,93 +9000,127 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
 }
-.panel-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
-}
-.panel-title .meta { font-size: 12px; color: var(--text-2); font-weight: 400; }
+.panel-title { font-size: 14px; font-weight: 600; }
+.panel-title .meta { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--text-2); }
 .panel-body { padding: 16px; }
 .panel-body.tight { padding: 0; }
-.panel .foot {
+.panel-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   padding: 12px 16px;
   border-top: 1px solid var(--line);
-}
-.tablewrap { overflow-x: auto; }
-.dialog {
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--surface);
-  padding: 16px;
-  color: var(--text);
-}
-
-/* layout helpers --------------------------------------------------------- */
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   flex-wrap: wrap;
 }
+.panel-foot .meta { font-size: 12px; color: var(--text-2); }
+
+/* stat grid --------------------------------------------------------------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.stat { background: var(--surface); padding: 12px 16px; }
+.stat b {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.stat span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+}
+
+/* definition grid --------------------------------------------------------- */
+
+.defs { display: grid; grid-template-columns: minmax(0, 1fr); }
+.def {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.def dt { color: var(--text-2); }
+.def dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* layout helpers ---------------------------------------------------------- */
+
+.grid { display: grid; gap: 16px; align-items: start; }
+.grid.split { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1080px) { .grid.split { grid-template-columns: minmax(0, 2.4fr) minmax(260px, 1fr); } }
+.grid.cols2 { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 860px) { .grid.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .row.tight { gap: 4px; }
-.grow { flex: 1; min-width: 160px; }
+.row.end { justify-content: flex-end; }
+.grow { flex: 1 1 180px; min-width: 0; }
 .spacer { flex: 1; }
-.stack { display: flex; flex-direction: column; gap: 24px; }
+.stack { display: flex; flex-direction: column; gap: 16px; }
 .muted { color: var(--text-2); }
 .dimtext { color: var(--text-3); }
+.hint { font-size: 12px; color: var(--text-2); }
 .mono { font-family: var(--mono); font-size: 12px; }
 .num { font-variant-numeric: tabular-nums; text-align: right; }
 .right { text-align: right; }
 .nowrap { white-space: nowrap; }
-.field {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-2);
-}
+.truncate { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field { display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-2); }
+.sep { height: 1px; background: var(--line); border: 0; margin: 0; }
 
-/* tables ----------------------------------------------------------------- */
+/* tables ------------------------------------------------------------------ */
 
-.table, table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.table thead th, table thead th {
-  padding: 8px;
+.tablewrap { overflow-x: auto; }
+.scroll-y { max-height: 420px; overflow-y: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table thead th {
+  padding: 8px 12px;
   text-align: left;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-3);
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
-.table tbody td, table tbody td {
-  padding: 8px;
-  border-bottom: 1px solid var(--line);
-  vertical-align: middle;
-}
-.table tbody tr:last-child td, table tbody tr:last-child td { border-bottom: 0; }
-.table tbody tr:hover, table tbody tr:hover { background: var(--surface-2); }
-.key {
+.table tbody td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tbody tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover { background: var(--surface-2); }
+.table .key {
   font-family: var(--mono);
   font-size: 12px;
-  max-width: 260px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.mid { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.actions { white-space: nowrap; text-align: right; }
+.table .actions { text-align: right; white-space: nowrap; }
+.table .actions .btn + .btn { margin-left: 6px; }
+.table .sub { font-size: 11px; color: var(--text-3); }
+.table tr.is-selected td { background: var(--accent-wash); }
 
-/* controls --------------------------------------------------------------- */
+/* controls ---------------------------------------------------------------- */
 
 .btn, button {
   display: inline-flex;
@@ -9027,7 +9129,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
   gap: 8px;
   height: var(--tap);
   padding: 0 12px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line-2);
   border-radius: 6px;
   background: var(--surface-2);
   color: var(--text);
@@ -9036,30 +9138,28 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
   line-height: 1;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
 }
-.btn:hover, button:hover { border-color: var(--text-3); }
+.btn:hover, button:hover { background: var(--surface-3); border-color: var(--text-3); text-decoration: none; }
 .btn:active, button:active { background: var(--surface); }
-.btn[disabled], button[disabled] { color: var(--text-3); cursor: default; }
-.btn-primary {
-  background: var(--surface-2);
-  border-color: var(--text-3);
-  color: var(--text);
-  font-weight: 600;
-}
-.btn-danger { background: transparent; border-color: var(--line-strong); color: var(--danger); }
-.btn-danger:hover { border-color: var(--danger); }
-.small, .act {
-  height: var(--tap-sm);
-  padding: 0 8px;
-  font-size: 12px;
-}
-.tier { height: var(--tap-sm); font-size: 12px; width: auto; }
+.btn[disabled], button[disabled] { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn-primary:hover { background: var(--accent); border-color: var(--text); }
+.btn-danger { background: transparent; border-color: var(--line-2); color: var(--danger); }
+.btn-danger:hover { background: var(--surface-2); border-color: var(--danger); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); border-color: transparent; }
+.btn .icon { width: 14px; height: 14px; flex: 0 0 14px; }
+.small { height: var(--tap-sm); padding: 0 8px; font-size: 12px; }
+.icon-btn { width: var(--tap-sm); padding: 0; }
+.tier { width: auto; height: var(--tap-sm); font-size: 12px; padding: 0 6px; }
 
-.input, input[type="text"], input[type="password"], input[type="search"], textarea, select {
+.input, input[type="text"], input[type="password"], input[type="search"],
+input[type="number"], input[type="datetime-local"], select, textarea {
   width: 100%;
   height: var(--tap);
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
   border-radius: 6px;
   background: var(--surface-2);
   color: var(--text);
@@ -9069,38 +9169,55 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 }
 textarea {
   height: auto;
-  min-height: 96px;
-  padding: 8px;
+  min-height: 104px;
+  padding: 10px;
   resize: vertical;
   font-family: var(--mono);
   font-size: 12px;
 }
-.select, select { cursor: pointer; }
-.input::placeholder, input::placeholder, textarea::placeholder { color: var(--text-3); }
-.check {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--text-2);
+select {
   cursor: pointer;
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%237b8490' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 14px 14px;
 }
-.check input[type="checkbox"] {
-  width: auto;
-  height: auto;
-  margin: 0;
-  accent-color: var(--accent);
-}
+.input::placeholder, input::placeholder, textarea::placeholder { color: var(--text-3); }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); cursor: pointer; }
+.check input[type="checkbox"] { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
 
-/* status ----------------------------------------------------------------- */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.seg button {
+  height: var(--tap);
+  padding: 0 12px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.seg button:last-child { border-right: 0; }
+.seg button:hover { background: var(--surface-3); color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--accent-wash); color: var(--text); font-weight: 600; }
+
+/* status ------------------------------------------------------------------ */
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 18px;
-  padding: 0 6px;
-  border: 1px solid var(--line-strong);
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
   border-radius: 4px;
   font-size: 11px;
   line-height: 1;
@@ -9110,268 +9227,682 @@ textarea {
 }
 .badge.ok, .probe.ok { color: var(--ok); }
 .badge.warn, .probe.warn { color: var(--warn); }
-.badge.bad, .badge.dead, .probe.bad { color: var(--danger); }
-.badge.free { color: var(--ok); }
-.badge.paid { color: var(--warn); }
-.badge.unknown { color: var(--text-3); }
-.dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 4px;
-  background: var(--text-3);
-  vertical-align: middle;
-}
-.dot.ok { background: var(--ok); }
-.dot.warn { background: var(--warn); }
-.dot.bad, .dot.dead { background: var(--danger); }
-.cool { font-family: var(--mono); font-size: 12px; color: var(--warn); }
+.badge.bad, .badge.err, .badge.dead, .probe.bad { color: var(--danger); }
+.badge.info { color: var(--accent); }
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+.badge.ok .dot, .dot.ok { background: var(--ok); }
+.badge.warn .dot, .dot.warn { background: var(--warn); }
+.badge.bad .dot, .dot.err, .dot.dead { background: var(--danger); }
+.badge.info .dot, .dot.info { background: var(--accent); }
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); vertical-align: middle; }
+.probe { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
+.cool { font-family: var(--mono); font-size: 12px; color: var(--warn); font-variant-numeric: tabular-nums; }
 
-/* messages and states ---------------------------------------------------- */
+/* messages and states ----------------------------------------------------- */
 
-.msg, .notice {
-  font-size: 12px;
-  color: var(--text-2);
-  margin-top: 8px;
-}
-.msg:empty, .notice:empty { display: none; }
-.msg.ok, .notice.ok { color: var(--ok); }
-.msg.warn, .notice.warn { color: var(--warn); }
-.msg.err, .notice.err { color: var(--danger); }
-.msg.show { display: block; }
+.notice { font-size: 12px; color: var(--text-2); }
+.notice:empty { display: none; }
+.notice.ok { color: var(--ok); }
+.notice.warn { color: var(--warn); }
+.notice.err { color: var(--danger); }
 
-.state, .empty {
-  padding: 24px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-2);
-}
-.state.loading { color: var(--text-2); }
+.state { padding: 32px 16px; text-align: center; font-size: 13px; color: var(--text-2); }
+.state b { display: block; margin-bottom: 4px; font-size: 14px; color: var(--text); }
 .state.error { color: var(--danger); }
+.state.error b { color: var(--danger); }
 .state .retry { margin-top: 12px; }
+.state .hint { margin-top: 4px; }
 
-/* pager ------------------------------------------------------------------ */
+/* pager ------------------------------------------------------------------- */
 
 .pager {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-top: 12px;
   font-size: 12px;
   color: var(--text-2);
 }
 .pager .pages { display: flex; gap: 4px; flex-wrap: wrap; }
-.pager button {
-  min-width: var(--tap-sm);
-  padding: 0 8px;
-  font-size: 12px;
+.pager button { min-width: var(--tap-sm); padding: 0 8px; font-size: 12px; }
+.pager button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+/* heatmap ----------------------------------------------------------------- */
+
+.heat-scroll { overflow-x: auto; padding-bottom: 4px; }
+.heat {
+  display: grid;
+  grid-template-columns: 30px repeat(24, minmax(14px, 1fr));
+  gap: 2px;
+  min-width: 420px;
+  font-size: 11px;
+  color: var(--text-3);
 }
-.pager button.active {
-  background: var(--surface-2);
-  border-color: var(--text-3);
+.heat .h { text-align: center; }
+.heat .cell { height: 20px; border-radius: 4px; background: var(--surface-2); }
+.heat .cell[data-level="1"] { background: var(--heat-1); }
+.heat .cell[data-level="2"] { background: var(--heat-2); }
+.heat .cell[data-level="3"] { background: var(--heat-3); }
+.heat .cell[data-level="4"] { background: var(--heat-4); }
+.heat .cell[data-level="5"] { background: var(--heat-5); }
+.heat.values .cell { display: flex; align-items: center; justify-content: center; }
+.heat.values .cell::after { content: attr(data-v); font-size: 11px; color: var(--text); }
+.heat.values .cell[data-level="4"]::after,
+.heat.values .cell[data-level="5"]::after { color: var(--accent-ink); }
+.heat-legend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-3); }
+.heat-legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+
+/* bars -------------------------------------------------------------------- */
+
+.bars { display: flex; flex-direction: column; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 64px; align-items: center; gap: 12px; font-size: 12px; }
+.bar-row .label { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.bar-row .value { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+
+/* dialog ------------------------------------------------------------------ */
+
+dialog {
+  width: calc(100% - 32px);
+  max-width: 520px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface);
   color: var(--text);
-  font-weight: 600;
 }
+dialog::backdrop { background: rgba(4, 6, 8, 0.72); }
+dialog .panel-head { border-radius: 8px 8px 0 0; }
+dialog .panel-foot { border-radius: 0 0 8px 8px; }
 
-/* responsive ------------------------------------------------------------- */
+/* responsive -------------------------------------------------------------- */
 
-@media (max-width: 767px) {
-  .page { padding: 16px; gap: 16px; }
-  .topbar { padding: 0 16px; gap: 16px; }
-  .topbar .meta { display: none; }
-  .strip { display: none; }
-  .panel-head { flex-wrap: wrap; }
-  .panel .foot { flex-wrap: wrap; }
-
-  .table thead, .table thead th, table thead th { display: none; }
-  .table, .table tbody, .table tr, .table td,
-  table, table tbody, table tr, table td { display: block; width: auto; }
-  .table tbody tr, table tbody tr {
-    padding: 8px 0;
+@media (max-width: 1023px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .rail {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: auto;
+    border-right: 0;
     border-bottom: 1px solid var(--line);
   }
-  .table tbody tr:last-child, table tbody tr:last-child { border-bottom: 0; }
-  .table tbody td, table tbody td {
-    display: grid;
-    grid-template-columns: 104px 1fr;
-    gap: 8px;
-    padding: 4px 12px;
-    border-bottom: 0;
+  .brand { height: 48px; }
+  .nav {
+    flex-direction: row;
+    gap: 4px;
+    padding: 6px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
-  .table tbody td::before, table tbody td::before {
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a {
+    height: 30px;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .nav a[aria-current="page"] { background: transparent; border-bottom-color: var(--accent); }
+  .rail-foot { display: none; }
+  .pagebar { position: static; flex-wrap: wrap; padding: 12px 16px; }
+  .content { padding: 16px; gap: 12px; }
+}
+
+@media (max-width: 767px) {
+  .table thead { display: none; }
+  .table, .table tbody, .table tr, .table td { display: block; width: auto; }
+  .table tbody tr { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .table tbody tr:last-child { border-bottom: 0; }
+  .table tbody td {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 12px;
+    padding: 3px 0;
+    border-bottom: 0;
+    text-align: left;
+  }
+  .table tbody td::before {
     content: attr(data-l);
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     color: var(--text-3);
   }
-  .table tbody td:not([data-l])::before, table tbody td:not([data-l])::before { content: none; }
-  .table td.key, .table td.mid, .table td.actions,
-  table td.key, table td.mid, table td.actions {
-    grid-template-columns: 1fr;
-    max-width: none;
-  }
-  .actions { text-align: left; }
+  .table tbody td:not([data-l])::before { content: none; }
+  .table td.key { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  .table td.pick { display: block; padding: 2px 0 6px; }
+  .table td.actions { grid-template-columns: minmax(0, 1fr); max-width: none; }
+  .table td.actions { text-align: left; display: flex; gap: 6px; padding-top: 8px; }
+  .table td.actions .btn + .btn { margin-left: 0; }
+  .panel-head { flex-wrap: wrap; }
+  .pagebar-actions { width: 100%; }
 }
 
 @media (pointer: coarse) {
   :root { --tap: 44px; --tap-sm: 44px; }
+  .nav a { height: 40px; }
 }
 `;
-function stateBlock(kind, message) {
-  return '<div class="state ' + kind + '">' + message + "</div>";
+var ICON_PATHS = {
+  overview: '<path d="M3 11h3.5l2.5-6 3.5 12 2.5-8 1.5 2H17"/>',
+  logs: '<path d="M8 5h9"/><path d="M8 10h9"/><path d="M8 15h6"/><path d="M4 5h.01"/><path d="M4 10h.01"/><path d="M4 15h.01"/>',
+  stats: '<path d="M3 16.5h14"/><path d="M5.5 16V10"/><path d="M10 16V5.5"/><path d="M14.5 16v-4.5"/>',
+  keys: '<circle cx="7" cy="10" r="3.5"/><path d="M10.5 10H17"/><path d="M13.5 10v3"/><path d="M17 10v2.5"/>',
+  models: '<path d="M10 3 3 7l7 4 7-4-7-4Z"/><path d="M3 11l7 4 7-4"/>',
+  settings: '<path d="M3.5 6.5h13"/><path d="M3.5 13.5h13"/><circle cx="8" cy="6.5" r="2"/><circle cx="13" cy="13.5" r="2"/>',
+  audit: '<path d="M10 3 4.5 5v4.5c0 3.4 2.3 5.9 5.5 7 3.2-1.1 5.5-3.6 5.5-7V5L10 3Z"/><path d="M7.6 9.9 9.5 12l3-3.6"/>',
+  refresh: '<path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/>',
+  plus: '<path d="M10 4.5v11"/><path d="M4.5 10h11"/>',
+  close: '<path d="M5 5l10 10"/><path d="M15 5 5 15"/>',
+  check: '<path d="M4.5 10.5 8 14l7.5-8"/>',
+  warning: '<path d="M10 3.5 18 17H2l8-13.5Z"/><path d="M10 8.5V12"/><path d="M10 14.5h.01"/>',
+  search: '<circle cx="9" cy="9" r="4.5"/><path d="M12.5 12.5 17 17"/>',
+  download: '<path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/>',
+  trash: '<path d="M4 6h12"/><path d="M6.5 6l.8 10h5.4l.8-10"/><path d="M8.5 6V4h3v2"/>',
+  test: '<path d="M11 3 5.5 11H9.5l-1 6 5.5-8H10l1-6Z"/>',
+  copy: '<path d="M8 8h8v9H8z"/><path d="M12 8V4H4v9h4"/>',
+  clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.5l3 1.5"/>',
+  back: '<path d="M12 4 6 10l6 6"/>',
+  mark: '<path d="M4 7h12l-6 11L4 7Z"/><path d="M10 2 4 7h12L10 2Z"/>'
+};
+function icon(name, cls = "icon") {
+  const path = ICON_PATHS[name];
+  if (!path) return "";
+  return '<svg class="' + cls + '" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + path + "</svg>";
 }
+var NAV_ITEMS = [
+  { href: "/pengatur", label: "Overview", icon: "overview" },
+  { href: "/pengatur/logs", label: "Logs", icon: "logs" },
+  { href: "/pengatur/stats", label: "Statistics", icon: "stats" },
+  { href: "/pengatur/keys", label: "Keys", icon: "keys" },
+  { href: "/pengatur/models", label: "Models", icon: "models" },
+  { href: "/pengatur/settings", label: "Settings", icon: "settings" },
+  { href: "/pengatur/audit", label: "Audit", icon: "audit" }
+];
+function normaliseActive(active) {
+  if (active === "/pengatur/usage") return "/pengatur/logs";
+  return active;
+}
+function navBar(active) {
+  const current = normaliseActive(active);
+  const links = NAV_ITEMS.map((item) => {
+    const isActive = item.href === current;
+    return '<a href="' + item.href + '"' + (isActive ? ' aria-current="page"' : "") + ">" + icon(item.icon) + "<span>" + item.label + "</span></a>";
+  }).join("");
+  return '<aside class="rail"><a class="brand" href="/pengatur">' + icon("mark", "mark") + '<span>geminesx</span></a><nav class="nav" aria-label="Console sections">' + links + '</nav><div class="rail-foot"><div class="row"><span class="k">storage</span><span class="v" id="railStorage">-</span></div><div class="row"><span class="k">session</span><span class="v" id="railSession">locked</span></div></div></aside>';
+}
+function consolePage(o) {
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n<div class="app">\n' + navBar(o.active) + '<div class="main">\n<header class="pagebar">\n<div class="pagebar-head"><h1>' + escapeHtml(o.title) + "</h1>" + (o.subtitle ? '<p class="sub">' + escapeHtml(o.subtitle) + "</p>" : "") + '</div>\n<div class="pagebar-actions">' + (o.actions ?? "") + '</div>\n</header>\n<main id="main" class="content">\n' + o.body + "\n</main>\n</div>\n</div>\n<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+}
+function escapeHtml(v2) {
+  return String(v2 ?? "").replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      default:
+        return "&#39;";
+    }
+  });
+}
+function authGate() {
+  return '<section id="gate" class="panel"><div class="panel-head"><div class="panel-title">Admin token</div></div><div class="panel-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>';
+}
+var CLIENT_JS = `
+(function () {
+  "use strict";
+
+  var STORE = "geminesx.admin.token";
+
+  var GX = {
+    store: STORE,
+
+    token: function () {
+      try { return localStorage.getItem(STORE) || ""; } catch (e) { return ""; }
+    },
+    setToken: function (value) {
+      try { localStorage.setItem(STORE, value); } catch (e) {}
+    },
+    clearToken: function () {
+      try { localStorage.removeItem(STORE); } catch (e) {}
+    },
+
+    /* One fetch helper for the whole console. Errors carry the server
+       message and the status code, so a page can tell "wrong token" from
+       "server is down". */
+    api: function (path, opts) {
+      opts = opts || {};
+      var headers = { authorization: "Bearer " + GX.token() };
+      var body;
+      if (opts.body !== undefined) {
+        headers["content-type"] = "application/json";
+        body = JSON.stringify(opts.body);
+      }
+      return fetch(path, {
+        method: opts.method || "GET",
+        headers: headers,
+        body: body
+      }).then(function (res) {
+        return res.text().then(function (raw) {
+          var data = null;
+          try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
+          if (!res.ok) {
+            var message = (data && data.error && data.error.message) || ("HTTP " + res.status);
+            /* Upstream bodies can be a paragraph of JSON. Keep one line and
+               cap it, so a failure reads as a message and not as a dump. */
+            message = String(message).split("\\n")[0];
+            if (message.length > 160) message = message.slice(0, 157) + "...";
+            var err = new Error(message);
+            err.status = res.status;
+            throw err;
+          }
+          return data;
+        });
+      });
+    },
+
+    /* Download helper for the CSV and JSON exports. */
+    download: function (path, filename) {
+      return fetch(path, { headers: { authorization: "Bearer " + GX.token() } })
+        .then(function (res) {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          var name = filename;
+          var disposition = res.headers.get("content-disposition");
+          if (disposition) {
+            var match = disposition.match(/filename="([^"]+)"/);
+            if (match) name = match[1];
+          }
+          return res.blob().then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+          });
+        });
+    },
+
+    /* The token gate. Restores a stored token, submits on Enter, and shows
+       the server message when the token is refused. */
+    gate: function (opts) {
+      opts = opts || {};
+      var form = document.getElementById("gateForm");
+      var input = document.getElementById("token");
+      var msg = document.getElementById("gateMsg");
+      var button = document.getElementById("connect");
+      var panel = document.getElementById("gate");
+
+      function fail(text) {
+        if (!msg) return;
+        msg.textContent = text;
+        msg.className = "notice err";
+      }
+
+      function run(value) {
+        if (!value) { fail("Enter the admin token."); return; }
+        if (button) button.disabled = true;
+        return Promise.resolve()
+          .then(function () { return opts.onSuccess(value); })
+          .then(function () {
+            GX.setToken(value);
+            if (msg) { msg.textContent = ""; msg.className = "notice"; }
+            if (panel) panel.hidden = true;
+            GX.session("connected");
+          })
+          .catch(function (err) {
+            GX.clearToken();
+            fail(err && err.message ? err.message : "Connection failed.");
+          })
+          .then(function () { if (button) button.disabled = false; });
+      }
+
+      if (form) {
+        form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          run(input ? input.value.trim() : "");
+        });
+      }
+
+      var saved = GX.token();
+      if (saved) {
+        if (input) input.value = saved;
+        return run(saved);
+      }
+      if (input) input.focus();
+    },
+
+    /* Drop back to the token gate, for example after a 401. */
+    lock: function (reason) {
+      GX.clearToken();
+      GX.session("locked");
+      var panel = document.getElementById("gate");
+      var msg = document.getElementById("gateMsg");
+      if (panel) panel.hidden = false;
+      if (msg) {
+        msg.textContent = reason || "Token required.";
+        msg.className = "notice err";
+      }
+      var input = document.getElementById("token");
+      if (input) { input.value = ""; input.focus(); }
+    },
+
+    session: function (text) {
+      var node = document.getElementById("railSession");
+      if (node) node.textContent = text;
+    },
+    storage: function (text) {
+      var node = document.getElementById("railStorage");
+      if (node) node.textContent = text;
+    },
+
+    /* Small DOM helper. Text goes through textContent, so no value is ever
+       parsed as markup. */
+    el: function (tag, attrs, kids) {
+      var node = document.createElement(tag);
+      attrs = attrs || {};
+      for (var key in attrs) {
+        var value = attrs[key];
+        if (value === null || value === undefined || value === false) continue;
+        if (key === "class") node.className = value;
+        else if (key === "text") node.textContent = value;
+        else if (key.slice(0, 2) === "on") node.addEventListener(key.slice(2).toLowerCase(), value);
+        else node.setAttribute(key, value === true ? "" : String(value));
+      }
+      if (kids !== undefined && kids !== null) {
+        var list = Array.isArray(kids) ? kids : [kids];
+        for (var i = 0; i < list.length; i++) {
+          var kid = list[i];
+          if (kid === null || kid === undefined || kid === false) continue;
+          node.appendChild(typeof kid === "string" ? document.createTextNode(kid) : kid);
+        }
+      }
+      return node;
+    },
+
+    badge: function (text, kind) {
+      var span = GX.el("span", { class: "badge " + (kind || "") });
+      span.appendChild(GX.el("span", { class: "dot" }));
+      span.appendChild(document.createTextNode(text));
+      return span;
+    },
+
+    state: function (kind, message, detail, action) {
+      var box = GX.el("div", { class: kind === "error" ? "state error" : "state" });
+      box.appendChild(GX.el("b", { text: message }));
+      if (detail) box.appendChild(GX.el("p", { class: "hint", text: detail }));
+      if (action) {
+        var retry = GX.el("div", { class: "retry" });
+        retry.appendChild(action);
+        box.appendChild(retry);
+      }
+      return box;
+    },
+
+    /* Table cell. The label is kept for the stacked phone layout. */
+    cell: function (row, text, cls, label) {
+      var td = GX.el("td", { class: cls || null, "data-l": label || null });
+      td.textContent = text === null || text === undefined ? "-" : String(text);
+      row.appendChild(td);
+      return td;
+    },
+
+    fmt: {
+      num: function (value) {
+        if (value === null || value === undefined || value === "") return "-";
+        var n = Number(value);
+        if (!isFinite(n)) return String(value);
+        return n.toLocaleString("en-US");
+      },
+      money: function (value) {
+        if (value === null || value === undefined) return "-";
+        var n = Number(value);
+        if (!isFinite(n)) return "-";
+        if (n === 0) return "$0";
+        if (Math.abs(n) < 0.000001) return "<$0.000001";
+        return "$" + n.toFixed(6).replace(/0+$/, "").replace(/.$/, "");
+      },
+      age: function (ms) {
+        if (!ms) return "never";
+        var d = Math.max(0, Date.now() - ms);
+        var s = Math.floor(d / 1000);
+        if (s < 60) return s + "s ago";
+        var m = Math.floor(s / 60);
+        if (m < 60) return m + "m ago";
+        var h = Math.floor(m / 60);
+        if (h < 24) return h + "h ago";
+        return Math.floor(h / 24) + "d ago";
+      },
+      left: function (ms) {
+        if (!ms || ms <= 0) return "0s";
+        var s = Math.ceil(ms / 1000);
+        if (s < 60) return s + "s";
+        var m = Math.floor(s / 60), r = s % 60;
+        if (m < 60) return r ? m + "m " + r + "s" : m + "m";
+        var h = Math.floor(m / 60);
+        return h + "h " + (m % 60) + "m";
+      },
+      clock: function (ts) {
+        var d = new Date(ts);
+        if (isNaN(d.getTime())) return "-";
+        return d.toLocaleTimeString("en-GB", { hour12: false }) + "." +
+          String(d.getMilliseconds()).padStart(3, "0");
+      },
+      stamp: function (ts) {
+        var d = new Date(ts);
+        if (isNaN(d.getTime())) return "-";
+        return d.toLocaleString("en-GB", { hour12: false });
+      }
+    },
+
+    debounce: function (fn, ms) {
+      var timer = null;
+      return function () {
+        clearTimeout(timer);
+        timer = setTimeout(fn, ms);
+      };
+    },
+
+    /* Repeat a task, but never while the tab is in the background. */
+    every: function (ms, fn) {
+      var id = setInterval(function () {
+        if (document.visibilityState === "visible") fn();
+      }, ms);
+      return function () { clearInterval(id); };
+    },
+
+    /* Open a dialog, with a fallback for engines without showModal. */
+    openDialog: function (node) {
+      if (!node) return;
+      if (typeof node.showModal === "function") {
+        if (!node.open) node.showModal();
+        return;
+      }
+      node.setAttribute("open", "");
+    },
+    closeDialog: function (node) {
+      if (!node) return;
+      if (typeof node.close === "function" && node.open) node.close();
+      else node.removeAttribute("open");
+    },
+
+    /* Toggle a button between busy and idle. The label is replaced for the
+       duration and the original markup comes back afterwards. */
+    busy: function (button, label) {
+      if (!button) return;
+      button.setAttribute("aria-busy", "true");
+      button.disabled = true;
+      if (label) {
+        button.setAttribute("data-label", button.innerHTML);
+        button.textContent = label;
+      }
+    },
+    idle: function (button) {
+      if (!button) return;
+      button.removeAttribute("aria-busy");
+      button.disabled = false;
+      var restore = button.getAttribute("data-label");
+      if (restore) {
+        button.innerHTML = restore;
+        button.removeAttribute("data-label");
+      }
+    },
+
+    say: function (node, text, kind) {
+      if (!node) return;
+      node.textContent = text || "";
+      node.className = "notice" + (kind ? " " + kind : "");
+    }
+  };
+
+  window.GX = GX;
+})();
+`;
 
 // src/admin-ui.ts
-var ADMIN_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>GeminesX control</title>
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/favicon.svg">
-<style>${BASE_CSS}</style>
-</head>
-<body>
+var PAGE_BODY = `
 
-<header class="topbar">
-  <a class="wordmark" href="/pengatur">GeminesX</a>
-  <nav class="nav">
-    <a href="/pengatur" class="active" aria-current="page">Keys</a>
-    <a href="/pengatur/usage">Usage</a>
-    <a href="/pengatur/models">Models</a>
-  </nav>
-  <div class="meta">
-    <span id="storage">storage: -</span>
-    <span id="synced">-</span>
-  </div>
-</header>
+${authGate()}
 
-<main class="page">
-
-  <div class="page-head">
-    <h1>Keys</h1>
-    <span class="meta">Pool health, key intake, live probe</span>
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
+    <div class="kv ok"><b id="sReady">0</b><span class="k">ready</span></div>
+    <div class="kv warn"><b id="sCooling">0</b><span class="k">cooling</span></div>
+    <div class="kv bad"><b id="sDead">0</b><span class="k">dead</span></div>
+    <div class="kv"><b id="sTier">-</b><span class="k">plans</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="nextReady">-</div>
   </div>
 
-  <!-- auth -->
-  <section id="authPanel" class="panel">
-    <div class="panel-body">
-      <label class="field" for="token">Admin token</label>
-      <div class="row">
-        <div class="grow">
-          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
-        </div>
-        <button id="connect" class="btn btn-primary" type="button">Connect</button>
+  <div class="grid split">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Pool <span class="meta" id="poolMeta"></span></div>
+        <a class="btn small" href="/pengatur/keys">Keys console</a>
       </div>
-      <div id="authHint" class="msg err"></div>
-      <p class="dimtext" style="margin-top:12px">The token stays in this browser. It is never sent anywhere except this deployment.</p>
-    </div>
-  </section>
+      <div class="panel-body">
+        <div class="row">
+          <div class="grow">
+            <label class="field" for="keyFilter">Filter</label>
+            <input id="keyFilter" type="search" spellcheck="false" placeholder="key, id or status">
+          </div>
+          <div class="grow">
+            <label class="field" for="keyStatus">Status</label>
+            <select id="keyStatus">
+              <option value="">all</option>
+              <option value="ready">ready</option>
+              <option value="cooling">cooling</option>
+              <option value="dead">dead</option>
+            </select>
+          </div>
+          <div class="grow">
+            <label class="field" for="keySize">Per page</label>
+            <select id="keySize">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="keysBody" class="tablewrap">stateBlock("loading", "Loading the pool")</div>
+      <div class="panel-foot"><div id="keyPager" class="pager"></div></div>
+    </section>
 
-  <!-- health strip -->
-  <section id="statsPanel" hidden>
-    <div class="strip">
-      <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
-      <div class="kv ready"><b id="sReady">0</b><span class="k">ready</span></div>
-      <div class="kv cooling"><b id="sCooling">0</b><span class="k">cooling</span></div>
-      <div class="kv dead"><b id="sDead">0</b><span class="k">dead</span></div>
-      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span class="k">plans</span></div>
-      <div class="spacer"></div>
-      <div class="meta" id="nextReady">-</div>
-    </div>
-  </section>
+    <div class="stack">
+      <section class="panel">
+        <div class="panel-head"><div class="panel-title">Plans</div></div>
+        <div class="panel-body">
+          <div class="stats" id="planStats"></div>
+          <p class="hint" style="margin-top:12px">Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
+        </div>
+      </section>
 
-  <!-- add -->
-  <section id="addPanel" class="panel" hidden>
-    <div class="panel-head"><div class="panel-title">Add keys</div></div>
+      <section class="panel">
+        <div class="panel-head"><div class="panel-title">Pool actions</div></div>
+        <div class="panel-body">
+          <div class="row">
+            <button id="testAllBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3 5.5 11H9.5l-1 6 5.5-8H10l1-6Z"/></svg>Test all live keys</button>
+          </div>
+          <p class="hint" style="margin-top:8px" id="testAllNote">One live call per key, four at a time.</p>
+          <div class="sep" style="margin:12px 0"></div>
+          <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
+          <div class="row" style="margin-top:12px">
+            <button id="forget" class="btn btn-ghost small" type="button">Forget token</button>
+          </div>
+          <div id="keyMsg" class="notice" role="status" aria-live="polite" style="margin-top:12px"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<dialog id="addDialog" aria-labelledby="addTitle">
+  <form id="addForm" method="dialog">
+    <div class="panel-head">
+      <div class="panel-title" id="addTitle">Add keys</div>
+      <button class="btn btn-ghost small" type="button" id="addClose" aria-label="Close"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10"/><path d="M15 5 5 15"/></svg></button>
+    </div>
     <div class="panel-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
       <div class="row" style="margin-top:12px">
-        <button id="addBtn" class="btn btn-primary" type="button">Add to pool</button>
-        <span id="addCount" class="muted"></span>
+        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
+        <span id="addCount" class="hint"></span>
       </div>
-      <div id="addMsg" class="msg"></div>
+      <div id="addMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
-  </section>
-
-  <!-- keys -->
-  <section id="keysPanel" class="panel" hidden>
-    <div class="panel-head">
-      <div class="panel-title">Pool <span class="meta" id="testAllNote"></span></div>
-      <button id="testAllBtn" class="btn" type="button">Test all live keys</button>
-    </div>
-    <div class="panel-body">
-      <div class="row">
-        <div class="grow">
-          <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
-        </div>
-        <select id="keySize" aria-label="Keys per page">
-          <option value="10">10 / page</option>
-          <option value="25" selected>25 / page</option>
-          <option value="50">50 / page</option>
-          <option value="100">100 / page</option>
-        </select>
-      </div>
-    </div>
-    <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading pool...")}</div>
-    <div class="panel-body">
-      <div id="keyPager" class="pager"></div>
-      <div id="keyMsg" class="msg"></div>
-    </div>
-    <div class="foot">
-      <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
-      <button id="forget" class="small" type="button">Forget token</button>
-    </div>
-  </section>
-
-</main>
-
-<script>
-(function () {
+  </form>
+</dialog>
+`;
+var PAGE_SCRIPT = `(function () {
   "use strict";
-  var STORE = "geminesx.admin.token";
 
   var el = {
-    authPanel: document.getElementById("authPanel"),
-    authHint: document.getElementById("authHint"),
-    token: document.getElementById("token"),
-    connect: document.getElementById("connect"),
-    statsPanel: document.getElementById("statsPanel"),
-    addPanel: document.getElementById("addPanel"),
-    keysPanel: document.getElementById("keysPanel"),
+    console: document.getElementById("console"),
     sTotal: document.getElementById("sTotal"),
     sReady: document.getElementById("sReady"),
     sCooling: document.getElementById("sCooling"),
     sDead: document.getElementById("sDead"),
     sTier: document.getElementById("sTier"),
     nextReady: document.getElementById("nextReady"),
-    storage: document.getElementById("storage"),
-    synced: document.getElementById("synced"),
-    newKeys: document.getElementById("newKeys"),
-    addBtn: document.getElementById("addBtn"),
-    addCount: document.getElementById("addCount"),
-    addMsg: document.getElementById("addMsg"),
+    poolMeta: document.getElementById("poolMeta"),
+    planStats: document.getElementById("planStats"),
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
+    keyStatus: document.getElementById("keyStatus"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
     keyMsg: document.getElementById("keyMsg"),
     testAllBtn: document.getElementById("testAllBtn"),
     testAllNote: document.getElementById("testAllNote"),
     auto: document.getElementById("auto"),
-    forget: document.getElementById("forget")
+    forget: document.getElementById("forget"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    addBtn: document.getElementById("addBtn"),
+    addDialog: document.getElementById("addDialog"),
+    addClose: document.getElementById("addClose"),
+    addForm: document.getElementById("addForm"),
+    addSubmit: document.getElementById("addSubmit"),
+    newKeys: document.getElementById("newKeys"),
+    addCount: document.getElementById("addCount"),
+    addMsg: document.getElementById("addMsg")
   };
 
-  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "", tiers: null };
+  var state = { keys: [], tiers: null, testing: {}, page: 1, size: 25, query: "", status: "", timer: null };
 
-  // Billing plan declaration. Google never reports a project's plan over the
-  // API, so the operator states it here and the models page prices against it.
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
     { value: "free", label: "Free tier" },
@@ -9379,101 +9910,9 @@ var ADMIN_HTML = `<!doctype html>
     { value: "pro", label: "AI Pro / Ultra" }
   ];
 
-  function setTier(ids, tier, control) {
-    if (!ids.length) { say(el.keyMsg, "Nothing to update.", "err"); return; }
-    if (control) control.disabled = true;
-    api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
-      .then(function (data) {
-        var label = (TIERS.filter(function (t) { return t.value === tier; })[0] || {}).label || tier;
-        say(el.keyMsg, "Plan set to " + label + " for " + data.updated + " key(s).", "ok");
-        state.tiers = data.tiers;
-        if (data.tiers) paintTiers();
-        return refresh();
-      })
-      .catch(function (err) {
-        say(el.keyMsg, "Plan update failed: " + err.message, "err");
-      })
-      .then(function () { if (control) control.disabled = false; });
-  }
-
-  function paintTiers() {
-    var t = state.tiers || {};
-    var parts = [];
-    if (t.free) parts.push(t.free + " free");
-    if (t.paid) parts.push(t.paid + " paid");
-    if (t.pro) parts.push(t.pro + " pro");
-    if (t.unknown) parts.push(t.unknown + " unset");
-    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
-  }
-
-  function say(node, text, kind) {
-    node.className = "msg " + (kind || "info");
-    node.textContent = text;
-    node.classList.add("show");
-  }
-  function hide(node) { node.classList.remove("show"); node.textContent = ""; }
-
-  function api(path, opts) {
-    opts = opts || {};
-    var headers = { "authorization": "Bearer " + state.token };
-    if (opts.body) headers["content-type"] = "application/json";
-    return fetch(path, {
-      method: opts.method || "GET",
-      headers: headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined
-    }).then(function (res) {
-      return res.text().then(function (raw) {
-        var data = null;
-        try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
-        if (!res.ok) {
-          var err = new Error((data && data.error && data.error.message) || ("HTTP " + res.status));
-          err.status = res.status;
-          throw err;
-        }
-        return data;
-      });
-    });
-  }
-
-  function fmtAge(ms) {
-    if (!ms) return "never";
-    var d = Date.now() - ms;
-    if (d < 0) d = 0;
-    var s = Math.floor(d / 1000);
-    if (s < 60) return s + "s ago";
-    var m = Math.floor(s / 60);
-    if (m < 60) return m + "m ago";
-    var h = Math.floor(m / 60);
-    if (h < 24) return h + "h ago";
-    return Math.floor(h / 24) + "d ago";
-  }
-  function fmtLeft(ms) {
-    if (!ms || ms <= 0) return "0s";
-    var s = Math.ceil(ms / 1000);
-    if (s < 60) return s + "s";
-    var m = Math.floor(s / 60), r = s % 60;
-    if (m < 60) return r ? m + "m " + r + "s" : m + "m";
-    var h = Math.floor(m / 60);
-    return h + "h " + (m % 60) + "m";
-  }
-
-  function renderStats(pool) {
-    el.sTotal.textContent = pool.total;
-    el.sReady.textContent = pool.ready;
-    el.sCooling.textContent = pool.cooling;
-    el.sDead.textContent = pool.dead;
-    el.storage.textContent = "storage: " + pool.storage + (pool.degraded ? " (degraded)" : "");
-    el.synced.textContent = "synced " + new Date().toLocaleTimeString();
-    el.nextReady.textContent = pool.cooling > 0
-      ? "next key free in " + fmtLeft(pool.soonestReadyMs)
-      : (pool.ready > 0 ? "all ready keys selectable" : "no key can serve right now");
-  }
-
-  function cell(label, cls) {
-    var td = document.createElement("td");
-    if (cls) td.className = cls;
-    if (label) td.setAttribute("data-l", label);
-    return td;
+  function tierLabel(value) {
+    for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
+    return value;
   }
 
   function probeClass(status) {
@@ -9481,51 +9920,82 @@ var ADMIN_HTML = `<!doctype html>
     if (status === "rate_limited" || status === "zero_quota" || status === "server_error") return "warn";
     return "bad";
   }
+
   function probeText(res) {
-    var label = res.status.replace(/_/g, " ");
+    if (!res) return "not tested";
+    var label = String(res.status).replace(/_/g, " ");
     if (res.status === "ok") label = "serving";
-    if (res.status === "rate_limited") label = "429, free in " + fmtLeft(res.retryAfterMs);
+    if (res.status === "rate_limited") label = "429, free in " + GX.fmt.left(res.retryAfterMs);
     return label + " (" + res.latencyMs + "ms)";
   }
 
-  function renderKeys(keys) {
-    state.keys = keys;
-    drawTable();
+  function renderStrip(pool) {
+    el.sTotal.textContent = pool.total;
+    el.sReady.textContent = pool.ready;
+    el.sCooling.textContent = pool.cooling;
+    el.sDead.textContent = pool.dead;
+    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""));
+    el.nextReady.textContent = pool.cooling > 0
+      ? "next key free in " + GX.fmt.left(pool.soonestReadyMs)
+      : pool.ready > 0
+        ? "every key selectable"
+        : "no key can serve right now";
   }
 
-  /**
-   * Draw one page of the pool. Pagination is client-side: the admin endpoint
-   * already returns the whole pool in one request, so slicing here keeps the
-   * 5s auto-refresh from re-fetching per page.
-   */
-  function drawTable() {
-    var keys = state.keys;
-    if (!keys.length) {
-      el.keysBody.innerHTML = "";
-      var box = document.createElement("div");
-      box.className = "empty";
-      var b = document.createElement("b");
-      b.textContent = "Pool is empty";
-      box.appendChild(b);
-      box.appendChild(document.createTextNode("Add keys above, or set GEMINI_API_KEYS on the deployment."));
-      el.keysBody.appendChild(box);
-      return;
-    }
+  function renderPlans(tiers) {
+    state.tiers = tiers || {};
+    var t = state.tiers;
+    var parts = [];
+    if (t.free) parts.push(t.free + " free");
+    if (t.paid) parts.push(t.paid + " paid");
+    if (t.pro) parts.push(t.pro + " pro");
+    if (t.unknown) parts.push(t.unknown + " unset");
+    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
 
-    var filtered = keys.filter(function (k) {
-      if (!state.query) return true;
-      return (k.key + " " + k.id + " " + k.status).toLowerCase().indexOf(state.query) >= 0;
+    el.planStats.textContent = "";
+    var rows = [
+      ["free", t.free || 0],
+      ["paid", t.paid || 0],
+      ["pro", t.pro || 0],
+      ["unknown", t.unknown || 0]
+    ];
+    for (var i = 0; i < rows.length; i++) {
+      var box = GX.el("div", { class: "stat" }, [
+        GX.el("b", { text: String(rows[i][1]) }),
+        GX.el("span", { text: rows[i][0] })
+      ]);
+      el.planStats.appendChild(box);
+    }
+  }
+
+  function statusBadge(status) {
+    var kind = status === "ready" ? "ok" : status === "cooling" ? "warn" : "bad";
+    return GX.badge(status, kind);
+  }
+
+  function visibleKeys() {
+    var query = state.query;
+    return state.keys.filter(function (k) {
+      if (state.status && k.status !== state.status) return false;
+      if (!query) return true;
+      return (k.key + " " + k.id + " " + k.status).toLowerCase().indexOf(query) >= 0;
     });
+  }
+
+  function drawTable() {
+    var filtered = visibleKeys();
+    el.poolMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
 
     if (!filtered.length) {
-      el.keysBody.innerHTML = "";
-      var nbox = document.createElement("div");
-      nbox.className = "empty";
-      var nb = document.createElement("b");
-      nb.textContent = "No key matches this filter";
-      nbox.appendChild(nb);
-      nbox.appendChild(document.createTextNode("Clear the filter box to see the whole pool."));
-      el.keysBody.appendChild(nbox);
+      el.keysBody.textContent = "";
+      var empty = GX.state(
+        "empty",
+        state.keys.length ? "No key matches this filter" : "Pool is empty",
+        state.keys.length
+          ? "Clear the filter box to see the whole pool."
+          : "Add keys from the button above, or set GEMINI_API_KEYS on the deployment."
+      );
+      el.keysBody.appendChild(empty);
       renderPager(0, 1);
       return;
     }
@@ -9536,280 +10006,143 @@ var ADMIN_HTML = `<!doctype html>
     var start = (state.page - 1) * state.size;
     var slice = filtered.slice(start, start + state.size);
 
-    var table = document.createElement("table");
-    var thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th>Plan</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
-    table.appendChild(thead);
-    var tbody = document.createElement("tbody");
+    var table = GX.el("table", { class: "table" });
+    var head = GX.el("thead", null, GX.el("tr", null, [
+      GX.el("th", { text: "Key" }),
+      GX.el("th", { text: "Status" }),
+      GX.el("th", { text: "Plan" }),
+      GX.el("th", { class: "num", text: "Fails" }),
+      GX.el("th", { class: "num", text: "Cooldown" }),
+      GX.el("th", { text: "Last used" }),
+      GX.el("th", { text: "Probe" }),
+      GX.el("th", { class: "num", text: "" })
+    ]));
+    table.appendChild(head);
 
+    var body = GX.el("tbody");
     slice.forEach(function (k) {
-      var tr = document.createElement("tr");
-      tr.setAttribute("data-id", k.id);
+      var tr = GX.el("tr");
 
-      var cKey = cell("Key", "key");
-      var code = document.createElement("span");
-      code.className = "mono";
-      code.textContent = k.key;
-      code.title = "id " + k.id;
-      cKey.appendChild(code);
+      var keyCell = GX.el("td", { class: "key", "data-l": "key" });
+      var link = GX.el("a", { href: "/pengatur/keys/" + encodeURIComponent(k.id), text: k.key });
+      link.title = "id " + k.id;
+      keyCell.appendChild(link);
+      tr.appendChild(keyCell);
 
-      var cStatus = cell("Status");
-      var badge = document.createElement("span");
-      badge.className = "badge " + k.status;
-      badge.textContent = k.status;
-      cStatus.appendChild(badge);
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(statusBadge(k.status));
+      tr.appendChild(statusCell);
 
-      // Plan is an operator declaration, not an upstream fact; the select is the
-      // input, the stored value is what /pengatur/models prices against.
-      var cTier = cell("Plan");
-      var tierSel = document.createElement("select");
-      tierSel.className = "tier";
-      tierSel.setAttribute("aria-label", "Billing plan for " + k.key);
+      var tierCell = GX.el("td", { "data-l": "plan" });
+      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
       TIERS.forEach(function (t) {
-        var o = document.createElement("option");
-        o.value = t.value;
-        o.textContent = t.label;
-        if ((k.tier || "unknown") === t.value) o.selected = true;
-        tierSel.appendChild(o);
+        var option = GX.el("option", { value: t.value, text: t.label });
+        if ((k.tier || "unknown") === t.value) option.selected = true;
+        select.appendChild(option);
       });
-      tierSel.addEventListener("change", function () { setTier([k.id], tierSel.value, tierSel); });
-      cTier.appendChild(tierSel);
+      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
+      tierCell.appendChild(select);
+      tr.appendChild(tierCell);
 
-      var cFail = cell("Fails", "right num");
-      cFail.textContent = k.failures;
+      GX.cell(tr, k.failures, "num", "fails");
+      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num cool", "cooldown");
+      GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
-      var cCool = cell("Cooldown", "right");
-      var wrapCool = document.createElement("span");
-      wrapCool.className = "cool num";
-      var left = document.createElement("span");
-      left.className = "left";
-      left.textContent = fmtLeft(k.cooldownLeftMs);
-      var bar = document.createElement("span");
-      bar.className = "bar";
-      var fill = document.createElement("i");
-      var totalCd = Math.max(k.cooldownLeftMs, 1);
-      fill.style.width = k.cooldownLeftMs > 0 ? "100%" : "0%";
-      bar.appendChild(fill);
-      wrapCool.appendChild(left);
-      wrapCool.appendChild(bar);
-      cCool.appendChild(wrapCool);
-
-      var cUsed = cell("Last used");
-      cUsed.textContent = fmtAge(k.lastUsed);
-
-      var cProbe = cell("Probe");
-      var pv = document.createElement("span");
-      pv.className = "probe";
+      var probeCell = GX.el("td", { "data-l": "probe" });
       var known = state.testing[k.id];
-      if (known) {
-        pv.className = "probe " + probeClass(known.status);
-        pv.textContent = probeText(known);
-      } else {
-        pv.textContent = "-";
-      }
-      cProbe.appendChild(pv);
+      probeCell.appendChild(GX.el("span", {
+        class: "probe " + (known ? probeClass(known.status) : ""),
+        text: known ? probeText(known) : "-"
+      }));
+      tr.appendChild(probeCell);
 
-      var cAct = cell(null, "actions");
-      var testBtn = document.createElement("button");
-      testBtn.type = "button";
-      testBtn.className = "small";
-      testBtn.textContent = "Test";
-      testBtn.addEventListener("click", function () { testKey(k, testBtn, pv); });
-
-      var delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "small danger";
-      delBtn.textContent = "Remove";
+      var actions = GX.el("td", { class: "actions" });
+      var testBtn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      testBtn.addEventListener("click", function () { testKey(k, testBtn); });
+      var delBtn = GX.el("button", { class: "small btn-danger", type: "button", text: "Remove" });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
+      actions.appendChild(testBtn);
+      actions.appendChild(delBtn);
+      tr.appendChild(actions);
 
-      cAct.appendChild(testBtn);
-      cAct.appendChild(delBtn);
-
-      tr.appendChild(cKey); tr.appendChild(cStatus); tr.appendChild(cTier); tr.appendChild(cFail);
-      tr.appendChild(cCool); tr.appendChild(cUsed); tr.appendChild(cProbe); tr.appendChild(cAct);
-      tbody.appendChild(tr);
+      body.appendChild(tr);
     });
 
-    table.appendChild(tbody);
-    el.keysBody.innerHTML = "";
+    table.appendChild(body);
+    el.keysBody.textContent = "";
     el.keysBody.appendChild(table);
     renderPager(filtered.length, pages);
-    startTicker();
   }
 
-  /** Numbered pager with a sliding window; Prev/Next never wrap around. */
   function renderPager(total, pages) {
-    el.keyPager.innerHTML = "";
+    el.keyPager.textContent = "";
     if (!total) return;
 
-    var start = (state.page - 1) * state.size + 1;
-    var end = Math.min(total, state.page * state.size);
-
-    var info = document.createElement("span");
-    info.textContent = "Showing " + start + "-" + end + " of " + total + " keys";
+    var info = GX.el("span", {
+      text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
+        Math.min(total, state.page * state.size) + " of " + total
+    });
     el.keyPager.appendChild(info);
 
-    var box = document.createElement("div");
-    box.className = "pages";
-
+    var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "small" + (active ? " active" : "");
-      b.textContent = label;
-      b.disabled = Boolean(disabled);
+      var b = GX.el("button", {
+        class: "small" + (active ? " active" : ""),
+        type: "button",
+        text: label,
+        disabled: disabled ? true : null
+      });
       if (active) b.setAttribute("aria-current", "page");
       b.addEventListener("click", function () { state.page = page; drawTable(); });
       return b;
     }
 
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
-
     var win = 5;
     var from = Math.max(1, state.page - Math.floor(win / 2));
     var to = Math.min(pages, from + win - 1);
     from = Math.max(1, to - win + 1);
-
     if (from > 1) {
       box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) {
-        var d = document.createElement("span");
-        d.textContent = "...";
-        box.appendChild(d);
-      }
+      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
     }
     for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
     if (to < pages) {
-      if (to < pages - 1) {
-        var d2 = document.createElement("span");
-        d2.textContent = "...";
-        box.appendChild(d2);
-      }
+      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
     }
-
     box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
     el.keyPager.appendChild(box);
   }
 
-  /**
-   * Cooldown cells drain between polls. Recomputing from the last sync keeps
-   * the display honest without extra requests.
-   */
-  function startTicker() {
-    if (state.tick) return;
-    state.tick = setInterval(function () {
-      var rows = el.keysBody.querySelectorAll("tr[data-id]");
-      for (var i = 0; i < rows.length; i++) {
-        var id = rows[i].getAttribute("data-id");
-        var k = state.keys.filter(function (x) { return x.id === id; })[0];
-        if (!k || k.cooldownLeftMs <= 0) continue;
-        var left = rows[i].querySelector(".cool .left");
-        if (left) left.textContent = fmtLeft(k.cooldownLeftMs);
-      }
-    }, 1000);
-  }
-
-  function refresh() {
-    if (!state.token || state.busy) return Promise.resolve();
-    state.busy = true;
-    return api("/pengatur/keys/list")
+  function setTier(ids, tier, control) {
+    if (!ids.length) { GX.say(el.keyMsg, "Nothing to update.", "err"); return; }
+    if (control) control.disabled = true;
+    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
       .then(function (data) {
-        renderStats(data.pool);
-        state.tiers = data.tiers;
-        paintTiers();
-        renderKeys(data.keys || []);
-        el.statsPanel.hidden = false;
-        el.addPanel.hidden = false;
-        el.keysPanel.hidden = false;
-        el.authPanel.hidden = true;
+        GX.say(el.keyMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        return reload();
       })
       .catch(function (err) {
-        if (err.status === 401 || err.status === 403) {
-          lock(err.message + " Re-enter the token.");
-        } else {
-          say(el.keyMsg, "Refresh failed: " + err.message, "err");
-        }
+        GX.say(el.keyMsg, "Plan update failed: " + err.message, "err");
       })
-      .then(function () { state.busy = false; });
+      .then(function () { if (control) control.disabled = false; });
   }
 
-  function lock(reason) {
-    stopAuto();
-    state.token = "";
-    el.statsPanel.hidden = true;
-    el.addPanel.hidden = true;
-    el.keysPanel.hidden = true;
-    el.authPanel.hidden = false;
-    say(el.authHint, reason || "Token required.", "err");
-  }
-
-  function connect() {
-    var t = el.token.value.trim();
-    if (!t) { say(el.authHint, "Token is empty.", "err"); return; }
-    state.token = t;
-    el.connect.disabled = true;
-    api("/pengatur/keys/list")
-      .then(function (data) {
-        try { localStorage.setItem(STORE, t); } catch (e) {}
-        renderStats(data.pool);
-        state.tiers = data.tiers;
-        paintTiers();
-        renderKeys(data.keys || []);
-        el.statsPanel.hidden = false;
-        el.addPanel.hidden = false;
-        el.keysPanel.hidden = false;
-        el.authPanel.hidden = true;
-        hide(el.keyMsg);
-        startAuto();
-      })
-      .catch(function (err) {
-        state.token = "";
-        say(el.authHint, "Connect failed: " + err.message, "err");
-      })
-      .then(function () { el.connect.disabled = false; });
-  }
-
-  function removeKey(k, btn) {
-    if (!confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
-    btn.disabled = true;
-    api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
-      .then(function (data) {
-        say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
-        delete state.testing[k.id];
-        return refresh();
-      })
-      .catch(function (err) {
-        btn.disabled = false;
-        say(el.keyMsg, "Remove failed: " + err.message, "err");
-      });
-  }
-
-  /**
-   * Probe one key against Google. The server folds the verdict into the pool:
-   * a serving key leaves cooldown, a 429 key re-enters it with the real wait,
-   * a revoked key is retired.
-   */
-  function testKey(k, btn, node) {
+  function testKey(k, btn) {
     btn.disabled = true;
     btn.textContent = "Testing";
-    node.className = "probe";
-    node.textContent = "probing...";
-    api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
+    GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
         state.testing[k.id] = data.probe;
-        node.className = "probe " + probeClass(data.probe.status);
-        node.textContent = probeText(data.probe);
         var note = data.applied === "revived" ? " back in rotation"
           : data.applied === "cooling" ? " parked again"
           : data.applied === "retired" ? " retired from the pool" : "";
-        say(el.keyMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "info");
-        return refresh();
+        GX.say(el.keyMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
+        return reload();
       })
       .catch(function (err) {
-        node.className = "probe bad";
-        node.textContent = "probe failed";
-        say(el.keyMsg, "Test failed: " + err.message, "err");
+        GX.say(el.keyMsg, "Test failed: " + err.message, "err");
       })
       .then(function () {
         btn.disabled = false;
@@ -9818,93 +10151,156 @@ var ADMIN_HTML = `<!doctype html>
   }
 
   function testAll() {
-    el.testAllBtn.disabled = true;
-    var label = el.testAllBtn.textContent;
-    el.testAllBtn.textContent = "Testing...";
-    el.testAllNote.textContent = "one live call per key, 4 at a time";
-    api("/pengatur/keys/test-all", { method: "POST" })
+    GX.busy(el.testAllBtn, "Testing");
+    el.testAllNote.textContent = "One live call per key, four at a time.";
+    GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
-        (data.results || []).forEach(function (r) { state.testing[r.id] = r.probe; });
-        var ok = (data.results || []).filter(function (r) { return r.probe.status === "ok"; }).length;
-        say(el.keyMsg, "Probed " + data.tested + " keys, " + ok + " serving. Pool: " + data.pool.ready + " ready, " + data.pool.cooling + " cooling, " + data.pool.dead + " dead.", ok ? "ok" : "info");
-        return refresh();
+        var results = data.results || [];
+        results.forEach(function (r) { state.testing[r.id] = r.probe; });
+        var ok = results.filter(function (r) { return r.probe.status === "ok"; }).length;
+        GX.say(
+          el.keyMsg,
+          "Probed " + data.tested + " keys, " + ok + " serving. Pool: " +
+            data.pool.ready + " ready, " + data.pool.cooling + " cooling, " + data.pool.dead + " dead.",
+          ok ? "ok" : ""
+        );
+        return reload();
       })
-      .catch(function (err) { say(el.keyMsg, "Test all failed: " + err.message, "err"); })
+      .catch(function (err) {
+        GX.say(el.keyMsg, "Test all failed: " + err.message, "err");
+      })
       .then(function () {
-        el.testAllBtn.disabled = false;
-        el.testAllBtn.textContent = label;
-        el.testAllNote.textContent = "";
+        GX.idle(el.testAllBtn);
+        el.testAllNote.textContent = "One live call per key, four at a time.";
+      });
+  }
+
+  function removeKey(k, btn) {
+    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    btn.disabled = true;
+    GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
+      .then(function (data) {
+        GX.say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        delete state.testing[k.id];
+        return reload();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        GX.say(el.keyMsg, "Remove failed: " + err.message, "err");
       });
   }
 
   function addKeys() {
     var raw = el.newKeys.value;
     var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-    if (!keys.length) { say(el.addMsg, "Nothing to add.", "err"); return; }
-    el.addBtn.disabled = true;
-    api("/pengatur/keys", { method: "POST", body: { keys: keys } })
+    if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
+    GX.busy(el.addSubmit, "Adding");
+    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";
-        say(el.addMsg, "Sent " + data.received + ", added " + data.added + ". Pool total " + data.pool.total + ".", data.added ? "ok" : "info");
-        return refresh();
+        GX.say(el.addMsg, "Sent " + data.received + ", added " + data.added + ".", data.added ? "ok" : "");
+        return reload();
       })
-      .catch(function (err) { say(el.addMsg, "Add failed: " + err.message, "err"); })
-      .then(function () { el.addBtn.disabled = false; });
+      .catch(function (err) {
+        GX.say(el.addMsg, "Add failed: " + err.message, "err");
+      })
+      .then(function () {
+        GX.idle(el.addSubmit);
+      });
+  }
+
+  function refresh() {
+    return GX.api("/pengatur/keys/list")
+      .then(function (data) {
+        state.keys = data.keys || [];
+        renderStrip(data.pool || {});
+        renderPlans(data.tiers);
+        drawTable();
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        GX.say(el.keyMsg, "Refresh failed: " + err.message, "err");
+      });
+  }
+
+  /* Same refresh, but a failure must not break the caller chain. */
+  function reload() {
+    return refresh().catch(function () {});
   }
 
   function startAuto() {
-    stopAuto();
+    if (state.timer) return;
     if (!el.auto.checked) return;
-    state.timer = setInterval(refresh, 5000);
+    state.timer = GX.every(5000, reload);
   }
   function stopAuto() {
-    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    if (state.timer) { state.timer(); state.timer = null; }
   }
 
-  el.connect.addEventListener("click", connect);
-  el.token.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
-  el.forget.addEventListener("click", function () {
-    try { localStorage.removeItem(STORE); } catch (e) {}
-    el.token.value = "";
-    lock("Token cleared from this browser.");
+  el.addBtn.addEventListener("click", function () {
+    GX.say(el.addMsg, "");
+    GX.openDialog(el.addDialog);
+    if (el.newKeys) el.newKeys.focus();
   });
-  el.auto.addEventListener("change", function () { if (el.auto.checked) startAuto(); else stopAuto(); });
-  el.addBtn.addEventListener("click", addKeys);
+  el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  el.addForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    addKeys();
+  });
+  el.newKeys.addEventListener("input", function () {
+    var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
+    el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
+  });
+  el.refreshBtn.addEventListener("click", function () { refresh(); });
   el.testAllBtn.addEventListener("click", testAll);
-  var filterTimer = null;
-  el.keyFilter.addEventListener("input", function () {
-    clearTimeout(filterTimer);
-    filterTimer = setTimeout(function () {
-      state.query = el.keyFilter.value.trim().toLowerCase();
-      state.page = 1;
-      drawTable();
-    }, 140);
+  el.auto.addEventListener("change", function () {
+    if (el.auto.checked) startAuto(); else stopAuto();
   });
-
+  el.forget.addEventListener("click", function () {
+    stopAuto();
+    GX.lock("Token cleared from this browser.");
+  });
+  el.keyFilter.addEventListener("input", GX.debounce(function () {
+    state.query = el.keyFilter.value.trim().toLowerCase();
+    state.page = 1;
+    drawTable();
+  }, 140));
+  el.keyStatus.addEventListener("change", function () {
+    state.status = el.keyStatus.value;
+    state.page = 1;
+    drawTable();
+  });
   el.keySize.addEventListener("change", function () {
     state.size = Number(el.keySize.value) || 25;
     state.page = 1;
     drawTable();
   });
 
-  el.newKeys.addEventListener("input", function () {
-    var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
-    el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
+  GX.gate({
+    onSuccess: function () {
+      return refresh().then(function () {
+        startAuto();
+      });
+    }
   });
-
-  // Restore a previously stored token and try it silently.
-  var saved = "";
-  try { saved = localStorage.getItem(STORE) || ""; } catch (e) {}
-  if (saved) { el.token.value = saved; connect(); }
-})();
-</script>
-</body>
-</html>`;
+})();`;
+var ADMIN_HTML = consolePage({
+  title: "Overview",
+  subtitle: "Pool health, key intake and live probe",
+  active: "/pengatur",
+  actions: `<button id="addBtn" class="btn btn-primary" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 4.5v11"/><path d="M4.5 10h11"/></svg>Add keys</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
+  body: PAGE_BODY,
+  script: PAGE_SCRIPT
+});
 
 // src/favicon.ts
-var TILE = "#0d1014";
-var ACCENT = "#e8a33d";
+var TILE = "#0a0c0f";
+var ACCENT = "#4fb0c4";
 var FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Key rotator">
   <rect width="32" height="32" rx="7" fill="${TILE}"/>
   <path d="M9 20l5-9 4 6 5-3" fill="none" stroke="${ACCENT}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -10033,137 +10429,85 @@ function buildFaviconIco(deflate) {
 }
 
 // src/models-ui.ts
-var MODELS_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Models \xB7 GeminesX</title>
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/favicon.svg">
-<style>${BASE_CSS}</style>
-</head>
-<body>
+var PAGE_BODY2 = `
 
-<header class="topbar">
-  <a class="wordmark" href="/pengatur">GeminesX</a>
-  <nav class="nav">
-    <a href="/pengatur">Keys</a>
-    <a href="/pengatur/usage">Usage</a>
-    <a href="/pengatur/models" class="active" aria-current="page">Models</a>
-  </nav>
-  <div class="meta">
-    <span id="asOf">pricing: -</span>
-    <span id="synced">-</span>
-  </div>
-</header>
+${authGate()}
 
-<main class="page">
-
-  <div class="page-head">
-    <h1>Models</h1>
-    <span class="meta">Live inventory from the Generative Language API, joined with published pricing</span>
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="cTotal">0</b><span class="k">models</span></div>
+    <div class="kv ok"><b id="cFree">0</b><span class="k">free tier</span></div>
+    <div class="kv warn"><b id="cPaid">0</b><span class="k">paid only</span></div>
+    <div class="kv"><b id="cTested">0</b><span class="k">tested</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="cTier">-</div>
   </div>
 
-  <!-- auth -->
-  <section id="authPanel" class="panel">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Inventory</div>
+      <div class="row">
+        <button id="reloadBtn" class="btn small" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh live list</button>
+      </div>
+    </div>
     <div class="panel-body">
-      <label class="field" for="token">Admin token</label>
       <div class="row">
         <div class="grow">
-          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+          <label class="field" for="q">Search</label>
+          <input id="q" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
         </div>
-        <button id="connect" class="btn btn-primary" type="button">Connect</button>
+        <div class="grow">
+          <label class="field" for="kind">Capability</label>
+          <select id="kind">
+            <option value="">all</option>
+            <option value="text">text</option>
+            <option value="tts">tts</option>
+            <option value="image">image</option>
+            <option value="video">video</option>
+            <option value="audio">audio</option>
+            <option value="live">live</option>
+            <option value="transcribe">transcribe</option>
+            <option value="embedding">embedding</option>
+            <option value="omni">omni</option>
+            <option value="robotics">robotics</option>
+          </select>
+        </div>
+        <div class="grow">
+          <label class="field" for="size">Per page</label>
+          <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
+        </div>
       </div>
-      <div id="authHint" class="notice err"></div>
-      <p class="dimtext" style="margin-top:12px">The token stays in this browser and is only sent to this deployment.</p>
+      <div class="row" style="margin-top:12px">
+        <span class="field" style="margin:0">Your plan</span>
+        <div class="seg" id="tier" role="group" aria-label="Billing plan">
+          <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
+          <button type="button" data-tier="paid" aria-pressed="false">Pay as you go</button>
+          <button type="button" data-tier="pro" aria-pressed="false">AI Pro</button>
+          <button type="button" data-tier="any" aria-pressed="false">Everything</button>
+        </div>
+      </div>
+      <p class="hint" id="tierNote" style="margin-top:8px"></p>
+      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
   </section>
 
-  <section id="main" class="stack" hidden>
-
-    <div class="strip">
-      <div class="kv"><b id="cTotal">0</b><span class="k">models</span></div>
-      <div class="kv ready"><b id="cFree">0</b><span class="k">free tier</span></div>
-      <div class="kv cooling"><b id="cPaid">0</b><span class="k">paid only</span></div>
-      <div class="kv"><b id="cTested">0</b><span class="k">tested</span></div>
-      <div class="spacer"></div>
-      <div class="kv"><b id="cTier">-</b><span class="k">your tier</span></div>
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Models <span class="meta" id="listMeta"></span></div>
     </div>
-
-    <!-- controls -->
-    <section class="panel">
-      <div class="panel-body">
-        <div class="row">
-          <div class="grow">
-            <label class="field" for="tier">Your plan</label>
-            <select id="tier">
-              <option value="free">Free tier (no billing)</option>
-              <option value="paid">Pay-as-you-go (billing enabled)</option>
-              <option value="pro">Google AI Pro / Ultra</option>
-              <option value="any">Show everything</option>
-            </select>
-          </div>
-          <div class="grow">
-            <label class="field" for="q">Search</label>
-            <input id="q" type="text" spellcheck="false" placeholder="gemini, tts, image, embedding...">
-          </div>
-          <div class="grow">
-            <label class="field" for="kind">Capability</label>
-            <select id="kind">
-              <option value="">All</option>
-              <option value="text">Text</option>
-              <option value="tts">TTS</option>
-              <option value="image">Image</option>
-              <option value="video">Video</option>
-              <option value="audio">Audio</option>
-              <option value="live">Live</option>
-              <option value="transcribe">Transcribe</option>
-              <option value="embedding">Embedding</option>
-              <option value="omni">Omni</option>
-              <option value="robotics">Robotics</option>
-            </select>
-          </div>
-          <div class="grow">
-            <label class="field" for="size">Per page</label>
-            <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
-          </div>
-        </div>
-        <div class="row" style="margin-top:12px">
-          <button id="reload" class="btn" type="button">Refresh live list</button>
-        </div>
-        <div id="msg" class="notice"></div>
-        <div id="tierNote" class="dimtext" style="margin-top:8px"></div>
-      </div>
-    </section>
-
-    <!-- inventory -->
-    <section class="panel">
-      <div id="body" class="tablewrap">${stateBlock("loading", "Loading model list...")}</div>
-      <div class="panel-body">
-        <div id="pager" class="pager"></div>
-        <div id="rowMsg" class="notice"></div>
-      </div>
-    </section>
-
+    <div id="body" class="tablewrap">stateBlock("loading", "Loading the model list")</div>
+    <div class="panel-foot">
+      <div id="pager" class="pager"></div>
+      <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
+    </div>
   </section>
-
-</main>
-
-<script>
-(function () {
+</section>
+`;
+var PAGE_SCRIPT2 = `(function () {
   "use strict";
-  var STORE = "geminesx.admin.token";
+
   var el = {
-    authPanel: document.getElementById("authPanel"),
-    authHint: document.getElementById("authHint"),
-    token: document.getElementById("token"),
-    connect: document.getElementById("connect"),
-    main: document.getElementById("main"),
-    asOf: document.getElementById("asOf"),
-    synced: document.getElementById("synced"),
+    console: document.getElementById("console"),
     cTotal: document.getElementById("cTotal"),
     cFree: document.getElementById("cFree"),
     cPaid: document.getElementById("cPaid"),
@@ -10174,45 +10518,29 @@ var MODELS_HTML = `<!doctype html>
     q: document.getElementById("q"),
     kind: document.getElementById("kind"),
     size: document.getElementById("size"),
-    reload: document.getElementById("reload"),
+    reloadBtn: document.getElementById("reloadBtn"),
     body: document.getElementById("body"),
     pager: document.getElementById("pager"),
+    listMeta: document.getElementById("listMeta"),
     msg: document.getElementById("msg"),
     rowMsg: document.getElementById("rowMsg")
   };
 
-  var state = {
-    token: "", models: [], page: 1, size: 25, testing: {}, fetchedAt: 0
+  var TIER_LABELS = {
+    free: "Free tier",
+    paid: "Pay as you go",
+    pro: "AI Pro / Ultra",
+    any: "All models"
   };
 
-  function say(node, text, kind) {
-    node.className = "msg " + (kind || "info");
-    node.textContent = text;
-    node.classList.add("show");
-  }
-  function hide(node) { node.classList.remove("show"); node.textContent = ""; }
+  var TIER_NOTES = {
+    free: "Models marked paid only need billing enabled on the Google Cloud project behind the key.",
+    paid: "Prices below are per 1M tokens in USD, from the published Google table.",
+    pro: "AI Pro and Ultra quotas apply inside AI Studio, not to raw API keys. API keys bill through Cloud.",
+    any: "Showing every model Google returns, regardless of billing."
+  };
 
-  function api(path, opts) {
-    opts = opts || {};
-    var headers = { "authorization": "Bearer " + state.token };
-    if (opts.body) headers["content-type"] = "application/json";
-    return fetch(path, {
-      method: opts.method || "GET",
-      headers: headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined
-    }).then(function (res) {
-      return res.text().then(function (raw) {
-        var data = null;
-        try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
-        if (!res.ok) {
-          var err = new Error((data && data.error && data.error.message) || ("HTTP " + res.status));
-          err.status = res.status;
-          throw err;
-        }
-        return data;
-      });
-    });
-  }
+  var state = { models: [], page: 1, size: 25, tier: "free", testing: {} };
 
   function money(v) {
     if (v === null || v === undefined) return null;
@@ -10220,10 +10548,9 @@ var MODELS_HTML = `<!doctype html>
   }
 
   function tierMatches(m) {
-    var tier = el.tier.value;
-    if (tier === "any") return true;
+    if (state.tier === "any") return true;
     if (m.free === true) return true;
-    if (m.free === false) return tier !== "free";
+    if (m.free === false) return state.tier !== "free";
     return true;
   }
 
@@ -10246,27 +10573,18 @@ var MODELS_HTML = `<!doctype html>
   }
 
   function badgeFor(m) {
-    var b = document.createElement("span");
-    if (m.free === true) { b.className = "badge free"; b.textContent = "free tier"; }
-    else if (m.free === false) { b.className = "badge paid"; b.textContent = "paid only"; }
-    else { b.className = "badge unknown"; b.textContent = "unlisted"; }
-    b.title = m.freeLabel;
-    return b;
-  }
-
-  function cell(label, cls) {
-    var td = document.createElement("td");
-    if (cls) td.className = cls;
-    if (label) td.setAttribute("data-l", label);
-    return td;
+    if (m.free === true) return GX.badge("free tier", "ok");
+    if (m.free === false) return GX.badge("paid only", "warn");
+    return GX.badge("unlisted", "");
   }
 
   function probeText(r) {
     if (!r) return "-";
     if (r.status === "ok") return "ok " + r.latencyMs + "ms";
     if (r.status === "unsupported") return "n/a";
-    return r.status.replace(/_/g, " ") + " " + r.httpStatus;
+    return String(r.status).replace(/_/g, " ") + " " + r.httpStatus;
   }
+
   function probeClass(r) {
     if (!r) return "";
     if (r.status === "ok") return "ok";
@@ -10279,268 +10597,244 @@ var MODELS_HTML = `<!doctype html>
     var pages = Math.max(1, Math.ceil(rows.length / state.size));
     if (state.page > pages) state.page = pages;
     if (state.page < 1) state.page = 1;
-    var start = (state.page - 1) * state.size;
-    var slice = rows.slice(start, start + state.size);
+    var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
     stats();
+    el.listMeta.textContent = rows.length + " match";
 
     if (!rows.length) {
-      el.body.innerHTML = "";
-      var box = document.createElement("div");
-      box.className = "empty";
-      var b = document.createElement("b");
-      b.textContent = "No model matches these filters";
-      box.appendChild(b);
-      box.appendChild(document.createTextNode("Clear the search box or switch your plan to Show everything."));
-      el.body.appendChild(box);
+      el.body.textContent = "";
+      el.body.appendChild(GX.state(
+        "empty",
+        "No model matches these filters",
+        "Clear the search box or switch your plan to Everything."
+      ));
       renderPager(0, 1);
       return;
     }
 
-    var table = document.createElement("table");
-    var thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>Model</th><th>Tier</th><th class='right'>Input /1M</th><th class='right'>Output /1M</th><th class='right'>Ctx</th><th>Test</th><th></th></tr>";
-    table.appendChild(thead);
-    var tbody = document.createElement("tbody");
+    var table = GX.el("table", { class: "table" });
+    var head = GX.el("thead", null, GX.el("tr", null, [
+      GX.el("th", { text: "Model" }),
+      GX.el("th", { text: "Tier" }),
+      GX.el("th", { class: "num", text: "Input /1M" }),
+      GX.el("th", { class: "num", text: "Output /1M" }),
+      GX.el("th", { class: "num", text: "Ctx" }),
+      GX.el("th", { text: "Test" }),
+      GX.el("th", { class: "num", text: "" })
+    ]));
+    table.appendChild(head);
 
+    var body = GX.el("tbody");
     slice.forEach(function (m) {
-      var tr = document.createElement("tr");
+      var tr = GX.el("tr");
 
-      var cId = cell(null, "mid");
-      cId.textContent = m.id;
-      var sub = document.createElement("div");
-      sub.className = "dimtext";
+      var idCell = GX.el("td", { "data-l": "model" });
+      idCell.appendChild(GX.el("span", { class: "mono", text: m.id }));
       var bits = [m.displayName];
       if (m.kind && m.kind !== "text") bits.push(m.kind);
       if (m.methods && m.methods.length) bits.push(m.methods.join("/"));
-      sub.textContent = bits.join(" \xB7 ");
-      cId.appendChild(sub);
+      idCell.appendChild(GX.el("div", { class: "sub", text: bits.join(" \xB7 ") }));
+      tr.appendChild(idCell);
 
-      var cTier = cell("Tier");
-      cTier.appendChild(badgeFor(m));
+      var tierCell = GX.el("td", { "data-l": "tier" });
+      var badge = badgeFor(m);
+      badge.title = m.freeLabel;
+      tierCell.appendChild(badge);
+      tr.appendChild(tierCell);
 
-      var cIn = cell("Input /1M", "right");
+      var inCell = GX.el("td", { class: "num", "data-l": "input /1M" });
       var inV = money(m.inUsd);
-      if (inV) { cIn.textContent = inV; }
-      else if (m.inRaw) { cIn.innerHTML = "<span class='dimtext'>unit</span>"; }
-      else { cIn.innerHTML = "<span class='dimtext'>-</span>"; }
-      if (m.inRaw) cIn.title = m.inRaw;
+      if (inV) inCell.textContent = inV;
+      else inCell.appendChild(GX.el("span", { class: "sub", text: m.inRaw ? "unit" : "-" }));
+      if (m.inRaw) inCell.title = m.inRaw;
+      tr.appendChild(inCell);
 
-      var cOut = cell("Output /1M", "right");
+      var outCell = GX.el("td", { class: "num", "data-l": "output /1M" });
       var outV = money(m.outUsd);
-      if (outV) { cOut.textContent = outV; }
-      else if (m.outRaw) { cOut.innerHTML = "<span class='dimtext'>unit</span>"; }
-      else { cOut.innerHTML = "<span class='dimtext'>-</span>"; }
-      if (m.outRaw) cOut.title = m.outRaw;
+      if (outV) outCell.textContent = outV;
+      else outCell.appendChild(GX.el("span", { class: "sub", text: m.outRaw ? "unit" : "-" }));
+      if (m.outRaw) outCell.title = m.outRaw;
+      tr.appendChild(outCell);
 
-      var cCtx = cell("Ctx", "right");
-      if (m.inputTokenLimit) {
-        cCtx.textContent = (m.inputTokenLimit >= 1000 ? Math.round(m.inputTokenLimit / 1000) + "k" : String(m.inputTokenLimit));
-      } else { cCtx.innerHTML = "<span class='dimtext'>-</span>"; }
+      var ctxCell = GX.el("td", { class: "num", "data-l": "ctx" });
+      ctxCell.textContent = m.inputTokenLimit
+        ? (m.inputTokenLimit >= 1000 ? Math.round(m.inputTokenLimit / 1000) + "k" : String(m.inputTokenLimit))
+        : "-";
+      tr.appendChild(ctxCell);
 
-      var cProbe = cell("Test");
-      var pv = document.createElement("span");
+      var probeCell = GX.el("td", { "data-l": "test" });
       var known = state.testing[m.id];
-      pv.className = "probe " + probeClass(known);
-      pv.textContent = probeText(known);
+      var pv = GX.el("span", { class: "probe " + probeClass(known), text: probeText(known) });
       if (known && known.message) pv.title = known.message;
-      cProbe.appendChild(pv);
+      probeCell.appendChild(pv);
+      tr.appendChild(probeCell);
 
-      var cAct = cell(null, "act");
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "small";
-      btn.textContent = "Test model";
+      var actions = GX.el("td", { class: "actions" });
+      var btn = GX.el("button", { class: "small", type: "button", text: "Test" });
       btn.addEventListener("click", function () { testModel(m, btn, pv); });
-      cAct.appendChild(btn);
+      actions.appendChild(btn);
+      tr.appendChild(actions);
 
-      tr.appendChild(cId); tr.appendChild(cTier); tr.appendChild(cIn); tr.appendChild(cOut);
-      tr.appendChild(cCtx); tr.appendChild(cProbe); tr.appendChild(cAct);
-      tbody.appendChild(tr);
+      body.appendChild(tr);
     });
 
-    table.appendChild(tbody);
-    el.body.innerHTML = "";
+    table.appendChild(body);
+    el.body.textContent = "";
     el.body.appendChild(table);
     renderPager(rows.length, pages);
   }
 
   function renderPager(total, pages) {
-    el.pager.innerHTML = "";
+    el.pager.textContent = "";
     if (!total) return;
-    var start = (state.page - 1) * state.size + 1;
-    var end = Math.min(total, state.page * state.size);
+    el.pager.appendChild(GX.el("span", {
+      text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
+        Math.min(total, state.page * state.size) + " of " + total
+    }));
 
-    var info = document.createElement("span");
-    info.textContent = "Showing " + start + "-" + end + " of " + total;
-    el.pager.appendChild(info);
-
-    var box = document.createElement("div");
-    box.className = "pages";
-
+    var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "small" + (active ? " active" : "");
-      b.textContent = label;
-      b.disabled = Boolean(disabled);
+      var b = GX.el("button", {
+        class: "small" + (active ? " active" : ""),
+        type: "button",
+        text: label,
+        disabled: disabled ? true : null
+      });
       if (active) b.setAttribute("aria-current", "page");
       b.addEventListener("click", function () { state.page = page; render(); });
       return b;
     }
-
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
-
-    var windowSize = 5;
-    var from = Math.max(1, state.page - Math.floor(windowSize / 2));
-    var to = Math.min(pages, from + windowSize - 1);
-    from = Math.max(1, to - windowSize + 1);
+    var win = 5;
+    var from = Math.max(1, state.page - Math.floor(win / 2));
+    var to = Math.min(pages, from + win - 1);
+    from = Math.max(1, to - win + 1);
     if (from > 1) {
       box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) { var dots = document.createElement("span"); dots.textContent = "..."; box.appendChild(dots); }
+      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
     }
     for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
     if (to < pages) {
-      if (to < pages - 1) { var d2 = document.createElement("span"); d2.textContent = "..."; box.appendChild(d2); }
+      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
     }
-
     box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
     el.pager.appendChild(box);
   }
 
   function load(force) {
-    el.reload.disabled = true;
-    say(el.msg, force ? "Re-querying the live model list..." : "Loading live model list...", "info");
+    GX.busy(el.reloadBtn, "Loading");
     var url = "/pengatur/models/list" + (force ? "?refresh=1" : "");
-    api(url).then(function (data) {
-      state.models = data.models || [];
-      state.fetchedAt = Date.now();
-      el.asOf.textContent = "pricing: " + (data.pricing && data.pricing.asOf ? data.pricing.asOf : "-");
-      el.synced.textContent = "synced " + new Date().toLocaleTimeString();
-      var live = data.source || "upstream";
-      say(el.msg, state.models.length + " models from " + live + (data.cached ? " (cached)" : ""), "ok");
-      setTimeout(function () { hide(el.msg); }, 4000);
-      el.main.hidden = false;
-      el.authPanel.hidden = true;
-      render();
-    }).catch(function (err) {
-      if (err.status === 401) { lock("Token rejected. Enter the admin token."); return; }
-      say(el.msg, "Could not load models: " + err.message, "err");
-      el.main.hidden = false;
-      el.body.innerHTML = "";
-      var box = document.createElement("div");
-      box.className = "empty";
-      box.innerHTML = "<b>Live list unavailable</b>";
-      box.appendChild(document.createTextNode("The pool has no key that can answer the model list right now. Add or revive a key in /pengatur."));
-      el.body.appendChild(box);
-    }).then(function () { el.reload.disabled = false; });
+    return GX.api(url)
+      .then(function (data) {
+        state.models = data.models || [];
+        var source = data.source || "upstream";
+        GX.say(el.msg, state.models.length + " models from " + source + (data.cached ? " (cached)" : ""), "ok");
+        el.console.hidden = false;
+        render();
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        el.console.hidden = false;
+        GX.say(el.msg, "Could not load the model list: " + err.message, "err");
+        el.body.textContent = "";
+        el.body.appendChild(GX.state(
+          "error",
+          "Live list unavailable",
+          "The pool has no key that can answer the model list right now. Add or revive a key in Keys."
+        ));
+      })
+      .then(function () { GX.idle(el.reloadBtn); });
   }
 
-  function lock(reason) {
-    state.token = "";
-    try { localStorage.removeItem(STORE); } catch (e) {}
-    el.authPanel.hidden = false;
-    el.main.hidden = true;
-    el.token.value = "";
-    if (reason) say(el.authHint, reason, "err");
-    el.token.focus();
-  }
-
-  function connect() {
-    var token = el.token.value.trim();
-    if (!token) { say(el.authHint, "Enter the admin token.", "err"); return; }
-    state.token = token;
-    el.connect.disabled = true;
-    hide(el.authHint);
-    api("/pengatur/models/list").then(function () {
-      try { localStorage.setItem(STORE, token); } catch (e) {}
-      el.main.hidden = false;
-      el.authPanel.hidden = true;
-      load(false);
-    }).catch(function (err) {
-      if (err.status === 401) say(el.authHint, "Token rejected.", "err");
-      else say(el.authHint, "Connection failed: " + err.message, "err");
-    }).then(function () { el.connect.disabled = false; });
+  function reload() {
+    return load(false).catch(function () {});
   }
 
   function testModel(m, btn, node) {
     btn.disabled = true;
     node.className = "probe";
     node.textContent = "testing...";
-    say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "info");
-    api("/pengatur/models/test", { method: "POST", body: { model: m.id } }).then(function (data) {
-      var r = data.result;
-      state.testing[m.id] = r;
-      node.className = "probe " + probeClass(r);
-      node.textContent = probeText(r);
-      node.title = r.message || "";
-      if (r.status === "ok") {
-        say(el.rowMsg, m.id + " served in " + r.latencyMs + "ms: " + (r.reply || "(empty reply)"), "ok");
-      } else {
-        say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "info" : "err");
-      }
-      stats();
-    }).catch(function (err) {
-      node.className = "probe bad";
-      node.textContent = "error";
-      say(el.rowMsg, "Test failed: " + err.message, "err");
-      if (err.status === 401) lock("Token rejected.");
-    }).then(function () { btn.disabled = false; });
+    GX.say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "");
+    GX.api("/pengatur/models/test", { method: "POST", body: { model: m.id } })
+      .then(function (data) {
+        var r = data.result;
+        state.testing[m.id] = r;
+        node.className = "probe " + probeClass(r);
+        node.textContent = probeText(r);
+        node.title = r.message || "";
+        if (r.status === "ok") {
+          GX.say(el.rowMsg, m.id + " served in " + r.latencyMs + "ms: " + (r.reply || "(empty reply)"), "ok");
+        } else {
+          GX.say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "" : "err");
+        }
+        stats();
+      })
+      .catch(function (err) {
+        node.className = "probe bad";
+        node.textContent = "error";
+        GX.say(el.rowMsg, "Test failed: " + err.message, "err");
+        if (err.status === 401 || err.status === 403) GX.lock(err.message + " Re-enter the token.");
+      })
+      .then(function () { btn.disabled = false; });
   }
 
-  el.token.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
-  el.connect.addEventListener("click", connect);
-  el.reload.addEventListener("click", function () { load(true); });
-
+  el.reloadBtn.addEventListener("click", function () { load(true); });
   el.size.addEventListener("change", function () {
     state.size = Number(el.size.value) || 25;
     state.page = 1;
     render();
   });
-
-  var debounce = null;
-  el.q.addEventListener("input", function () {
-    clearTimeout(debounce);
-    debounce = setTimeout(function () { state.page = 1; render(); }, 140);
-  });
-
-  el.kind.addEventListener("change", function () { state.page = 1; render(); });
-
-  el.tier.addEventListener("change", function () {
-    var t = el.tier.value;
-    try { localStorage.setItem("geminesx.tier", t); } catch (e) {}
-    var label = { free: "Free tier", paid: "Pay-as-you-go", pro: "Google AI Pro/Ultra", any: "All models" }[t];
-    el.cTier.textContent = label;
-    if (t === "free") el.tierNote.textContent = "Models marked paid only need billing enabled on the Google Cloud project behind the key.";
-    else if (t === "pro") el.tierNote.textContent = "AI Pro/Ultra quotas apply inside the Google AI Studio / Gemini app, not to raw API keys. API keys bill through Cloud.";
-    else if (t === "paid") el.tierNote.textContent = "Paid tier prices below are per 1M tokens in USD, from Google's published table.";
-    else el.tierNote.textContent = "Showing every model Google returns, regardless of billing.";
+  el.q.addEventListener("input", GX.debounce(function () {
+    state.page = 1;
+    render();
+  }, 140));
+  el.kind.addEventListener("change", function () {
     state.page = 1;
     render();
   });
+  Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
+    button.addEventListener("click", function () {
+      state.tier = button.getAttribute("data-tier");
+      try { localStorage.setItem("geminesx.tier", state.tier); } catch (e) {}
+      Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (other) {
+        other.setAttribute("aria-pressed", other === button ? "true" : "false");
+      });
+      el.cTier.textContent = TIER_LABELS[state.tier];
+      el.tierNote.textContent = TIER_NOTES[state.tier];
+      state.page = 1;
+      render();
+    });
+  });
 
-  var saved = null;
-  try { saved = localStorage.getItem(STORE); } catch (e) {}
   var savedTier = null;
   try { savedTier = localStorage.getItem("geminesx.tier"); } catch (e) {}
-  if (savedTier) el.tier.value = savedTier;
-  if (saved) {
-    state.token = saved;
-    el.token.value = saved;
-    api("/pengatur/models/list").then(function () {
-      el.main.hidden = false;
-      el.authPanel.hidden = true;
-      load(false);
-    }).catch(function () { lock("Saved token is no longer valid."); });
-  } else {
-    el.token.focus();
+  if (savedTier && TIER_LABELS[savedTier]) {
+    state.tier = savedTier;
+    Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute("data-tier") === savedTier ? "true" : "false");
+    });
   }
-  el.tier.dispatchEvent(new Event("change"));
-})();
-</script>
-</body>
-</html>`;
+  el.cTier.textContent = TIER_LABELS[state.tier];
+  el.tierNote.textContent = TIER_NOTES[state.tier];
+
+  GX.gate({
+    onSuccess: function () {
+      return load(false);
+    }
+  });
+})();`;
+var MODELS_HTML = consolePage({
+  title: "Models",
+  subtitle: "Live inventory from the Generative Language API",
+  active: "/pengatur/models",
+  body: PAGE_BODY2,
+  script: PAGE_SCRIPT2
+});
 
 // src/models-catalog.ts
 var PRICING_AS_OF = "2026-10-19";
@@ -12393,382 +12687,312 @@ async function list(filter = {}) {
 }
 
 // src/stats-ui.ts
-var STATS_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Statistics</title>
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<style>
-  :root {
-    --bg: #0d1014;
-    --panel: #12161b;
-    --panel-2: #171c22;
-    --line: #242b34;
-    --text: #e6eaf0;
-    --muted: #8c96a5;
-    --accent: #e8a33d;
-    --ready: #57c98a;
-    --dead: #e8737b;
-    --focus: #7fb4ff;
-    --radius: 8px;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
-  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
-  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-  .brand .sub { font-size: 12px; color: var(--muted); }
-  .top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
-  .top-right a { color: var(--accent); text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
-  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
-  .strip { display: flex; flex-wrap: wrap; gap: 0 20px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
-  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .strip .kv span { font-size: 12px; color: var(--muted); }
-  .strip .kv.dead b { color: var(--dead); }
-  .strip .kv.ready b { color: var(--ready); }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-  .card + .card { margin-top: 12px; }
-  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], select {
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 9px 11px;
-    font-size: 13px;
-    font-family: inherit;
-    min-height: 40px;
-  }
-  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  button {
-    background: var(--accent);
-    color: #1a1206;
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 650;
-    padding: 0 14px;
-    min-height: 40px;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
-  button:disabled { opacity: 0.45; cursor: default; }
-  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-  .row .grow { flex: 1 1 220px; }
-  .muted { color: var(--muted); font-size: 12.5px; }
-  .err { color: var(--dead); font-size: 12.5px; margin: 10px 0 0; min-height: 1em; }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-  tbody tr:last-child td { border-bottom: 0; }
-  th.num, td.num { text-align: right; }
-  .heat { display: grid; grid-template-columns: 34px repeat(24, minmax(18px, 1fr)); gap: 2px; font-size: 10px; color: var(--muted); }
-  .heat .h { text-align: center; }
-  .heat .cell { height: 18px; border-radius: 3px; background: var(--panel-2); }
-  .note { margin: 12px 0 0; color: var(--muted); font-size: 12.5px; }
-  .empty { padding: 22px 16px; text-align: center; color: var(--muted); }
-  .empty b { display: block; color: var(--text); margin-bottom: 4px; }
-</style>
-</head>
-<body>
-<div class="wrap">
+var PAGE_BODY3 = `
 
-  <header class="top">
-    <div class="brand">
-      <span class="dot"></span>
-      <div>
-        <h1>Statistics</h1>
-        <div class="sub">Range breakdowns, heatmap and cost projection</div>
-      </div>
-    </div>
-    <div class="top-right">
-      <a href="/pengatur">overview &rarr;</a>
-      <a href="/pengatur/logs">logs &rarr;</a>
-      <a href="/pengatur/keys">keys &rarr;</a>
-      <a href="/pengatur/settings">settings &rarr;</a>
-      <a href="/pengatur/audit">audit &rarr;</a>
-    </div>
-  </header>
+${authGate()}
 
-  <div class="card" id="gate">
-    <label class="field" for="token">Admin token</label>
-    <div class="row">
-      <div class="grow">
-        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
-      </div>
-      <button id="connect" type="button">Connect</button>
-    </div>
-    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is only sent to this deployment.</p>
-    <div id="gateErr" class="err"></div>
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
+    <div class="kv ok"><b id="sOk">0</b><span class="k">ok</span></div>
+    <div class="kv bad"><b id="sErr">0</b><span class="k">errors</span></div>
+    <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
+    <div class="kv"><b id="sTokens">0</b><span class="k">tokens</span></div>
+    <div class="kv"><b id="sCost">$0</b><span class="k">cost</span></div>
+    <div class="kv"><b id="sP50">0</b><span class="k">p50 ms</span></div>
+    <div class="kv"><b id="sP95">0</b><span class="k">p95 ms</span></div>
+    <div class="kv"><b id="sProj">$0</b><span class="k">per 30d</span></div>
   </div>
 
-  <div id="console" hidden>
+  <div class="row" style="justify-content:space-between">
+    <p class="hint" id="meta"></p>
+    <div id="dataErr" class="notice err" role="status" aria-live="polite"></div>
+  </div>
 
-    <div class="strip">
-      <div class="kv"><b id="sReq">0</b><span>requests</span></div>
-      <div class="kv ready"><b id="sOk">0</b><span>ok</span></div>
-      <div class="kv dead"><b id="sErr">0</b><span>errors</span></div>
-      <div class="kv"><b id="sRot">0</b><span>rotated</span></div>
-      <div class="kv"><b id="sTokens">0</b><span>tokens</span></div>
-      <div class="kv"><b id="sCost">$0</b><span>cost</span></div>
-      <div class="kv"><b id="sP50">0</b><span>p50 ms</span></div>
-      <div class="kv"><b id="sP95">0</b><span>p95 ms</span></div>
-      <div class="kv"><b id="sProj">$0</b><span>projected / 30d</span></div>
-    </div>
-
-    <h2 class="sec">Range</h2>
-    <div class="card">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Hour and weekday heatmap <span class="meta">WIB</span></div>
       <div class="row">
-        <div>
-          <label class="field" for="range">Window</label>
-          <select id="range">
-            <option value="1h">last hour</option>
-            <option value="24h" selected>last 24 hours</option>
-            <option value="7d">last 7 days</option>
-            <option value="30d">last 30 days</option>
-          </select>
+        <label class="check"><input id="heatValues" type="checkbox"> show values</label>
+        <div class="heat-legend">
+          <span>low</span>
+          <i style="background:var(--heat-1)"></i>
+          <i style="background:var(--heat-2)"></i>
+          <i style="background:var(--heat-3)"></i>
+          <i style="background:var(--heat-4)"></i>
+          <i style="background:var(--heat-5)"></i>
+          <span>high</span>
         </div>
-        <button id="apply" type="button">Apply</button>
       </div>
-      <p class="note" id="meta"></p>
-      <div id="dataErr" class="err"></div>
     </div>
-
-    <h2 class="sec">Hour &times; weekday heatmap (WIB)</h2>
-    <div class="card">
-      <div id="heat" class="heat"></div>
-      <div class="empty" id="heatEmpty" hidden><b>No hourly data</b>This range has no events with hourly granularity.</div>
+    <div class="panel-body">
+      <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
+      <p class="hint" id="heatNote" style="margin-top:12px"></p>
+      <div id="heatEmpty"></div>
     </div>
+  </section>
 
-    <h2 class="sec">By model</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byModel">
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">By model</div></div>
+    <div class="tablewrap">
+      <table class="table" id="byModel">
         <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
+      <div id="byModelEmpty"></div>
     </div>
+  </section>
 
-    <h2 class="sec">By key</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byKey">
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">By key</div></div>
+    <div class="tablewrap">
+      <table class="table" id="byKey">
         <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
+      <div id="byKeyEmpty"></div>
     </div>
+  </section>
 
-    <h2 class="sec">By route</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byRoute">
-        <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
-    </div>
+  <div class="grid split">
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By route</div></div>
+      <div class="tablewrap">
+        <table class="table" id="byRoute">
+          <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="byRouteEmpty"></div>
+      </div>
+    </section>
 
-    <h2 class="sec">By status</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byStatus">
-        <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
-    </div>
-
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By status</div></div>
+      <div class="tablewrap">
+        <table class="table" id="byStatus">
+          <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="byStatusEmpty"></div>
+      </div>
+    </section>
   </div>
-</div>
-<script>
-(function () {
-  var STORE = "geminesx.admin.token";
-  var state = { token: "", range: "24h" };
+</section>
+`;
+var PAGE_SCRIPT3 = `(function () {
+  "use strict";
 
-  function el(id) { return document.getElementById(id); }
-  var gate = el("gate"), box = el("console"), tokenIn = el("token");
+  var el = {
+    console: document.getElementById("console"),
+    sReq: document.getElementById("sReq"),
+    sOk: document.getElementById("sOk"),
+    sErr: document.getElementById("sErr"),
+    sRot: document.getElementById("sRot"),
+    sTokens: document.getElementById("sTokens"),
+    sCost: document.getElementById("sCost"),
+    sP50: document.getElementById("sP50"),
+    sP95: document.getElementById("sP95"),
+    sProj: document.getElementById("sProj"),
+    heat: document.getElementById("heat"),
+    heatNote: document.getElementById("heatNote"),
+    heatEmpty: document.getElementById("heatEmpty"),
+    heatValues: document.getElementById("heatValues"),
+    err: document.getElementById("dataErr"),
+    meta: document.getElementById("meta")
+  };
 
-  function err(id, msg) { el(id).textContent = msg || ""; }
+  var RANGES = [
+    { value: "1h", label: "1h" },
+    { value: "24h", label: "24h" },
+    { value: "7d", label: "7d" },
+    { value: "30d", label: "30d" }
+  ];
 
-  function money(n) {
-    return "$" + (Number(n) || 0).toFixed(6).replace(/0+$/, "").replace(/\\.$/, "");
-  }
+  var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  var state = { range: "24h" };
 
-  function int(n) {
-    return String(Number(n) || 0).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ",");
-  }
-
-  function api(path) {
-    return fetch(path, { headers: { authorization: "Bearer " + state.token } }).then(function (r) {
-      if (r.status === 401) throw new Error("Unauthorized. Re-enter the admin token.");
-      if (!r.ok) {
-        return r.text().then(function (t) {
-          var msg = t;
-          try { msg = JSON.parse(t).error.message || t; } catch (e) {}
-          throw new Error(msg || ("HTTP " + r.status));
-        });
-      }
-      return r.json();
+  function fillBucket(tableId, emptyId, rows, cols) {
+    var table = document.getElementById(tableId);
+    var body = table.querySelector("tbody");
+    body.textContent = "";
+    var empty = document.getElementById(emptyId);
+    empty.textContent = "";
+    if (!rows || !rows.length) {
+      empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
+      return;
+    }
+    rows.forEach(function (r) {
+      var tr = GX.el("tr");
+      cols.forEach(function (c, index) {
+        var td = GX.el("td", { class: index > 0 ? "num" : null, "data-l": c.label || null });
+        td.textContent = c.value(r);
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
     });
   }
 
-  function fillBucket(tableId, rows, cols) {
-    var table = el(tableId);
+  function fillStatus(rows) {
+    var table = document.getElementById("byStatus");
     var body = table.querySelector("tbody");
     body.textContent = "";
-    var empty = table.querySelector("[data-empty]");
-    if (!rows || !rows.length) { if (empty) empty.hidden = false; return; }
-    if (empty) empty.hidden = true;
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      var tr = document.createElement("tr");
-      for (var c = 0; c < cols.length; c++) {
-        var td = document.createElement("td");
-        if (c > 0) td.className = "num";
-        td.textContent = cols[c](r);
-        tr.appendChild(td);
-      }
-      body.appendChild(tr);
+    var empty = document.getElementById("byStatusEmpty");
+    empty.textContent = "";
+    if (!rows || !rows.length) {
+      empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
+      return;
     }
-  }
-
-  function fillStatus(rows) {
-    var body = el("byStatus").querySelector("tbody");
-    body.textContent = "";
-    var empty = el("byStatus").querySelector("[data-empty]");
-    if (!rows || !rows.length) { if (empty) empty.hidden = false; return; }
-    if (empty) empty.hidden = true;
-    for (var i = 0; i < rows.length; i++) {
-      var tr = document.createElement("tr");
-      var a = document.createElement("td");
-      a.textContent = rows[i].key;
-      var b = document.createElement("td");
-      b.className = "num";
-      b.textContent = int(rows[i].requests);
-      tr.appendChild(a);
-      tr.appendChild(b);
+    rows.forEach(function (r) {
+      var tr = GX.el("tr");
+      GX.cell(tr, r.key, "", "status");
+      GX.cell(tr, GX.fmt.num(r.requests), "num", "requests");
       body.appendChild(tr);
-    }
+    });
   }
 
   function fillHeat(cells) {
-    var heat = el("heat");
-    heat.textContent = "";
-    if (!cells || !cells.length) { el("heatEmpty").hidden = false; return; }
-    el("heatEmpty").hidden = true;
+    el.heat.textContent = "";
+    el.heatEmpty.textContent = "";
+    if (!cells || !cells.length) {
+      el.heatEmpty.appendChild(GX.state("empty", "No hourly data", "This range has no events with hourly granularity."));
+      el.heatNote.textContent = "";
+      return;
+    }
+
     var max = 0;
-    for (var i = 0; i < cells.length; i++) max = Math.max(max, cells[i].requests);
-    var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var peak = null;
     var grid = {};
-    for (var j = 0; j < cells.length; j++) grid[cells[j].weekday + ":" + cells[j].hour] = cells[j].requests;
+    cells.forEach(function (c) {
+      grid[c.weekday + ":" + c.hour] = c.requests;
+      if (c.requests > max) {
+        max = c.requests;
+        peak = c;
+      }
+    });
+
+    el.heat.appendChild(GX.el("div", { class: "h", text: "" }));
+    for (var h = 0; h < 24; h++) {
+      el.heat.appendChild(GX.el("div", { class: "h", text: h % 3 === 0 ? String(h) : "" }));
+    }
+
     for (var d = 0; d < 7; d++) {
-      var lbl = document.createElement("div");
-      lbl.textContent = days[d];
-      heat.appendChild(lbl);
-      for (var h = 0; h < 24; h++) {
-        var cell = document.createElement("div");
-        cell.className = "cell";
-        var v = grid[d + ":" + h] || 0;
-        if (v > 0) {
-          var alpha = 0.25 + 0.75 * (v / max);
-          cell.style.background = "rgba(232, 163, 61, " + alpha.toFixed(3) + ")";
-          cell.title = days[d] + " " + (h < 10 ? "0" + h : h) + ":00 \u2014 " + v + " req";
-        }
-        heat.appendChild(cell);
+      el.heat.appendChild(GX.el("div", { class: "h", text: DAYS[d] }));
+      for (var hour = 0; hour < 24; hour++) {
+        var value = grid[d + ":" + hour] || 0;
+        var level = value === 0 ? 0 : Math.max(1, Math.min(5, Math.ceil((value / max) * 5)));
+        var cell = GX.el("div", {
+          class: "cell",
+          "data-level": level,
+          "data-v": value,
+          title: DAYS[d] + " " + (hour < 10 ? "0" + hour : hour) + ":00, " + value + " requests"
+        });
+        el.heat.appendChild(cell);
       }
     }
+
+    el.heatNote.textContent = peak
+      ? "Peak: " + DAYS[peak.weekday] + " " + (peak.hour < 10 ? "0" + peak.hour : peak.hour) +
+        ":00 with " + GX.fmt.num(peak.requests) + " requests. " + GX.fmt.num(cells.length) + " cells carry traffic."
+      : "";
   }
 
   function paint(d) {
     var t = d.totals || {};
-    el("sReq").textContent = int(t.requests);
-    el("sOk").textContent = int((t.requests || 0) - (t.errors || 0));
-    el("sErr").textContent = int(t.errors);
-    el("sRot").textContent = int(t.rotated);
-    el("sTokens").textContent = int(t.totalTokens);
-    el("sCost").textContent = money(t.costUsd);
-    el("sP50").textContent = int(t.p50Ms);
-    el("sP95").textContent = int(t.p95Ms);
-    el("sProj").textContent = money(d.projectedMonthlyUsd);
-    el("meta").textContent = (d.source === "ring" ? "Source: in-memory ring. " : "Source: usage_daily. ") + (d.note || "");
+    el.sReq.textContent = GX.fmt.num(t.requests);
+    el.sOk.textContent = GX.fmt.num((t.requests || 0) - (t.errors || 0));
+    el.sErr.textContent = GX.fmt.num(t.errors);
+    el.sRot.textContent = GX.fmt.num(t.rotated);
+    el.sTokens.textContent = GX.fmt.num(t.totalTokens);
+    el.sCost.textContent = GX.fmt.money(t.costUsd);
+    el.sP50.textContent = GX.fmt.num(t.p50Ms);
+    el.sP95.textContent = GX.fmt.num(t.p95Ms);
+    el.sProj.textContent = GX.fmt.money(d.projectedMonthlyUsd);
+
+    el.meta.textContent = (d.source === "ring" ? "Source: in-memory ring. " : "Source: usage_daily. ") + (d.note || "");
     fillHeat(d.heatmap);
-    fillBucket("byModel", d.byModel, [
-      function (r) { return r.key; },
-      function (r) { return int(r.requests); },
-      function (r) { return int(r.errors); },
-      function (r) { return int(r.totalTokens); },
-      function (r) { return money(r.costUsd); },
-      function (r) { return int(r.avgLatencyMs); }
+    fillBucket("byModel", "byModelEmpty", d.byModel, [
+      { label: "model", value: function (r) { return r.key; } },
+      { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
+      { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
+      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
+      { label: "ms", value: function (r) { return GX.fmt.num(r.avgLatencyMs); } }
     ]);
-    fillBucket("byKey", d.byKey, [
-      function (r) { return r.key; },
-      function (r) { return int(r.requests); },
-      function (r) { return int(r.errors); },
-      function (r) { return int(r.rotated); },
-      function (r) { return int(r.totalTokens); },
-      function (r) { return money(r.costUsd); }
+    fillBucket("byKey", "byKeyEmpty", d.byKey, [
+      { label: "key", value: function (r) { return r.key; } },
+      { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
+      { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
+      { label: "rot", value: function (r) { return GX.fmt.num(r.rotated); } },
+      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
-    fillBucket("byRoute", d.byRoute, [
-      function (r) { return r.key; },
-      function (r) { return int(r.requests); },
-      function (r) { return int(r.errors); },
-      function (r) { return int(r.totalTokens); },
-      function (r) { return money(r.costUsd); }
+    fillBucket("byRoute", "byRouteEmpty", d.byRoute, [
+      { label: "route", value: function (r) { return r.key; } },
+      { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
+      { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
+      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
     fillStatus(d.byStatus);
   }
 
   function load() {
-    err("dataErr", "");
-    api("/pengatur/stats/data?range=" + encodeURIComponent(state.range)).then(paint).catch(function (e) {
-      err("dataErr", e.message);
+    return GX.api("/pengatur/stats/data?range=" + encodeURIComponent(state.range))
+      .then(function (d) {
+        if (d.ok === false) throw new Error(d.error && d.error.message ? d.error.message : "Statistics unavailable.");
+        GX.say(el.err, "");
+        paint(d);
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        el.console.hidden = false;
+        GX.say(el.err, err.message, "err");
+      });
+  }
+
+  function reload() {
+    return load().catch(function () {});
+  }
+
+  function buildRange() {
+    var box = document.getElementById("range");
+    box.textContent = "";
+    RANGES.forEach(function (r) {
+      var b = GX.el("button", {
+        type: "button",
+        text: r.label,
+        "aria-pressed": r.value === state.range ? "true" : "false"
+      });
+      b.addEventListener("click", function () {
+        state.range = r.value;
+        Array.prototype.forEach.call(box.querySelectorAll("button"), function (other) {
+          other.setAttribute("aria-pressed", other === b ? "true" : "false");
+        });
+        load();
+      });
+      box.appendChild(b);
     });
   }
 
-  function connect() {
-    var t = tokenIn.value.trim();
-    if (!t) { err("gateErr", "Enter the admin token."); return; }
-    state.token = t;
-    api("/pengatur/stats/data?range=" + encodeURIComponent(state.range)).then(function (d) {
-      try { localStorage.setItem(STORE, t); } catch (e) {}
-      err("gateErr", "");
-      gate.hidden = true;
-      box.hidden = false;
-      paint(d);
-    }).catch(function (e) {
-      state.token = "";
-      err("gateErr", e.message);
-    });
-  }
-
-  el("connect").addEventListener("click", connect);
-  tokenIn.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
-  el("apply").addEventListener("click", function () {
-    state.range = el("range").value;
-    load();
+  el.heatValues.addEventListener("change", function () {
+    el.heat.classList.toggle("values", el.heatValues.checked);
   });
 
-  var saved = "";
-  try { saved = localStorage.getItem(STORE) || ""; } catch (e) {}
-  if (saved) { tokenIn.value = saved; connect(); }
-})();
-</script>
-</body>
-</html>`;
+  buildRange();
+  GX.gate({ onSuccess: load });
+})();`;
+var STATS_HTML = consolePage({
+  title: "Statistics",
+  subtitle: "Range breakdowns, heatmap and cost projection",
+  active: "/pengatur/stats",
+  actions: `<div class="seg" id="range" role="group" aria-label="Time range">`,
+  body: PAGE_BODY3,
+  script: PAGE_SCRIPT3
+});
 
 // src/stats.ts
 var STATS_RANGES = ["1h", "24h", "7d", "30d"];
@@ -12999,190 +13223,125 @@ async function statsSnapshot(range, now2 = Date.now()) {
 }
 
 // src/usage-ui.ts
-var USAGE_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Usage ledger</title>
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/favicon.svg">
-<style>${BASE_CSS}</style>
-</head>
-<body>
+var PAGE_BODY4 = `
 
-<header class="topbar">
-  <a class="wordmark" href="/pengatur">GeminesX</a>
-  <nav class="nav">
-    <a href="/pengatur">Keys</a>
-    <a href="/pengatur/usage" class="active" aria-current="page">Usage</a>
-    <a href="/pengatur/models">Models</a>
-  </nav>
-  <div class="meta">
-    <span id="mode">-</span>
-  </div>
-</header>
+${authGate()}
 
-<main class="page">
-
-  <div class="page-head">
-    <h1>Usage ledger</h1>
-    <span class="meta">Requests, tokens, cost. In-memory, reset on redeploy.</span>
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
+    <div class="kv ok"><b id="sOk">0</b><span class="k">ok</span></div>
+    <div class="kv bad"><b id="sErr">0</b><span class="k">errors</span></div>
+    <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
+    <div class="kv"><b id="sPrompt">0</b><span class="k">prompt tok</span></div>
+    <div class="kv"><b id="sCompletion">0</b><span class="k">output tok</span></div>
+    <div class="kv"><b id="sCached">0</b><span class="k">cached</span></div>
+    <div class="kv"><b id="sCost">-</b><span class="k">est. usd</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="sLatency">-</div>
   </div>
 
-  <!-- auth -->
-  <section id="gate" class="panel">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Filters</div>
+      <div class="row">
+        <label class="check"><input id="auto" type="checkbox"> Auto refresh every 60s</label>
+      </div>
+    </div>
     <div class="panel-body">
-      <label class="field" for="token">Admin token</label>
       <div class="row">
         <div class="grow">
-          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+          <label class="field" for="fDay">Day</label>
+          <select id="fDay"><option value="">all</option></select>
         </div>
-        <button id="connect" class="btn btn-primary" type="button">Connect</button>
+        <div class="grow">
+          <label class="field" for="fModel">Model</label>
+          <select id="fModel"><option value="">all</option></select>
+        </div>
+        <div class="grow">
+          <label class="field" for="fKey">Key</label>
+          <select id="fKey"><option value="">all</option></select>
+        </div>
+        <div class="grow">
+          <label class="field" for="fStatus">Status</label>
+          <select id="fStatus">
+            <option value="">all</option>
+            <option value="ok">ok</option>
+            <option value="error">error</option>
+            <option value="rotated">rotated</option>
+          </select>
+        </div>
       </div>
-      <p class="dimtext" style="margin-top:12px">The token stays in this browser. It is only sent to this deployment.</p>
-      <div id="gateErr" class="notice err"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="apply" class="btn btn-primary" type="button">Apply</button>
+        <button id="reset" class="btn" type="button">Reset</button>
+      </div>
+      <div id="err" class="notice err" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
   </section>
 
-  <div id="console" class="stack" hidden>
-
-    <div id="loadState" hidden>${stateBlock("loading", "Loading usage...")}</div>
-
-    <div class="strip">
-      <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
-      <div class="kv ready"><b id="sOk">0</b><span class="k">ok</span></div>
-      <div class="kv dead"><b id="sErr">0</b><span class="k">errors</span></div>
-      <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
-      <div class="kv"><b id="sPrompt">0</b><span class="k">prompt tok</span></div>
-      <div class="kv"><b id="sCompletion">0</b><span class="k">output tok</span></div>
-      <div class="kv"><b id="sCached">0</b><span class="k">cached</span></div>
-      <div class="kv"><b id="sCost">-</b><span class="k">est. USD</span></div>
-      <div class="spacer"></div>
-      <div class="meta" id="sLatency">-</div>
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">By model</div></div>
+    <div class="tablewrap">
+      <table class="table" id="byModel">
+        <thead><tr>
+          <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="byModelEmpty"></div>
     </div>
+  </section>
 
-    <!-- filters -->
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Filters</div></div>
-      <div class="panel-body">
-        <div class="row">
-          <div class="grow">
-            <label class="field" for="fDay">Day</label>
-            <select id="fDay"><option value="">all</option></select>
-          </div>
-          <div class="grow">
-            <label class="field" for="fModel">Model</label>
-            <select id="fModel"><option value="">all</option></select>
-          </div>
-          <div class="grow">
-            <label class="field" for="fKey">Key</label>
-            <select id="fKey"><option value="">all</option></select>
-          </div>
-          <div class="grow">
-            <label class="field" for="fStatus">Status</label>
-            <select id="fStatus">
-              <option value="">all</option>
-              <option value="ok">ok</option>
-              <option value="error">error</option>
-              <option value="rotated">rotated</option>
-            </select>
-          </div>
-        </div>
-        <div class="row" style="margin-top:12px">
-          <button id="apply" class="btn btn-primary" type="button">Apply</button>
-          <button id="reset" class="btn" type="button">Reset</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- by model -->
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">By model</div></div>
-      <div class="tablewrap">
-        <table id="byModel">
-          <thead><tr>
-            <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-        <div class="empty" data-empty hidden><b>No traffic yet</b><br>Send a request through the gateway and it shows up here.</div>
-      </div>
-    </section>
-
-    <!-- by key -->
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">By key</div></div>
-      <div class="tablewrap">
-        <table id="byKey">
-          <thead><tr>
-            <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-        <div class="empty" data-empty hidden><b>No key attributed yet</b><br>A request that reached a key is listed here by its masked form.</div>
-      </div>
-    </section>
-
-    <!-- by day -->
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">By day</div></div>
-      <div class="tablewrap">
-        <table id="byDay">
-          <thead><tr>
-            <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-        <div class="empty" data-empty hidden><b>No daily rollup yet</b><br>Days appear once traffic has been recorded.</div>
-      </div>
-    </section>
-
-    <!-- request log -->
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Request log</div></div>
-      <div class="tablewrap">
-        <table id="log">
-          <thead><tr>
-            <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-        <div class="empty" data-empty hidden><b>No requests match</b><br>Loosen the filter or send traffic through the gateway.</div>
-      </div>
-    </section>
-
-    <div id="pager" class="pager"></div>
-
-    <div class="row" style="justify-content:space-between">
-      <div class="row">
-        <button id="refresh" class="btn small" type="button">Refresh</button>
-        <button id="csv" class="btn small" type="button">Export CSV</button>
-        <label class="check"><input id="auto" type="checkbox"> auto-refresh 60s</label>
-      </div>
-      <span class="dimtext" id="stamp">-</span>
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">By key</div></div>
+    <div class="tablewrap">
+      <table class="table" id="byKey">
+        <thead><tr>
+          <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="byKeyEmpty"></div>
     </div>
+  </section>
 
-    <div id="err" class="notice err"></div>
-  </div>
+  <section class="panel">
+    <div class="panel-head"><div class="panel-title">By day</div></div>
+    <div class="tablewrap">
+      <table class="table" id="byDay">
+        <thead><tr>
+          <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="byDayEmpty"></div>
+    </div>
+  </section>
 
-</main>
-
-<script>
-(function () {
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Request log</div>
+      <span class="meta" id="logMeta"></span>
+    </div>
+    <div class="tablewrap">
+      <table class="table" id="log">
+        <thead><tr>
+          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="logEmpty"></div>
+    </div>
+    <div class="panel-foot"><div id="pager" class="pager"></div></div>
+  </section>
+</section>
+`;
+var PAGE_SCRIPT4 = `(function () {
   "use strict";
 
-  var STORE = "geminesx.admin.token";
   var el = {
-    gate: document.getElementById("gate"),
-    gateErr: document.getElementById("gateErr"),
-    token: document.getElementById("token"),
-    connect: document.getElementById("connect"),
     console: document.getElementById("console"),
-    loadState: document.getElementById("loadState"),
-    mode: document.getElementById("mode"),
     sReq: document.getElementById("sReq"),
     sOk: document.getElementById("sOk"),
     sErr: document.getElementById("sErr"),
@@ -13202,156 +13361,120 @@ var USAGE_HTML = `<!doctype html>
     byKey: document.getElementById("byKey"),
     byDay: document.getElementById("byDay"),
     log: document.getElementById("log"),
+    logMeta: document.getElementById("logMeta"),
     pager: document.getElementById("pager"),
-    refresh: document.getElementById("refresh"),
-    csv: document.getElementById("csv"),
+    refresh: document.getElementById("refreshBtn"),
+    csv: document.getElementById("csvBtn"),
     auto: document.getElementById("auto"),
-    stamp: document.getElementById("stamp"),
     err: document.getElementById("err")
   };
 
-  var state = {
-    token: "",
-    page: 1,
-    size: 25,
-    filter: { day: "", model: "", key: "", status: "" },
-    timer: null,
-    last: null
-  };
+  var state = { page: 1, size: 25, filter: { day: "", model: "", key: "", status: "" }, timer: null };
 
-  function fmt(n) {
-    if (n === null || n === undefined) return "-";
-    if (typeof n !== "number") return String(n);
-    return n.toLocaleString("en-US");
+  function query() {
+    var q = ["page=" + state.page, "pageSize=" + state.size];
+    for (var k in state.filter) {
+      if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
+    }
+    return "/pengatur/usage/data?" + q.join("&");
   }
 
-  function money(n) {
-    if (n === null || n === undefined) return "-";
-    if (n === 0) return "$0";
-    if (n < 0.000001) return "<$0.000001";
-    return "$" + n.toFixed(6).replace(/0+$/, "").replace(/\\.$/, "");
+  function filterQuery() {
+    var q = [];
+    for (var k in state.filter) {
+      if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
+    }
+    return q.length ? "?" + q.join("&") : "";
   }
 
-  function clock(ts) {
-    var d = new Date(ts);
-    return d.toLocaleTimeString("en-GB", { hour12: false }) + "." +
-      String(d.getMilliseconds()).padStart(3, "0");
-  }
-
-  function api(path, opts) {
-    opts = opts || {};
-    var headers = { authorization: "Bearer " + state.token };
-    if (opts.body) headers["content-type"] = "application/json";
-    return fetch(path, {
-      method: opts.method || "GET",
-      headers: headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined
-    }).then(function (r) {
-      if (r.status === 401) throw new Error("Unauthorized. Re-enter the admin token.");
-      if (!r.ok) {
-        return r.text().then(function (t) {
-          var msg = t;
-          try { msg = JSON.parse(t).error.message || t; } catch (e) {}
-          throw new Error(msg || ("HTTP " + r.status));
-        });
-      }
-      return r.json();
+  function fillSelect(sel, items) {
+    var keep = sel.value;
+    var seen = {};
+    sel.textContent = "";
+    sel.appendChild(GX.el("option", { value: "", text: "all" }));
+    (items || []).forEach(function (item) {
+      var v = item.key;
+      if (!v || seen[v]) return;
+      seen[v] = true;
+      sel.appendChild(GX.el("option", { value: v, text: v }));
     });
+    sel.value = keep;
   }
 
-  function setErr(msg) {
-    el.err.textContent = msg || "";
-    el.gateErr.textContent = msg || "";
-  }
-
-  function cell(tr, text, cls, label) {
-    var td = document.createElement("td");
-    if (cls) td.className = cls;
-    if (label) td.setAttribute("data-l", label);
-    td.textContent = text;
-    tr.appendChild(td);
-    return td;
-  }
-
-  function renderBuckets(table, buckets, cols) {
+  function renderBuckets(table, emptyId, buckets, cols) {
     var body = table.querySelector("tbody");
     body.textContent = "";
-    var empty = table.parentNode.querySelector("[data-empty]");
-    if (empty) empty.hidden = buckets.length > 0;
-    for (var i = 0; i < buckets.length; i++) {
-      var b = buckets[i];
-      var tr = document.createElement("tr");
-      for (var j = 0; j < cols.length; j++) {
-        var c = cols[j];
-        var v = c.fmt ? c.fmt(b[c.k], b) : b[c.k];
-        cell(tr, v === undefined || v === null ? "-" : String(v), c.num ? "num" : "", c.label);
-      }
-      body.appendChild(tr);
+    var empty = document.getElementById(emptyId);
+    empty.textContent = "";
+    if (!buckets.length) {
+      empty.appendChild(GX.state("empty", "No traffic in this view", "Send a request through the gateway and it shows up here."));
+      return;
     }
+    buckets.forEach(function (b) {
+      var tr = GX.el("tr");
+      cols.forEach(function (c) {
+        var value = c.fmt ? c.fmt(b[c.k], b) : b[c.k];
+        GX.cell(tr, value === undefined || value === null ? "-" : String(value), c.num ? "num" : "", c.label);
+      });
+      body.appendChild(tr);
+    });
   }
 
   function renderLog(rows) {
     var body = el.log.querySelector("tbody");
     body.textContent = "";
-    var empty = el.log.parentNode.querySelector("[data-empty]");
-    if (empty) empty.hidden = rows.length > 0;
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      var tr = document.createElement("tr");
-      cell(tr, clock(r.ts), "mono nowrap", "time");
-      cell(tr, r.route, "mono", "route");
-      cell(tr, r.model, "mono", "model");
-      cell(tr, r.keyMasked || "-", "mono", "key");
-      var st = document.createElement("td");
-      st.setAttribute("data-l", "status");
-      var badge = document.createElement("span");
-      badge.className = "badge " + (r.ok ? "ok" : "err");
-      badge.textContent = r.status + (r.errorCode ? " " + r.errorCode : "");
-      st.appendChild(badge);
-      if (r.rotated) {
-        var rb = document.createElement("span");
-        rb.className = "badge rot";
-        rb.style.marginLeft = "6px";
-        rb.textContent = "rot";
-        st.appendChild(rb);
-      }
-      tr.appendChild(st);
-      cell(tr, fmt(r.promptTokens), "num", "prompt");
-      cell(tr, fmt(r.completionTokens), "num", "output");
-      cell(tr, fmt(r.totalTokens), "num", "total");
-      cell(tr, money(r.costUsd), "num", "cost");
-      cell(tr, fmt(r.latencyMs), "num", "ms");
-      body.appendChild(tr);
+    var empty = document.getElementById("logEmpty");
+    empty.textContent = "";
+    if (!rows.length) {
+      empty.appendChild(GX.state("empty", "No request matches", "Loosen the filter or send traffic through the gateway."));
+      return;
     }
+    rows.forEach(function (r) {
+      var tr = GX.el("tr");
+      GX.cell(tr, GX.fmt.clock(r.ts), "mono nowrap", "time");
+      GX.cell(tr, r.route, "mono", "route");
+      GX.cell(tr, r.model || "-", "mono", "model");
+      GX.cell(tr, r.keyMasked || "-", "mono", "key");
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(GX.badge(String(r.status) + (r.errorCode ? " " + r.errorCode : ""), r.ok ? "ok" : "bad"));
+      if (r.rotated) {
+        statusCell.appendChild(GX.el("span", { class: "badge info", text: "rotated", style: "margin-left:6px" }));
+      }
+      tr.appendChild(statusCell);
+      GX.cell(tr, GX.fmt.num(r.promptTokens), "num", "prompt");
+      GX.cell(tr, GX.fmt.num(r.completionTokens), "num", "output");
+      GX.cell(tr, GX.fmt.num(r.totalTokens), "num", "total");
+      GX.cell(tr, GX.fmt.money(r.costUsd), "num", "cost");
+      GX.cell(tr, GX.fmt.num(r.latencyMs), "num", "ms");
+      body.appendChild(tr);
+    });
   }
 
   function renderPager(data) {
     el.pager.textContent = "";
     var total = data.totalRows;
     var pages = Math.max(1, Math.ceil(total / data.pageSize));
-    var info = document.createElement("div");
-    info.textContent = total === 0
-      ? "0 rows"
-      : "rows " + ((data.page - 1) * data.pageSize + 1) + "-" +
-        Math.min(total, data.page * data.pageSize) + " of " + total;
-    el.pager.appendChild(info);
-
+    el.pager.appendChild(GX.el("span", {
+      text: total === 0
+        ? "0 rows"
+        : "rows " + ((data.page - 1) * data.pageSize + 1) + "-" + Math.min(total, data.page * data.pageSize) + " of " + total
+    }));
     if (pages <= 1) return;
-    var box = document.createElement("div");
-    box.className = "pages";
 
+    var box = GX.el("div", { class: "pages" });
     function pageBtn(label, n, active, disabled) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "small" + (active ? " active" : "");
-      b.textContent = label;
-      b.disabled = !!disabled;
+      var b = GX.el("button", {
+        class: "small" + (active ? " active" : ""),
+        type: "button",
+        text: label,
+        disabled: disabled ? true : null
+      });
+      if (active) b.setAttribute("aria-current", "page");
       if (!active && !disabled) {
         b.addEventListener("click", function () { state.page = n; load(); });
       }
       box.appendChild(b);
     }
-
     pageBtn("first", 1, false, data.page === 1);
     pageBtn("prev", data.page - 1, false, data.page === 1);
     var lo = Math.max(1, data.page - 2);
@@ -13363,141 +13486,88 @@ var USAGE_HTML = `<!doctype html>
     el.pager.appendChild(box);
   }
 
-  function fillSelect(sel, items, current) {
-    var seen = {};
-    var keep = sel.value;
-    var opts = ['<option value="">all</option>'];
-    for (var i = 0; i < items.length; i++) {
-      var v = items[i].key;
-      if (!v || seen[v]) continue;
-      seen[v] = 1;
-      opts.push('<option value="' + String(v).replace(/"/g, "&quot;") + '">' + v + "</option>");
-    }
-    sel.innerHTML = opts.join("");
-    if (keep) sel.value = keep;
-    else if (current) sel.value = current;
-  }
-
   function paint(data) {
-    state.last = data;
-    el.loadState.hidden = true;
-    el.mode.textContent = "mode: " + data.mode + " / cap " + fmt(data.capacity);
-    var t = data.totals;
-    el.sReq.textContent = fmt(t.requests);
-    el.sOk.textContent = fmt(t.ok);
-    el.sErr.textContent = fmt(t.errors);
-    el.sRot.textContent = fmt(t.rotated);
-    el.sPrompt.textContent = fmt(t.promptTokens);
-    el.sCompletion.textContent = fmt(t.completionTokens);
-    el.sCached.textContent = fmt(t.cachedTokens);
-    el.sCost.textContent = money(t.costUsd);
-    el.sLatency.textContent = "avg " + fmt(t.avgLatencyMs) + " ms" +
+    var t = data.totals || {};
+    el.sReq.textContent = GX.fmt.num(t.requests);
+    el.sOk.textContent = GX.fmt.num(t.ok);
+    el.sErr.textContent = GX.fmt.num(t.errors);
+    el.sRot.textContent = GX.fmt.num(t.rotated);
+    el.sPrompt.textContent = GX.fmt.num(t.promptTokens);
+    el.sCompletion.textContent = GX.fmt.num(t.completionTokens);
+    el.sCached.textContent = GX.fmt.num(t.cachedTokens);
+    el.sCost.textContent = GX.fmt.money(t.costUsd);
+    el.sLatency.textContent = "avg " + GX.fmt.num(t.avgLatencyMs) + " ms" +
       (data.since ? " \xB7 oldest " + new Date(data.since).toLocaleString() : "");
+    el.logMeta.textContent = data.mode + " ring, capacity " + GX.fmt.num(data.capacity);
 
-    fillSelect(el.fDay, data.byDay, state.filter.day);
-    fillSelect(el.fModel, data.byModel, state.filter.model);
-    fillSelect(el.fKey, data.byKey, state.filter.key);
+    fillSelect(el.fDay, data.byDay);
+    fillSelect(el.fModel, data.byModel);
+    fillSelect(el.fKey, data.byKey);
 
-    renderBuckets(el.byModel, data.byModel, [
+    renderBuckets(el.byModel, "byModelEmpty", data.byModel || [], [
       { k: "key", label: "model" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "promptTokens", num: true, label: "prompt" },
       { k: "completionTokens", num: true, label: "output" },
       { k: "cachedTokens", num: true, label: "cached" },
-      { k: "costUsd", num: true, fmt: money, label: "cost" },
+      { k: "costUsd", num: true, fmt: GX.fmt.money, label: "cost" },
       { k: "avgLatencyMs", num: true, label: "ms" }
     ]);
 
-    renderBuckets(el.byKey, data.byKey, [
+    renderBuckets(el.byKey, "byKeyEmpty", data.byKey || [], [
       { k: "key", label: "key" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "rotated", num: true, label: "rot" },
       { k: "promptTokens", num: true, label: "prompt" },
       { k: "completionTokens", num: true, label: "output" },
-      { k: "costUsd", num: true, fmt: money, label: "cost" },
+      { k: "costUsd", num: true, fmt: GX.fmt.money, label: "cost" },
       { k: "avgLatencyMs", num: true, label: "ms" }
     ]);
 
-    renderBuckets(el.byDay, data.byDay, [
+    renderBuckets(el.byDay, "byDayEmpty", data.byDay || [], [
       { k: "key", label: "day" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "promptTokens", num: true, label: "prompt" },
       { k: "completionTokens", num: true, label: "output" },
-      { k: "costUsd", num: true, fmt: money, label: "cost" }
+      { k: "costUsd", num: true, fmt: GX.fmt.money, label: "cost" }
     ]);
 
-    renderLog(data.rows);
+    renderLog(data.rows || []);
     renderPager(data);
-    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
-  }
-
-  function query() {
-    var q = ["page=" + state.page, "pageSize=" + state.size];
-    for (var k in state.filter) {
-      if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
-    }
-    return "/pengatur/usage/data?" + q.join("&");
   }
 
   function load() {
-    if (!state.token) return;
-    el.refresh.disabled = true;
-    if (!state.last) el.loadState.hidden = false;
-    api(query()).then(function (data) {
-      setErr("");
-      paint(data);
-    }).catch(function (e) {
-      setErr(e.message);
-    }).then(function () {
-      el.refresh.disabled = false;
-    });
+    return GX.api(query())
+      .then(function (data) {
+        GX.say(el.err, "");
+        paint(data);
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        GX.say(el.err, err.message, "err");
+      });
+  }
+
+  function reload() {
+    return load().catch(function () {});
   }
 
   function exportCsv() {
-    if (!state.token) return;
-    var q = [];
-    for (var k in state.filter) {
-      if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
-    }
-    var url = "/pengatur/usage/export.csv" + (q.length ? "?" + q.join("&") : "");
-    fetch(url, { headers: { authorization: "Bearer " + state.token } })
-      .then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.blob();
+    GX.busy(el.csv, "Exporting");
+    GX.download("/pengatur/usage/export.csv" + filterQuery(), "geminesx-usage.csv")
+      .catch(function (err) {
+        GX.say(el.err, err.message, "err");
       })
-      .then(function (blob) {
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "geminesx-usage-" + new Date().toISOString().slice(0, 10) + ".csv";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
-      })
-      .catch(function (e) { setErr(e.message); });
+      .then(function () { GX.idle(el.csv); });
   }
 
-  function connect() {
-    var t = el.token.value.trim();
-    if (!t) { setErr("Enter the admin token."); return; }
-    state.token = t;
-    api("/pengatur/usage/data?page=1&pageSize=" + state.size).then(function (data) {
-      try { localStorage.setItem(STORE, t); } catch (e) {}
-      setErr("");
-      el.gate.hidden = true;
-      el.console.hidden = false;
-      paint(data);
-    }).catch(function (e) {
-      state.token = "";
-      setErr(e.message);
-    });
-  }
-
-  el.connect.addEventListener("click", connect);
-  el.token.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
   el.apply.addEventListener("click", function () {
     state.filter.day = el.fDay.value;
     state.filter.model = el.fModel.value;
@@ -13515,815 +13585,928 @@ var USAGE_HTML = `<!doctype html>
     state.page = 1;
     load();
   });
-  el.refresh.addEventListener("click", load);
+  el.refresh.addEventListener("click", function () { reload(); });
   el.csv.addEventListener("click", exportCsv);
   el.auto.addEventListener("change", function () {
-    if (state.timer) { clearInterval(state.timer); state.timer = null; }
-    if (el.auto.checked) {
-      state.timer = setInterval(function () {
-        // Only poll while the tab is actually being looked at.
-        if (document.visibilityState === "visible") load();
-      }, 60000);
-    }
+    if (state.timer) { state.timer(); state.timer = null; }
+    if (el.auto.checked) state.timer = GX.every(60000, reload);
   });
 
-  var saved = "";
-  try { saved = localStorage.getItem(STORE) || ""; } catch (e) {}
-  if (saved) { el.token.value = saved; connect(); }
-})();
-</script>
-</body>
-</html>
-`;
+  GX.gate({ onSuccess: load });
+})();`;
+var USAGE_HTML = consolePage({
+  title: "Logs",
+  subtitle: "Every request that passed through the gateway",
+  active: "/pengatur/logs",
+  actions: `<button id="csvBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/></svg>Export CSV</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
+  body: PAGE_BODY4,
+  script: PAGE_SCRIPT4
+});
 
 // src/keys-ui.ts
-var KEYS_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keys \xB7 geminesx</title>
-<style>
-:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
-header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
-header h1 { font-size:15px; margin:0; font-weight:600; }
-header a { color:var(--accent); text-decoration:none; }
-header .dim, .dim { color:var(--dim); }
-main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
-.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
-.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
-button:hover:not(:disabled) { border-color:var(--accent); }
-button:disabled { opacity:.45; cursor:not-allowed; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
-button.danger { color:var(--err); }
-input, select, textarea { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
-textarea { width:100%; min-height:88px; resize:vertical; }
-input[type=password] { width:280px; }
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
-th { color:var(--dim); font-weight:500; font-size:12px; }
-tr:last-child td { border-bottom:none; }
-td.id a { color:var(--accent); text-decoration:none; }
-.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
-.tag.ok { color:var(--ok); border-color:var(--ok); }
-.tag.warn { color:var(--warn); border-color:var(--warn); }
-.tag.err { color:var(--err); border-color:var(--err); }
-.msg { min-height:20px; font-size:13px; }
-.msg.err { color:var(--err); }
-.msg.ok { color:var(--ok); }
-.hint { color:var(--dim); font-size:12px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; }
-.stat b { display:block; font-size:20px; font-variant-numeric:tabular-nums; }
-.stat span { color:var(--dim); font-size:12px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Keys</h1>
-  <a href="/pengatur/stats">stats</a>
-  <a href="/pengatur/settings">settings</a>
-  <a href="/pengatur/audit">audit</a>
-  <a href="/pengatur/logs">logs</a>
-  <span class="dim" id="authState">token required</span>
-</header>
-<main>
-  <section class="panel" id="authPanel">
-    <h2>Admin token</h2>
-    <div class="row">
-      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-      <button class="primary" id="connect">Connect</button>
-      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+var PAGE_BODY5 = `
+
+${authGate()}
+
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
+    <div class="kv ok"><b id="sReady">0</b><span class="k">ready</span></div>
+    <div class="kv warn"><b id="sCooling">0</b><span class="k">cooling</span></div>
+    <div class="kv bad"><b id="sDead">0</b><span class="k">dead</span></div>
+    <div class="kv"><b id="sStorage">-</b><span class="k">storage</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="poolMeta">-</div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Pool <span class="meta" id="listMeta"></span></div>
+      <div class="row">
+        <button id="testAllBtn" class="btn small" type="button">Test all</button>
+        <button id="refreshBtn" class="btn small" type="button">Refresh</button>
+      </div>
     </div>
-    <div class="msg" id="authHint"></div>
-  </section>
 
-  <section class="panel" id="statsPanel" hidden>
-    <h2>Pool</h2>
-    <div class="grid" id="stats"></div>
-  </section>
-
-  <section class="panel" id="bulkPanel" hidden>
-    <h2>Bulk actions</h2>
-    <div class="row">
-      <select id="tierSel"></select>
-      <button id="applyTier">Set tier on selected</button>
-      <button id="testAll">Test all</button>
-      <button id="refresh">Refresh</button>
-      <label class="hint"><input type="checkbox" id="auto"> auto-refresh 15s</label>
+    <div class="panel-body">
+      <div class="row">
+        <div class="grow">
+          <label class="field" for="keyFilter">Filter</label>
+          <input id="keyFilter" type="search" spellcheck="false" placeholder="masked key, id or plan">
+        </div>
+        <div class="grow">
+          <label class="field" for="keyStatus">Status</label>
+          <select id="keyStatus">
+            <option value="">all</option>
+            <option value="ready">ready</option>
+            <option value="cooling">cooling</option>
+            <option value="dead">dead</option>
+          </select>
+        </div>
+        <div class="grow">
+          <label class="field" for="keySize">Per page</label>
+          <select id="keySize">
+            <option value="10">10</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button id="enableBtn" disabled>Enable selected</button>
-      <button id="disableBtn" disabled>Disable selected</button>
-      <span class="hint">Enable/disable is not implemented by the admin API yet \u2014 no route toggles the keys table. Remove and re-add a key to reset it.</span>
+
+    <div id="bulkBar" class="panel-body" hidden style="border-top:1px solid var(--line)">
+      <div class="row">
+        <b id="selCount" style="font-variant-numeric:tabular-nums">0 selected</b>
+        <select id="bulkTier" class="tier" aria-label="Billing plan for the selected keys"></select>
+        <button id="bulkApply" class="btn small" type="button">Apply plan</button>
+        <button id="bulkRemove" class="btn small btn-danger" type="button">Remove selected</button>
+        <span class="spacer"></span>
+        <button id="bulkClear" class="btn btn-ghost small" type="button">Clear</button>
+      </div>
+      <div id="bulkMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
-    <div class="msg" id="bulkMsg"></div>
-  </section>
 
-  <section class="panel" id="addPanel" hidden>
-    <h2>Add keys</h2>
-    <textarea id="newKeys" placeholder="One raw key per line"></textarea>
-    <div class="row" style="margin-top:10px">
-      <button class="primary" id="addBtn">Add</button>
-      <span class="hint">Raw values are never returned by the API; only masked ids are.</span>
+    <div id="keysBody" class="tablewrap">stateBlock("loading", "Loading the pool")</div>
+
+    <div class="panel-foot">
+      <div id="keyPager" class="pager"></div>
+      <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
     </div>
-    <div class="msg" id="addMsg"></div>
   </section>
+</section>
 
-  <section class="panel" id="keysPanel" hidden>
-    <h2>Keys</h2>
-    <table>
-      <thead><tr>
-        <th><input type="checkbox" id="all"></th>
-        <th>id</th><th>masked</th><th>plan</th><th>state</th><th>enabled</th><th>fails</th><th>last seen</th><th></th>
-      </tr></thead>
-      <tbody id="keyRows"></tbody>
-    </table>
-    <div class="msg" id="keyMsg"></div>
-  </section>
-</main>
-<script>
-const TOKEN_KEY = "geminesx.admin.token";
+<dialog id="addDialog" aria-labelledby="addTitle">
+  <form id="addForm" method="dialog">
+    <div class="panel-head">
+      <div class="panel-title" id="addTitle">Add keys</div>
+      <button class="btn btn-ghost small" type="button" id="addClose" aria-label="Close"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10"/><path d="M15 5 5 15"/></svg></button>
+    </div>
+    <div class="panel-body">
+      <label class="field" for="newKeys">One key per line, or separated by commas</label>
+      <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
+      <div class="row" style="margin-top:12px">
+        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
+        <span id="addCount" class="hint"></span>
+      </div>
+      <div id="addMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <p class="hint" style="margin-top:12px">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+    </div>
+  </form>
+</dialog>
+`;
+var PAGE_SCRIPT5 = `(function () {
+  "use strict";
 
-function token() {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
-
-/** Fetch helper. Every console request carries the pasted token. */
-async function api(path, opts) {
-  const init = Object.assign({ headers: {} }, opts ?? {});
-  init.headers = Object.assign({}, init.headers, { authorization: "Bearer " + token() });
-  if (init.body !== undefined) {
-    init.headers["content-type"] = "application/json";
-    init.body = JSON.stringify(init.body);
-  }
-  const res = await fetch(path, init);
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
-  }
-  if (!res.ok) {
-    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
-    throw new Error(message);
-  }
-  return data;
-}
-
-function say(node, text, cls) {
-  node.textContent = text;
-  node.className = "msg" + (cls ? " " + cls : "");
-}
-
-function when(ms) {
-  if (!ms) return "never";
-  const d = new Date(ms);
-  return d.toISOString().replace("T", " ").slice(0, 19);
-}
-
-function left(ms) {
-  if (!ms || ms <= 0) return "-";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return s + "s";
-  if (s < 3600) return Math.round(s / 60) + "m";
-  return Math.round(s / 3600) + "h";
-}
-
-const state = { keys: [], tiers: [], knownTiers: [], timer: null };
-
-function row(k) {
-  const tr = document.createElement("tr");
-  const status = k.status ?? "ready";
-  const badge = status === "ready" ? "ok" : status === "cooling" ? "warn" : "err";
-  tr.innerHTML =
-    '<td><input type="checkbox" data-id="' + k.id + '"></td>' +
-    '<td class="id"><a href="/pengatur/keys/' + k.id + '">' + k.id + "</a></td>" +
-    "<td>" + k.key + "</td>" +
-    "<td>" + k.tier + "</td>" +
-    '<td><span class="tag ' + badge + '">' + status + "</span></td>" +
-    "<td>" + (k.enabled === false ? "no" : "yes") + "</td>" +
-    "<td>" + k.failures + "</td>" +
-    "<td>" + when(k.lastUsed) + "</td>" +
-    '<td><button data-test="' + k.id + '">test</button> <button class="danger" data-del="' + k.id + '">delete</button></td>';
-  return tr;
-}
-
-function selected() {
-  return [...document.querySelectorAll("#keyRows input[type=checkbox]:checked")].map((n) => n.dataset.id);
-}
-
-function render(data) {
-  state.keys = data.keys ?? [];
-  state.tiers = data.tiers ?? [];
-  state.knownTiers = data.knownTiers ?? [];
-
-  const pool = data.pool ?? {};
-  const stats = document.getElementById("stats");
-  stats.innerHTML = "";
-  for (const [label, value] of [
-    ["total", pool.total],
-    ["ready", pool.ready],
-    ["cooling", pool.cooling],
-    ["dead", pool.dead],
-    ["storage", pool.storage],
-    ["degraded", pool.degraded ? "yes" : "no"],
-  ]) {
-    const cell = document.createElement("div");
-    cell.className = "stat";
-    cell.innerHTML = "<b>" + (value ?? 0) + "</b><span>" + label + "</span>";
-    stats.appendChild(cell);
-  }
-
-  const sel = document.getElementById("tierSel");
-  const keep = sel.value;
-  sel.innerHTML = "";
-  for (const t of state.knownTiers) {
-    const opt = document.createElement("option");
-    opt.value = t;
-    opt.textContent = t;
-    sel.appendChild(opt);
-  }
-  if (keep) sel.value = keep;
-
-  const body = document.getElementById("keyRows");
-  body.innerHTML = "";
-  for (const k of state.keys) body.appendChild(row(k));
-
-  document.getElementById("keysPanel").hidden = false;
-  document.getElementById("bulkPanel").hidden = false;
-  document.getElementById("addPanel").hidden = false;
-  document.getElementById("statsPanel").hidden = false;
-}
-
-async function refresh() {
-  try {
-    const data = await api("/pengatur/keys/list");
-    render(data);
-    say(document.getElementById("keyMsg"), state.keys.length + " keys", "ok");
-  } catch (err) {
-    say(document.getElementById("keyMsg"), err.message, "err");
-  }
-}
-
-function act(fn) {
-  return async (ev) => {
-    const id = ev.currentTarget.dataset.test ?? ev.currentTarget.dataset.del;
-    ev.currentTarget.disabled = true;
-    try {
-      await fn(id);
-    } catch (err) {
-      say(document.getElementById("keyMsg"), err.message, "err");
-    } finally {
-      ev.currentTarget.disabled = false;
-    }
+  var el = {
+    console: document.getElementById("console"),
+    sTotal: document.getElementById("sTotal"),
+    sReady: document.getElementById("sReady"),
+    sCooling: document.getElementById("sCooling"),
+    sDead: document.getElementById("sDead"),
+    sStorage: document.getElementById("sStorage"),
+    poolMeta: document.getElementById("poolMeta"),
+    listMeta: document.getElementById("listMeta"),
+    keysBody: document.getElementById("keysBody"),
+    keyFilter: document.getElementById("keyFilter"),
+    keyStatus: document.getElementById("keyStatus"),
+    keySize: document.getElementById("keySize"),
+    keyPager: document.getElementById("keyPager"),
+    testAllBtn: document.getElementById("testAllBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    auto: document.getElementById("auto"),
+    bulkBar: document.getElementById("bulkBar"),
+    bulkTier: document.getElementById("bulkTier"),
+    bulkApply: document.getElementById("bulkApply"),
+    bulkRemove: document.getElementById("bulkRemove"),
+    bulkClear: document.getElementById("bulkClear"),
+    selCount: document.getElementById("selCount"),
+    bulkMsg: document.getElementById("bulkMsg"),
+    addBtn: document.getElementById("addBtn"),
+    addDialog: document.getElementById("addDialog"),
+    addClose: document.getElementById("addClose"),
+    addForm: document.getElementById("addForm"),
+    addSubmit: document.getElementById("addSubmit"),
+    newKeys: document.getElementById("newKeys"),
+    addCount: document.getElementById("addCount"),
+    addMsg: document.getElementById("addMsg")
   };
-}
 
-document.getElementById("token").value = token();
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", selected: {}, timer: null };
 
-document.getElementById("connect").addEventListener("click", async () => {
-  const value = document.getElementById("token").value.trim();
-  if (!value) {
-    say(document.getElementById("authHint"), "Paste the admin token.", "err");
-    return;
+  var TIERS = [
+    { value: "unknown", label: "Unspecified" },
+    { value: "free", label: "Free tier" },
+    { value: "paid", label: "Pay-as-you-go" },
+    { value: "pro", label: "AI Pro / Ultra" }
+  ];
+
+  function tierLabel(value) {
+    for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
+    return value;
   }
-  localStorage.setItem(TOKEN_KEY, value);
-  document.getElementById("authHint").textContent = "";
-  await refresh();
-});
 
-document.getElementById("refresh").addEventListener("click", refresh);
-
-document.getElementById("auto").addEventListener("change", (ev) => {
-  clearInterval(state.timer);
-  state.timer = ev.target.checked ? setInterval(refresh, 15000) : null;
-});
-
-document.getElementById("all").addEventListener("change", (ev) => {
-  for (const box of document.querySelectorAll("#keyRows input[type=checkbox]")) box.checked = ev.target.checked;
-});
-
-document.getElementById("applyTier").addEventListener("click", async () => {
-  const ids = selected();
-  if (!ids.length) {
-    say(document.getElementById("bulkMsg"), "Select at least one key.", "err");
-    return;
+  function statusKind(status) {
+    if (status === "ready") return "ok";
+    if (status === "cooling") return "warn";
+    return "bad";
   }
-  try {
-    const res = await api("/pengatur/keys/tier", {
-      method: "POST",
-      body: { ids: ids, tier: document.getElementById("tierSel").value },
+
+  function visibleKeys() {
+    var query = state.query;
+    return state.keys.filter(function (k) {
+      if (state.status && k.status !== state.status) return false;
+      if (!query) return true;
+      return (k.key + " " + k.id + " " + k.status + " " + (k.tier || "unknown")).toLowerCase().indexOf(query) >= 0;
     });
-    say(document.getElementById("bulkMsg"), "updated " + (res.updated ?? ids.length) + " keys", "ok");
-    await refresh();
-  } catch (err) {
-    say(document.getElementById("bulkMsg"), err.message, "err");
   }
-});
 
-document.getElementById("testAll").addEventListener("click", async (ev) => {
-  ev.currentTarget.disabled = true;
-  say(document.getElementById("bulkMsg"), "testing\u2026", "");
-  try {
-    const res = await api("/pengatur/keys/test-all", { method: "POST" });
-    say(document.getElementById("bulkMsg"), "tested " + (res.tested ?? 0) + " keys", "ok");
-    await refresh();
-  } catch (err) {
-    say(document.getElementById("bulkMsg"), err.message, "err");
-  } finally {
-    ev.currentTarget.disabled = false;
+  function selectedIds() {
+    var out = [];
+    for (var id in state.selected) if (state.selected[id]) out.push(id);
+    return out;
   }
-});
 
-document.getElementById("addBtn").addEventListener("click", async () => {
-  const raw = document.getElementById("newKeys").value;
-  const keys = raw.split(/[s,]+/).map((s) => s.trim()).filter(Boolean);
-  if (!keys.length) {
-    say(document.getElementById("addMsg"), "Paste at least one key.", "err");
-    return;
+  function paintBulk() {
+    var ids = selectedIds();
+    el.bulkBar.hidden = ids.length === 0;
+    el.selCount.textContent = ids.length + " selected";
   }
-  try {
-    const res = await api("/pengatur/keys", { method: "POST", body: { keys: keys } });
-    say(document.getElementById("addMsg"), "added " + (res.added ?? keys.length) + " keys", "ok");
-    document.getElementById("newKeys").value = "";
-    await refresh();
-  } catch (err) {
-    say(document.getElementById("addMsg"), err.message, "err");
+
+  function drawTable() {
+    var filtered = visibleKeys();
+    el.listMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
+
+    if (!filtered.length) {
+      el.keysBody.textContent = "";
+      el.keysBody.appendChild(GX.state(
+        "empty",
+        state.keys.length ? "No key matches this filter" : "Pool is empty",
+        state.keys.length
+          ? "Clear the filter box to see the whole pool."
+          : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
+      ));
+      renderPager(0, 1);
+      return;
+    }
+
+    var pages = Math.max(1, Math.ceil(filtered.length / state.size));
+    if (state.page > pages) state.page = pages;
+    if (state.page < 1) state.page = 1;
+    var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
+
+    var table = GX.el("table", { class: "table" });
+    var head = GX.el("thead", null, GX.el("tr", null, [
+      GX.el("th", { class: "num" }, GX.el("input", {
+        type: "checkbox",
+        id: "selectAll",
+        "aria-label": "Select every key on this page"
+      })),
+      GX.el("th", { text: "Id" }),
+      GX.el("th", { text: "Key" }),
+      GX.el("th", { text: "Plan" }),
+      GX.el("th", { text: "Status" }),
+      GX.el("th", { class: "num", text: "Fails" }),
+      GX.el("th", { class: "num", text: "Cooldown" }),
+      GX.el("th", { text: "Last used" }),
+      GX.el("th", { class: "num", text: "" })
+    ]));
+    table.appendChild(head);
+
+    var body = GX.el("tbody");
+    slice.forEach(function (k) {
+      var tr = GX.el("tr");
+
+      var pick = GX.el("td", { class: "num pick" });
+      var box = GX.el("input", { type: "checkbox", "aria-label": "Select key " + k.key });
+      box.checked = Boolean(state.selected[k.id]);
+      box.addEventListener("change", function () {
+        state.selected[k.id] = box.checked;
+        paintBulk();
+      });
+      pick.appendChild(box);
+      tr.appendChild(pick);
+
+      var idCell = GX.el("td", { "data-l": "id" });
+      idCell.appendChild(GX.el("a", {
+        class: "mono",
+        href: "/pengatur/keys/" + encodeURIComponent(k.id),
+        text: k.id
+      }));
+      tr.appendChild(idCell);
+
+      var keyCell = GX.el("td", { class: "key", "data-l": "key" });
+      keyCell.textContent = k.key;
+      tr.appendChild(keyCell);
+
+      var tierCell = GX.el("td", { "data-l": "plan" });
+      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
+      TIERS.forEach(function (t) {
+        var option = GX.el("option", { value: t.value, text: t.label });
+        if ((k.tier || "unknown") === t.value) option.selected = true;
+        select.appendChild(option);
+      });
+      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
+      tierCell.appendChild(select);
+      tr.appendChild(tierCell);
+
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(GX.badge(k.status, statusKind(k.status)));
+      tr.appendChild(statusCell);
+
+      GX.cell(tr, k.failures, "num", "fails");
+      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num cool", "cooldown");
+      GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
+
+      var actions = GX.el("td", { class: "actions" });
+      var testBtn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      testBtn.addEventListener("click", function () { testKey(k, testBtn); });
+      var delBtn = GX.el("button", { class: "small btn-danger", type: "button", text: "Remove" });
+      delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
+      actions.appendChild(testBtn);
+      actions.appendChild(delBtn);
+      tr.appendChild(actions);
+
+      body.appendChild(tr);
+    });
+
+    table.appendChild(body);
+    el.keysBody.textContent = "";
+    el.keysBody.appendChild(table);
+
+    var all = document.getElementById("selectAll");
+    all.addEventListener("change", function () {
+      slice.forEach(function (k) { state.selected[k.id] = all.checked; });
+      drawTable();
+    });
+
+    renderPager(filtered.length, pages);
+    paintBulk();
   }
-});
 
-document.getElementById("keyRows").addEventListener("click", async (ev) => {
-  const testId = ev.target.dataset?.test;
-  const delId = ev.target.dataset?.del;
-  if (testId) await act(async (id) => {
-    const res = await api("/pengatur/keys/test", { method: "POST", body: { id: id } });
-    say(document.getElementById("keyMsg"), id + ": " + (res.probe?.status ?? "tested") + " (" + (res.applied ?? "none") + ")", "ok");
-    await refresh();
-  })({ currentTarget: ev.target });
-  else if (delId) await act(async (id) => {
-    await api("/pengatur/keys", { method: "DELETE", body: { id: id } });
-    say(document.getElementById("keyMsg"), "deleted " + id, "ok");
-    await refresh();
-  })({ currentTarget: ev.target });
-});
+  function renderPager(total, pages) {
+    el.keyPager.textContent = "";
+    if (!total) return;
+    el.keyPager.appendChild(GX.el("span", {
+      text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
+        Math.min(total, state.page * state.size) + " of " + total
+    }));
 
-refresh();
-</script>
-</body>
-</html>`;
-var KEY_DETAIL_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Key detail</title>
-<style>
-:root { --bg:#0b0d12; --panel:#12151d; --line:#242938; --ink:#e6e9f0; --dim:#8b93a7; --accent:#6ea8fe; --ok:#3ecf8e; --warn:#e0b341; --err:#ef6b6b; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
-header { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--line); }
-header h1 { font-size:16px; margin:0; font-weight:600; }
-header a { color:var(--dim); text-decoration:none; }
-header a:hover { color:var(--accent); }
-.dim { color:var(--dim); margin-left:auto; font-size:12px; }
-main { padding:18px 20px; display:grid; gap:14px; max-width:1200px; }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
-.panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:0 0 10px; font-weight:600; }
-.row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-button { background:#1a1f2b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 11px; font:inherit; cursor:pointer; }
-button:hover { border-color:var(--accent); }
-button:disabled { opacity:.45; cursor:not-allowed; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0d12; font-weight:600; }
-input { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
-input[type=password] { width:280px; }
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
-th { color:var(--dim); font-weight:500; font-size:12px; }
-tr:last-child td { border-bottom:none; }
-.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
-.tag.ok { color:var(--ok); border-color:var(--ok); }
-.tag.warn { color:var(--warn); border-color:var(--warn); }
-.tag.err { color:var(--err); border-color:var(--err); }
-.msg { min-height:20px; font-size:13px; }
-.msg.err { color:var(--err); }
-.msg.ok { color:var(--ok); }
-.hint { color:var(--dim); font-size:12px; }
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
-.stat b { display:block; font-size:18px; font-variant-numeric:tabular-nums; }
-.stat span { color:var(--dim); font-size:12px; }
-.bar { height:8px; background:var(--accent); border-radius:2px; min-width:1px; }
-.barCell { width:180px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Key</h1>
-  <a href="/pengatur/keys">keys</a>
-  <a href="/pengatur/stats">stats</a>
-  <span class="dim" id="authState">token required</span>
-</header>
-<main>
-  <section class="panel" id="authPanel">
-    <h2>Admin token</h2>
-    <div class="row">
-      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-      <button class="primary" id="connect">Connect</button>
-      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+    var box = GX.el("div", { class: "pages" });
+    function mk(label, page, disabled, active) {
+      var b = GX.el("button", {
+        class: "small" + (active ? " active" : ""),
+        type: "button",
+        text: label,
+        disabled: disabled ? true : null
+      });
+      if (active) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", function () { state.page = page; drawTable(); });
+      return b;
+    }
+    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
+    var win = 5;
+    var from = Math.max(1, state.page - Math.floor(win / 2));
+    var to = Math.min(pages, from + win - 1);
+    from = Math.max(1, to - win + 1);
+    if (from > 1) {
+      box.appendChild(mk("1", 1, false, state.page === 1));
+      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
+    }
+    for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
+    if (to < pages) {
+      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
+      box.appendChild(mk(String(pages), pages, false, state.page === pages));
+    }
+    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
+    el.keyPager.appendChild(box);
+  }
+
+  function setTier(ids, tier, control) {
+    if (!ids.length) { GX.say(el.bulkMsg, "Select at least one key.", "err"); return; }
+    if (control) control.disabled = true;
+    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
+      .then(function (data) {
+        GX.say(el.bulkMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Plan update failed: " + err.message, "err");
+      })
+      .then(function () { if (control) control.disabled = false; });
+  }
+
+  function testKey(k, btn) {
+    btn.disabled = true;
+    btn.textContent = "Testing";
+    GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
+      .then(function (data) {
+        GX.say(el.bulkMsg, k.key + ": " + data.probe.status + " (" + data.applied + ")", data.probe.status === "ok" ? "ok" : "");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Test failed: " + err.message, "err");
+      })
+      .then(function () {
+        btn.disabled = false;
+        btn.textContent = "Test";
+      });
+  }
+
+  function testAll() {
+    GX.busy(el.testAllBtn, "Testing");
+    GX.api("/pengatur/keys/test-all", { method: "POST" })
+      .then(function (data) {
+        GX.say(el.bulkMsg, "Tested " + data.tested + " keys.", "ok");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Test all failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.testAllBtn); });
+  }
+
+  function removeKey(k, btn) {
+    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    btn.disabled = true;
+    GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
+      .then(function (data) {
+        GX.say(el.bulkMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        delete state.selected[k.id];
+        return reload();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        GX.say(el.bulkMsg, "Remove failed: " + err.message, "err");
+      });
+  }
+
+  function removeSelected() {
+    var ids = selectedIds();
+    if (!ids.length) return;
+    if (!window.confirm("Remove " + ids.length + " key(s) from the pool? This cannot be undone.")) return;
+    GX.busy(el.bulkRemove, "Removing");
+    var chain = Promise.resolve();
+    ids.forEach(function (id) {
+      chain = chain.then(function () {
+        return GX.api("/pengatur/keys", { method: "DELETE", body: { id: id } });
+      });
+    });
+    chain
+      .then(function () {
+        GX.say(el.bulkMsg, "Removed " + ids.length + " key(s).", "ok");
+        state.selected = {};
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.bulkMsg, "Remove failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.bulkRemove); });
+  }
+
+  function addKeys() {
+    var raw = el.newKeys.value;
+    var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
+    GX.busy(el.addSubmit, "Adding");
+    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
+      .then(function (data) {
+        el.newKeys.value = "";
+        el.addCount.textContent = "";
+        GX.say(el.addMsg, "Sent " + data.received + ", added " + data.added + ".", data.added ? "ok" : "");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.say(el.addMsg, "Add failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.addSubmit); });
+  }
+
+  function refresh() {
+    return GX.api("/pengatur/keys/list")
+      .then(function (data) {
+        state.keys = data.keys || [];
+        state.knownTiers = data.knownTiers || [];
+        var pool = data.pool || {};
+        el.sTotal.textContent = pool.total;
+        el.sReady.textContent = pool.ready;
+        el.sCooling.textContent = pool.cooling;
+        el.sDead.textContent = pool.dead;
+        el.sStorage.textContent = pool.storage;
+        GX.storage(pool.storage + (pool.degraded ? " degraded" : ""));
+        el.poolMeta.textContent = (pool.degraded ? "storage degraded, serving from memory \xB7 " : "") +
+          "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+        var keep = el.bulkTier.value;
+        el.bulkTier.textContent = "";
+        state.knownTiers.forEach(function (t) {
+          el.bulkTier.appendChild(GX.el("option", { value: t, text: tierLabel(t) }));
+        });
+        if (keep) el.bulkTier.value = keep;
+        drawTable();
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        GX.say(el.bulkMsg, "Refresh failed: " + err.message, "err");
+      });
+  }
+
+  function reload() {
+    return refresh().catch(function () {});
+  }
+
+  function startAuto() {
+    if (state.timer || !el.auto.checked) return;
+    state.timer = GX.every(15000, reload);
+  }
+  function stopAuto() {
+    if (state.timer) { state.timer(); state.timer = null; }
+  }
+
+  el.addBtn.addEventListener("click", function () {
+    GX.say(el.addMsg, "");
+    GX.openDialog(el.addDialog);
+    if (el.newKeys) el.newKeys.focus();
+  });
+  el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
+  el.newKeys.addEventListener("input", function () {
+    var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
+    el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
+  });
+  el.refreshBtn.addEventListener("click", function () { reload(); });
+  el.testAllBtn.addEventListener("click", testAll);
+  el.auto.addEventListener("change", function () {
+    if (el.auto.checked) startAuto(); else stopAuto();
+  });
+  el.bulkApply.addEventListener("click", function () { setTier(selectedIds(), el.bulkTier.value, el.bulkApply); });
+  el.bulkRemove.addEventListener("click", removeSelected);
+  el.bulkClear.addEventListener("click", function () {
+    state.selected = {};
+    drawTable();
+  });
+  el.keyFilter.addEventListener("input", GX.debounce(function () {
+    state.query = el.keyFilter.value.trim().toLowerCase();
+    state.page = 1;
+    drawTable();
+  }, 140));
+  el.keyStatus.addEventListener("change", function () {
+    state.status = el.keyStatus.value;
+    state.page = 1;
+    drawTable();
+  });
+  el.keySize.addEventListener("change", function () {
+    state.size = Number(el.keySize.value) || 25;
+    state.page = 1;
+    drawTable();
+  });
+
+  GX.gate({
+    onSuccess: function () {
+      return refresh().then(function () { startAuto(); });
+    }
+  });
+})();`;
+var KEYS_HTML = consolePage({
+  title: "Keys",
+  subtitle: "Every pooled key, its plan and its health",
+  active: "/pengatur/keys",
+  actions: `<button id="addBtn" class="btn btn-primary" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 4.5v11"/><path d="M4.5 10h11"/></svg>Add keys</button>`,
+  body: PAGE_BODY5,
+  script: PAGE_SCRIPT5
+});
+var DETAIL_BODY = `
+
+<section id="gate" class="panel"><div class="panel-head"><div class="panel-title">Admin token</div></div><div class="panel-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>
+
+<section id="console" hidden>
+  <div class="row" style="margin-bottom:4px">
+    <a class="btn btn-ghost small" href="/pengatur/keys"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4 6 10l6 6"/></svg>All keys</a>
+    <span class="hint" id="keyPath"></span>
+  </div>
+
+  <div class="stats" id="summary"></div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Daily requests <span class="meta" id="dailyNote"></span></div>
     </div>
-    <div class="msg" id="authHint"></div>
+    <div class="panel-body">
+      <div id="dailyBars" class="bars"></div>
+    </div>
+    <div class="tablewrap">
+      <table class="table" id="dailyTable">
+        <thead><tr><th>Day</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Cost</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </section>
 
-  <section class="panel" id="summaryPanel" hidden>
-    <h2 id="keyTitle">Summary</h2>
-    <div class="grid" id="summary"></div>
-    <div class="msg" id="summaryMsg"></div>
-  </section>
+  <div class="grid split">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Cooldown timeline</div>
+        <span class="meta" id="cooldownNote"></span>
+      </div>
+      <div class="tablewrap">
+        <table class="table" id="eventTable">
+          <thead><tr><th>When</th><th>Status</th><th>Error</th><th>Rotated</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="eventEmpty"></div>
+      </div>
+    </section>
 
-  <section class="panel" id="chartPanel" hidden>
-    <h2>Daily requests</h2>
-    <div class="msg" id="chartNote"></div>
-    <table>
-      <thead><tr><th>day</th><th>requests</th><th></th><th>errors</th><th>cost</th></tr></thead>
-      <tbody id="dailyRows"></tbody>
-    </table>
-  </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Recent requests</div>
+        <span class="meta" id="recentNote"></span>
+      </div>
+      <div class="tablewrap">
+        <table class="table" id="recentTable">
+          <thead><tr><th>When</th><th>Route</th><th>Model</th><th>Status</th><th class="num">ms</th><th class="num">Tokens</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="recentEmpty"></div>
+      </div>
+    </section>
+  </div>
+</section>
+`;
+var DETAIL_SCRIPT = `(function () {
+  "use strict";
 
-  <section class="panel" id="cooldownPanel" hidden>
-    <h2>Cooldown timeline</h2>
-    <div class="msg" id="coolNow"></div>
-    <table>
-      <thead><tr><th>when</th><th>status</th><th>error</th><th>rotated</th></tr></thead>
-      <tbody id="eventRows"></tbody>
-    </table>
-  </section>
+  var keyId = location.pathname.split("/").filter(Boolean).pop();
 
-  <section class="panel" id="recentPanel" hidden>
-    <h2>Recent requests</h2>
-    <div class="msg" id="recentNote"></div>
-    <table>
-      <thead><tr><th>when</th><th>route</th><th>model</th><th>status</th><th>ms</th><th>tokens</th></tr></thead>
-      <tbody id="recentRows"></tbody>
-    </table>
-  </section>
-</main>
-<script>
-const TOKEN_KEY = "geminesx.admin.token";
-const keyId = location.pathname.split("/").filter(Boolean).pop();
+  var el = {
+    console: document.getElementById("console"),
+    summary: document.getElementById("summary"),
+    keyPath: document.getElementById("keyPath"),
+    dailyNote: document.getElementById("dailyNote"),
+    dailyBars: document.getElementById("dailyBars"),
+    dailyTable: document.getElementById("dailyTable"),
+    cooldownNote: document.getElementById("cooldownNote"),
+    eventTable: document.getElementById("eventTable"),
+    eventEmpty: document.getElementById("eventEmpty"),
+    recentNote: document.getElementById("recentNote"),
+    recentTable: document.getElementById("recentTable"),
+    recentEmpty: document.getElementById("recentEmpty")
+  };
 
-function token() {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
-
-async function api(path) {
-  const res = await fetch(path, { headers: { authorization: "Bearer " + token() } });
-  let data = null;
-  try {
-    data = await res.json();
-  } catch {
-    data = null;
+  function stat(label, value) {
+    return GX.el("div", { class: "stat" }, [
+      GX.el("b", { text: value === null || value === undefined ? "-" : String(value) }),
+      GX.el("span", { text: label })
+    ]);
   }
-  if (!res.ok || (data && data.ok === false)) {
-    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
-    throw new Error(message);
+
+  function statusKind(status) {
+    if (status === "ready") return "ok";
+    if (status === "cooling") return "warn";
+    return "bad";
   }
-  return data;
-}
 
-function say(node, text, cls) {
-  node.textContent = text;
-  node.className = "msg" + (cls ? " " + cls : "");
-}
-
-function when(ms) {
-  if (!ms) return "-";
-  const d = new Date(ms);
-  return d.toISOString().replace("T", " ").slice(0, 19);
-}
-
-function left(ms) {
-  if (!ms || ms <= 0) return "-";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return s + "s";
-  if (s < 3600) return Math.round(s / 60) + "m";
-  return Math.round(s / 3600) + "h";
-}
-
-function cell(text) {
-  const td = document.createElement("td");
-  td.textContent = text == null ? "-" : String(text);
-  return td;
-}
-
-function tagCell(status, ok) {
-  const td = document.createElement("td");
-  const span = document.createElement("span");
-  span.className = "tag " + (ok ? "ok" : status === 429 ? "warn" : "err");
-  span.textContent = String(status);
-  td.appendChild(span);
-  return td;
-}
-
-function summaryStat(label, value) {
-  const box = document.createElement("div");
-  box.className = "stat";
-  const b = document.createElement("b");
-  b.textContent = value == null ? "-" : String(value);
-  const s = document.createElement("span");
-  s.textContent = label;
-  box.appendChild(b);
-  box.appendChild(s);
-  document.getElementById("summary").appendChild(box);
-}
-
-function renderDaily(daily) {
-  const body = document.getElementById("dailyRows");
-  body.innerHTML = "";
-  const max = daily.reduce((m, d) => Math.max(m, Number(d.requests) || 0), 0);
-  for (const d of daily) {
-    const tr = document.createElement("tr");
-    const barTd = document.createElement("td");
-    barTd.className = "barCell";
-    const bar = document.createElement("div");
-    bar.className = "bar";
-    bar.style.width = max > 0 ? Math.round(((Number(d.requests) || 0) / max) * 100) + "%" : "0%";
-    barTd.appendChild(bar);
-    tr.appendChild(cell(d.day));
-    tr.appendChild(cell(d.requests));
-    tr.appendChild(barTd);
-    tr.appendChild(cell(d.errors));
-    tr.appendChild(cell(d.costUsd == null ? "-" : "$" + Number(d.costUsd).toFixed(4)));
-    body.appendChild(tr);
+  function renderSummary(k) {
+    el.summary.textContent = "";
+    el.summary.appendChild(stat("plan", k.plan));
+    el.summary.appendChild(stat("state", k.status));
+    el.summary.appendChild(stat("enabled", k.enabled === false ? "no" : "yes"));
+    el.summary.appendChild(stat("failures", k.failures));
+    el.summary.appendChild(stat("invalidations", k.invalidations));
+    el.summary.appendChild(stat("last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never"));
+    el.summary.appendChild(stat("cooldown left", GX.fmt.left(k.cooldownLeftMs)));
+    el.summary.appendChild(stat("cooldown until", k.cooldownUntil ? GX.fmt.stamp(k.cooldownUntil) : "-"));
   }
-}
 
-function renderEvents(events) {
-  const body = document.getElementById("eventRows");
-  body.innerHTML = "";
-  for (const e of events) {
-    const tr = document.createElement("tr");
-    tr.appendChild(cell(when(e.ts)));
-    tr.appendChild(tagCell(e.status, e.ok));
-    tr.appendChild(cell(e.errorCode));
-    tr.appendChild(cell(e.rotated ? "yes" : "no"));
-    body.appendChild(tr);
+  function renderDaily(daily) {
+    el.dailyNote.textContent = daily.length ? "last " + daily.length + " days" : "";
+    el.dailyBars.textContent = "";
+    el.dailyTable.querySelector("tbody").textContent = "";
+    el.dailyTable.hidden = !daily.length;
+
+    if (!daily.length) {
+      el.dailyBars.appendChild(GX.state("empty", "No daily history", "The rollup keeps one bucket per day for this key."));
+      return;
+    }
+
+    var max = 0;
+    daily.forEach(function (d) { max = Math.max(max, Number(d.requests) || 0); });
+
+    daily.forEach(function (d) {
+      var requests = Number(d.requests) || 0;
+      var width = max > 0 ? Math.round((requests / max) * 100) : 0;
+      var row = GX.el("div", { class: "bar-row" }, [
+        GX.el("span", { class: "label", text: d.day }),
+        GX.el("div", { class: "bar-track" }, GX.el("div", { class: "bar-fill", style: "width:" + width + "%" })),
+        GX.el("span", { class: "value", text: GX.fmt.num(requests) })
+      ]);
+      el.dailyBars.appendChild(row);
+    });
+
+    daily.forEach(function (d) {
+      var tr = GX.el("tr");
+      GX.cell(tr, d.day, "", "day");
+      GX.cell(tr, GX.fmt.num(d.requests), "num", "requests");
+      GX.cell(tr, GX.fmt.num(d.errors), "num", "errors");
+      GX.cell(tr, d.costUsd === null || d.costUsd === undefined ? "-" : GX.fmt.money(d.costUsd), "num", "cost");
+      el.dailyTable.querySelector("tbody").appendChild(tr);
+    });
   }
-}
 
-function renderRecent(recent) {
-  const body = document.getElementById("recentRows");
-  body.innerHTML = "";
-  for (const r of recent) {
-    const tr = document.createElement("tr");
-    tr.appendChild(cell(when(r.ts)));
-    tr.appendChild(cell(r.route));
-    tr.appendChild(cell(r.model));
-    tr.appendChild(tagCell(r.status, r.status >= 200 && r.status < 300));
-    tr.appendChild(cell(r.latencyMs));
-    tr.appendChild(cell(r.totalTokens));
-    body.appendChild(tr);
+  function renderEvents(events) {
+    var body = el.eventTable.querySelector("tbody");
+    body.textContent = "";
+    el.eventEmpty.textContent = "";
+    el.eventTable.hidden = !events.length;
+    el.cooldownNote.textContent = events.length ? events.length + " events" : "";
+    if (!events.length) {
+      el.eventEmpty.appendChild(GX.state("empty", "No failures recorded", "Every request this key served succeeded."));
+      return;
+    }
+    events.forEach(function (e) {
+      var tr = GX.el("tr");
+      GX.cell(tr, GX.fmt.stamp(e.ts), "mono", "when");
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(GX.badge(String(e.status), e.ok ? "ok" : e.status === 429 ? "warn" : "bad"));
+      tr.appendChild(statusCell);
+      GX.cell(tr, e.errorCode || "-", "", "error");
+      GX.cell(tr, e.rotated ? "yes" : "no", "", "rotated");
+      body.appendChild(tr);
+    });
   }
-}
 
-function render(d) {
-  const k = d.key;
-  document.getElementById("keyTitle").textContent = k.masked + " \xB7 " + k.id;
-  document.getElementById("summary").innerHTML = "";
-  summaryStat("plan", k.plan);
-  summaryStat("state", k.status);
-  summaryStat("enabled", k.enabled === false ? "no" : "yes");
-  summaryStat("failures", k.failures);
-  summaryStat("invalidations", k.invalidations);
-  summaryStat("last used", when(k.lastUsed));
-  summaryStat("cooldown left", left(k.cooldownLeftMs));
-  summaryStat("cooldown until", when(k.cooldownUntil));
-
-  say(document.getElementById("chartNote"), d.dailyNote ?? "", "");
-  renderDaily(d.daily ?? []);
-
-  const cool = d.cooldown ?? {};
-  say(
-    document.getElementById("coolNow"),
-    "status " + (cool.status ?? "ready") +
-      " \xB7 until " + when(cool.until) +
-      " \xB7 left " + left(cool.leftMs),
-    "",
-  );
-  renderEvents(d.events ?? []);
-
-  say(document.getElementById("recentNote"), (d.recent ?? []).length + " rows from the ring", "");
-  renderRecent(d.recent ?? []);
-
-  for (const id of ["summaryPanel", "chartPanel", "cooldownPanel", "recentPanel"]) {
-    document.getElementById(id).hidden = false;
+  function renderRecent(recent) {
+    var body = el.recentTable.querySelector("tbody");
+    body.textContent = "";
+    el.recentEmpty.textContent = "";
+    el.recentTable.hidden = !recent.length;
+    el.recentNote.textContent = recent.length ? recent.length + " rows" : "";
+    if (!recent.length) {
+      el.recentEmpty.appendChild(GX.state("empty", "No request in the ring", "The live ring keeps the last requests that passed through the gateway."));
+      return;
+    }
+    recent.forEach(function (r) {
+      var tr = GX.el("tr");
+      GX.cell(tr, GX.fmt.clock(r.ts), "mono", "when");
+      GX.cell(tr, r.route, "mono", "route");
+      GX.cell(tr, r.model || "-", "mono", "model");
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(GX.badge(String(r.status), r.ok ? "ok" : "bad"));
+      tr.appendChild(statusCell);
+      GX.cell(tr, GX.fmt.num(r.latencyMs), "num", "ms");
+      GX.cell(tr, GX.fmt.num(r.totalTokens), "num", "tokens");
+      body.appendChild(tr);
+    });
   }
-}
 
-async function refresh() {
-  try {
-    const data = await api("/pengatur/keys/" + encodeURIComponent(keyId) + "/data");
-    render(data);
-    document.getElementById("authState").textContent = "connected";
-    say(document.getElementById("summaryMsg"), "", "");
-  } catch (err) {
-    say(document.getElementById("summaryMsg"), err.message, "err");
+  function render(d) {
+    var k = d.key;
+    el.keyPath.textContent = k.masked + " \xB7 id " + k.id;
+    var head = document.querySelector(".pagebar h1");
+    if (head) head.textContent = k.masked;
+    renderSummary(k);
+    renderDaily(d.daily || []);
+    renderEvents(d.events || []);
+    renderRecent(d.recent || []);
+    el.dailyNote.textContent = d.dailyNote || el.dailyNote.textContent;
+    el.console.hidden = false;
   }
-}
 
-document.getElementById("token").value = token();
-
-document.getElementById("connect").addEventListener("click", async () => {
-  const value = document.getElementById("token").value.trim();
-  if (!value) {
-    say(document.getElementById("authHint"), "Paste the admin token.", "err");
-    return;
+  function refresh() {
+    return GX.api("/pengatur/keys/" + encodeURIComponent(keyId) + "/data")
+      .then(render)
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        if (err.status === 404) {
+          GX.lock("No key with that id.");
+          throw err;
+        }
+        el.console.hidden = false;
+        el.dailyBars.textContent = "";
+        el.dailyBars.appendChild(GX.state("error", "Could not load this key", err.message));
+      });
   }
-  localStorage.setItem(TOKEN_KEY, value);
-  say(document.getElementById("authHint"), "", "");
-  await refresh();
+
+  GX.gate({ onSuccess: refresh });
+})();`;
+var KEY_DETAIL_HTML = consolePage({
+  title: "Key detail",
+  subtitle: "One key, its counters, its history",
+  active: "/pengatur/keys",
+  body: DETAIL_BODY,
+  script: DETAIL_SCRIPT
 });
-
-refresh();
-</script>
-</body>
-</html>`;
 
 // src/settings-ui.ts
-var SETTINGS_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Settings \xB7 geminesx</title>
-<style>
-:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
-header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
-header h1 { font-size:15px; margin:0; font-weight:600; }
-header a { color:var(--accent); text-decoration:none; }
-header .dim, .dim { color:var(--dim); }
-main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
-.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
-.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
-button:hover:not(:disabled) { border-color:var(--accent); }
-button:disabled { opacity:.45; cursor:not-allowed; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
-input { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
-input[type=password] { width:280px; }
-button:focus-visible, input:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
-th { color:var(--dim); font-weight:500; font-size:12px; }
-tr:last-child td { border-bottom:none; }
-code { color:var(--ink); }
-.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
-.tag.ok { color:var(--ok); border-color:var(--ok); }
-.tag.miss { color:var(--dim); }
-.msg { min-height:20px; font-size:13px; }
-.msg.err { color:var(--err); }
-.msg.ok { color:var(--ok); }
-.hint { color:var(--dim); font-size:12px; }
-.note { border-left:2px solid var(--warn); padding-left:10px; color:var(--dim); font-size:13px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Settings</h1>
-  <a href="/pengatur/stats">stats</a>
-  <a href="/pengatur/keys">keys</a>
-  <a href="/pengatur/audit">audit</a>
-  <a href="/pengatur/logs">logs</a>
-  <span class="dim" id="authState">token required</span>
-</header>
-<main>
-  <section class="panel" id="authPanel">
-    <h2>Admin token</h2>
-    <div class="row">
-      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-      <button class="primary" id="connect">Connect</button>
-      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+var PAGE_BODY6 = `
+
+${authGate()}
+
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sDefaults">0</b><span class="k">defaults</span></div>
+    <div class="kv"><b id="sLimits">0</b><span class="k">limits</span></div>
+    <div class="kv"><b id="sLedger">0</b><span class="k">ledger</span></div>
+    <div class="kv"><b id="sEnv">0</b><span class="k">env vars</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="sStorage">-</div>
+  </div>
+
+  <div class="grid cols2">
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Defaults</div></div>
+      <div class="panel-body"><div class="defs" id="defaults"></div></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Limits</div></div>
+      <div class="panel-body"><div class="defs" id="limits"></div></div>
+    </section>
+  </div>
+
+  <div class="grid cols2">
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Ledger and storage</div></div>
+      <div class="panel-body">
+        <div class="defs" id="ledger"></div>
+        <div class="sep" style="margin:12px 0"></div>
+        <div class="defs" id="storage"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Environment</div>
+        <span class="meta">values are never shown</span>
+      </div>
+      <div class="tablewrap scroll-y">
+        <table class="table" id="envTable">
+          <thead><tr><th>Name</th><th>State</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Caveats</div>
     </div>
-    <div class="msg" id="authMsg"></div>
-  </section>
-
-  <section class="panel" id="viewPanel" hidden>
-    <h2>Effective configuration</h2>
-    <div class="row" style="margin-bottom:12px">
-      <button id="refresh">Refresh</button>
-      <button id="exportBtn">Export JSON</button>
-      <span class="hint">Export contains no secret values.</span>
+    <div class="panel-body">
+      <p class="hint" id="note"></p>
+      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
-    <div class="msg" id="msg"></div>
-    <div id="body"></div>
-    <p class="note" id="note"></p>
   </section>
-</main>
-<script>
-const TOKEN_KEY = "geminesx.admin.token";
+</section>
+`;
+var PAGE_SCRIPT6 = `(function () {
+  "use strict";
 
-function token() {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
+  var el = {
+    console: document.getElementById("console"),
+    sDefaults: document.getElementById("sDefaults"),
+    sLimits: document.getElementById("sLimits"),
+    sLedger: document.getElementById("sLedger"),
+    sEnv: document.getElementById("sEnv"),
+    sStorage: document.getElementById("sStorage"),
+    defaults: document.getElementById("defaults"),
+    limits: document.getElementById("limits"),
+    ledger: document.getElementById("ledger"),
+    storage: document.getElementById("storage"),
+    envTable: document.getElementById("envTable"),
+    note: document.getElementById("note"),
+    msg: document.getElementById("msg"),
+    refresh: document.getElementById("refreshBtn"),
+    exportBtn: document.getElementById("exportBtn")
+  };
 
-async function api(path, opts) {
-  const init = Object.assign({ headers: {} }, opts ?? {});
-  init.headers = Object.assign({}, init.headers, { authorization: "Bearer " + token() });
-  const res = await fetch(path, init);
-  let data = null;
-  try { data = await res.json(); } catch { data = null; }
-  if (!res.ok) {
-    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
-    throw new Error(message);
+  function defs(node, obj) {
+    node.textContent = "";
+    var keys = Object.keys(obj || {});
+    if (!keys.length) {
+      node.appendChild(GX.state("empty", "Nothing reported", "This group is empty in the current configuration."));
+      return 0;
+    }
+    keys.forEach(function (key) {
+      node.appendChild(GX.el("div", { class: "def" }, [
+        GX.el("dt", { text: key }),
+        GX.el("dd", { class: "mono", text: obj[key] === null || obj[key] === undefined ? "-" : String(obj[key]) })
+      ]));
+    });
+    return keys.length;
   }
-  return data;
-}
 
-function say(node, text, cls) {
-  node.textContent = text;
-  node.className = "msg" + (cls ? " " + cls : "");
-}
-
-function esc(v) {
-  return String(v).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-}
-
-function table(title, obj) {
-  const rows = Object.entries(obj)
-    .map(([k, v]) => "<tr><th>" + esc(k) + "</th><td>" + esc(v) + "</td></tr>")
-    .join("");
-  return "<h2>" + esc(title) + "</h2><table><tbody>" + rows + "</tbody></table>";
-}
-
-function render(d) {
-  const parts = [];
-  parts.push(table("Defaults", d.defaults));
-  parts.push(table("Limits (ms)", d.limits));
-  parts.push(table("Ledger", d.ledger));
-  parts.push(table("Storage", d.storage));
-  const env = (d.env ?? [])
-    .map((e) => "<tr><td><code>" + esc(e.name) + "</code></td><td><span class="tag " + (e.state === "set" ? "ok">set" : "miss">unset") + "</span></td></tr>")
-    .join("");
-  parts.push("<h2>Environment</h2><table><thead><tr><th>name</th><th>state</th></tr></thead><tbody>" + env + "</tbody></table>");
-  document.getElementById("body").innerHTML = parts.join("");
-  document.getElementById("note").textContent = d.note ?? "";
-}
-
-async function refresh() {
-  try {
-    render(await api("/pengatur/settings/data"));
-    say(document.getElementById("msg"), "", "");
-    document.getElementById("viewPanel").hidden = false;
-    document.getElementById("authPanel").hidden = true;
-  } catch (err) {
-    say(document.getElementById("msg"), err.message, "err");
+  function renderEnv(rows) {
+    var body = el.envTable.querySelector("tbody");
+    body.textContent = "";
+    (rows || []).forEach(function (row) {
+      var tr = GX.el("tr");
+      GX.cell(tr, row.name, "mono", "name");
+      var stateCell = GX.el("td", { "data-l": "state" });
+      stateCell.appendChild(GX.badge(row.state === "set" ? "set" : "unset", row.state === "set" ? "ok" : ""));
+      tr.appendChild(stateCell);
+      body.appendChild(tr);
+    });
   }
-}
 
-document.getElementById("token").value = token();
+  function render(d) {
+    el.sDefaults.textContent = defs(el.defaults, d.defaults);
+    el.sLimits.textContent = defs(el.limits, d.limits);
+    el.sLedger.textContent = defs(el.ledger, d.ledger);
+    defs(el.storage, d.storage);
+    renderEnv(d.env);
+    el.sEnv.textContent = (d.env || []).length;
+    el.sStorage.textContent = (d.storage && d.storage.mode) ? d.storage.mode : "-";
+    GX.storage((d.storage && d.storage.mode) ? d.storage.mode : "-");
+    el.note.textContent = d.note || "";
+  }
 
-document.getElementById("connect").addEventListener("click", async () => {
-  const value = document.getElementById("token").value.trim();
-  if (!value) { say(document.getElementById("authMsg"), "Token is empty.", "err"); return; }
-  localStorage.setItem(TOKEN_KEY, value);
-  document.getElementById("authState").textContent = "token saved";
-  say(document.getElementById("authMsg"), "", "");
-  await refresh();
+  function refresh() {
+    return GX.api("/pengatur/settings/data")
+      .then(function (d) {
+        render(d);
+        GX.say(el.msg, "");
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        GX.say(el.msg, err.message, "err");
+      });
+  }
+
+  function reload() {
+    return refresh().catch(function () {});
+  }
+
+  el.refresh.addEventListener("click", function () { reload(); });
+  el.exportBtn.addEventListener("click", function () {
+    GX.busy(el.exportBtn, "Exporting");
+    GX.download("/pengatur/settings/export", "geminesx-config.json")
+      .catch(function (err) {
+        GX.say(el.msg, err.message, "err");
+      })
+      .then(function () { GX.idle(el.exportBtn); });
+  });
+
+  GX.gate({ onSuccess: refresh });
+})();`;
+var SETTINGS_HTML = consolePage({
+  title: "Settings",
+  subtitle: "The effective configuration of this deployment",
+  active: "/pengatur/settings",
+  actions: `<button id="exportBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/></svg>Export JSON</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
+  body: PAGE_BODY6,
+  script: PAGE_SCRIPT6
 });
-
-document.getElementById("refresh").addEventListener("click", refresh);
-
-document.getElementById("exportBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("exportBtn");
-  btn.disabled = true;
-  try {
-    const res = await fetch("/pengatur/settings/export", { headers: { authorization: "Bearer " + token() } });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (res.headers.get("content-disposition") ?? "").match(/filename="([^"]+)"/)?.[1] ?? "geminesx-config.json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    say(document.getElementById("msg"), err.message, "err");
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-if (token()) refresh();
-</script>
-</body>
-</html>`;
 
 // src/settings.ts
 var TOKEN_ENVS = ["ADMIN_TOKEN", "CLIENT_TOKEN", "ROLLUP_TOKEN", "GEMINI_API_KEYS"];
@@ -14401,191 +14584,173 @@ function settingsView() {
 }
 
 // src/audit-ui.ts
-var AUDIT_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Audit \xB7 geminesx</title>
-<style>
-:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
-* { box-sizing:border-box; }
-body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
-header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
-header h1 { font-size:15px; margin:0; font-weight:600; }
-header a { color:var(--accent); text-decoration:none; }
-header .dim, .dim { color:var(--dim); }
-main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
-.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
-.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
-button:hover:not(:disabled) { border-color:var(--accent); }
-button:disabled { opacity:.45; cursor:not-allowed; }
-button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
-input, select { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
-input[type=password] { width:280px; }
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
-th { color:var(--dim); font-weight:500; font-size:12px; white-space:nowrap; }
-tr:last-child td { border-bottom:none; }
-td.ts, td.actor { color:var(--dim); white-space:nowrap; font-variant-numeric:tabular-nums; }
-td.action { color:var(--accent); white-space:nowrap; }
-td.target { white-space:nowrap; }
-td.detail { font-size:12px; color:var(--dim); word-break:break-word; max-width:520px; }
-.empty { color:var(--dim); padding:14px 2px; }
-.msg { min-height:20px; font-size:13px; }
-.msg.err { color:var(--err); }
-.msg.ok { color:var(--ok); }
-.hint { color:var(--dim); font-size:12px; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Audit</h1>
-  <a href="/pengatur/stats">stats</a>
-  <a href="/pengatur/keys">keys</a>
-  <a href="/pengatur/settings">settings</a>
-  <a href="/pengatur/logs">logs</a>
-  <span class="dim" id="authState">token required</span>
-</header>
-<main>
-  <section class="panel" id="authPanel">
-    <h2>Admin token</h2>
-    <div class="row">
-      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
-      <button class="primary" id="connect">Connect</button>
-      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+var PAGE_BODY7 = `
+
+${authGate()}
+
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sRows">0</b><span class="k">actions</span></div>
+    <div class="kv"><b id="sActions">0</b><span class="k">kinds</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="sWindow">-</div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="panel-title">Recorded admin actions</div>
+      <div class="row">
+        <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
+        <button id="refreshBtn" class="btn small" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>
+      </div>
     </div>
-    <div class="msg" id="authMsg"></div>
-  </section>
-
-  <section class="panel" id="viewPanel" hidden>
-    <h2>Recorded admin actions</h2>
-    <div class="row" style="margin-bottom:12px">
-      <input id="action" placeholder="action prefix, e.g. keys." size="22" autocomplete="off">
-      <input id="since" type="datetime-local">
-      <select id="limit">
-        <option value="50">50</option>
-        <option value="100" selected>100</option>
-        <option value="250">250</option>
-        <option value="500">500</option>
-      </select>
-      <button id="refresh">Refresh</button>
-      <label class="hint"><input type="checkbox" id="auto"> auto-refresh 15s</label>
+    <div class="panel-body">
+      <div class="row">
+        <div class="grow">
+          <label class="field" for="action">Action prefix</label>
+          <input id="action" type="search" spellcheck="false" placeholder="keys." autocomplete="off">
+        </div>
+        <div class="grow">
+          <label class="field" for="since">Since</label>
+          <input id="since" type="datetime-local">
+        </div>
+        <div class="grow">
+          <label class="field" for="limit">Limit</label>
+          <select id="limit">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+      </div>
+      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
-    <div class="msg" id="msg"></div>
-    <div id="body"></div>
+    <div class="tablewrap">
+      <table class="table" id="body">
+        <thead><tr><th>When</th><th>Action</th><th>Target</th><th>Actor</th><th>Detail</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="empty"></div>
+    </div>
   </section>
-</main>
-<script>
-const TOKEN_KEY = "geminesx.admin.token";
-let timer = null;
+</section>
+`;
+var PAGE_SCRIPT7 = `(function () {
+  "use strict";
 
-function token() {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
+  var el = {
+    console: document.getElementById("console"),
+    sRows: document.getElementById("sRows"),
+    sActions: document.getElementById("sActions"),
+    sWindow: document.getElementById("sWindow"),
+    body: document.getElementById("body"),
+    empty: document.getElementById("empty"),
+    action: document.getElementById("action"),
+    since: document.getElementById("since"),
+    limit: document.getElementById("limit"),
+    auto: document.getElementById("auto"),
+    msg: document.getElementById("msg"),
+    refresh: document.getElementById("refreshBtn")
+  };
 
-async function api(path) {
-  const res = await fetch(path, { headers: { authorization: "Bearer " + token() } });
-  let data = null;
-  try { data = await res.json(); } catch { data = null; }
-  if (!res.ok) {
-    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
-    throw new Error(message);
+  var state = { timer: null };
+
+  function query() {
+    var q = [];
+    var action = el.action.value.trim();
+    var since = el.since.value;
+    if (action) q.push("action=" + encodeURIComponent(action));
+    if (since) q.push("since=" + encodeURIComponent(new Date(since).toISOString()));
+    q.push("limit=" + encodeURIComponent(el.limit.value));
+    return "/pengatur/audit/data?" + q.join("&");
   }
-  return data;
-}
 
-function say(node, text, cls) {
-  node.textContent = text;
-  node.className = "msg" + (cls ? " " + cls : "");
-}
-
-function esc(v) {
-  return String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-}
-
-function when(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  const p = (n) => String(n).padStart(2, "0");
-  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " +
-    p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
-}
-
-function detailText(v) {
-  if (v === null || v === undefined) return "";
-  try { return JSON.stringify(v); } catch { return String(v); }
-}
-
-function query() {
-  const q = new URLSearchParams();
-  const action = document.getElementById("action").value.trim();
-  const since = document.getElementById("since").value;
-  if (action) q.set("action", action);
-  if (since) q.set("since", new Date(since).toISOString());
-  q.set("limit", document.getElementById("limit").value);
-  return "/pengatur/audit/data?" + q.toString();
-}
-
-function render(payload) {
-  const rows = payload.rows ?? [];
-  if (!payload.ok) {
-    document.getElementById("body").innerHTML =
-      "<p class=\\"empty\\">audit query failed: " + esc(payload.error ?? "database error") + "</p>";
-    return;
+  function detailText(v) {
+    if (v === null || v === undefined) return "";
+    try { return JSON.stringify(v); } catch (e) { return String(v); }
   }
-  if (!rows.length) {
-    document.getElementById("body").innerHTML = "<p class=\\"empty\\">no admin actions recorded yet</p>";
-    return;
+
+  function render(payload) {
+    var rows = payload.rows || [];
+    var body = el.body.querySelector("tbody");
+    body.textContent = "";
+    el.empty.textContent = "";
+
+    var kinds = {};
+    rows.forEach(function (r) { kinds[r.action] = true; });
+    el.sRows.textContent = rows.length;
+    el.sActions.textContent = Object.keys(kinds).length;
+    el.sWindow.textContent = el.action.value.trim()
+      ? "action starts with " + el.action.value.trim()
+      : "all actions";
+
+    if (!rows.length) {
+      el.empty.appendChild(GX.state(
+        "empty",
+        "No admin action recorded yet",
+        "Key additions, probes, plan changes and exports land here the moment they happen."
+      ));
+      return;
+    }
+
+    rows.forEach(function (r) {
+      var tr = GX.el("tr");
+      GX.cell(tr, GX.fmt.stamp(r.ts), "mono nowrap", "when");
+      var actionCell = GX.el("td", { "data-l": "action" });
+      actionCell.appendChild(GX.el("span", { class: "mono", text: r.action }));
+      tr.appendChild(actionCell);
+      GX.cell(tr, r.target || "-", "mono", "target");
+      GX.cell(tr, r.actor || "-", "", "actor");
+      GX.cell(tr, detailText(r.detail), "dimtext", "detail");
+      body.appendChild(tr);
+    });
   }
-  const head = "<tr><th>when</th><th>action</th><th>target</th><th>actor</th><th>detail</th></tr>";
-  const html = rows.map((r) =>
-    "<tr>" +
-      "<td class=\\"ts\\">" + esc(when(r.ts)) + "</td>" +
-      "<td class=\\"action\\">" + esc(r.action) + "</td>" +
-      "<td class=\\"target\\">" + (r.target ? esc(r.target) : "<span class=\\"dim\\">\u2014</span>") + "</td>" +
-      "<td class=\\"actor\\">" + esc(r.actor) + "</td>" +
-      "<td class=\\"detail\\">" + (r.detail ? esc(detailText(r.detail)) : "") + "</td>" +
-    "</tr>"
-  ).join("");
-  document.getElementById("body").innerHTML = "<table><thead>" + head + "</thead><tbody>" + html + "</tbody></table>";
-}
 
-async function refresh() {
-  try {
-    const payload = await api(query());
-    render(payload);
-    say(document.getElementById("msg"), payload.ok ? "" : "", payload.ok ? "" : "err");
-    document.getElementById("viewPanel").hidden = false;
-    document.getElementById("authPanel").hidden = true;
-    document.getElementById("authState").textContent = "connected";
-  } catch (err) {
-    say(document.getElementById("msg"), err.message, "err");
+  function refresh() {
+    return GX.api(query())
+      .then(function (payload) {
+        if (payload.ok === false) {
+          throw new Error((payload.error && payload.error.message) || "The audit query failed.");
+        }
+        render(payload);
+        GX.say(el.msg, "");
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        el.console.hidden = false;
+        GX.say(el.msg, err.message, "err");
+      });
   }
-}
 
-function autoRefresh() {
-  if (timer) { clearInterval(timer); timer = null; return; }
-  timer = setInterval(refresh, 15000);
-}
+  function reload() {
+    return refresh().catch(function () {});
+  }
 
-document.getElementById("token").value = token();
-document.getElementById("connect").addEventListener("click", () => {
-  localStorage.setItem(TOKEN_KEY, document.getElementById("token").value.trim());
-  say(document.getElementById("authMsg"), "", "");
-  refresh();
+  el.refresh.addEventListener("click", function () { reload(); });
+  el.limit.addEventListener("change", function () { reload(); });
+  el.since.addEventListener("change", function () { reload(); });
+  el.action.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") reload();
+  });
+  el.auto.addEventListener("change", function () {
+    if (state.timer) { state.timer(); state.timer = null; }
+    if (el.auto.checked) state.timer = GX.every(15000, reload);
+  });
+
+  GX.gate({ onSuccess: refresh });
+})();`;
+var AUDIT_HTML = consolePage({
+  title: "Audit",
+  subtitle: "Every admin action, newest first",
+  active: "/pengatur/audit",
+  body: PAGE_BODY7,
+  script: PAGE_SCRIPT7
 });
-document.getElementById("refresh").addEventListener("click", refresh);
-document.getElementById("limit").addEventListener("change", refresh);
-document.getElementById("auto").addEventListener("change", autoRefresh);
-document.getElementById("action").addEventListener("keydown", (e) => { if (e.key === "Enter") refresh(); });
-document.getElementById("since").addEventListener("change", refresh);
-if (token()) refresh();
-</script>
-</body>
-</html>`;
 
 // src/app.ts
 var app = new Hono3();
