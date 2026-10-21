@@ -35,6 +35,8 @@ import {
 } from "./ledger.ts";
 import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
 import { actorFrom, record as auditRecord } from "./audit.ts";
+import { STATS_HTML } from "./stats-ui.ts";
+import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 
 const app = new Hono();
@@ -170,6 +172,26 @@ app.get("/pengatur", (c) => c.html(ADMIN_HTML));
 
 /** Model inventory console. The shell is public; its data endpoints are not. */
 app.get("/pengatur/models", (c) => c.html(MODELS_HTML));
+
+/** Statistics console shell. Public like the others; its data endpoint is not. */
+app.get("/pengatur/stats", (c) => c.html(STATS_HTML));
+
+/**
+ * Range statistics. 1h/24h come from the in-memory ring, 7d/30d from
+ * usage_daily. An empty range answers zeros; a database failure answers
+ * ok:false rather than a silent zero.
+ */
+app.get("/pengatur/stats/data", async (c) => {
+  const range = new URL(c.req.url).searchParams.get("range") ?? "24h";
+  if (!isStatsRange(range)) {
+    return c.json({ error: { message: "`range` must be one of: 1h, 24h, 7d, 30d" } }, 400);
+  }
+  const stats = await statsSnapshot(range);
+  if (!stats.ok) {
+    return c.json({ ok: false, error: { message: stats.error ?? "Statistics unavailable." } }, 500);
+  }
+  return c.json(stats);
+});
 
 /**
  * Live model list. Queried from the Generative Language API with a pooled key
