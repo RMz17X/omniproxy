@@ -1,165 +1,152 @@
 /**
- * Admin console shell, served at GET /pengatur.
- *
- * Dials: ENERGY calm-utilitarian, RHYTHM dense rows over generous section
- * padding, MOTION one 120ms fade on row state change and a live cooldown
- * countdown (functional: it tells you when a key returns to the pool).
+ * Overview console shell, served at GET /pengatur.
  *
  * The shell carries no data. It asks for the admin token, stores it in
- * localStorage, and renders from /pengatur/keys. Every mutation addresses a key
- * by its sha256 id, so the browser never holds a raw credential.
+ * localStorage, and renders from /pengatur/keys/list. Every mutation addresses
+ * a key by its sha256 id, so the browser never holds a raw credential.
+ *
+ * Layout: a left rail with the console sections, a page header with the two
+ * actions that apply to the whole view, an instrument strip with the pool
+ * counters, then the pool table next to a narrow column that holds the plan
+ * breakdown and the pool level actions.
  */
 
-import { BASE_CSS, stateBlock } from "./ui.ts";
+import { authGate, consolePage, stateBlock } from "./ui.ts";
 
-export const ADMIN_HTML = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>GeminesX control</title>
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/favicon.svg">
-<style>${BASE_CSS}</style>
-</head>
-<body>
+const PAGE_BODY = `
 
-<header class="topbar">
-  <a class="wordmark" href="/pengatur">GeminesX</a>
-  <nav class="nav">
-    <a href="/pengatur" class="active" aria-current="page">Keys</a>
-    <a href="/pengatur/usage">Usage</a>
-    <a href="/pengatur/models">Models</a>
-  </nav>
-  <div class="meta">
-    <span id="storage">storage: -</span>
-    <span id="synced">-</span>
-  </div>
-</header>
+${authGate()}
 
-<main class="page">
-
-  <div class="page-head">
-    <h1>Keys</h1>
-    <span class="meta">Pool health, key intake, live probe</span>
+<section id="console" hidden>
+  <div class="strip">
+    <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
+    <div class="kv ok"><b id="sReady">0</b><span class="k">ready</span></div>
+    <div class="kv warn"><b id="sCooling">0</b><span class="k">cooling</span></div>
+    <div class="kv bad"><b id="sDead">0</b><span class="k">dead</span></div>
+    <div class="kv"><b id="sTier">-</b><span class="k">plans</span></div>
+    <div class="spacer"></div>
+    <div class="meta" id="nextReady">-</div>
   </div>
 
-  <!-- auth -->
-  <section id="authPanel" class="panel">
-    <div class="panel-body">
-      <label class="field" for="token">Admin token</label>
-      <div class="row">
-        <div class="grow">
-          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
-        </div>
-        <button id="connect" class="btn btn-primary" type="button">Connect</button>
+  <div class="grid split">
+    <section class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Pool <span class="meta" id="poolMeta"></span></div>
+        <a class="btn small" href="/pengatur/keys">Keys console</a>
       </div>
-      <div id="authHint" class="msg err"></div>
-      <p class="dimtext" style="margin-top:12px">The token stays in this browser. It is never sent anywhere except this deployment.</p>
-    </div>
-  </section>
+      <div class="panel-body">
+        <div class="row">
+          <div class="grow">
+            <label class="field" for="keyFilter">Filter</label>
+            <input id="keyFilter" type="search" spellcheck="false" placeholder="key, id or status">
+          </div>
+          <div class="grow">
+            <label class="field" for="keyStatus">Status</label>
+            <select id="keyStatus">
+              <option value="">all</option>
+              <option value="ready">ready</option>
+              <option value="cooling">cooling</option>
+              <option value="dead">dead</option>
+            </select>
+          </div>
+          <div class="grow">
+            <label class="field" for="keySize">Per page</label>
+            <select id="keySize">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="keysBody" class="tablewrap">stateBlock("loading", "Loading the pool")</div>
+      <div class="panel-foot"><div id="keyPager" class="pager"></div></div>
+    </section>
 
-  <!-- health strip -->
-  <section id="statsPanel" hidden>
-    <div class="strip">
-      <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
-      <div class="kv ready"><b id="sReady">0</b><span class="k">ready</span></div>
-      <div class="kv cooling"><b id="sCooling">0</b><span class="k">cooling</span></div>
-      <div class="kv dead"><b id="sDead">0</b><span class="k">dead</span></div>
-      <div class="kv" id="tierStrip" title="Declared billing plan per key. Drives the pricing column on /pengatur/models."><b id="sTier">-</b><span class="k">plans</span></div>
-      <div class="spacer"></div>
-      <div class="meta" id="nextReady">-</div>
-    </div>
-  </section>
+    <div class="stack">
+      <section class="panel">
+        <div class="panel-head"><div class="panel-title">Plans</div></div>
+        <div class="panel-body">
+          <div class="stats" id="planStats"></div>
+          <p class="hint" style="margin-top:12px">Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
+        </div>
+      </section>
 
-  <!-- add -->
-  <section id="addPanel" class="panel" hidden>
-    <div class="panel-head"><div class="panel-title">Add keys</div></div>
+      <section class="panel">
+        <div class="panel-head"><div class="panel-title">Pool actions</div></div>
+        <div class="panel-body">
+          <div class="row">
+            <button id="testAllBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3 5.5 11H9.5l-1 6 5.5-8H10l1-6Z"/></svg>Test all live keys</button>
+          </div>
+          <p class="hint" style="margin-top:8px" id="testAllNote">One live call per key, four at a time.</p>
+          <div class="sep" style="margin:12px 0"></div>
+          <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
+          <div class="row" style="margin-top:12px">
+            <button id="forget" class="btn btn-ghost small" type="button">Forget token</button>
+          </div>
+          <div id="keyMsg" class="notice" role="status" aria-live="polite" style="margin-top:12px"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<dialog id="addDialog" aria-labelledby="addTitle">
+  <form id="addForm" method="dialog">
+    <div class="panel-head">
+      <div class="panel-title" id="addTitle">Add keys</div>
+      <button class="btn btn-ghost small" type="button" id="addClose" aria-label="Close"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10"/><path d="M15 5 5 15"/></svg></button>
+    </div>
     <div class="panel-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
       <div class="row" style="margin-top:12px">
-        <button id="addBtn" class="btn btn-primary" type="button">Add to pool</button>
-        <span id="addCount" class="muted"></span>
+        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
+        <span id="addCount" class="hint"></span>
       </div>
-      <div id="addMsg" class="msg"></div>
+      <div id="addMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
-  </section>
+  </form>
+</dialog>
+`;
 
-  <!-- keys -->
-  <section id="keysPanel" class="panel" hidden>
-    <div class="panel-head">
-      <div class="panel-title">Pool <span class="meta" id="testAllNote"></span></div>
-      <button id="testAllBtn" class="btn" type="button">Test all live keys</button>
-    </div>
-    <div class="panel-body">
-      <div class="row">
-        <div class="grow">
-          <input id="keyFilter" type="text" spellcheck="false" placeholder="Filter by key, id or status...">
-        </div>
-        <select id="keySize" aria-label="Keys per page">
-          <option value="10">10 / page</option>
-          <option value="25" selected>25 / page</option>
-          <option value="50">50 / page</option>
-          <option value="100">100 / page</option>
-        </select>
-      </div>
-    </div>
-    <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading pool...")}</div>
-    <div class="panel-body">
-      <div id="keyPager" class="pager"></div>
-      <div id="keyMsg" class="msg"></div>
-    </div>
-    <div class="foot">
-      <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
-      <button id="forget" class="small" type="button">Forget token</button>
-    </div>
-  </section>
-
-</main>
-
-<script>
-(function () {
+const PAGE_SCRIPT = `(function () {
   "use strict";
-  var STORE = "geminesx.admin.token";
 
   var el = {
-    authPanel: document.getElementById("authPanel"),
-    authHint: document.getElementById("authHint"),
-    token: document.getElementById("token"),
-    connect: document.getElementById("connect"),
-    statsPanel: document.getElementById("statsPanel"),
-    addPanel: document.getElementById("addPanel"),
-    keysPanel: document.getElementById("keysPanel"),
+    console: document.getElementById("console"),
     sTotal: document.getElementById("sTotal"),
     sReady: document.getElementById("sReady"),
     sCooling: document.getElementById("sCooling"),
     sDead: document.getElementById("sDead"),
     sTier: document.getElementById("sTier"),
     nextReady: document.getElementById("nextReady"),
-    storage: document.getElementById("storage"),
-    synced: document.getElementById("synced"),
-    newKeys: document.getElementById("newKeys"),
-    addBtn: document.getElementById("addBtn"),
-    addCount: document.getElementById("addCount"),
-    addMsg: document.getElementById("addMsg"),
+    poolMeta: document.getElementById("poolMeta"),
+    planStats: document.getElementById("planStats"),
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
+    keyStatus: document.getElementById("keyStatus"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
     keyMsg: document.getElementById("keyMsg"),
     testAllBtn: document.getElementById("testAllBtn"),
     testAllNote: document.getElementById("testAllNote"),
     auto: document.getElementById("auto"),
-    forget: document.getElementById("forget")
+    forget: document.getElementById("forget"),
+    refreshBtn: document.getElementById("refreshBtn"),
+    addBtn: document.getElementById("addBtn"),
+    addDialog: document.getElementById("addDialog"),
+    addClose: document.getElementById("addClose"),
+    addForm: document.getElementById("addForm"),
+    addSubmit: document.getElementById("addSubmit"),
+    newKeys: document.getElementById("newKeys"),
+    addCount: document.getElementById("addCount"),
+    addMsg: document.getElementById("addMsg")
   };
 
-  var state = { token: "", keys: [], busy: false, timer: null, tick: null, testing: {}, page: 1, size: 25, query: "", tiers: null };
+  var state = { keys: [], tiers: null, testing: {}, page: 1, size: 25, query: "", status: "", timer: null };
 
-  // Billing plan declaration. Google never reports a project's plan over the
-  // API, so the operator states it here and the models page prices against it.
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
     { value: "free", label: "Free tier" },
@@ -167,101 +154,9 @@ export const ADMIN_HTML = `<!doctype html>
     { value: "pro", label: "AI Pro / Ultra" }
   ];
 
-  function setTier(ids, tier, control) {
-    if (!ids.length) { say(el.keyMsg, "Nothing to update.", "err"); return; }
-    if (control) control.disabled = true;
-    api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
-      .then(function (data) {
-        var label = (TIERS.filter(function (t) { return t.value === tier; })[0] || {}).label || tier;
-        say(el.keyMsg, "Plan set to " + label + " for " + data.updated + " key(s).", "ok");
-        state.tiers = data.tiers;
-        if (data.tiers) paintTiers();
-        return refresh();
-      })
-      .catch(function (err) {
-        say(el.keyMsg, "Plan update failed: " + err.message, "err");
-      })
-      .then(function () { if (control) control.disabled = false; });
-  }
-
-  function paintTiers() {
-    var t = state.tiers || {};
-    var parts = [];
-    if (t.free) parts.push(t.free + " free");
-    if (t.paid) parts.push(t.paid + " paid");
-    if (t.pro) parts.push(t.pro + " pro");
-    if (t.unknown) parts.push(t.unknown + " unset");
-    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
-  }
-
-  function say(node, text, kind) {
-    node.className = "msg " + (kind || "info");
-    node.textContent = text;
-    node.classList.add("show");
-  }
-  function hide(node) { node.classList.remove("show"); node.textContent = ""; }
-
-  function api(path, opts) {
-    opts = opts || {};
-    var headers = { "authorization": "Bearer " + state.token };
-    if (opts.body) headers["content-type"] = "application/json";
-    return fetch(path, {
-      method: opts.method || "GET",
-      headers: headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined
-    }).then(function (res) {
-      return res.text().then(function (raw) {
-        var data = null;
-        try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
-        if (!res.ok) {
-          var err = new Error((data && data.error && data.error.message) || ("HTTP " + res.status));
-          err.status = res.status;
-          throw err;
-        }
-        return data;
-      });
-    });
-  }
-
-  function fmtAge(ms) {
-    if (!ms) return "never";
-    var d = Date.now() - ms;
-    if (d < 0) d = 0;
-    var s = Math.floor(d / 1000);
-    if (s < 60) return s + "s ago";
-    var m = Math.floor(s / 60);
-    if (m < 60) return m + "m ago";
-    var h = Math.floor(m / 60);
-    if (h < 24) return h + "h ago";
-    return Math.floor(h / 24) + "d ago";
-  }
-  function fmtLeft(ms) {
-    if (!ms || ms <= 0) return "0s";
-    var s = Math.ceil(ms / 1000);
-    if (s < 60) return s + "s";
-    var m = Math.floor(s / 60), r = s % 60;
-    if (m < 60) return r ? m + "m " + r + "s" : m + "m";
-    var h = Math.floor(m / 60);
-    return h + "h " + (m % 60) + "m";
-  }
-
-  function renderStats(pool) {
-    el.sTotal.textContent = pool.total;
-    el.sReady.textContent = pool.ready;
-    el.sCooling.textContent = pool.cooling;
-    el.sDead.textContent = pool.dead;
-    el.storage.textContent = "storage: " + pool.storage + (pool.degraded ? " (degraded)" : "");
-    el.synced.textContent = "synced " + new Date().toLocaleTimeString();
-    el.nextReady.textContent = pool.cooling > 0
-      ? "next key free in " + fmtLeft(pool.soonestReadyMs)
-      : (pool.ready > 0 ? "all ready keys selectable" : "no key can serve right now");
-  }
-
-  function cell(label, cls) {
-    var td = document.createElement("td");
-    if (cls) td.className = cls;
-    if (label) td.setAttribute("data-l", label);
-    return td;
+  function tierLabel(value) {
+    for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
+    return value;
   }
 
   function probeClass(status) {
@@ -269,51 +164,82 @@ export const ADMIN_HTML = `<!doctype html>
     if (status === "rate_limited" || status === "zero_quota" || status === "server_error") return "warn";
     return "bad";
   }
+
   function probeText(res) {
-    var label = res.status.replace(/_/g, " ");
+    if (!res) return "not tested";
+    var label = String(res.status).replace(/_/g, " ");
     if (res.status === "ok") label = "serving";
-    if (res.status === "rate_limited") label = "429, free in " + fmtLeft(res.retryAfterMs);
+    if (res.status === "rate_limited") label = "429, free in " + GX.fmt.left(res.retryAfterMs);
     return label + " (" + res.latencyMs + "ms)";
   }
 
-  function renderKeys(keys) {
-    state.keys = keys;
-    drawTable();
+  function renderStrip(pool) {
+    el.sTotal.textContent = pool.total;
+    el.sReady.textContent = pool.ready;
+    el.sCooling.textContent = pool.cooling;
+    el.sDead.textContent = pool.dead;
+    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""));
+    el.nextReady.textContent = pool.cooling > 0
+      ? "next key free in " + GX.fmt.left(pool.soonestReadyMs)
+      : pool.ready > 0
+        ? "every key selectable"
+        : "no key can serve right now";
   }
 
-  /**
-   * Draw one page of the pool. Pagination is client-side: the admin endpoint
-   * already returns the whole pool in one request, so slicing here keeps the
-   * 5s auto-refresh from re-fetching per page.
-   */
-  function drawTable() {
-    var keys = state.keys;
-    if (!keys.length) {
-      el.keysBody.innerHTML = "";
-      var box = document.createElement("div");
-      box.className = "empty";
-      var b = document.createElement("b");
-      b.textContent = "Pool is empty";
-      box.appendChild(b);
-      box.appendChild(document.createTextNode("Add keys above, or set GEMINI_API_KEYS on the deployment."));
-      el.keysBody.appendChild(box);
-      return;
-    }
+  function renderPlans(tiers) {
+    state.tiers = tiers || {};
+    var t = state.tiers;
+    var parts = [];
+    if (t.free) parts.push(t.free + " free");
+    if (t.paid) parts.push(t.paid + " paid");
+    if (t.pro) parts.push(t.pro + " pro");
+    if (t.unknown) parts.push(t.unknown + " unset");
+    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
 
-    var filtered = keys.filter(function (k) {
-      if (!state.query) return true;
-      return (k.key + " " + k.id + " " + k.status).toLowerCase().indexOf(state.query) >= 0;
+    el.planStats.textContent = "";
+    var rows = [
+      ["free", t.free || 0],
+      ["paid", t.paid || 0],
+      ["pro", t.pro || 0],
+      ["unknown", t.unknown || 0]
+    ];
+    for (var i = 0; i < rows.length; i++) {
+      var box = GX.el("div", { class: "stat" }, [
+        GX.el("b", { text: String(rows[i][1]) }),
+        GX.el("span", { text: rows[i][0] })
+      ]);
+      el.planStats.appendChild(box);
+    }
+  }
+
+  function statusBadge(status) {
+    var kind = status === "ready" ? "ok" : status === "cooling" ? "warn" : "bad";
+    return GX.badge(status, kind);
+  }
+
+  function visibleKeys() {
+    var query = state.query;
+    return state.keys.filter(function (k) {
+      if (state.status && k.status !== state.status) return false;
+      if (!query) return true;
+      return (k.key + " " + k.id + " " + k.status).toLowerCase().indexOf(query) >= 0;
     });
+  }
+
+  function drawTable() {
+    var filtered = visibleKeys();
+    el.poolMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
 
     if (!filtered.length) {
-      el.keysBody.innerHTML = "";
-      var nbox = document.createElement("div");
-      nbox.className = "empty";
-      var nb = document.createElement("b");
-      nb.textContent = "No key matches this filter";
-      nbox.appendChild(nb);
-      nbox.appendChild(document.createTextNode("Clear the filter box to see the whole pool."));
-      el.keysBody.appendChild(nbox);
+      el.keysBody.textContent = "";
+      var empty = GX.state(
+        "empty",
+        state.keys.length ? "No key matches this filter" : "Pool is empty",
+        state.keys.length
+          ? "Clear the filter box to see the whole pool."
+          : "Add keys from the button above, or set GEMINI_API_KEYS on the deployment."
+      );
+      el.keysBody.appendChild(empty);
       renderPager(0, 1);
       return;
     }
@@ -324,280 +250,143 @@ export const ADMIN_HTML = `<!doctype html>
     var start = (state.page - 1) * state.size;
     var slice = filtered.slice(start, start + state.size);
 
-    var table = document.createElement("table");
-    var thead = document.createElement("thead");
-    thead.innerHTML = "<tr><th>Key</th><th>Status</th><th>Plan</th><th class='right'>Fails</th><th class='right'>Cooldown</th><th>Last used</th><th>Probe</th><th></th></tr>";
-    table.appendChild(thead);
-    var tbody = document.createElement("tbody");
+    var table = GX.el("table", { class: "table" });
+    var head = GX.el("thead", null, GX.el("tr", null, [
+      GX.el("th", { text: "Key" }),
+      GX.el("th", { text: "Status" }),
+      GX.el("th", { text: "Plan" }),
+      GX.el("th", { class: "num", text: "Fails" }),
+      GX.el("th", { class: "num", text: "Cooldown" }),
+      GX.el("th", { text: "Last used" }),
+      GX.el("th", { text: "Probe" }),
+      GX.el("th", { class: "num", text: "" })
+    ]));
+    table.appendChild(head);
 
+    var body = GX.el("tbody");
     slice.forEach(function (k) {
-      var tr = document.createElement("tr");
-      tr.setAttribute("data-id", k.id);
+      var tr = GX.el("tr");
 
-      var cKey = cell("Key", "key");
-      var code = document.createElement("span");
-      code.className = "mono";
-      code.textContent = k.key;
-      code.title = "id " + k.id;
-      cKey.appendChild(code);
+      var keyCell = GX.el("td", { class: "key", "data-l": "key" });
+      var link = GX.el("a", { href: "/pengatur/keys/" + encodeURIComponent(k.id), text: k.key });
+      link.title = "id " + k.id;
+      keyCell.appendChild(link);
+      tr.appendChild(keyCell);
 
-      var cStatus = cell("Status");
-      var badge = document.createElement("span");
-      badge.className = "badge " + k.status;
-      badge.textContent = k.status;
-      cStatus.appendChild(badge);
+      var statusCell = GX.el("td", { "data-l": "status" });
+      statusCell.appendChild(statusBadge(k.status));
+      tr.appendChild(statusCell);
 
-      // Plan is an operator declaration, not an upstream fact; the select is the
-      // input, the stored value is what /pengatur/models prices against.
-      var cTier = cell("Plan");
-      var tierSel = document.createElement("select");
-      tierSel.className = "tier";
-      tierSel.setAttribute("aria-label", "Billing plan for " + k.key);
+      var tierCell = GX.el("td", { "data-l": "plan" });
+      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
       TIERS.forEach(function (t) {
-        var o = document.createElement("option");
-        o.value = t.value;
-        o.textContent = t.label;
-        if ((k.tier || "unknown") === t.value) o.selected = true;
-        tierSel.appendChild(o);
+        var option = GX.el("option", { value: t.value, text: t.label });
+        if ((k.tier || "unknown") === t.value) option.selected = true;
+        select.appendChild(option);
       });
-      tierSel.addEventListener("change", function () { setTier([k.id], tierSel.value, tierSel); });
-      cTier.appendChild(tierSel);
+      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
+      tierCell.appendChild(select);
+      tr.appendChild(tierCell);
 
-      var cFail = cell("Fails", "right num");
-      cFail.textContent = k.failures;
+      GX.cell(tr, k.failures, "num", "fails");
+      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num cool", "cooldown");
+      GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
-      var cCool = cell("Cooldown", "right");
-      var wrapCool = document.createElement("span");
-      wrapCool.className = "cool num";
-      var left = document.createElement("span");
-      left.className = "left";
-      left.textContent = fmtLeft(k.cooldownLeftMs);
-      var bar = document.createElement("span");
-      bar.className = "bar";
-      var fill = document.createElement("i");
-      var totalCd = Math.max(k.cooldownLeftMs, 1);
-      fill.style.width = k.cooldownLeftMs > 0 ? "100%" : "0%";
-      bar.appendChild(fill);
-      wrapCool.appendChild(left);
-      wrapCool.appendChild(bar);
-      cCool.appendChild(wrapCool);
-
-      var cUsed = cell("Last used");
-      cUsed.textContent = fmtAge(k.lastUsed);
-
-      var cProbe = cell("Probe");
-      var pv = document.createElement("span");
-      pv.className = "probe";
+      var probeCell = GX.el("td", { "data-l": "probe" });
       var known = state.testing[k.id];
-      if (known) {
-        pv.className = "probe " + probeClass(known.status);
-        pv.textContent = probeText(known);
-      } else {
-        pv.textContent = "-";
-      }
-      cProbe.appendChild(pv);
+      probeCell.appendChild(GX.el("span", {
+        class: "probe " + (known ? probeClass(known.status) : ""),
+        text: known ? probeText(known) : "-"
+      }));
+      tr.appendChild(probeCell);
 
-      var cAct = cell(null, "actions");
-      var testBtn = document.createElement("button");
-      testBtn.type = "button";
-      testBtn.className = "small";
-      testBtn.textContent = "Test";
-      testBtn.addEventListener("click", function () { testKey(k, testBtn, pv); });
-
-      var delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "small danger";
-      delBtn.textContent = "Remove";
+      var actions = GX.el("td", { class: "actions" });
+      var testBtn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      testBtn.addEventListener("click", function () { testKey(k, testBtn); });
+      var delBtn = GX.el("button", { class: "small btn-danger", type: "button", text: "Remove" });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
+      actions.appendChild(testBtn);
+      actions.appendChild(delBtn);
+      tr.appendChild(actions);
 
-      cAct.appendChild(testBtn);
-      cAct.appendChild(delBtn);
-
-      tr.appendChild(cKey); tr.appendChild(cStatus); tr.appendChild(cTier); tr.appendChild(cFail);
-      tr.appendChild(cCool); tr.appendChild(cUsed); tr.appendChild(cProbe); tr.appendChild(cAct);
-      tbody.appendChild(tr);
+      body.appendChild(tr);
     });
 
-    table.appendChild(tbody);
-    el.keysBody.innerHTML = "";
+    table.appendChild(body);
+    el.keysBody.textContent = "";
     el.keysBody.appendChild(table);
     renderPager(filtered.length, pages);
-    startTicker();
   }
 
-  /** Numbered pager with a sliding window; Prev/Next never wrap around. */
   function renderPager(total, pages) {
-    el.keyPager.innerHTML = "";
+    el.keyPager.textContent = "";
     if (!total) return;
 
-    var start = (state.page - 1) * state.size + 1;
-    var end = Math.min(total, state.page * state.size);
-
-    var info = document.createElement("span");
-    info.textContent = "Showing " + start + "-" + end + " of " + total + " keys";
+    var info = GX.el("span", {
+      text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
+        Math.min(total, state.page * state.size) + " of " + total
+    });
     el.keyPager.appendChild(info);
 
-    var box = document.createElement("div");
-    box.className = "pages";
-
+    var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "small" + (active ? " active" : "");
-      b.textContent = label;
-      b.disabled = Boolean(disabled);
+      var b = GX.el("button", {
+        class: "small" + (active ? " active" : ""),
+        type: "button",
+        text: label,
+        disabled: disabled ? true : null
+      });
       if (active) b.setAttribute("aria-current", "page");
       b.addEventListener("click", function () { state.page = page; drawTable(); });
       return b;
     }
 
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
-
     var win = 5;
     var from = Math.max(1, state.page - Math.floor(win / 2));
     var to = Math.min(pages, from + win - 1);
     from = Math.max(1, to - win + 1);
-
     if (from > 1) {
       box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) {
-        var d = document.createElement("span");
-        d.textContent = "...";
-        box.appendChild(d);
-      }
+      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
     }
     for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
     if (to < pages) {
-      if (to < pages - 1) {
-        var d2 = document.createElement("span");
-        d2.textContent = "...";
-        box.appendChild(d2);
-      }
+      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
     }
-
     box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
     el.keyPager.appendChild(box);
   }
 
-  /**
-   * Cooldown cells drain between polls. Recomputing from the last sync keeps
-   * the display honest without extra requests.
-   */
-  function startTicker() {
-    if (state.tick) return;
-    state.tick = setInterval(function () {
-      var rows = el.keysBody.querySelectorAll("tr[data-id]");
-      for (var i = 0; i < rows.length; i++) {
-        var id = rows[i].getAttribute("data-id");
-        var k = state.keys.filter(function (x) { return x.id === id; })[0];
-        if (!k || k.cooldownLeftMs <= 0) continue;
-        var left = rows[i].querySelector(".cool .left");
-        if (left) left.textContent = fmtLeft(k.cooldownLeftMs);
-      }
-    }, 1000);
-  }
-
-  function refresh() {
-    if (!state.token || state.busy) return Promise.resolve();
-    state.busy = true;
-    return api("/pengatur/keys/list")
+  function setTier(ids, tier, control) {
+    if (!ids.length) { GX.say(el.keyMsg, "Nothing to update.", "err"); return; }
+    if (control) control.disabled = true;
+    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
       .then(function (data) {
-        renderStats(data.pool);
-        state.tiers = data.tiers;
-        paintTiers();
-        renderKeys(data.keys || []);
-        el.statsPanel.hidden = false;
-        el.addPanel.hidden = false;
-        el.keysPanel.hidden = false;
-        el.authPanel.hidden = true;
+        GX.say(el.keyMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        return reload();
       })
       .catch(function (err) {
-        if (err.status === 401 || err.status === 403) {
-          lock(err.message + " Re-enter the token.");
-        } else {
-          say(el.keyMsg, "Refresh failed: " + err.message, "err");
-        }
+        GX.say(el.keyMsg, "Plan update failed: " + err.message, "err");
       })
-      .then(function () { state.busy = false; });
+      .then(function () { if (control) control.disabled = false; });
   }
 
-  function lock(reason) {
-    stopAuto();
-    state.token = "";
-    el.statsPanel.hidden = true;
-    el.addPanel.hidden = true;
-    el.keysPanel.hidden = true;
-    el.authPanel.hidden = false;
-    say(el.authHint, reason || "Token required.", "err");
-  }
-
-  function connect() {
-    var t = el.token.value.trim();
-    if (!t) { say(el.authHint, "Token is empty.", "err"); return; }
-    state.token = t;
-    el.connect.disabled = true;
-    api("/pengatur/keys/list")
-      .then(function (data) {
-        try { localStorage.setItem(STORE, t); } catch (e) {}
-        renderStats(data.pool);
-        state.tiers = data.tiers;
-        paintTiers();
-        renderKeys(data.keys || []);
-        el.statsPanel.hidden = false;
-        el.addPanel.hidden = false;
-        el.keysPanel.hidden = false;
-        el.authPanel.hidden = true;
-        hide(el.keyMsg);
-        startAuto();
-      })
-      .catch(function (err) {
-        state.token = "";
-        say(el.authHint, "Connect failed: " + err.message, "err");
-      })
-      .then(function () { el.connect.disabled = false; });
-  }
-
-  function removeKey(k, btn) {
-    if (!confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
-    btn.disabled = true;
-    api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
-      .then(function (data) {
-        say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
-        delete state.testing[k.id];
-        return refresh();
-      })
-      .catch(function (err) {
-        btn.disabled = false;
-        say(el.keyMsg, "Remove failed: " + err.message, "err");
-      });
-  }
-
-  /**
-   * Probe one key against Google. The server folds the verdict into the pool:
-   * a serving key leaves cooldown, a 429 key re-enters it with the real wait,
-   * a revoked key is retired.
-   */
-  function testKey(k, btn, node) {
+  function testKey(k, btn) {
     btn.disabled = true;
     btn.textContent = "Testing";
-    node.className = "probe";
-    node.textContent = "probing...";
-    api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
+    GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
         state.testing[k.id] = data.probe;
-        node.className = "probe " + probeClass(data.probe.status);
-        node.textContent = probeText(data.probe);
         var note = data.applied === "revived" ? " back in rotation"
           : data.applied === "cooling" ? " parked again"
           : data.applied === "retired" ? " retired from the pool" : "";
-        say(el.keyMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "info");
-        return refresh();
+        GX.say(el.keyMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
+        return reload();
       })
       .catch(function (err) {
-        node.className = "probe bad";
-        node.textContent = "probe failed";
-        say(el.keyMsg, "Test failed: " + err.message, "err");
+        GX.say(el.keyMsg, "Test failed: " + err.message, "err");
       })
       .then(function () {
         btn.disabled = false;
@@ -606,86 +395,150 @@ export const ADMIN_HTML = `<!doctype html>
   }
 
   function testAll() {
-    el.testAllBtn.disabled = true;
-    var label = el.testAllBtn.textContent;
-    el.testAllBtn.textContent = "Testing...";
-    el.testAllNote.textContent = "one live call per key, 4 at a time";
-    api("/pengatur/keys/test-all", { method: "POST" })
+    GX.busy(el.testAllBtn, "Testing");
+    el.testAllNote.textContent = "One live call per key, four at a time.";
+    GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
-        (data.results || []).forEach(function (r) { state.testing[r.id] = r.probe; });
-        var ok = (data.results || []).filter(function (r) { return r.probe.status === "ok"; }).length;
-        say(el.keyMsg, "Probed " + data.tested + " keys, " + ok + " serving. Pool: " + data.pool.ready + " ready, " + data.pool.cooling + " cooling, " + data.pool.dead + " dead.", ok ? "ok" : "info");
-        return refresh();
+        var results = data.results || [];
+        results.forEach(function (r) { state.testing[r.id] = r.probe; });
+        var ok = results.filter(function (r) { return r.probe.status === "ok"; }).length;
+        GX.say(
+          el.keyMsg,
+          "Probed " + data.tested + " keys, " + ok + " serving. Pool: " +
+            data.pool.ready + " ready, " + data.pool.cooling + " cooling, " + data.pool.dead + " dead.",
+          ok ? "ok" : ""
+        );
+        return reload();
       })
-      .catch(function (err) { say(el.keyMsg, "Test all failed: " + err.message, "err"); })
+      .catch(function (err) {
+        GX.say(el.keyMsg, "Test all failed: " + err.message, "err");
+      })
       .then(function () {
-        el.testAllBtn.disabled = false;
-        el.testAllBtn.textContent = label;
-        el.testAllNote.textContent = "";
+        GX.idle(el.testAllBtn);
+        el.testAllNote.textContent = "One live call per key, four at a time.";
+      });
+  }
+
+  function removeKey(k, btn) {
+    if (!window.confirm("Remove key " + k.key + " from the pool? This cannot be undone.")) return;
+    btn.disabled = true;
+    GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
+      .then(function (data) {
+        GX.say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        delete state.testing[k.id];
+        return reload();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        GX.say(el.keyMsg, "Remove failed: " + err.message, "err");
       });
   }
 
   function addKeys() {
     var raw = el.newKeys.value;
     var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-    if (!keys.length) { say(el.addMsg, "Nothing to add.", "err"); return; }
-    el.addBtn.disabled = true;
-    api("/pengatur/keys", { method: "POST", body: { keys: keys } })
+    if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
+    GX.busy(el.addSubmit, "Adding");
+    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";
-        say(el.addMsg, "Sent " + data.received + ", added " + data.added + ". Pool total " + data.pool.total + ".", data.added ? "ok" : "info");
-        return refresh();
+        GX.say(el.addMsg, "Sent " + data.received + ", added " + data.added + ".", data.added ? "ok" : "");
+        return reload();
       })
-      .catch(function (err) { say(el.addMsg, "Add failed: " + err.message, "err"); })
-      .then(function () { el.addBtn.disabled = false; });
+      .catch(function (err) {
+        GX.say(el.addMsg, "Add failed: " + err.message, "err");
+      })
+      .then(function () {
+        GX.idle(el.addSubmit);
+      });
+  }
+
+  function refresh() {
+    return GX.api("/pengatur/keys/list")
+      .then(function (data) {
+        state.keys = data.keys || [];
+        renderStrip(data.pool || {});
+        renderPlans(data.tiers);
+        drawTable();
+        el.console.hidden = false;
+      })
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) {
+          GX.lock(err.message + " Re-enter the token.");
+          throw err;
+        }
+        GX.say(el.keyMsg, "Refresh failed: " + err.message, "err");
+      });
+  }
+
+  /* Same refresh, but a failure must not break the caller chain. */
+  function reload() {
+    return refresh().catch(function () {});
   }
 
   function startAuto() {
-    stopAuto();
+    if (state.timer) return;
     if (!el.auto.checked) return;
-    state.timer = setInterval(refresh, 5000);
+    state.timer = GX.every(5000, reload);
   }
   function stopAuto() {
-    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    if (state.timer) { state.timer(); state.timer = null; }
   }
 
-  el.connect.addEventListener("click", connect);
-  el.token.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
-  el.forget.addEventListener("click", function () {
-    try { localStorage.removeItem(STORE); } catch (e) {}
-    el.token.value = "";
-    lock("Token cleared from this browser.");
+  el.addBtn.addEventListener("click", function () {
+    GX.say(el.addMsg, "");
+    GX.openDialog(el.addDialog);
+    if (el.newKeys) el.newKeys.focus();
   });
-  el.auto.addEventListener("change", function () { if (el.auto.checked) startAuto(); else stopAuto(); });
-  el.addBtn.addEventListener("click", addKeys);
+  el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  el.addForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    addKeys();
+  });
+  el.newKeys.addEventListener("input", function () {
+    var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
+    el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
+  });
+  el.refreshBtn.addEventListener("click", function () { refresh(); });
   el.testAllBtn.addEventListener("click", testAll);
-  var filterTimer = null;
-  el.keyFilter.addEventListener("input", function () {
-    clearTimeout(filterTimer);
-    filterTimer = setTimeout(function () {
-      state.query = el.keyFilter.value.trim().toLowerCase();
-      state.page = 1;
-      drawTable();
-    }, 140);
+  el.auto.addEventListener("change", function () {
+    if (el.auto.checked) startAuto(); else stopAuto();
   });
-
+  el.forget.addEventListener("click", function () {
+    stopAuto();
+    GX.lock("Token cleared from this browser.");
+  });
+  el.keyFilter.addEventListener("input", GX.debounce(function () {
+    state.query = el.keyFilter.value.trim().toLowerCase();
+    state.page = 1;
+    drawTable();
+  }, 140));
+  el.keyStatus.addEventListener("change", function () {
+    state.status = el.keyStatus.value;
+    state.page = 1;
+    drawTable();
+  });
   el.keySize.addEventListener("change", function () {
     state.size = Number(el.keySize.value) || 25;
     state.page = 1;
     drawTable();
   });
 
-  el.newKeys.addEventListener("input", function () {
-    var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
-    el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
+  GX.gate({
+    onSuccess: function () {
+      return refresh().then(function () {
+        startAuto();
+      });
+    }
   });
+})();`;
 
-  // Restore a previously stored token and try it silently.
-  var saved = "";
-  try { saved = localStorage.getItem(STORE) || ""; } catch (e) {}
-  if (saved) { el.token.value = saved; connect(); }
-})();
-</script>
-</body>
-</html>`;
+export const ADMIN_HTML = consolePage({
+  title: "Overview",
+  subtitle: "Pool health, key intake and live probe",
+  active: "/pengatur",
+  actions: `<button id="addBtn" class="btn btn-primary" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 4.5v11"/><path d="M4.5 10h11"/></svg>Add keys</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
+  body: PAGE_BODY,
+  script: PAGE_SCRIPT,
+});
