@@ -52,8 +52,10 @@ export const cfg = {
   ledgerTailRows: num(process.env.LEDGER_TAIL_ROWS, 500),
   /** how long raw usage_events survive a rollup run */
   retentionDays: num(process.env.RETENTION_DAYS, 30),
-  /** bearer for POST /internal/rollup; unset disables the route */
+  /** bearer for /internal/rollup; unset disables the route */
   rollupToken: process.env.ROLLUP_TOKEN ?? "",
+  /** Vercel sends this as `Authorization: Bearer <CRON_SECRET>` on cron runs */
+  cronSecret: process.env.CRON_SECRET ?? "",
 };
 
 export const VOICE_MAP: Record<string, string> = {

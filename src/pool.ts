@@ -114,6 +114,10 @@ function persistHealth(st: KeyState): void {
   }
   later(() => repo.touchLastSeen(id));
   if (st.failures > 0) later(() => repo.bumpFailCount(id));
+  // Serverless scales to zero; a 429 park held only in memory is erased on the
+  // next cold start and the key gets re-fired immediately. Persist the deadline
+  // (or its clearing) so `hydrate()` can restore the park.
+  later(() => repo.setCooldown(id, st.cooldownUntil));
 }
 
 /* ---------- cold start ---------- */
@@ -165,6 +169,10 @@ export async function hydrate(): Promise<number> {
     if (!row.enabled) {
       hit.invalid = true;
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
+    } else if (row.cooldownUntil > now()) {
+      // Restore a persisted park. `max` keeps a live in-memory deadline that is
+      // already further out (the same instance served the 429).
+      hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
   log("info", "pool.hydrated", {
@@ -321,6 +329,9 @@ export async function markHealthy(key: string): Promise<void> {
   const id = keyId(key);
   later(() => repo.setEnabled(id, true));
   later(() => repo.touchLastSeen(id));
+  // A cleared park must reach Postgres too, or the next cold start revives a
+  // deadline that this successful probe already proved obsolete.
+  later(() => repo.setCooldown(id, 0));
 }
 
 export async function deadKeys(): Promise<string[]> {

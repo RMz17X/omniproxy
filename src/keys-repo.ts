@@ -22,6 +22,8 @@ export type KeyIdentity = {
   label: string | null;
   owner: string | null;
   failCount: number;
+  /** Epoch ms until which the key is parked; 0 when it is selectable. */
+  cooldownUntil: number;
 };
 
 type KeyRow = {
@@ -32,9 +34,17 @@ type KeyRow = {
   plan: string;
   enabled: boolean;
   fail_count: number | string;
+  cooldown_until: string | Date | null;
 };
 
 const isTier = (v: string): v is KeyTier => v === "free" || v === "paid" || v === "pro";
+
+/** Drivers disagree on timestamptz: some hand back Date, some an ISO string. */
+const toEpoch = (v: string | Date | null): number => {
+  if (!v) return 0;
+  const t = v instanceof Date ? v.getTime() : Date.parse(v);
+  return Number.isFinite(t) ? t : 0;
+};
 
 const toIdentity = (r: KeyRow): KeyIdentity => ({
   id: r.id,
@@ -44,17 +54,28 @@ const toIdentity = (r: KeyRow): KeyIdentity => ({
   label: r.label,
   owner: r.owner,
   failCount: Number(r.fail_count) || 0,
+  cooldownUntil: toEpoch(r.cooldown_until),
 });
 
 /** Rows ordered by id. Empty when the database is disabled. */
 export async function loadKeys(): Promise<KeyIdentity[]> {
   if (!dbEnabled()) return [];
   const res = await sql<KeyRow>(
-    `select id, masked, label, owner, plan, enabled, fail_count
+    `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until
        from keys
       order by id`,
   );
   return res.ok ? res.rows.map(toIdentity) : [];
+}
+
+/**
+ * Persist a cooldown deadline so a serverless cold start does not forget that
+ * the key is parked. `until <= now` clears the column: the key is selectable.
+ */
+export async function setCooldown(id: string, until: number): Promise<void> {
+  if (!dbEnabled()) return;
+  const deadline = until > Date.now() ? new Date(until).toISOString() : null;
+  await sql(`update keys set cooldown_until = $2 where id = $1`, [id, deadline]);
 }
 
 /** Insert or refresh the durable identity of one key. Never throws. */

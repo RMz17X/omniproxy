@@ -18,6 +18,11 @@ create table if not exists keys (
   fail_count   int not null default 0
 );
 
+-- Durable cooldown. Serverless instances scale to zero, so a 429 park kept only
+-- in process memory is lost on every cold start and the key is re-fired
+-- immediately. NULL means "ready"; a future timestamp means "parked until".
+alter table keys add column if not exists cooldown_until timestamptz;
+
 create table if not exists usage_events (
   ts                timestamptz not null default now(),
   req_id            text,

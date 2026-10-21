@@ -591,15 +591,22 @@ app.post("/pengatur/keys/test-all", async (c) => {
  * defaults to yesterday in WIB. Auth is a shared bearer token, and an unset
  * `ROLLUP_TOKEN` disables the route entirely rather than leaving it open.
  */
-app.post("/internal/rollup", async (c) => {
-  if (!cfg.rollupToken) {
-    return c.json({ error: { message: "Rollup disabled: ROLLUP_TOKEN is not set." } }, 403);
-  }
+app.all("/internal/rollup", async (c) => {
+  // Vercel cron issues GET with `Authorization: Bearer $CRON_SECRET`; a manual
+  // operator run uses POST with either header. Both credentials are accepted,
+  // and an empty allowlist disables the route instead of leaving it open.
   const presented =
     (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() ||
     c.req.header("x-rollup-token") ||
     "";
-  if (presented !== cfg.rollupToken) {
+  const accepted = [cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
+  if (accepted.length === 0) {
+    return c.json(
+      { error: { message: "Rollup disabled: neither ROLLUP_TOKEN nor CRON_SECRET is set." } },
+      403,
+    );
+  }
+  if (!accepted.includes(presented)) {
     return c.json({ error: { message: "Unauthorized." } }, 401);
   }
 
