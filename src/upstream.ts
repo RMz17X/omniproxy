@@ -56,6 +56,10 @@ function isQuotaText(body: string): boolean {
 }
 
 export function isInvalidKeyText(body: string): boolean {
+  // A leaked key is dead for good: Google revokes it and every later call
+  // answers 403 "Your API key was reported as leaked". Retiring it is the only
+  // correct verdict — parking it would re-fire a revoked credential forever.
+  if (/reported as leaked/i.test(body)) return true;
   return /API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i.test(body);
 }
 
@@ -64,13 +68,28 @@ export function isInvalidKeyText(body: string): boolean {
  * quota at all — the limit will never reset. Recycling such a key every
  * cooldown window burns attempts and stalls every request behind a dead
  * project, so it is retired permanently instead.
+ *
+ * The two 429 shapes Google emits are distinguished by the metadata, not by
+ * the prose:
+ *
+ *   - transient: `quota_limit_value` is a positive number (the per-minute
+ *     allowance) and the message says the quota was exceeded. It resets.
+ *   - permanent: `quota_limit_value` is 0 — the project holds no allocation
+ *     for that metric in that region, so the per-minute window is irrelevant.
+ *     Only the project's owner can change it.
+ *
+ * Both carry a "requests per minute" phrase in the limit name, so that
+ * phrase cannot be used to tell them apart; the limit *value* can. An
+ * exhausted-but-valid key reports the real allowance, not 0.
  */
 export function isZeroQuota(body: string): boolean {
-  // A per-minute rate limit resets every minute; it is NOT permanent zero quota.
-  if (/requests?\s*per\s*minute|per_minute|\b1\/min\b|RequestsPerMinute/i.test(body)) {
-    return false;
+  const value = /"quota_limit_value"\s*:\s*"?(\d+)"?/.exec(body);
+  if (!value) {
+    // No limit metadata at all: fall back to the prose, which only mentions a
+    // permanent zero quota when the consumer project is the problem.
+    return /quota_limit_value[:=]\s*0\b/.test(body);
   }
-  return /"quota_limit_value"\s*:\s*"?0"?/.test(body) || /quota_limit_value[:=]\s*0\b/.test(body);
+  return value[1] === "0";
 }
 
 /**

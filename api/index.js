@@ -11489,13 +11489,15 @@ function isQuotaText(body) {
   return /RESOURCE_EXHAUSTED|quota|rate.?limit|exceeded/i.test(body);
 }
 function isInvalidKeyText(body) {
+  if (/reported as leaked/i.test(body)) return true;
   return /API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i.test(body);
 }
 function isZeroQuota(body) {
-  if (/requests?\s*per\s*minute|per_minute|\b1\/min\b|RequestsPerMinute/i.test(body)) {
-    return false;
+  const value = /"quota_limit_value"\s*:\s*"?(\d+)"?/.exec(body);
+  if (!value) {
+    return /quota_limit_value[:=]\s*0\b/.test(body);
   }
-  return /"quota_limit_value"\s*:\s*"?0"?/.test(body) || /quota_limit_value[:=]\s*0\b/.test(body);
+  return value[1] === "0";
 }
 function headersFor(src, key) {
   const h2 = new Headers();
