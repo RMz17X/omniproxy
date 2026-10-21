@@ -138,15 +138,17 @@ Unicode glyph.
 Run these yourself and paste the real output.
 
 1. `bun run check` exits 0 with no output.
-2. `bun run bundle:api` succeeds and `git status --porcelain api/index.js` is
-   empty afterwards.
+2. `bun run bundle:api` succeeds and prints `api/index.js` with a plausible
+   size. Then run `git checkout -- api/index.js` and do NOT commit that file: a
+   concurrent branch regenerates the same artifact and a committed bundle would
+   guarantee a merge conflict. The operator rebuilds it once after both merge.
 3. Start the server with `ADMIN_TOKEN` unset and `bun run start` on a spare port,
    then `curl` `/pengatur`, `/pengatur/usage`, `/pengatur/models` and `/health`:
    all four return 200.
 4. `git diff --stat master..HEAD` touches only `src/ui.ts`, `src/admin-ui.ts`,
-   `src/usage-ui.ts`, `src/models-ui.ts` and the generated `api/index.js`. Any
-   other file in the diff is a scope violation and must be reverted before you
-   report.
+   `src/usage-ui.ts` and `src/models-ui.ts`. Any other file in the diff is a
+   scope violation and must be reverted before you report. `api/index.js` must
+   not appear in the diff.
 5. At least three self-describing commits on the branch, tree clean.
 
 ## Operational rules
