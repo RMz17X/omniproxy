@@ -5,34 +5,36 @@
  * no data: the browser pastes the admin token once, then reads
  * /pengatur/audit/data with the filters below.
  *
- * Layout: one filter toolbar, then the trail as a table. An empty trail says
- * so in words instead of rendering an empty frame.
+ * Layout: the counts first, then the filters, then the trail as a feed. A
+ * trail is a story told in time, so it reads as a feed and not as a grid.
  */
 
-import { authGate, consolePage } from "./ui.ts";
+import { authGate, consolePage, icon } from "./ui.ts";
 
-const PAGE_BODY = `
-
+const AUDIT_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sRows">0</b><span class="k">actions</span></div>
-    <div class="kv"><b id="sActions">0</b><span class="k">kinds</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="sWindow">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Audit</h1>
+      <p class="sub">Every admin action, newest first.</p>
+    </div>
+    <span class="meta" id="sWindow">-</span>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Recorded admin actions</div>
-      <div class="row">
+  <div class="grid kpis" id="kpis"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Filters</h2>
+      <div class="actions">
         <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
-        <button id="refreshBtn" class="btn small" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>
+        <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       </div>
     </div>
-    <div class="panel-body">
-      <div class="row">
+    <div class="card-body">
+      <div class="toolbar">
         <div class="grow">
           <label class="field" for="action">Action prefix</label>
           <input id="action" type="search" spellcheck="false" placeholder="keys." autocomplete="off">
@@ -51,35 +53,36 @@ ${authGate()}
           </select>
         </div>
       </div>
-      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="body">
-        <thead><tr><th>When</th><th>Action</th><th>Target</th><th>Actor</th><th>Detail</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="empty"></div>
+      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:10px"></div>
     </div>
   </section>
-</section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Trail</h2>
+      <span class="meta" id="trailMeta"></span>
+    </div>
+    <div class="feed" id="trail"></div>
+  </section>
+</div>
 `;
 
-const PAGE_SCRIPT = `(function () {
+const AUDIT_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sRows: document.getElementById("sRows"),
-    sActions: document.getElementById("sActions"),
+    kpis: document.getElementById("kpis"),
     sWindow: document.getElementById("sWindow"),
-    body: document.getElementById("body"),
-    empty: document.getElementById("empty"),
     action: document.getElementById("action"),
     since: document.getElementById("since"),
     limit: document.getElementById("limit"),
     auto: document.getElementById("auto"),
+    refresh: document.getElementById("refreshBtn"),
     msg: document.getElementById("msg"),
-    refresh: document.getElementById("refreshBtn")
+    trail: document.getElementById("trail"),
+    trailMeta: document.getElementById("trailMeta")
   };
 
   var state = { timer: null };
@@ -101,20 +104,19 @@ const PAGE_SCRIPT = `(function () {
 
   function render(payload) {
     var rows = payload.rows || [];
-    var body = el.body.querySelector("tbody");
-    body.textContent = "";
-    el.empty.textContent = "";
-
     var kinds = {};
     rows.forEach(function (r) { kinds[r.action] = true; });
-    el.sRows.textContent = rows.length;
-    el.sActions.textContent = Object.keys(kinds).length;
-    el.sWindow.textContent = el.action.value.trim()
-      ? "action starts with " + el.action.value.trim()
-      : "all actions";
 
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "in this view"));
+    el.kpis.appendChild(GX.kpi("Kinds", GX.fmt.num(Object.keys(kinds).length), "distinct action names"));
+    el.kpis.appendChild(GX.kpi("Window", el.since.value ? "since " + el.since.value.replace("T", " ") : "all time", el.action.value.trim() ? "action " + el.action.value.trim() : "every action"));
+    el.sWindow.textContent = rows.length ? rows.length + " recorded" : "-";
+
+    el.trail.textContent = "";
+    el.trailMeta.textContent = rows.length ? rows.length + (rows.length === 1 ? " entry" : " entries") : "";
     if (!rows.length) {
-      el.empty.appendChild(GX.state(
+      el.trail.appendChild(GX.state(
         "empty",
         "No admin action recorded yet",
         "Key additions, probes, plan changes and exports land here the moment they happen."
@@ -123,15 +125,14 @@ const PAGE_SCRIPT = `(function () {
     }
 
     rows.forEach(function (r) {
-      var tr = GX.el("tr");
-      GX.cell(tr, GX.fmt.stamp(r.ts), "mono nowrap", "when");
-      var actionCell = GX.el("td", { "data-l": "action" });
-      actionCell.appendChild(GX.el("span", { class: "mono", text: r.action }));
-      tr.appendChild(actionCell);
-      GX.cell(tr, r.target || "-", "mono", "target");
-      GX.cell(tr, r.actor || "-", "", "actor");
-      GX.cell(tr, detailText(r.detail), "dimtext", "detail");
-      body.appendChild(tr);
+      var what = r.target || "";
+      var detail = detailText(r.detail);
+      el.trail.appendChild(GX.el("div", { class: "feed-item" }, [
+        GX.el("span", { class: "act", text: r.action }),
+        GX.el("span", { class: "what", text: (what ? what + " · " : "") + detail }),
+        GX.el("span", { class: "what", text: r.actor || "" }),
+        GX.el("time", { text: GX.fmt.stamp(r.ts) })
+      ]));
     });
   }
 
@@ -171,12 +172,13 @@ const PAGE_SCRIPT = `(function () {
   });
 
   GX.gate({ onSuccess: refresh });
-})();`;
+})();
+`;
 
 export const AUDIT_HTML = consolePage({
   title: "Audit",
   subtitle: "Every admin action, newest first",
   active: "/pengatur/audit",
-  body: PAGE_BODY,
-  script: PAGE_SCRIPT,
+  body: AUDIT_BODY,
+  script: AUDIT_SCRIPT,
 });
