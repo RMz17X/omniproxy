@@ -9163,7 +9163,7 @@ select {
 .toolbar { display: flex; align-items: flex-end; gap: var(--sp-3); flex-wrap: wrap; }
 .toolbar .grow { flex: 1 1 180px; min-width: 0; }
 
-.seg { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.seg { display: inline-flex; padding: var(--sp-1); gap: var(--sp-1); border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .seg button {
   height: 28px;
   padding: 0 12px;
@@ -9229,8 +9229,8 @@ select {
 .spark i { width: 3px; border-radius: 2px; background: var(--line-2); display: block; }
 .spark i.hi { background: var(--info); }
 
-.heat-scroll { overflow-x: auto; padding-bottom: 6px; }
-.heat { display: grid; grid-template-columns: 34px repeat(24, minmax(15px, 1fr)); gap: 3px; min-width: 460px; font-size: 11px; color: var(--text-3); }
+.heat-scroll { overflow-x: auto; padding-bottom: var(--sp-2); }
+.heat { display: grid; grid-template-columns: 34px repeat(24, minmax(15px, 1fr)); gap: var(--sp-1); min-width: 480px; font-size: 11px; color: var(--text-3); }
 .heat .h { text-align: center; }
 .heat .cell { height: 20px; border-radius: 4px; background: var(--card-2); }
 .heat .cell[data-level="1"] { background: rgba(79, 209, 197, 0.18); }
@@ -9241,7 +9241,7 @@ select {
 .heat.values .cell { display: flex; align-items: center; justify-content: center; }
 .heat.values .cell::after { content: attr(data-v); font-size: 11px; color: var(--text); }
 .heat.values .cell[data-level="4"]::after, .heat.values .cell[data-level="5"]::after { color: var(--accent-ink); }
-.heat-legend { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 11.5px; }
+.heat-legend { display: flex; align-items: center; gap: var(--sp-1); color: var(--text-3); font-size: 11.5px; }
 .heat-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
 /* dialog ------------------------------------------------------------------ */
