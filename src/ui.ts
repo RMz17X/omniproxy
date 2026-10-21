@@ -353,6 +353,9 @@ textarea {
 .badge.ok, .probe.ok { color: var(--ok); }
 .badge.warn, .probe.warn { color: var(--warn); }
 .badge.bad, .badge.dead, .probe.bad { color: var(--danger); }
+.badge.free { color: var(--ok); }
+.badge.paid { color: var(--warn); }
+.badge.unknown { color: var(--text-3); }
 .dot {
   display: inline-block;
   width: 6px;

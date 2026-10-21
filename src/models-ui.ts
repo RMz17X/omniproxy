@@ -7,186 +7,126 @@
  * actual generateContent call against the selected model.
  */
 
+import { BASE_CSS, stateBlock } from "./ui.ts";
+
 export const MODELS_HTML = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
 <title>Models · GeminesX</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
-<style>
-:root{
-  --bg:#0b0d11; --panel:#12161c; --panel-2:#161b22; --line:#232a33; --line-soft:#1b2129;
-  --ink:#e6edf3; --muted:#8b98a5; --dim:#5f6b78;
-  --ok:#67e8a1; --warn:#f0c04a; --bad:#f0705f; --cool:#68a8f0; --accent:#67e8a1;
-  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
-}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-a{color:var(--accent)}
-.wrap{max-width:1240px;margin:0 auto;padding:22px 18px 64px}
-header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px}
-h1{font-size:19px;margin:0;letter-spacing:-0.01em}
-.sub{color:var(--muted);font-size:12.5px;margin-top:2px}
-.top-right{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--muted)}
-.mono{font-family:var(--mono);font-size:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
-label.field{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:6px}
-input[type=password],input[type=text],select,textarea{width:100%;background:#0d1116;border:1px solid var(--line);color:var(--ink);border-radius:7px;padding:9px 11px;font:inherit;outline:none}
-input:focus,select:focus{border-color:#3a4756;box-shadow:0 0 0 3px rgba(103,232,161,.09)}
-button{background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:7px;padding:9px 14px;font:inherit;cursor:pointer;transition:background 120ms ease,border-color 120ms ease}
-button:hover:not(:disabled){background:#1d242c;border-color:#33404e}
-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-button:disabled{opacity:.5;cursor:not-allowed}
-button.primary{background:var(--accent);color:#08130c;border-color:var(--accent);font-weight:600}
-button.primary:hover:not(:disabled){background:#7defb3}
-button.small{padding:5px 10px;font-size:12px}
-.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.grow{flex:1;min-width:200px}
-.muted{color:var(--muted)}
-.msg{display:none;margin-top:10px;padding:9px 12px;border-radius:7px;font-size:12.5px;border:1px solid transparent}
-.msg.show{display:block}
-.msg.err{background:rgba(240,112,95,.1);border-color:rgba(240,112,95,.35);color:#ffb3a8}
-.msg.ok{background:rgba(103,232,161,.1);border-color:rgba(103,232,161,.32);color:#b9f7d4}
-.msg.info{background:rgba(104,168,240,.1);border-color:rgba(104,168,240,.3);color:#b6d6fb}
-.strip{display:flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);margin:18px 0}
-.kv{padding:12px 18px;border-right:1px solid var(--line);min-width:96px}
-.kv:last-child{border-right:0}
-.kv b{display:block;font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-.kv span{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
-.kv.ok b{color:var(--ok)} .kv.warn b{color:var(--warn)} .kv.bad b{color:var(--bad)} .kv.cool b{color:var(--cool)}
-.spacer{flex:1;border:0}
-.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0 12px}
-.toolbar .grow{min-width:180px}
-.tablewrap{overflow-x:auto;padding:0}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);font-weight:600;padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel)}
-thead th.right{text-align:right}
-tbody td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
-tbody tr:last-child td{border-bottom:0}
-tbody tr{transition:background 120ms ease}
-tbody tr:hover{background:#151a20}
-td.right{text-align:right;font-variant-numeric:tabular-nums}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;border:1px solid transparent;white-space:nowrap}
-.badge.free{background:rgba(103,232,161,.13);color:#8ff0bb;border-color:rgba(103,232,161,.3)}
-.badge.paid{background:rgba(240,192,74,.12);color:#f3d489;border-color:rgba(240,192,74,.3)}
-.badge.unknown{background:rgba(139,152,165,.12);color:#a9b5c1;border-color:rgba(139,152,165,.26)}
-.tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;background:#1a212a;color:var(--muted);border:1px solid var(--line);font-family:var(--mono)}
-.mid{font-family:var(--mono);font-size:12.5px;color:var(--ink);word-break:break-all}
-.dimtext{color:var(--dim);font-size:11.5px}
-.probe{font-family:var(--mono);font-size:11.5px;white-space:nowrap}
-.probe.ok{color:var(--ok)} .probe.warn{color:var(--warn)} .probe.bad{color:var(--bad)}
-.pager{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--muted)}
-.pager .pages{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.pager button.small{min-width:34px;text-align:center}
-.pager button.active{background:var(--accent);color:#08130c;border-color:var(--accent);font-weight:700}
-.empty{padding:34px 18px;text-align:center;color:var(--muted)}
-.empty b{display:block;color:var(--ink);margin-bottom:4px}
-.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:var(--muted)}
-.check{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted);cursor:pointer}
-.skeleton{height:44px;background:linear-gradient(90deg,#141a21,#1b222b,#141a21);background-size:200% 100%;animation:sh 1.2s ease-in-out infinite;border-radius:6px;margin:6px 12px}
-@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
-@media (prefers-reduced-motion:reduce){.skeleton{animation:none}tbody tr,button{transition:none}}
-@media (max-width:860px){
-  .strip{flex-wrap:wrap}
-  .kv{flex:1 1 45%;border-bottom:1px solid var(--line)}
-  .kv:nth-child(2n){border-right:0}
-  thead{display:none}
-  tbody tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:12px 4px;border-bottom:1px solid var(--line-soft)}
-  tbody td{border:0;padding:0}
-  tbody td::before{content:attr(data-l);display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-top:4px}
-  tbody td.mid{grid-column:1/-1}
-  tbody td.mid::before{display:none}
-  tbody td.act{grid-column:1/-1;text-align:left;margin-top:8px}
-  tbody td.act::before{display:none}
-}
-</style>
+<style>${BASE_CSS}</style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div>
-      <h1>Models</h1>
-      <div class="sub">Live inventory from the Generative Language API, joined with published pricing</div>
-    </div>
-    <div class="top-right">
-      <a href="/pengatur" class="mono">admin</a>
-      <a href="/pengatur/usage" class="mono">usage</a>
-      <span id="asOf" class="mono">pricing: -</span>
-      <span id="synced">-</span>
-    </div>
-  </header>
 
-  <section id="authPanel" class="card" style="margin-top:18px">
-    <label class="field" for="token">Admin token</label>
-    <div class="row">
-      <div class="grow"><input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN"></div>
-      <button id="connect" class="primary" type="button">Connect</button>
-    </div>
-    <div id="authHint" class="msg err"></div>
-    <p class="muted" style="margin:12px 0 0">The token stays in this browser and is only sent to this deployment.</p>
-  </section>
+<header class="topbar">
+  <a class="wordmark" href="/pengatur">GeminesX</a>
+  <nav class="nav">
+    <a href="/pengatur">Keys</a>
+    <a href="/pengatur/usage">Usage</a>
+    <a href="/pengatur/models" class="active" aria-current="page">Models</a>
+  </nav>
+  <div class="meta">
+    <span id="asOf">pricing: -</span>
+    <span id="synced">-</span>
+  </div>
+</header>
 
-  <section id="main" hidden>
-    <div class="strip">
-      <div class="kv ok"><b id="cTotal">0</b><span>models</span></div>
-      <div class="kv ok"><b id="cFree">0</b><span>free tier</span></div>
-      <div class="kv warn"><b id="cPaid">0</b><span>paid only</span></div>
-      <div class="kv cool"><b id="cTested">0</b><span>tested</span></div>
-      <div class="spacer"></div>
-      <div class="kv" style="border-right:0"><b id="cTier">-</b><span>your tier</span></div>
-    </div>
+<main class="page">
 
-    <div class="card" style="padding:14px">
+  <div class="page-head">
+    <h1>Models</h1>
+    <span class="meta">Live inventory from the Generative Language API, joined with published pricing</span>
+  </div>
+
+  <!-- auth -->
+  <section id="authPanel" class="panel">
+    <div class="panel-body">
+      <label class="field" for="token">Admin token</label>
       <div class="row">
-        <div style="min-width:210px">
-          <label class="field" for="tier">Your plan</label>
-          <select id="tier">
-            <option value="free">Free tier (no billing)</option>
-            <option value="paid">Pay-as-you-go (billing enabled)</option>
-            <option value="pro">Google AI Pro / Ultra</option>
-            <option value="any">Show everything</option>
-          </select>
-        </div>
         <div class="grow">
-          <label class="field" for="q">Search</label>
-          <input id="q" type="text" spellcheck="false" placeholder="gemini, tts, image, embedding...">
+          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
         </div>
-        <div style="min-width:150px">
-          <label class="field" for="kind">Capability</label>
-          <select id="kind">
-            <option value="">All</option>
-            <option value="text">Text</option>
-            <option value="tts">TTS</option>
-            <option value="image">Image</option>
-            <option value="video">Video</option>
-            <option value="audio">Audio</option>
-            <option value="live">Live</option>
-            <option value="transcribe">Transcribe</option>
-            <option value="embedding">Embedding</option>
-            <option value="omni">Omni</option>
-            <option value="robotics">Robotics</option>
-          </select>
-        </div>
-        <div style="min-width:130px">
-          <label class="field" for="size">Per page</label>
-          <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
-        </div>
-        <div style="align-self:flex-end">
-          <button id="reload" type="button">Refresh live list</button>
-        </div>
+        <button id="connect" class="btn btn-primary" type="button">Connect</button>
       </div>
-      <div id="msg" class="msg"></div>
-      <div id="tierNote" class="muted" style="margin-top:10px;font-size:12.5px"></div>
+      <div id="authHint" class="notice err"></div>
+      <p class="dimtext" style="margin-top:12px">The token stays in this browser and is only sent to this deployment.</p>
+    </div>
+  </section>
+
+  <section id="main" class="stack" hidden>
+
+    <div class="strip">
+      <div class="kv"><b id="cTotal">0</b><span class="k">models</span></div>
+      <div class="kv ready"><b id="cFree">0</b><span class="k">free tier</span></div>
+      <div class="kv cooling"><b id="cPaid">0</b><span class="k">paid only</span></div>
+      <div class="kv"><b id="cTested">0</b><span class="k">tested</span></div>
+      <div class="spacer"></div>
+      <div class="kv"><b id="cTier">-</b><span class="k">your tier</span></div>
     </div>
 
-    <div id="body" class="card tablewrap" style="margin-top:14px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
-    <div id="pager" class="pager"></div>
-    <div id="rowMsg" class="msg"></div>
+    <!-- controls -->
+    <section class="panel">
+      <div class="panel-body">
+        <div class="row">
+          <div class="grow">
+            <label class="field" for="tier">Your plan</label>
+            <select id="tier">
+              <option value="free">Free tier (no billing)</option>
+              <option value="paid">Pay-as-you-go (billing enabled)</option>
+              <option value="pro">Google AI Pro / Ultra</option>
+              <option value="any">Show everything</option>
+            </select>
+          </div>
+          <div class="grow">
+            <label class="field" for="q">Search</label>
+            <input id="q" type="text" spellcheck="false" placeholder="gemini, tts, image, embedding...">
+          </div>
+          <div class="grow">
+            <label class="field" for="kind">Capability</label>
+            <select id="kind">
+              <option value="">All</option>
+              <option value="text">Text</option>
+              <option value="tts">TTS</option>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+              <option value="audio">Audio</option>
+              <option value="live">Live</option>
+              <option value="transcribe">Transcribe</option>
+              <option value="embedding">Embedding</option>
+              <option value="omni">Omni</option>
+              <option value="robotics">Robotics</option>
+            </select>
+          </div>
+          <div class="grow">
+            <label class="field" for="size">Per page</label>
+            <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="reload" class="btn" type="button">Refresh live list</button>
+        </div>
+        <div id="msg" class="notice"></div>
+        <div id="tierNote" class="dimtext" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <!-- inventory -->
+    <section class="panel">
+      <div id="body" class="tablewrap">${stateBlock("loading", "Loading model list...")}</div>
+      <div class="panel-body">
+        <div id="pager" class="pager"></div>
+        <div id="rowMsg" class="notice"></div>
+      </div>
+    </section>
+
   </section>
-</div>
+
+</main>
 
 <script>
 (function () {
