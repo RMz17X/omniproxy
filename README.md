@@ -125,6 +125,28 @@ unchanged; the dummy `api_key` the SDK insists on is accepted because the
 gateway only checks `CLIENT_TOKEN` when that variable is set, and never
 forwards the inbound credential upstream.
 
+## Console
+
+The operator console lives under `/pengatur`. The pages are public shells:
+the browser asks for the admin token once, keeps it in `localStorage`, and
+sends it as a bearer token on every data call. No raw key is ever sent to the
+browser, only its masked form and its sha256 id.
+
+| Page | What it shows |
+|---|---|
+| `/pengatur` | Pool health, plan breakdown, live probe, key intake |
+| `/pengatur/logs` | Request ledger with filters, breakdowns and CSV export |
+| `/pengatur/stats` | Range statistics, hour by weekday heatmap, cost projection |
+| `/pengatur/keys` | Every pooled key: plan, health, bulk plan change, probe, remove |
+| `/pengatur/keys/:id` | One key: counters, daily requests, cooldown timeline |
+| `/pengatur/models` | Live model inventory, pricing and a per model probe |
+| `/pengatur/settings` | Effective configuration, read only |
+| `/pengatur/audit` | Trail of admin actions |
+
+The whole console is one design system in `src/ui.ts`: one stylesheet, one
+shell, one client runtime. See `docs/briefs/f5-console-redesign.md` for the
+rules every page follows.
+
 ## Tests
 
 `test/mock-upstream.ts` is a fake Gemini that misbehaves on demand: a key
