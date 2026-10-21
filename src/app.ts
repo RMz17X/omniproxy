@@ -36,7 +36,7 @@ import {
   type RowFilter,
 } from "./ledger.ts";
 import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
-import { actorFrom, record as auditRecord } from "./audit.ts";
+import { actorFrom, list as listAudit, record as auditRecord } from "./audit.ts";
 import { STATS_HTML } from "./stats-ui.ts";
 import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
@@ -44,6 +44,7 @@ import { KEYS_HTML, KEY_DETAIL_HTML } from "./keys-ui.ts";
 import { loadKeys } from "./keys-repo.ts";
 import { SETTINGS_HTML } from "./settings-ui.ts";
 import { settingsView } from "./settings.ts";
+import { AUDIT_HTML } from "./audit-ui.ts";
 import { dbEnabled, sql } from "./db.ts";
 
 const app = new Hono();
@@ -678,4 +679,23 @@ app.get("/pengatur/settings/export", (c) => {
   });
 });
 
+/** Audit console shell. Public like the others; its data route is gated. */
+app.get("/pengatur/audit", (c) => c.html(AUDIT_HTML));
+
+/**
+ * Admin action trail, newest first. Filters are passed straight through; the
+ * module clamps the limit to 1..500 and treats an empty result as a normal
+ * state, so a fresh deployment renders the empty-state line rather than an
+ * error.
+ */
+app.get("/pengatur/audit/data", async (c) => {
+  const q = c.req.query();
+  const res = await listAudit({
+    action: q.action?.trim() || undefined,
+    since: q.since?.trim() || undefined,
+    limit: q.limit ? Number(q.limit) : undefined,
+  });
+  if (!res.ok) return c.json({ ok: false, error: { message: res.error ?? "audit query failed" } }, 500);
+  return c.json(res);
+});
 export default app;
