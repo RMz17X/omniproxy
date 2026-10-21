@@ -8775,38 +8775,38 @@ var BASE_CSS = `
 :root {
   color-scheme: dark;
 
-  --bg: #0a0c0f;
-  --surface: #101317;
-  --surface-2: #161a20;
-  --surface-3: #1c212a;
-  --line: #21262e;
-  --line-2: #2e343d;
+  --bg: #0b0d12;
+  --card: #12151c;
+  --card-2: #171b24;
+  --card-3: #1d2230;
+  --line: #232936;
+  --line-2: #2f3646;
 
-  --text: #e8ebef;
-  --text-2: #9aa3ae;
-  --text-3: #7b8490;
+  --text: #eef1f6;
+  --text-2: #9aa4b6;
+  --text-3: #808a9c;
 
-  --accent: #4fb0c4;
-  --accent-wash: rgba(79, 176, 196, 0.12);
-  --accent-line: rgba(79, 176, 196, 0.42);
-  --accent-ink: #06222a;
+  --accent: #eef1f6;
+  --accent-ink: #0b0d12;
+  --ok: #41c98a;
+  --warn: #e8a33d;
+  --bad: #ef6b6b;
+  --info: #4fd1c5;
 
-  --ok: #5fae7d;
-  --warn: #cb9440;
-  --danger: #c96464;
-
-  --heat-1: rgba(79, 176, 196, 0.18);
-  --heat-2: rgba(79, 176, 196, 0.34);
-  --heat-3: rgba(79, 176, 196, 0.52);
-  --heat-4: rgba(79, 176, 196, 0.74);
-  --heat-5: rgba(79, 176, 196, 0.95);
+  --wash-ok: rgba(65, 201, 138, 0.14);
+  --wash-warn: rgba(232, 163, 61, 0.14);
+  --wash-bad: rgba(239, 107, 107, 0.14);
+  --wash-info: rgba(79, 209, 197, 0.14);
 
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --tap: 30px;
-  --tap-sm: 26px;
-  --rail: 236px;
+  --r-card: 12px;
+  --r-ctl: 8px;
+  --r-pill: 999px;
+
+  --tap: 34px;
+  --tap-sm: 30px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -8817,21 +8817,21 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-h1, h2, h3 { margin: 0; line-height: 1.25; font-weight: 600; }
+h1, h2, h3 { margin: 0; line-height: 1.3; font-weight: 620; letter-spacing: -0.01em; }
 p { margin: 0; }
-a { color: var(--accent); text-decoration: none; }
+a { color: var(--text); text-decoration: none; }
 a:hover { text-decoration: underline; }
-b, strong { font-weight: 600; }
+b, strong { font-weight: 620; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
 svg { display: block; }
 
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; border-radius: 4px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -8849,458 +8849,378 @@ svg { display: block; }
   left: -9999px;
   top: 0;
   z-index: 100;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 8px 13px;
+  border-radius: var(--r-ctl);
   background: var(--accent);
   color: var(--accent-ink);
-  font-weight: 600;
+  font-weight: 620;
 }
-.skip:focus { left: 8px; top: 8px; }
+.skip:focus { left: 12px; top: 12px; }
 
-.app {
-  display: grid;
-  grid-template-columns: var(--rail) minmax(0, 1fr);
-  min-height: 100vh;
-}
-
-.rail {
+.topbar {
   position: sticky;
   top: 0;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-}
-.brand {
+  z-index: 20;
   display: flex;
   align-items: center;
-  gap: 9px;
-  height: 56px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--line);
-  color: var(--text);
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-.brand:hover { text-decoration: none; color: var(--text); }
-.brand .mark { width: 20px; height: 20px; color: var(--accent); flex: 0 0 20px; }
-
-.nav { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; overflow-y: auto; }
-.nav a {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 32px;
-  padding: 0 10px;
-  border-left: 2px solid transparent;
-  border-radius: 6px;
-  color: var(--text-2);
-  font-size: 13px;
-}
-.nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
-.nav a[aria-current="page"] {
-  background: var(--accent-wash);
-  border-left-color: var(--accent);
-  color: var(--text);
-}
-.nav .icon { width: 16px; height: 16px; flex: 0 0 16px; color: var(--text-3); }
-.nav a[aria-current="page"] .icon { color: var(--accent); }
-
-.rail-foot {
-  margin-top: auto;
-  display: grid;
-  gap: 3px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--line);
-  font-size: 11px;
-  color: var(--text-3);
-}
-.rail-foot .row { display: flex; justify-content: space-between; gap: 8px; }
-.rail-foot .k { text-transform: uppercase; letter-spacing: 0.05em; }
-.rail-foot .v { color: var(--text-2); font-family: var(--mono); }
-
-.main { min-width: 0; display: flex; flex-direction: column; }
-.pagebar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 56px;
-  padding: 8px 24px;
+  gap: 20px;
+  min-height: 58px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--line);
   background: var(--bg);
 }
-.pagebar h1 { font-size: 18px; letter-spacing: -0.01em; }
-.pagebar .sub { font-size: 12px; color: var(--text-2); }
-.pagebar-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 24px;
-  width: 100%;
-  max-width: 1320px;
-}
-
-/* instrument strip -------------------------------------------------------- */
-
-.strip {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  min-height: 48px;
-  padding: 0 4px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-.strip .kv {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 0 16px;
-  border-left: 1px solid var(--line);
-  white-space: nowrap;
-}
-.strip .kv:first-child { border-left: 0; padding-left: 12px; }
-.strip .kv b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.strip .kv .k {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-3);
-}
-.strip .kv.ok b { color: var(--ok); }
-.strip .kv.warn b { color: var(--warn); }
-.strip .kv.bad b { color: var(--danger); }
-.strip .spacer { flex: 1; }
-.strip .meta {
-  padding: 0 12px 0 16px;
+.brand { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; letter-spacing: -0.015em; }
+.brand:hover { text-decoration: none; }
+.logo {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-ink);
   font-size: 12px;
-  color: var(--text-2);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  font-weight: 800;
 }
 
-/* panels ------------------------------------------------------------------ */
+.nav { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.nav a {
+  padding: 5px 12px;
+  border-radius: 7px;
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.nav a:hover { color: var(--text); background: var(--card-2); text-decoration: none; }
+.nav a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); font-weight: 620; }
 
-.panel { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.panel-head {
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.status-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: 0 0 7px; }
+.status-pill.warn i { background: var(--warn); }
+.status-pill.bad i { background: var(--bad); }
+
+.page { max-width: 1320px; margin: 0 auto; padding: 24px 24px 64px; display: grid; gap: 20px; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.page-head h1 { font-size: 20px; }
+.page-head .sub { margin-top: 2px; color: var(--text-2); font-size: 13.5px; }
+.page-head .meta { color: var(--text-3); font-size: 12.5px; }
+
+/* grids ------------------------------------------------------------------- */
+
+.grid { display: grid; gap: 20px; align-items: start; }
+.hero { grid-template-columns: minmax(0, 1fr); }
+.split { grid-template-columns: minmax(0, 1fr); }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.stack { display: grid; gap: 20px; align-content: start; }
+@media (min-width: 1000px) {
+  .hero { grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); }
+  .split { grid-template-columns: minmax(0, 2.1fr) minmax(300px, 1fr); }
+}
+
+/* cards ------------------------------------------------------------------- */
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); min-width: 0; }
+.card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
+  gap: 12px;
+  padding: 15px 18px;
   border-bottom: 1px solid var(--line);
 }
-.panel-title { font-size: 14px; font-weight: 600; }
-.panel-title .meta { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--text-2); }
-.panel-body { padding: 16px; }
-.panel-body.tight { padding: 0; }
-.panel-foot {
+.card-head h2, .card-head h3 { font-size: 14.5px; font-weight: 620; }
+.card-head .meta { margin-left: auto; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
+.card-head .actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.card-body { padding: 18px; }
+.card-body.tight { padding: 0; }
+.card-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 13px 18px;
   border-top: 1px solid var(--line);
   flex-wrap: wrap;
 }
-.panel-foot .meta { font-size: 12px; color: var(--text-2); }
+.card-foot .meta { margin-left: auto; color: var(--text-3); font-size: 12.5px; }
 
-/* stat grid --------------------------------------------------------------- */
+/* key figures ------------------------------------------------------------- */
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 1px;
-  background: var(--line);
+.kpi { padding: 16px 18px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card); }
+.kpi .l { display: flex; align-items: center; gap: 7px; color: var(--text-3); font-size: 12.5px; }
+.kpi .v { margin-top: 3px; font-size: 28px; font-weight: 680; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.kpi .d { margin-top: 2px; color: var(--text-3); font-size: 12.5px; }
+.kpi .d.up { color: var(--ok); }
+.kpi .d.down { color: var(--bad); }
+.kpi .v.text { font-size: 18px; letter-spacing: -0.01em; }
+.kpi .v.ok { color: var(--ok); }
+.kpi .v.warn { color: var(--warn); }
+.kpi .v.bad { color: var(--bad); }
+
+.hero-row { display: flex; align-items: center; gap: 26px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px 22px; flex: 1; min-width: 0; width: 100%; }
+.fact .l { color: var(--text-3); font-size: 12.5px; }
+.fact .v { font-size: 20px; font-weight: 650; letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+.fact .v.ok { color: var(--ok); }
+.fact .v.warn { color: var(--warn); }
+.fact .v.bad { color: var(--bad); }
+
+.donut { position: relative; width: 108px; height: 108px; flex: 0 0 108px; display: grid; place-items: center; border-radius: 50%; }
+.donut::after { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--card); }
+.donut b { position: relative; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.donut small { position: relative; display: block; margin-top: -4px; color: var(--text-3); font-size: 11.5px; text-align: center; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: var(--card-2);
+  color: var(--text-2);
+  font-size: 12.5px;
 }
-.stat { background: var(--surface); padding: 12px 16px; }
-.stat b {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-.stat span {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-3);
-}
+.chip b { color: var(--text); font-variant-numeric: tabular-nums; }
 
-/* definition grid --------------------------------------------------------- */
+.meters { display: grid; gap: 13px; }
+.meter-row { display: flex; align-items: center; gap: 12px; font-size: 13.5px; }
+.meter-row .name { color: var(--text-2); }
+.meter-row .value { margin-left: auto; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.meter { flex: 1; height: 7px; border-radius: var(--r-pill); background: var(--card-3); overflow: hidden; min-width: 40px; }
+.meter i { display: block; height: 100%; border-radius: var(--r-pill); background: var(--accent); }
+.meter i.ok { background: var(--ok); }
+.meter i.warn { background: var(--warn); }
+.meter i.bad { background: var(--bad); }
+.meter i.info { background: var(--info); }
 
-.defs { display: grid; grid-template-columns: minmax(0, 1fr); }
-.def {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-}
-.def dt { color: var(--text-2); }
-.def dd {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 12px;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
+/* attention and feed ------------------------------------------------------ */
 
-/* layout helpers ---------------------------------------------------------- */
+.attn { display: grid; }
+.attn-item { display: flex; align-items: flex-start; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
+.attn-item:last-child { border-bottom: 0; }
+.attn-item:hover { background: var(--card-2); text-decoration: none; }
+.attn-item .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: 0 0 8px; }
+.attn-item .t { display: block; font-size: 13.5px; font-weight: 580; }
+.attn-item .d { display: block; color: var(--text-3); font-size: 12.5px; }
+.attn-item .go { margin-left: auto; align-self: center; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
 
-.grid { display: grid; gap: 16px; align-items: start; }
-.grid.split { grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 1080px) { .grid.split { grid-template-columns: minmax(0, 2.4fr) minmax(260px, 1fr); } }
-.grid.cols2 { grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 860px) { .grid.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-
-.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.row.tight { gap: 4px; }
-.row.end { justify-content: flex-end; }
-.grow { flex: 1 1 180px; min-width: 0; }
-.spacer { flex: 1; }
-.stack { display: flex; flex-direction: column; gap: 16px; }
-.muted { color: var(--text-2); }
-.dimtext { color: var(--text-3); }
-.hint { font-size: 12px; color: var(--text-2); }
-.mono { font-family: var(--mono); font-size: 12px; }
-.num { font-variant-numeric: tabular-nums; text-align: right; }
-.right { text-align: right; }
-.nowrap { white-space: nowrap; }
-.truncate { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.field { display: block; margin-bottom: 6px; font-size: 12px; color: var(--text-2); }
-.sep { height: 1px; background: var(--line); border: 0; margin: 0; }
+.feed { display: grid; }
+.feed-item { display: flex; align-items: center; gap: 10px; padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.feed-item:last-child { border-bottom: 0; }
+.feed-item .act { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+.feed-item .what { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-item time { margin-left: auto; color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
 
 /* tables ------------------------------------------------------------------ */
 
 .tablewrap { overflow-x: auto; }
-.scroll-y { max-height: 420px; overflow-y: auto; }
-.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .table thead th {
-  padding: 8px 12px;
+  padding: 10px 16px;
   text-align: left;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 11.5px;
+  font-weight: 620;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-3);
+  background: var(--card);
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
-.table tbody td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tbody td { padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .table tbody tr:last-child td { border-bottom: 0; }
-.table tbody tr:hover { background: var(--surface-2); }
-.table .key {
-  font-family: var(--mono);
-  font-size: 12px;
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.table tbody tr:hover td { background: var(--card-2); }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.table .key { font-family: var(--mono); font-size: 12.5px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table .actions { text-align: right; white-space: nowrap; }
 .table .actions .btn + .btn { margin-left: 6px; }
-.table .sub { font-size: 11px; color: var(--text-3); }
-.table tr.is-selected td { background: var(--accent-wash); }
+.table .sub { color: var(--text-3); font-size: 12px; }
+.table select { width: auto; min-width: 118px; height: 30px; padding: 0 28px 0 10px; font-size: 12.5px; }
+.table .link { color: var(--text); }
+.table .link:hover { color: var(--info); }
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.tag i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+.tag.ok { color: var(--ok); background: var(--wash-ok); }
+.tag.warn { color: var(--warn); background: var(--wash-warn); }
+.tag.bad { color: var(--bad); background: var(--wash-bad); }
+.tag.info { color: var(--info); background: var(--wash-info); }
+.tag.plain { color: var(--text-2); background: var(--card-2); }
+.tag.mono { font-family: var(--mono); font-weight: 400; }
 
 /* controls ---------------------------------------------------------------- */
 
-.btn, button {
+.btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   height: var(--tap);
-  padding: 0 12px;
+  padding: 0 14px;
   border: 1px solid var(--line-2);
-  border-radius: 6px;
-  background: var(--surface-2);
+  border-radius: var(--r-ctl);
+  background: var(--card-2);
   color: var(--text);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
+  font-weight: 550;
   line-height: 1;
   cursor: pointer;
   white-space: nowrap;
-  text-decoration: none;
 }
-.btn:hover, button:hover { background: var(--surface-3); border-color: var(--text-3); text-decoration: none; }
-.btn:active, button:active { background: var(--surface); }
-.btn[disabled], button[disabled] { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.btn-primary:hover { background: var(--accent); border-color: var(--text); }
-.btn-danger { background: transparent; border-color: var(--line-2); color: var(--danger); }
-.btn-danger:hover { background: var(--surface-2); border-color: var(--danger); }
+.btn:hover { background: var(--card-3); border-color: var(--text-3); text-decoration: none; }
+.btn:active { background: var(--card); }
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 620; }
+.btn-primary:hover { background: #fff; border-color: #fff; }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
-.btn-ghost:hover { background: var(--surface-2); color: var(--text); border-color: transparent; }
-.btn .icon { width: 14px; height: 14px; flex: 0 0 14px; }
-.small { height: var(--tap-sm); padding: 0 8px; font-size: 12px; }
+.btn-ghost:hover { background: var(--card-2); color: var(--text); border-color: transparent; }
+.btn-danger { background: transparent; border-color: var(--line-2); color: var(--bad); }
+.btn-danger:hover { background: var(--wash-bad); border-color: var(--bad); }
+.btn-sm { height: var(--tap-sm); padding: 0 11px; font-size: 12.5px; }
+.btn .icon { width: 15px; height: 15px; flex: 0 0 15px; }
 .icon-btn { width: var(--tap-sm); padding: 0; }
-.tier { width: auto; height: var(--tap-sm); font-size: 12px; padding: 0 6px; }
 
 .input, input[type="text"], input[type="password"], input[type="search"],
 input[type="number"], input[type="datetime-local"], select, textarea {
   width: 100%;
   height: var(--tap);
-  padding: 0 10px;
+  padding: 0 12px;
   border: 1px solid var(--line-2);
-  border-radius: 6px;
-  background: var(--surface-2);
+  border-radius: var(--r-ctl);
+  background: var(--card-2);
   color: var(--text);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.45;
 }
 textarea {
   height: auto;
-  min-height: 104px;
-  padding: 10px;
+  min-height: 110px;
+  padding: 11px 12px;
   resize: vertical;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 12.5px;
 }
 select {
   cursor: pointer;
   appearance: none;
-  padding-right: 28px;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%237b8490' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23808a9c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 14px 14px;
+  background-position: right 9px center;
+  background-size: 15px 15px;
 }
 .input::placeholder, input::placeholder, textarea::placeholder { color: var(--text-3); }
-.check { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); cursor: pointer; }
-.check input[type="checkbox"] { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
+.field { display: block; margin-bottom: 6px; color: var(--text-3); font-size: 12.5px; }
+.check { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); font-size: 12.5px; cursor: pointer; }
+.check input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var(--info); }
 
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--line-2);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--surface-2);
-}
+.toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.toolbar .grow { flex: 1 1 180px; min-width: 0; }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .seg button {
-  height: var(--tap);
+  height: 28px;
   padding: 0 12px;
   border: 0;
-  border-right: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: 12.5px;
+  font-weight: 550;
+  cursor: pointer;
 }
-.seg button:last-child { border-right: 0; }
-.seg button:hover { background: var(--surface-3); color: var(--text); }
-.seg button[aria-pressed="true"] { background: var(--accent-wash); color: var(--text); font-weight: 600; }
-
-/* status ------------------------------------------------------------------ */
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 20px;
-  padding: 0 8px;
-  border: 1px solid var(--line-2);
-  border-radius: 4px;
-  font-size: 11px;
-  line-height: 1;
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.badge.ok, .probe.ok { color: var(--ok); }
-.badge.warn, .probe.warn { color: var(--warn); }
-.badge.bad, .badge.err, .badge.dead, .probe.bad { color: var(--danger); }
-.badge.info { color: var(--accent); }
-.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
-.badge.ok .dot, .dot.ok { background: var(--ok); }
-.badge.warn .dot, .dot.warn { background: var(--warn); }
-.badge.bad .dot, .dot.err, .dot.dead { background: var(--danger); }
-.badge.info .dot, .dot.info { background: var(--accent); }
-.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); vertical-align: middle; }
-.probe { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
-.cool { font-family: var(--mono); font-size: 12px; color: var(--warn); font-variant-numeric: tabular-nums; }
+.seg button:hover { background: var(--card-2); color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 620; }
 
 /* messages and states ----------------------------------------------------- */
 
-.notice { font-size: 12px; color: var(--text-2); }
+.notice { font-size: 12.5px; color: var(--text-2); }
 .notice:empty { display: none; }
 .notice.ok { color: var(--ok); }
 .notice.warn { color: var(--warn); }
-.notice.err { color: var(--danger); }
+.notice.err { color: var(--bad); }
 
-.state { padding: 32px 16px; text-align: center; font-size: 13px; color: var(--text-2); }
-.state b { display: block; margin-bottom: 4px; font-size: 14px; color: var(--text); }
-.state.error { color: var(--danger); }
-.state.error b { color: var(--danger); }
-.state .retry { margin-top: 12px; }
-.state .hint { margin-top: 4px; }
+.state { padding: 40px 18px; text-align: center; color: var(--text-2); font-size: 13.5px; }
+.tablewrap .state, .feed .state { padding: 22px 16px; }
+.tablewrap .state b, .feed .state b { font-size: 13.5px; }
+.state b { display: block; margin-bottom: 4px; color: var(--text); font-size: 14.5px; }
+.state.error, .state.error b { color: var(--bad); }
+.state .hint { margin-top: 4px; color: var(--text-3); font-size: 12.5px; }
+.state .retry { margin-top: 14px; }
 
 /* pager ------------------------------------------------------------------- */
 
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--text-2);
-}
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-3); }
 .pager .pages { display: flex; gap: 4px; flex-wrap: wrap; }
-.pager button { min-width: var(--tap-sm); padding: 0 8px; font-size: 12px; }
-.pager button.active { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-
-/* heatmap ----------------------------------------------------------------- */
-
-.heat-scroll { overflow-x: auto; padding-bottom: 4px; }
-.heat {
-  display: grid;
-  grid-template-columns: 30px repeat(24, minmax(14px, 1fr));
-  gap: 2px;
-  min-width: 420px;
-  font-size: 11px;
-  color: var(--text-3);
+.pager button {
+  min-width: var(--tap-sm);
+  height: var(--tap-sm);
+  padding: 0 9px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-ctl);
+  background: var(--card-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  cursor: pointer;
 }
+.pager button:hover:not([disabled]) { border-color: var(--text-3); color: var(--text); }
+.pager button[disabled] { opacity: 0.4; cursor: not-allowed; }
+.pager button.active { border-color: var(--accent); color: var(--text); font-weight: 620; }
+
+/* charts ------------------------------------------------------------------ */
+
+.bars { display: grid; gap: 9px; }
+.bar-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) 68px; align-items: center; gap: 14px; font-size: 13px; }
+.bar-row .label { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-row .value { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.bar-track { height: 8px; border-radius: var(--r-pill); background: var(--card-3); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: var(--r-pill); background: var(--info); }
+.bar-fill.ok { background: var(--ok); }
+.bar-fill.warn { background: var(--warn); }
+.bar-fill.bad { background: var(--bad); }
+
+.spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 22px; }
+.spark i { width: 3px; border-radius: 2px; background: var(--line-2); display: block; }
+.spark i.hi { background: var(--info); }
+
+.heat-scroll { overflow-x: auto; padding-bottom: 6px; }
+.heat { display: grid; grid-template-columns: 34px repeat(24, minmax(15px, 1fr)); gap: 3px; min-width: 460px; font-size: 11px; color: var(--text-3); }
 .heat .h { text-align: center; }
-.heat .cell { height: 20px; border-radius: 4px; background: var(--surface-2); }
-.heat .cell[data-level="1"] { background: var(--heat-1); }
-.heat .cell[data-level="2"] { background: var(--heat-2); }
-.heat .cell[data-level="3"] { background: var(--heat-3); }
-.heat .cell[data-level="4"] { background: var(--heat-4); }
-.heat .cell[data-level="5"] { background: var(--heat-5); }
+.heat .cell { height: 20px; border-radius: 4px; background: var(--card-2); }
+.heat .cell[data-level="1"] { background: rgba(79, 209, 197, 0.18); }
+.heat .cell[data-level="2"] { background: rgba(79, 209, 197, 0.36); }
+.heat .cell[data-level="3"] { background: rgba(79, 209, 197, 0.56); }
+.heat .cell[data-level="4"] { background: rgba(79, 209, 197, 0.78); }
+.heat .cell[data-level="5"] { background: rgba(79, 209, 197, 0.96); }
 .heat.values .cell { display: flex; align-items: center; justify-content: center; }
 .heat.values .cell::after { content: attr(data-v); font-size: 11px; color: var(--text); }
-.heat.values .cell[data-level="4"]::after,
-.heat.values .cell[data-level="5"]::after { color: var(--accent-ink); }
-.heat-legend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-3); }
-.heat-legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
-
-/* bars -------------------------------------------------------------------- */
-
-.bars { display: flex; flex-direction: column; gap: 6px; }
-.bar-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 64px; align-items: center; gap: 12px; font-size: 12px; }
-.bar-row .label { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bar-track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
-.bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
-.bar-row .value { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.heat.values .cell[data-level="4"]::after, .heat.values .cell[data-level="5"]::after { color: var(--accent-ink); }
+.heat-legend { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 11.5px; }
+.heat-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 
 /* dialog ------------------------------------------------------------------ */
 
@@ -9309,58 +9229,58 @@ dialog {
   max-width: 520px;
   padding: 0;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
-  background: var(--surface);
+  border-radius: var(--r-card);
+  background: var(--card);
   color: var(--text);
 }
-dialog::backdrop { background: rgba(4, 6, 8, 0.72); }
-dialog .panel-head { border-radius: 8px 8px 0 0; }
-dialog .panel-foot { border-radius: 0 0 8px 8px; }
+dialog::backdrop { background: rgba(4, 6, 10, 0.72); }
+dialog .card-head { border-radius: var(--r-card) var(--r-card) 0 0; }
+dialog .card-foot { border-radius: 0 0 var(--r-card) var(--r-card); }
+
+/* utilities --------------------------------------------------------------- */
+
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.row.tight { gap: 6px; }
+.row.end { justify-content: flex-end; }
+.grow { flex: 1 1 180px; min-width: 0; }
+.spacer { flex: 1; }
+.muted { color: var(--text-2); }
+.dimtext { color: var(--text-3); }
+.hint { color: var(--text-3); font-size: 12.5px; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+.right { text-align: right; }
+.nowrap { white-space: nowrap; }
+.sep { height: 1px; background: var(--line); border: 0; margin: 0; }
+.defs { display: grid; grid-template-columns: minmax(0, 1fr); }
+.def { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.def dt { color: var(--text-2); }
+.def dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; overflow-wrap: anywhere; }
+.backlink { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+.backlink:hover { color: var(--text); text-decoration: none; }
 
 /* responsive -------------------------------------------------------------- */
 
-@media (max-width: 1023px) {
-  .app { grid-template-columns: minmax(0, 1fr); }
-  .rail {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .brand { height: 48px; }
-  .nav {
-    flex-direction: row;
-    gap: 4px;
-    padding: 6px 8px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
+@media (max-width: 900px) {
+  .topbar { flex-wrap: wrap; gap: 12px; padding: 12px 16px; }
+  .topbar-right { flex-wrap: wrap; }
+  #railStorage { display: none; }
+  .nav { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; }
   .nav::-webkit-scrollbar { display: none; }
-  .nav a {
-    height: 30px;
-    border-left: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: 4px;
-    white-space: nowrap;
-  }
-  .nav a[aria-current="page"] { background: transparent; border-bottom-color: var(--accent); }
-  .rail-foot { display: none; }
-  .pagebar { position: static; flex-wrap: wrap; padding: 12px 16px; }
-  .content { padding: 16px; gap: 12px; }
+  .topbar-right { margin-left: auto; }
+  .page { padding: 16px 16px 48px; gap: 16px; }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 720px) {
   .table thead { display: none; }
   .table, .table tbody, .table tr, .table td { display: block; width: auto; }
-  .table tbody tr { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .table tbody tr { padding: 10px 16px; border-bottom: 1px solid var(--line); }
   .table tbody tr:last-child { border-bottom: 0; }
   .table tbody td {
     display: grid;
-    grid-template-columns: 92px minmax(0, 1fr);
+    grid-template-columns: 104px minmax(0, 1fr);
     gap: 12px;
-    padding: 3px 0;
+    padding: 4px 0;
     border-bottom: 0;
     text-align: left;
   }
@@ -9374,26 +9294,21 @@ dialog .panel-foot { border-radius: 0 0 8px 8px; }
   .table tbody td:not([data-l])::before { content: none; }
   .table td.key { max-width: none; white-space: normal; overflow-wrap: anywhere; }
   .table td.pick { display: block; padding: 2px 0 6px; }
-  .table td.actions { grid-template-columns: minmax(0, 1fr); max-width: none; }
-  .table td.actions { text-align: left; display: flex; gap: 6px; padding-top: 8px; }
+  .table td.actions { grid-template-columns: minmax(0, 1fr); text-align: left; display: flex; gap: 6px; padding-top: 10px; }
   .table td.actions .btn + .btn { margin-left: 0; }
-  .panel-head { flex-wrap: wrap; }
-  .pagebar-actions { width: 100%; }
+  .card-head { flex-wrap: wrap; }
+  .kpi .v { font-size: 24px; }
+  .hero-row { flex-direction: column; align-items: stretch; gap: 18px; }
+  .donut { width: 96px; height: 96px; flex-basis: 96px; }
+  .bar-row { grid-template-columns: 76px minmax(0, 1fr) 56px; gap: 10px; }
 }
 
 @media (pointer: coarse) {
   :root { --tap: 44px; --tap-sm: 44px; }
-  .nav a { height: 40px; }
+  .nav a { padding: 8px 13px; }
 }
 `;
 var ICON_PATHS = {
-  overview: '<path d="M3 11h3.5l2.5-6 3.5 12 2.5-8 1.5 2H17"/>',
-  logs: '<path d="M8 5h9"/><path d="M8 10h9"/><path d="M8 15h6"/><path d="M4 5h.01"/><path d="M4 10h.01"/><path d="M4 15h.01"/>',
-  stats: '<path d="M3 16.5h14"/><path d="M5.5 16V10"/><path d="M10 16V5.5"/><path d="M14.5 16v-4.5"/>',
-  keys: '<circle cx="7" cy="10" r="3.5"/><path d="M10.5 10H17"/><path d="M13.5 10v3"/><path d="M17 10v2.5"/>',
-  models: '<path d="M10 3 3 7l7 4 7-4-7-4Z"/><path d="M3 11l7 4 7-4"/>',
-  settings: '<path d="M3.5 6.5h13"/><path d="M3.5 13.5h13"/><circle cx="8" cy="6.5" r="2"/><circle cx="13" cy="13.5" r="2"/>',
-  audit: '<path d="M10 3 4.5 5v4.5c0 3.4 2.3 5.9 5.5 7 3.2-1.1 5.5-3.6 5.5-7V5L10 3Z"/><path d="M7.6 9.9 9.5 12l3-3.6"/>',
   refresh: '<path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/>',
   plus: '<path d="M10 4.5v11"/><path d="M4.5 10h11"/>',
   close: '<path d="M5 5l10 10"/><path d="M15 5 5 15"/>',
@@ -9406,7 +9321,8 @@ var ICON_PATHS = {
   copy: '<path d="M8 8h8v9H8z"/><path d="M12 8V4H4v9h4"/>',
   clock: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4.5l3 1.5"/>',
   back: '<path d="M12 4 6 10l6 6"/>',
-  mark: '<path d="M4 7h12l-6 11L4 7Z"/><path d="M10 2 4 7h12L10 2Z"/>'
+  external: '<path d="M8 4h8v8"/><path d="M16 4 7 13"/>',
+  filter: '<path d="M3 5h14l-5.5 6.5V16l-3 1.5v-6L3 5Z"/>'
 };
 function icon(name, cls = "icon") {
   const path = ICON_PATHS[name];
@@ -9414,28 +9330,28 @@ function icon(name, cls = "icon") {
   return '<svg class="' + cls + '" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + path + "</svg>";
 }
 var NAV_ITEMS = [
-  { href: "/pengatur", label: "Overview", icon: "overview" },
-  { href: "/pengatur/logs", label: "Logs", icon: "logs" },
-  { href: "/pengatur/stats", label: "Statistics", icon: "stats" },
-  { href: "/pengatur/keys", label: "Keys", icon: "keys" },
-  { href: "/pengatur/models", label: "Models", icon: "models" },
-  { href: "/pengatur/settings", label: "Settings", icon: "settings" },
-  { href: "/pengatur/audit", label: "Audit", icon: "audit" }
+  { href: "/pengatur", label: "Overview" },
+  { href: "/pengatur/logs", label: "Logs" },
+  { href: "/pengatur/stats", label: "Statistics" },
+  { href: "/pengatur/keys", label: "Keys" },
+  { href: "/pengatur/models", label: "Models" },
+  { href: "/pengatur/settings", label: "Settings" },
+  { href: "/pengatur/audit", label: "Audit" }
 ];
 function normaliseActive(active) {
   if (active === "/pengatur/usage") return "/pengatur/logs";
   return active;
 }
-function navBar(active) {
+function navBar(active, actions = "") {
   const current = normaliseActive(active);
   const links = NAV_ITEMS.map((item) => {
     const isActive = item.href === current;
-    return '<a href="' + item.href + '"' + (isActive ? ' aria-current="page"' : "") + ">" + icon(item.icon) + "<span>" + item.label + "</span></a>";
+    return '<a href="' + item.href + '"' + (isActive ? ' aria-current="page"' : "") + ">" + item.label + "</a>";
   }).join("");
-  return '<aside class="rail"><a class="brand" href="/pengatur">' + icon("mark", "mark") + '<span>geminesx</span></a><nav class="nav" aria-label="Console sections">' + links + '</nav><div class="rail-foot"><div class="row"><span class="k">storage</span><span class="v" id="railStorage">-</span></div><div class="row"><span class="k">session</span><span class="v" id="railSession">locked</span></div></div></aside>';
+  return '<header class="topbar"><a class="brand" href="/pengatur"><span class="logo" aria-hidden="true">G</span>GeminesX</a><nav class="nav" aria-label="Console sections">' + links + '</nav><div class="topbar-right"><span class="status-pill" id="railSession"><i></i>locked</span><span class="status-pill" id="railStorage" hidden><i></i></span>' + actions + "</div></header>";
 }
 function consolePage(o) {
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n<div class="app">\n' + navBar(o.active) + '<div class="main">\n<header class="pagebar">\n<div class="pagebar-head"><h1>' + escapeHtml(o.title) + "</h1>" + (o.subtitle ? '<p class="sub">' + escapeHtml(o.subtitle) + "</p>" : "") + '</div>\n<div class="pagebar-actions">' + (o.actions ?? "") + '</div>\n</header>\n<main id="main" class="content">\n' + o.body + "\n</main>\n</div>\n</div>\n<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<a class="skip" href="#main">Skip to content</a>\n' + navBar(o.active, o.actions ?? "") + '<main id="main" class="page">\n' + o.body + "\n</main>\n<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function escapeHtml(v2) {
   return String(v2 ?? "").replace(/[&<>"']/g, (c) => {
@@ -9453,8 +9369,12 @@ function escapeHtml(v2) {
     }
   });
 }
+function stateBlock(kind, message, detail, action) {
+  const cls = kind === "error" ? "state error" : "state";
+  return '<div class="' + cls + '"><b>' + escapeHtml(message) + "</b>" + (detail ? '<p class="hint">' + escapeHtml(detail) + "</p>" : "") + (action ? '<div class="retry">' + action + "</div>" : "") + "</div>";
+}
 function authGate() {
-  return '<section id="gate" class="panel"><div class="panel-head"><div class="panel-title">Admin token</div></div><div class="panel-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>';
+  return '<section class="card" id="gate"><div class="card-head"><h2>Admin token</h2></div><div class="card-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>';
 }
 var CLIENT_JS = `
 (function () {
@@ -9496,9 +9416,19 @@ var CLIENT_JS = `
           try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
           if (!res.ok) {
             var message = (data && data.error && data.error.message) || ("HTTP " + res.status);
-            /* Upstream bodies can be a paragraph of JSON. Keep one line and
-               cap it, so a failure reads as a message and not as a dump. */
-            message = String(message).split("\\n")[0];
+            message = String(message);
+            /* An upstream body can be a JSON paragraph wrapped in a status.
+               Dig out the sentence, then keep one line and cap it, so a
+               failure reads as a message and not as a dump. */
+            var brace = message.indexOf("{");
+            if (brace >= 0) {
+              try {
+                var parsed = JSON.parse(message.slice(brace));
+                if (parsed && parsed.error && parsed.error.message) message = parsed.error.message;
+                else if (parsed && parsed.message) message = parsed.message;
+              } catch (e) {}
+            }
+            message = message.split("\\n")[0];
             if (message.length > 160) message = message.slice(0, 157) + "...";
             var err = new Error(message);
             err.status = res.status;
@@ -9585,7 +9515,7 @@ var CLIENT_JS = `
     /* Drop back to the token gate, for example after a 401. */
     lock: function (reason) {
       GX.clearToken();
-      GX.session("locked");
+      GX.session("locked", "bad");
       var panel = document.getElementById("gate");
       var msg = document.getElementById("gateMsg");
       if (panel) panel.hidden = false;
@@ -9597,13 +9527,18 @@ var CLIENT_JS = `
       if (input) { input.value = ""; input.focus(); }
     },
 
-    session: function (text) {
+    session: function (text, tone) {
       var node = document.getElementById("railSession");
-      if (node) node.textContent = text;
+      if (!node) return;
+      node.textContent = text;
+      node.className = "status-pill" + (tone ? " " + tone : "");
     },
-    storage: function (text) {
+    storage: function (text, tone) {
       var node = document.getElementById("railStorage");
-      if (node) node.textContent = text;
+      if (!node) return;
+      node.textContent = text;
+      node.hidden = !text;
+      node.className = "status-pill" + (tone ? " " + tone : "");
     },
 
     /* Small DOM helper. Text goes through textContent, so no value is ever
@@ -9630,11 +9565,70 @@ var CLIENT_JS = `
       return node;
     },
 
-    badge: function (text, kind) {
-      var span = GX.el("span", { class: "badge " + (kind || "") });
-      span.appendChild(GX.el("span", { class: "dot" }));
+    tag: function (text, tone, mono) {
+      var span = GX.el("span", { class: "tag " + (tone || "plain") + (mono ? " mono" : "") });
+      span.appendChild(GX.el("i"));
       span.appendChild(document.createTextNode(text));
       return span;
+    },
+
+    kpi: function (label, value, sub, tone, subTone) {
+      var text = typeof value === "string" && !/^[-0-9.,%$ ]+$/.test(value);
+      return GX.el("div", { class: "kpi" }, [
+        GX.el("div", { class: "l", text: label }),
+        GX.el("div", {
+          class: "v" + (tone ? " " + tone : "") + (text ? " text" : ""),
+          text: value === null || value === undefined ? "-" : String(value)
+        }),
+        sub ? GX.el("div", { class: "d" + (subTone ? " " + subTone : ""), text: sub }) : null
+      ]);
+    },
+
+    chip: function (label, value) {
+      var chip = GX.el("span", { class: "chip" }, [document.createTextNode(label)]);
+      if (value !== undefined && value !== null) chip.appendChild(GX.el("b", { text: String(value) }));
+      return chip;
+    },
+
+    meter: function (label, value, total, tone) {
+      var row = GX.el("div", { class: "meter-row" }, [
+        GX.el("span", { class: "name", text: label }),
+        GX.el("span", { class: "meter" }, GX.el("i", {
+          class: tone || "",
+          style: "width:" + (total > 0 ? Math.round((value / total) * 100) : 0) + "%"
+        })),
+        GX.el("span", { class: "value", text: String(value) })
+      ]);
+      return row;
+    },
+
+    /* The pool ring: a conic split of ready, cooling and dead. */
+    donut: function (ready, cooling, dead) {
+      var total = ready + cooling + dead;
+      var ok = total > 0 ? (ready / total) * 100 : 0;
+      var warn = total > 0 ? (cooling / total) * 100 : 0;
+      var ring = GX.el("div", { class: "donut" });
+      ring.style.background = total > 0
+        ? "conic-gradient(var(--ok) 0 " + ok + "%, var(--warn) " + ok + "% " + (ok + warn) + "%, var(--bad) " + (ok + warn) + "% 100%)"
+        : "var(--card-3)";
+      ring.appendChild(GX.el("b", { text: String(ready) }));
+      ring.appendChild(GX.el("small", { text: "of " + total + " ready" }));
+      return ring;
+    },
+
+    /* A tiny inline trend, built from numbers. */
+    spark: function (values) {
+      var box = GX.el("span", { class: "spark" });
+      var max = 0;
+      values.forEach(function (v) { if (v > max) max = v; });
+      values.forEach(function (v, index) {
+        var height = max > 0 ? Math.max(2, Math.round((v / max) * 100)) : 2;
+        box.appendChild(GX.el("i", {
+          class: index === values.length - 1 ? "hi" : "",
+          style: "height:" + height + "%"
+        }));
+      });
+      return box;
     },
 
     state: function (kind, message, detail, action) {
@@ -9664,13 +9658,22 @@ var CLIENT_JS = `
         if (!isFinite(n)) return String(value);
         return n.toLocaleString("en-US");
       },
+      compact: function (value) {
+        if (value === null || value === undefined) return "-";
+        var n = Number(value);
+        if (!isFinite(n)) return String(value);
+        if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(1).replace(/\\.0$/, "") + "B";
+        if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1).replace(/\\.0$/, "") + "M";
+        if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1).replace(/\\.0$/, "") + "k";
+        return n.toLocaleString("en-US");
+      },
       money: function (value) {
         if (value === null || value === undefined) return "-";
         var n = Number(value);
         if (!isFinite(n)) return "-";
         if (n === 0) return "$0";
         if (Math.abs(n) < 0.000001) return "<$0.000001";
-        return "$" + n.toFixed(6).replace(/0+$/, "").replace(/.$/, "");
+        return "$" + n.toFixed(6).replace(/0+$/, "").replace(/\\.$/, "");
       },
       age: function (ms) {
         if (!ms) return "never";
@@ -9697,6 +9700,11 @@ var CLIENT_JS = `
         if (isNaN(d.getTime())) return "-";
         return d.toLocaleTimeString("en-GB", { hour12: false }) + "." +
           String(d.getMilliseconds()).padStart(3, "0");
+      },
+      time: function (ts) {
+        var d = new Date(ts);
+        if (isNaN(d.getTime())) return "-";
+        return d.toLocaleTimeString("en-GB", { hour12: false });
       },
       stamp: function (ts) {
         var d = new Date(ts);
@@ -9736,8 +9744,7 @@ var CLIENT_JS = `
       else node.removeAttribute("open");
     },
 
-    /* Toggle a button between busy and idle. The label is replaced for the
-       duration and the original markup comes back afterwards. */
+    /* Toggle a button between busy and idle. */
     busy: function (button, label) {
       if (!button) return;
       button.setAttribute("aria-busy", "true");
@@ -9770,29 +9777,58 @@ var CLIENT_JS = `
 `;
 
 // src/admin-ui.ts
-var PAGE_BODY = `
-
+var OVERVIEW_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
-    <div class="kv ok"><b id="sReady">0</b><span class="k">ready</span></div>
-    <div class="kv warn"><b id="sCooling">0</b><span class="k">cooling</span></div>
-    <div class="kv bad"><b id="sDead">0</b><span class="k">dead</span></div>
-    <div class="kv"><b id="sTier">-</b><span class="k">plans</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="nextReady">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Overview</h1>
+      <p class="sub">Pool health, key intake and live probe for this deployment.</p>
+    </div>
+    <span class="meta" id="updated">-</span>
   </div>
 
-  <div class="grid split">
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Pool <span class="meta" id="poolMeta"></span></div>
-        <a class="btn small" href="/pengatur/keys">Keys console</a>
+  <div class="grid hero">
+    <section class="card">
+      <div class="card-head">
+        <h2>Pool health</h2>
+        <span class="meta" id="healthMeta">-</span>
       </div>
-      <div class="panel-body">
-        <div class="row">
+      <div class="card-body">
+        <div class="hero-row">
+          <div id="donut"></div>
+          <div class="facts" id="facts" style="flex:1"></div>
+        </div>
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div class="chips" id="chips"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Needs attention</h2>
+        <span class="meta" id="attnMeta">-</span>
+      </div>
+      <div class="attn" id="attn"></div>
+      <div class="card-foot">
+        <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
+        <span class="meta" id="testAllNote">one live call per key, four at a time</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid split">
+    <section class="card">
+      <div class="card-head">
+        <h2>Pool</h2>
+        <span class="meta" id="poolMeta"></span>
+      </div>
+      <div class="card-body">
+        <div class="toolbar">
           <div class="grow">
             <label class="field" for="keyFilter">Filter</label>
             <input id="keyFilter" type="search" spellcheck="false" placeholder="key, id or status">
@@ -9817,48 +9853,45 @@ ${authGate()}
           </div>
         </div>
       </div>
-      <div id="keysBody" class="tablewrap">stateBlock("loading", "Loading the pool")</div>
-      <div class="panel-foot"><div id="keyPager" class="pager"></div></div>
+      <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading the pool")}</div>
+      <div class="card-foot">
+        <div id="keyPager" class="pager" style="width:100%"></div>
+      </div>
     </section>
 
     <div class="stack">
-      <section class="panel">
-        <div class="panel-head"><div class="panel-title">Plans</div></div>
-        <div class="panel-body">
-          <div class="stats" id="planStats"></div>
-          <p class="hint" style="margin-top:12px">Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
+      <section class="card">
+        <div class="card-head">
+          <h2>Plan mix</h2>
+          <span class="meta">declared per key</span>
+        </div>
+        <div class="card-body">
+          <div class="meters" id="planMix"></div>
+          <p class="hint" style="margin-top:14px">Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head"><div class="panel-title">Pool actions</div></div>
-        <div class="panel-body">
-          <div class="row">
-            <button id="testAllBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3 5.5 11H9.5l-1 6 5.5-8H10l1-6Z"/></svg>Test all live keys</button>
-          </div>
-          <p class="hint" style="margin-top:8px" id="testAllNote">One live call per key, four at a time.</p>
-          <div class="sep" style="margin:12px 0"></div>
-          <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
-          <div class="row" style="margin-top:12px">
-            <button id="forget" class="btn btn-ghost small" type="button">Forget token</button>
-          </div>
-          <div id="keyMsg" class="notice" role="status" aria-live="polite" style="margin-top:12px"></div>
+      <section class="card">
+        <div class="card-head">
+          <h2>Recent activity</h2>
+          <span class="meta">admin actions</span>
         </div>
+        <div class="feed" id="activity"></div>
       </section>
     </div>
   </div>
-</section>
+</div>
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="panel-head">
-      <div class="panel-title" id="addTitle">Add keys</div>
-      <button class="btn btn-ghost small" type="button" id="addClose" aria-label="Close"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10"/><path d="M15 5 5 15"/></svg></button>
+    <div class="card-head">
+      <h2 id="addTitle">Add keys</h2>
+      <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
+    <div class="card-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row" style="margin-top:12px">
+      <div class="row" style="margin-top:14px">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
@@ -9867,35 +9900,36 @@ ${authGate()}
   </form>
 </dialog>
 `;
-var PAGE_SCRIPT = `(function () {
+var OVERVIEW_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sTotal: document.getElementById("sTotal"),
-    sReady: document.getElementById("sReady"),
-    sCooling: document.getElementById("sCooling"),
-    sDead: document.getElementById("sDead"),
-    sTier: document.getElementById("sTier"),
-    nextReady: document.getElementById("nextReady"),
+    updated: document.getElementById("updated"),
+    donut: document.getElementById("donut"),
+    facts: document.getElementById("facts"),
+    chips: document.getElementById("chips"),
+    healthMeta: document.getElementById("healthMeta"),
+    attn: document.getElementById("attn"),
+    attnMeta: document.getElementById("attnMeta"),
+    testAllBtn: document.getElementById("testAllBtn"),
+    testAllNote: document.getElementById("testAllNote"),
+    kpis: document.getElementById("kpis"),
     poolMeta: document.getElementById("poolMeta"),
-    planStats: document.getElementById("planStats"),
+    planMix: document.getElementById("planMix"),
+    activity: document.getElementById("activity"),
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
     keyStatus: document.getElementById("keyStatus"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
-    keyMsg: document.getElementById("keyMsg"),
-    testAllBtn: document.getElementById("testAllBtn"),
-    testAllNote: document.getElementById("testAllNote"),
-    auto: document.getElementById("auto"),
-    forget: document.getElementById("forget"),
-    refreshBtn: document.getElementById("refreshBtn"),
-    addBtn: document.getElementById("addBtn"),
     addDialog: document.getElementById("addDialog"),
     addClose: document.getElementById("addClose"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
+    addBtn: document.getElementById("addBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg")
@@ -9906,13 +9940,148 @@ var PAGE_SCRIPT = `(function () {
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
     { value: "free", label: "Free tier" },
-    { value: "paid", label: "Pay-as-you-go" },
+    { value: "paid", label: "Pay as you go" },
     { value: "pro", label: "AI Pro / Ultra" }
   ];
 
   function tierLabel(value) {
     for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
     return value;
+  }
+
+  function safe(promise) {
+    return promise.catch(function () { return null; });
+  }
+
+  function renderHero(pool, tiers, stats) {
+    el.donut.textContent = "";
+    el.donut.appendChild(GX.donut(pool.ready, pool.cooling, pool.dead));
+
+    var declared = (tiers ? (tiers.free || 0) + (tiers.paid || 0) + (tiers.pro || 0) : 0);
+    el.facts.textContent = "";
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Ready now" }),
+      GX.el("div", { class: "v ok", text: String(pool.ready) })
+    ]));
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Cooling" }),
+      GX.el("div", { class: "v warn", text: String(pool.cooling) })
+    ]));
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Dead" }),
+      GX.el("div", { class: "v bad", text: String(pool.dead) })
+    ]));
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Plans declared" }),
+      GX.el("div", { class: "v", text: declared + " of " + pool.total })
+    ]));
+
+    el.chips.textContent = "";
+    el.chips.appendChild(GX.chip(
+      pool.cooling > 0 ? "next key free in" : "all ready keys selectable",
+      pool.cooling > 0 ? GX.fmt.left(pool.soonestReadyMs) : null
+    ));
+    if (stats) {
+      el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
+      el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
+      el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
+    }
+    el.healthMeta.textContent = pool.degraded ? "storage degraded, serving from memory" : pool.storage + " storage";
+    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
+  }
+
+  function renderAttention(pool, tiers) {
+    var items = [];
+    if (pool.dead > 0) {
+      items.push({
+        tone: "bad",
+        title: pool.dead + (pool.dead === 1 ? " key is dead" : " keys are dead"),
+        detail: "Revoked or out of quota. Remove them to shrink the pool.",
+        href: "/pengatur/keys"
+      });
+    }
+    if (pool.cooling > 0) {
+      items.push({
+        tone: "warn",
+        title: pool.cooling + (pool.cooling === 1 ? " key is cooling" : " keys are cooling"),
+        detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
+        href: "/pengatur/keys"
+      });
+    }
+    var unset = tiers ? tiers.unknown || 0 : 0;
+    if (unset > 0) {
+      items.push({
+        tone: "info",
+        title: unset + (unset === 1 ? " key has no plan" : " keys have no plan"),
+        detail: "Pricing on the models page stays unknown for these.",
+        href: "/pengatur/keys"
+      });
+    }
+
+    el.attn.textContent = "";
+    el.attnMeta.textContent = items.length ? items.length + (items.length === 1 ? " item" : " items") : "nothing";
+    if (!items.length) {
+      el.attn.appendChild(GX.state("empty", "Nothing needs attention", "Every key is ready and every plan is declared."));
+      return;
+    }
+    items.forEach(function (item) {
+      var link = GX.el("a", { class: "attn-item", href: item.href }, [
+        GX.el("span", { class: "dot", style: "background:var(--" + item.tone + ")" }),
+        GX.el("span", null, [
+          GX.el("span", { class: "t", text: item.title }),
+          GX.el("span", { class: "d", text: item.detail })
+        ]),
+        GX.el("span", { class: "go", text: "Open" })
+      ]);
+      el.attn.appendChild(link);
+    });
+  }
+
+  function renderKpis(stats) {
+    el.kpis.textContent = "";
+    if (!stats) {
+      el.kpis.appendChild(GX.kpi("Requests", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("Errors", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("Tokens", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("Estimated cost", "-", "statistics unavailable"));
+      return;
+    }
+    var t = stats.totals || {};
+    var requests = t.requests || 0;
+    var errors = t.errors || 0;
+    var share = requests > 0 ? ((errors / requests) * 100).toFixed(1) + "% of traffic" : "no traffic in range";
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(requests), "last 30 days"));
+    el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(errors), share));
+    el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt, output and cached"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
+  }
+
+  function renderPlanMix(tiers) {
+    el.planMix.textContent = "";
+    var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
+    var total = (t.free || 0) + (t.paid || 0) + (t.pro || 0) + (t.unknown || 0);
+    el.planMix.appendChild(GX.meter("Free tier", t.free || 0, total, "ok"));
+    el.planMix.appendChild(GX.meter("Pay as you go", t.paid || 0, total, "info"));
+    el.planMix.appendChild(GX.meter("AI Pro", t.pro || 0, total, "info"));
+    el.planMix.appendChild(GX.meter("Unspecified", t.unknown || 0, total, "warn"));
+  }
+
+  function renderActivity(payload) {
+    el.activity.textContent = "";
+    var rows = payload && payload.rows ? payload.rows : [];
+    if (!rows.length) {
+      el.activity.appendChild(GX.state("empty", "No admin action yet", "Key changes and exports land here the moment they happen."));
+      return;
+    }
+    rows.slice(0, 6).forEach(function (r) {
+      var what = r.target ? r.target : "";
+      if (r.detail && r.detail.updated !== undefined) what += " (" + r.detail.updated + " updated)";
+      el.activity.appendChild(GX.el("div", { class: "feed-item" }, [
+        GX.el("span", { class: "act", text: r.action }),
+        GX.el("span", { class: "what", text: what }),
+        GX.el("time", { text: GX.fmt.time(r.ts) })
+      ]));
+    });
   }
 
   function probeClass(status) {
@@ -9922,55 +10091,11 @@ var PAGE_SCRIPT = `(function () {
   }
 
   function probeText(res) {
-    if (!res) return "not tested";
+    if (!res) return "-";
     var label = String(res.status).replace(/_/g, " ");
     if (res.status === "ok") label = "serving";
     if (res.status === "rate_limited") label = "429, free in " + GX.fmt.left(res.retryAfterMs);
     return label + " (" + res.latencyMs + "ms)";
-  }
-
-  function renderStrip(pool) {
-    el.sTotal.textContent = pool.total;
-    el.sReady.textContent = pool.ready;
-    el.sCooling.textContent = pool.cooling;
-    el.sDead.textContent = pool.dead;
-    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""));
-    el.nextReady.textContent = pool.cooling > 0
-      ? "next key free in " + GX.fmt.left(pool.soonestReadyMs)
-      : pool.ready > 0
-        ? "every key selectable"
-        : "no key can serve right now";
-  }
-
-  function renderPlans(tiers) {
-    state.tiers = tiers || {};
-    var t = state.tiers;
-    var parts = [];
-    if (t.free) parts.push(t.free + " free");
-    if (t.paid) parts.push(t.paid + " paid");
-    if (t.pro) parts.push(t.pro + " pro");
-    if (t.unknown) parts.push(t.unknown + " unset");
-    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
-
-    el.planStats.textContent = "";
-    var rows = [
-      ["free", t.free || 0],
-      ["paid", t.paid || 0],
-      ["pro", t.pro || 0],
-      ["unknown", t.unknown || 0]
-    ];
-    for (var i = 0; i < rows.length; i++) {
-      var box = GX.el("div", { class: "stat" }, [
-        GX.el("b", { text: String(rows[i][1]) }),
-        GX.el("span", { text: rows[i][0] })
-      ]);
-      el.planStats.appendChild(box);
-    }
-  }
-
-  function statusBadge(status) {
-    var kind = status === "ready" ? "ok" : status === "cooling" ? "warn" : "bad";
-    return GX.badge(status, kind);
   }
 
   function visibleKeys() {
@@ -9984,18 +10109,17 @@ var PAGE_SCRIPT = `(function () {
 
   function drawTable() {
     var filtered = visibleKeys();
-    el.poolMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
+    el.poolMeta.textContent = state.keys.length + " keys \xB7 " + filtered.length + " shown";
 
     if (!filtered.length) {
       el.keysBody.textContent = "";
-      var empty = GX.state(
+      el.keysBody.appendChild(GX.state(
         "empty",
         state.keys.length ? "No key matches this filter" : "Pool is empty",
         state.keys.length
           ? "Clear the filter box to see the whole pool."
-          : "Add keys from the button above, or set GEMINI_API_KEYS on the deployment."
-      );
-      el.keysBody.appendChild(empty);
+          : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
+      ));
       renderPager(0, 1);
       return;
     }
@@ -10003,15 +10127,13 @@ var PAGE_SCRIPT = `(function () {
     var pages = Math.max(1, Math.ceil(filtered.length / state.size));
     if (state.page > pages) state.page = pages;
     if (state.page < 1) state.page = 1;
-    var start = (state.page - 1) * state.size;
-    var slice = filtered.slice(start, start + state.size);
+    var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
 
     var table = GX.el("table", { class: "table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
       GX.el("th", { text: "Key" }),
       GX.el("th", { text: "Status" }),
       GX.el("th", { text: "Plan" }),
-      GX.el("th", { class: "num", text: "Fails" }),
       GX.el("th", { class: "num", text: "Cooldown" }),
       GX.el("th", { text: "Last used" }),
       GX.el("th", { text: "Probe" }),
@@ -10024,42 +10146,31 @@ var PAGE_SCRIPT = `(function () {
       var tr = GX.el("tr");
 
       var keyCell = GX.el("td", { class: "key", "data-l": "key" });
-      var link = GX.el("a", { href: "/pengatur/keys/" + encodeURIComponent(k.id), text: k.key });
+      var link = GX.el("a", { class: "link", href: "/pengatur/keys/" + encodeURIComponent(k.id), text: k.key });
       link.title = "id " + k.id;
       keyCell.appendChild(link);
       tr.appendChild(keyCell);
 
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(statusBadge(k.status));
+      statusCell.appendChild(GX.tag(k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
       tr.appendChild(statusCell);
 
       var tierCell = GX.el("td", { "data-l": "plan" });
-      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
-      TIERS.forEach(function (t) {
-        var option = GX.el("option", { value: t.value, text: t.label });
-        if ((k.tier || "unknown") === t.value) option.selected = true;
-        select.appendChild(option);
-      });
-      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
-      tierCell.appendChild(select);
+      tierCell.appendChild(GX.tag(tierLabel(k.tier || "unknown"), k.tier === "free" ? "ok" : k.tier === "unknown" ? "plain" : "info"));
       tr.appendChild(tierCell);
 
-      GX.cell(tr, k.failures, "num", "fails");
-      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num cool", "cooldown");
+      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num", "cooldown");
       GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
       var probeCell = GX.el("td", { "data-l": "probe" });
       var known = state.testing[k.id];
-      probeCell.appendChild(GX.el("span", {
-        class: "probe " + (known ? probeClass(known.status) : ""),
-        text: known ? probeText(known) : "-"
-      }));
+      probeCell.appendChild(GX.el("span", { class: "mono", text: known ? probeText(known) : "-" }));
       tr.appendChild(probeCell);
 
       var actions = GX.el("td", { class: "actions" });
-      var testBtn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
       testBtn.addEventListener("click", function () { testKey(k, testBtn); });
-      var delBtn = GX.el("button", { class: "small btn-danger", type: "button", text: "Remove" });
+      var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
       actions.appendChild(testBtn);
       actions.appendChild(delBtn);
@@ -10077,17 +10188,15 @@ var PAGE_SCRIPT = `(function () {
   function renderPager(total, pages) {
     el.keyPager.textContent = "";
     if (!total) return;
-
-    var info = GX.el("span", {
+    el.keyPager.appendChild(GX.el("span", {
       text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
         Math.min(total, state.page * state.size) + " of " + total
-    });
-    el.keyPager.appendChild(info);
+    }));
 
     var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
       var b = GX.el("button", {
-        class: "small" + (active ? " active" : ""),
+        class: active ? "active" : "",
         type: "button",
         text: label,
         disabled: disabled ? true : null
@@ -10096,7 +10205,6 @@ var PAGE_SCRIPT = `(function () {
       b.addEventListener("click", function () { state.page = page; drawTable(); });
       return b;
     }
-
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
     var win = 5;
     var from = Math.max(1, state.page - Math.floor(win / 2));
@@ -10116,15 +10224,15 @@ var PAGE_SCRIPT = `(function () {
   }
 
   function setTier(ids, tier, control) {
-    if (!ids.length) { GX.say(el.keyMsg, "Nothing to update.", "err"); return; }
+    if (!ids.length) return;
     if (control) control.disabled = true;
     GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
       .then(function (data) {
-        GX.say(el.keyMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        GX.say(el.addMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.keyMsg, "Plan update failed: " + err.message, "err");
+        GX.say(el.addMsg, "Plan update failed: " + err.message, "err");
       })
       .then(function () { if (control) control.disabled = false; });
   }
@@ -10138,11 +10246,11 @@ var PAGE_SCRIPT = `(function () {
         var note = data.applied === "revived" ? " back in rotation"
           : data.applied === "cooling" ? " parked again"
           : data.applied === "retired" ? " retired from the pool" : "";
-        GX.say(el.keyMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
+        GX.say(el.addMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.keyMsg, "Test failed: " + err.message, "err");
+        GX.say(el.addMsg, "Test failed: " + err.message, "err");
       })
       .then(function () {
         btn.disabled = false;
@@ -10152,26 +10260,21 @@ var PAGE_SCRIPT = `(function () {
 
   function testAll() {
     GX.busy(el.testAllBtn, "Testing");
-    el.testAllNote.textContent = "One live call per key, four at a time.";
+    el.testAllNote.textContent = "one live call per key, four at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         var results = data.results || [];
         results.forEach(function (r) { state.testing[r.id] = r.probe; });
         var ok = results.filter(function (r) { return r.probe.status === "ok"; }).length;
-        GX.say(
-          el.keyMsg,
-          "Probed " + data.tested + " keys, " + ok + " serving. Pool: " +
-            data.pool.ready + " ready, " + data.pool.cooling + " cooling, " + data.pool.dead + " dead.",
-          ok ? "ok" : ""
-        );
+        GX.say(el.addMsg, "Probed " + data.tested + " keys, " + ok + " serving.", ok ? "ok" : "");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.keyMsg, "Test all failed: " + err.message, "err");
+        GX.say(el.addMsg, "Test all failed: " + err.message, "err");
       })
       .then(function () {
         GX.idle(el.testAllBtn);
-        el.testAllNote.textContent = "One live call per key, four at a time.";
+        el.testAllNote.textContent = "one live call per key, four at a time";
       });
   }
 
@@ -10180,13 +10283,13 @@ var PAGE_SCRIPT = `(function () {
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
-        GX.say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        GX.say(el.addMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
         delete state.testing[k.id];
         return reload();
       })
       .catch(function (err) {
         btn.disabled = false;
-        GX.say(el.keyMsg, "Remove failed: " + err.message, "err");
+        GX.say(el.addMsg, "Remove failed: " + err.message, "err");
       });
   }
 
@@ -10205,41 +10308,42 @@ var PAGE_SCRIPT = `(function () {
       .catch(function (err) {
         GX.say(el.addMsg, "Add failed: " + err.message, "err");
       })
-      .then(function () {
-        GX.idle(el.addSubmit);
-      });
+      .then(function () { GX.idle(el.addSubmit); });
   }
 
   function refresh() {
-    return GX.api("/pengatur/keys/list")
-      .then(function (data) {
-        state.keys = data.keys || [];
-        renderStrip(data.pool || {});
-        renderPlans(data.tiers);
-        drawTable();
-        el.console.hidden = false;
-      })
-      .catch(function (err) {
-        if (err.status === 401 || err.status === 403) {
-          GX.lock(err.message + " Re-enter the token.");
-          throw err;
-        }
-        GX.say(el.keyMsg, "Refresh failed: " + err.message, "err");
-      });
+    return Promise.all([
+      GX.api("/pengatur/keys/list"),
+      safe(GX.api("/pengatur/stats/data?range=30d")),
+      safe(GX.api("/pengatur/audit/data?limit=6"))
+    ]).then(function (res) {
+      var pool = res[0].pool || {};
+      state.keys = res[0].keys || [];
+      state.tiers = res[0].tiers;
+      renderHero(pool, state.tiers, res[1]);
+      renderAttention(pool, state.tiers);
+      renderKpis(res[1]);
+      renderPlanMix(state.tiers);
+      renderActivity(res[2]);
+      drawTable();
+      el.updated.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+      el.console.hidden = false;
+    }).catch(function (err) {
+      if (err.status === 401 || err.status === 403) {
+        GX.lock(err.message + " Re-enter the token.");
+        throw err;
+      }
+      GX.say(el.addMsg, "Refresh failed: " + err.message, "err");
+    });
   }
 
-  /* Same refresh, but a failure must not break the caller chain. */
   function reload() {
     return refresh().catch(function () {});
   }
 
   function startAuto() {
     if (state.timer) return;
-    if (!el.auto.checked) return;
-    state.timer = GX.every(5000, reload);
-  }
-  function stopAuto() {
-    if (state.timer) { state.timer(); state.timer = null; }
+    state.timer = GX.every(15000, reload);
   }
 
   el.addBtn.addEventListener("click", function () {
@@ -10247,24 +10351,14 @@ var PAGE_SCRIPT = `(function () {
     GX.openDialog(el.addDialog);
     if (el.newKeys) el.newKeys.focus();
   });
+  el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
-  el.addForm.addEventListener("submit", function (event) {
-    event.preventDefault();
-    addKeys();
-  });
+  el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
   });
-  el.refreshBtn.addEventListener("click", function () { refresh(); });
   el.testAllBtn.addEventListener("click", testAll);
-  el.auto.addEventListener("change", function () {
-    if (el.auto.checked) startAuto(); else stopAuto();
-  });
-  el.forget.addEventListener("click", function () {
-    stopAuto();
-    GX.lock("Token cleared from this browser.");
-  });
   el.keyFilter.addEventListener("input", GX.debounce(function () {
     state.query = el.keyFilter.value.trim().toLowerCase();
     state.page = 1;
@@ -10283,19 +10377,18 @@ var PAGE_SCRIPT = `(function () {
 
   GX.gate({
     onSuccess: function () {
-      return refresh().then(function () {
-        startAuto();
-      });
+      return refresh().then(function () { startAuto(); });
     }
   });
-})();`;
+})();
+`;
 var ADMIN_HTML = consolePage({
   title: "Overview",
   subtitle: "Pool health, key intake and live probe",
   active: "/pengatur",
-  actions: `<button id="addBtn" class="btn btn-primary" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 4.5v11"/><path d="M4.5 10h11"/></svg>Add keys</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
-  body: PAGE_BODY,
-  script: PAGE_SCRIPT
+  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + 'Refresh</button><button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
+  body: OVERVIEW_BODY,
+  script: OVERVIEW_SCRIPT
 });
 
 // src/favicon.ts
@@ -10429,29 +10522,29 @@ function buildFaviconIco(deflate) {
 }
 
 // src/models-ui.ts
-var PAGE_BODY2 = `
-
+var MODELS_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="cTotal">0</b><span class="k">models</span></div>
-    <div class="kv ok"><b id="cFree">0</b><span class="k">free tier</span></div>
-    <div class="kv warn"><b id="cPaid">0</b><span class="k">paid only</span></div>
-    <div class="kv"><b id="cTested">0</b><span class="k">tested</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="cTier">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Models</h1>
+      <p class="sub">Live inventory from the Generative Language API, joined with published pricing.</p>
+    </div>
+    <span class="meta" id="asOf">-</span>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Inventory</div>
-      <div class="row">
-        <button id="reloadBtn" class="btn small" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh live list</button>
+  <div class="grid kpis" id="kpis"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Find a model</h2>
+      <div class="actions">
+        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh live list</button>
       </div>
     </div>
-    <div class="panel-body">
-      <div class="row">
+    <div class="card-body">
+      <div class="toolbar">
         <div class="grow">
           <label class="field" for="q">Search</label>
           <input id="q" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
@@ -10477,7 +10570,7 @@ ${authGate()}
           <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
         </div>
       </div>
-      <div class="row" style="margin-top:12px">
+      <div class="row" style="margin-top:14px">
         <span class="field" style="margin:0">Your plan</span>
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
@@ -10486,33 +10579,32 @@ ${authGate()}
           <button type="button" data-tier="any" aria-pressed="false">Everything</button>
         </div>
       </div>
-      <p class="hint" id="tierNote" style="margin-top:8px"></p>
+      <p class="hint" id="tierNote" style="margin-top:10px"></p>
       <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Models <span class="meta" id="listMeta"></span></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>Models</h2>
+      <span class="meta" id="listMeta"></span>
     </div>
-    <div id="body" class="tablewrap">stateBlock("loading", "Loading the model list")</div>
-    <div class="panel-foot">
-      <div id="pager" class="pager"></div>
+    <div id="body" class="tablewrap">${stateBlock("loading", "Loading the model list")}</div>
+    <div class="card-foot">
+      <div id="pager" class="pager" style="width:100%"></div>
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
     </div>
   </section>
-</section>
+</div>
 `;
-var PAGE_SCRIPT2 = `(function () {
+var MODELS_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    cTotal: document.getElementById("cTotal"),
-    cFree: document.getElementById("cFree"),
-    cPaid: document.getElementById("cPaid"),
-    cTested: document.getElementById("cTested"),
-    cTier: document.getElementById("cTier"),
+    kpis: document.getElementById("kpis"),
+    asOf: document.getElementById("asOf"),
     tier: document.getElementById("tier"),
     tierNote: document.getElementById("tierNote"),
     q: document.getElementById("q"),
@@ -10565,17 +10657,19 @@ var PAGE_SCRIPT2 = `(function () {
     });
   }
 
-  function stats() {
-    el.cTotal.textContent = state.models.length;
-    el.cFree.textContent = state.models.filter(function (m) { return m.free === true; }).length;
-    el.cPaid.textContent = state.models.filter(function (m) { return m.free === false; }).length;
-    el.cTested.textContent = Object.keys(state.testing).length;
+  function renderKpis() {
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Models", GX.fmt.num(state.models.length), "returned by Google"));
+    el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
+    el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
+    el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
+    el.kpis.appendChild(GX.kpi("Your plan", TIER_LABELS[state.tier], "changes which models are listed"));
   }
 
   function badgeFor(m) {
-    if (m.free === true) return GX.badge("free tier", "ok");
-    if (m.free === false) return GX.badge("paid only", "warn");
-    return GX.badge("unlisted", "");
+    if (m.free === true) return GX.tag("free tier", "ok");
+    if (m.free === false) return GX.tag("paid only", "warn");
+    return GX.tag("unlisted", "plain");
   }
 
   function probeText(r) {
@@ -10599,8 +10693,8 @@ var PAGE_SCRIPT2 = `(function () {
     if (state.page < 1) state.page = 1;
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
-    stats();
-    el.listMeta.textContent = rows.length + " match";
+    renderKpis();
+    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model" : " models");
 
     if (!rows.length) {
       el.body.textContent = "";
@@ -10665,13 +10759,13 @@ var PAGE_SCRIPT2 = `(function () {
 
       var probeCell = GX.el("td", { "data-l": "test" });
       var known = state.testing[m.id];
-      var pv = GX.el("span", { class: "probe " + probeClass(known), text: probeText(known) });
+      var pv = GX.el("span", { class: "mono", text: probeText(known) });
       if (known && known.message) pv.title = known.message;
       probeCell.appendChild(pv);
       tr.appendChild(probeCell);
 
       var actions = GX.el("td", { class: "actions" });
-      var btn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      var btn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
       btn.addEventListener("click", function () { testModel(m, btn, pv); });
       actions.appendChild(btn);
       tr.appendChild(actions);
@@ -10696,7 +10790,7 @@ var PAGE_SCRIPT2 = `(function () {
     var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
       var b = GX.el("button", {
-        class: "small" + (active ? " active" : ""),
+        class: active ? "active" : "",
         type: "button",
         text: label,
         disabled: disabled ? true : null
@@ -10731,6 +10825,7 @@ var PAGE_SCRIPT2 = `(function () {
         state.models = data.models || [];
         var source = data.source || "upstream";
         GX.say(el.msg, state.models.length + " models from " + source + (data.cached ? " (cached)" : ""), "ok");
+        el.asOf.textContent = "pricing " + (data.pricing && data.pricing.asOf ? data.pricing.asOf : "-");
         el.console.hidden = false;
         render();
       })
@@ -10740,6 +10835,7 @@ var PAGE_SCRIPT2 = `(function () {
           throw err;
         }
         el.console.hidden = false;
+        renderKpis();
         GX.say(el.msg, "Could not load the model list: " + err.message, "err");
         el.body.textContent = "";
         el.body.appendChild(GX.state(
@@ -10757,14 +10853,12 @@ var PAGE_SCRIPT2 = `(function () {
 
   function testModel(m, btn, node) {
     btn.disabled = true;
-    node.className = "probe";
     node.textContent = "testing...";
     GX.say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "");
     GX.api("/pengatur/models/test", { method: "POST", body: { model: m.id } })
       .then(function (data) {
         var r = data.result;
         state.testing[m.id] = r;
-        node.className = "probe " + probeClass(r);
         node.textContent = probeText(r);
         node.title = r.message || "";
         if (r.status === "ok") {
@@ -10772,10 +10866,9 @@ var PAGE_SCRIPT2 = `(function () {
         } else {
           GX.say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "" : "err");
         }
-        stats();
+        renderKpis();
       })
       .catch(function (err) {
-        node.className = "probe bad";
         node.textContent = "error";
         GX.say(el.rowMsg, "Test failed: " + err.message, "err");
         if (err.status === 401 || err.status === 403) GX.lock(err.message + " Re-enter the token.");
@@ -10804,7 +10897,6 @@ var PAGE_SCRIPT2 = `(function () {
       Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (other) {
         other.setAttribute("aria-pressed", other === button ? "true" : "false");
       });
-      el.cTier.textContent = TIER_LABELS[state.tier];
       el.tierNote.textContent = TIER_NOTES[state.tier];
       state.page = 1;
       render();
@@ -10819,21 +10911,17 @@ var PAGE_SCRIPT2 = `(function () {
       button.setAttribute("aria-pressed", button.getAttribute("data-tier") === savedTier ? "true" : "false");
     });
   }
-  el.cTier.textContent = TIER_LABELS[state.tier];
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
-  GX.gate({
-    onSuccess: function () {
-      return load(false);
-    }
-  });
-})();`;
+  GX.gate({ onSuccess: load });
+})();
+`;
 var MODELS_HTML = consolePage({
   title: "Models",
   subtitle: "Live inventory from the Generative Language API",
   active: "/pengatur/models",
-  body: PAGE_BODY2,
-  script: PAGE_SCRIPT2
+  body: MODELS_BODY,
+  script: MODELS_SCRIPT
 });
 
 // src/models-catalog.ts
@@ -12687,53 +12775,48 @@ async function list(filter = {}) {
 }
 
 // src/stats-ui.ts
-var PAGE_BODY3 = `
-
+var STATS_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
-    <div class="kv ok"><b id="sOk">0</b><span class="k">ok</span></div>
-    <div class="kv bad"><b id="sErr">0</b><span class="k">errors</span></div>
-    <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
-    <div class="kv"><b id="sTokens">0</b><span class="k">tokens</span></div>
-    <div class="kv"><b id="sCost">$0</b><span class="k">cost</span></div>
-    <div class="kv"><b id="sP50">0</b><span class="k">p50 ms</span></div>
-    <div class="kv"><b id="sP95">0</b><span class="k">p95 ms</span></div>
-    <div class="kv"><b id="sProj">$0</b><span class="k">per 30d</span></div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Statistics</h1>
+      <p class="sub" id="meta">-</p>
+    </div>
+    <div class="seg" id="range" role="group" aria-label="Time range"></div>
   </div>
 
-  <div class="row" style="justify-content:space-between">
-    <p class="hint" id="meta"></p>
-    <div id="dataErr" class="notice err" role="status" aria-live="polite"></div>
-  </div>
+  <div class="grid kpis" id="kpis"></div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Hour and weekday heatmap <span class="meta">WIB</span></div>
-      <div class="row">
+  <section class="card">
+    <div class="card-head">
+      <h2>Hour and weekday heatmap <span class="meta">WIB</span></h2>
+      <div class="actions">
         <label class="check"><input id="heatValues" type="checkbox"> show values</label>
         <div class="heat-legend">
           <span>low</span>
-          <i style="background:var(--heat-1)"></i>
-          <i style="background:var(--heat-2)"></i>
-          <i style="background:var(--heat-3)"></i>
-          <i style="background:var(--heat-4)"></i>
-          <i style="background:var(--heat-5)"></i>
+          <i style="background:rgba(79,209,197,0.18)"></i>
+          <i style="background:rgba(79,209,197,0.36)"></i>
+          <i style="background:rgba(79,209,197,0.56)"></i>
+          <i style="background:rgba(79,209,197,0.78)"></i>
+          <i style="background:rgba(79,209,197,0.96)"></i>
           <span>high</span>
         </div>
       </div>
     </div>
-    <div class="panel-body">
+    <div class="card-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
-      <p class="hint" id="heatNote" style="margin-top:12px"></p>
+      <p class="hint" id="heatNote" style="margin-top:14px"></p>
       <div id="heatEmpty"></div>
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By model</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By model</h2>
+      <span class="meta" id="byModelMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byModel">
         <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
@@ -12743,8 +12826,11 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By key</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By key</h2>
+      <span class="meta" id="byKeyMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byKey">
         <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
@@ -12755,8 +12841,11 @@ ${authGate()}
   </section>
 
   <div class="grid split">
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">By route</div></div>
+    <section class="card">
+      <div class="card-head">
+        <h2>By route</h2>
+        <span class="meta" id="byRouteMeta"></span>
+      </div>
       <div class="tablewrap">
         <table class="table" id="byRoute">
           <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
@@ -12766,8 +12855,11 @@ ${authGate()}
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">By status</div></div>
+    <section class="card">
+      <div class="card-head">
+        <h2>By status</h2>
+        <span class="meta" id="byStatusMeta"></span>
+      </div>
       <div class="tablewrap">
         <table class="table" id="byStatus">
           <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
@@ -12777,28 +12869,21 @@ ${authGate()}
       </div>
     </section>
   </div>
-</section>
+</div>
 `;
-var PAGE_SCRIPT3 = `(function () {
+var STATS_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sReq: document.getElementById("sReq"),
-    sOk: document.getElementById("sOk"),
-    sErr: document.getElementById("sErr"),
-    sRot: document.getElementById("sRot"),
-    sTokens: document.getElementById("sTokens"),
-    sCost: document.getElementById("sCost"),
-    sP50: document.getElementById("sP50"),
-    sP95: document.getElementById("sP95"),
-    sProj: document.getElementById("sProj"),
+    kpis: document.getElementById("kpis"),
+    meta: document.getElementById("meta"),
     heat: document.getElementById("heat"),
     heatNote: document.getElementById("heatNote"),
     heatEmpty: document.getElementById("heatEmpty"),
     heatValues: document.getElementById("heatValues"),
-    err: document.getElementById("dataErr"),
-    meta: document.getElementById("meta")
+    err: document.getElementById("dataErr")
   };
 
   var RANGES = [
@@ -12811,12 +12896,24 @@ var PAGE_SCRIPT3 = `(function () {
   var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   var state = { range: "24h" };
 
-  function fillBucket(tableId, emptyId, rows, cols) {
+  function renderKpis(d) {
+    var t = d.totals || {};
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), d.source === "ring" ? "in-memory ring" : "usage_daily rollup"));
+    el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic in range", t.errors ? "bad" : "ok"));
+    el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
+    el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt and completion"));
+    el.kpis.appendChild(GX.kpi("Cost", GX.fmt.money(t.costUsd), "in this window"));
+    el.kpis.appendChild(GX.kpi("Projected", GX.fmt.money(d.projectedMonthlyUsd), "per 30 days"));
+  }
+
+  function fillBucket(tableId, emptyId, metaId, rows, cols) {
     var table = document.getElementById(tableId);
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
     empty.textContent = "";
+    document.getElementById(metaId).textContent = rows && rows.length ? rows.length + (rows.length === 1 ? " row" : " rows") : "";
     if (!rows || !rows.length) {
       empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
       return;
@@ -12824,7 +12921,7 @@ var PAGE_SCRIPT3 = `(function () {
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       cols.forEach(function (c, index) {
-        var td = GX.el("td", { class: index > 0 ? "num" : null, "data-l": c.label || null });
+        var td = GX.el("td", { class: index > 0 ? "num" : "", "data-l": c.label || null });
         td.textContent = c.value(r);
         tr.appendChild(td);
       });
@@ -12838,6 +12935,7 @@ var PAGE_SCRIPT3 = `(function () {
     body.textContent = "";
     var empty = document.getElementById("byStatusEmpty");
     empty.textContent = "";
+    document.getElementById("byStatusMeta").textContent = rows && rows.length ? rows.length + " codes" : "";
     if (!rows || !rows.length) {
       empty.appendChild(GX.state("empty", "Nothing in this range", "No request matched the selected window."));
       return;
@@ -12880,13 +12978,12 @@ var PAGE_SCRIPT3 = `(function () {
       for (var hour = 0; hour < 24; hour++) {
         var value = grid[d + ":" + hour] || 0;
         var level = value === 0 ? 0 : Math.max(1, Math.min(5, Math.ceil((value / max) * 5)));
-        var cell = GX.el("div", {
+        el.heat.appendChild(GX.el("div", {
           class: "cell",
           "data-level": level,
           "data-v": value,
           title: DAYS[d] + " " + (hour < 10 ? "0" + hour : hour) + ":00, " + value + " requests"
-        });
-        el.heat.appendChild(cell);
+        }));
       }
     }
 
@@ -12897,40 +12994,30 @@ var PAGE_SCRIPT3 = `(function () {
   }
 
   function paint(d) {
-    var t = d.totals || {};
-    el.sReq.textContent = GX.fmt.num(t.requests);
-    el.sOk.textContent = GX.fmt.num((t.requests || 0) - (t.errors || 0));
-    el.sErr.textContent = GX.fmt.num(t.errors);
-    el.sRot.textContent = GX.fmt.num(t.rotated);
-    el.sTokens.textContent = GX.fmt.num(t.totalTokens);
-    el.sCost.textContent = GX.fmt.money(t.costUsd);
-    el.sP50.textContent = GX.fmt.num(t.p50Ms);
-    el.sP95.textContent = GX.fmt.num(t.p95Ms);
-    el.sProj.textContent = GX.fmt.money(d.projectedMonthlyUsd);
-
+    renderKpis(d);
     el.meta.textContent = (d.source === "ring" ? "Source: in-memory ring. " : "Source: usage_daily. ") + (d.note || "");
     fillHeat(d.heatmap);
-    fillBucket("byModel", "byModelEmpty", d.byModel, [
+    fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
       { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
       { label: "ms", value: function (r) { return GX.fmt.num(r.avgLatencyMs); } }
     ]);
-    fillBucket("byKey", "byKeyEmpty", d.byKey, [
+    fillBucket("byKey", "byKeyEmpty", "byKeyMeta", d.byKey, [
       { label: "key", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "rot", value: function (r) { return GX.fmt.num(r.rotated); } },
-      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
       { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
-    fillBucket("byRoute", "byRouteEmpty", d.byRoute, [
+    fillBucket("byRoute", "byRouteEmpty", "byRouteMeta", d.byRoute, [
       { label: "route", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.num(r.totalTokens); } },
+      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
       { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
     fillStatus(d.byStatus);
@@ -12940,7 +13027,6 @@ var PAGE_SCRIPT3 = `(function () {
     return GX.api("/pengatur/stats/data?range=" + encodeURIComponent(state.range))
       .then(function (d) {
         if (d.ok === false) throw new Error(d.error && d.error.message ? d.error.message : "Statistics unavailable.");
-        GX.say(el.err, "");
         paint(d);
         el.console.hidden = false;
       })
@@ -12984,14 +13070,14 @@ var PAGE_SCRIPT3 = `(function () {
 
   buildRange();
   GX.gate({ onSuccess: load });
-})();`;
+})();
+`;
 var STATS_HTML = consolePage({
   title: "Statistics",
   subtitle: "Range breakdowns, heatmap and cost projection",
   active: "/pengatur/stats",
-  actions: `<div class="seg" id="range" role="group" aria-label="Time range">`,
-  body: PAGE_BODY3,
-  script: PAGE_SCRIPT3
+  body: STATS_BODY,
+  script: STATS_SCRIPT
 });
 
 // src/stats.ts
@@ -13223,33 +13309,29 @@ async function statsSnapshot(range, now2 = Date.now()) {
 }
 
 // src/usage-ui.ts
-var PAGE_BODY4 = `
-
+var USAGE_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
-    <div class="kv ok"><b id="sOk">0</b><span class="k">ok</span></div>
-    <div class="kv bad"><b id="sErr">0</b><span class="k">errors</span></div>
-    <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
-    <div class="kv"><b id="sPrompt">0</b><span class="k">prompt tok</span></div>
-    <div class="kv"><b id="sCompletion">0</b><span class="k">output tok</span></div>
-    <div class="kv"><b id="sCached">0</b><span class="k">cached</span></div>
-    <div class="kv"><b id="sCost">-</b><span class="k">est. usd</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="sLatency">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Logs</h1>
+      <p class="sub">Every request that passed through the gateway.</p>
+    </div>
+    <span class="meta" id="stamp">-</span>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Filters</div>
-      <div class="row">
+  <div class="grid kpis" id="kpis"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Filters</h2>
+      <div class="actions">
         <label class="check"><input id="auto" type="checkbox"> Auto refresh every 60s</label>
       </div>
     </div>
-    <div class="panel-body">
-      <div class="row">
+    <div class="card-body">
+      <div class="toolbar">
         <div class="grow">
           <label class="field" for="fDay">Day</label>
           <select id="fDay"><option value="">all</option></select>
@@ -13271,17 +13353,20 @@ ${authGate()}
             <option value="rotated">rotated</option>
           </select>
         </div>
+        <div class="row" style="gap:8px">
+          <button id="apply" class="btn btn-primary" type="button">Apply</button>
+          <button id="reset" class="btn" type="button">Reset</button>
+        </div>
       </div>
-      <div class="row" style="margin-top:12px">
-        <button id="apply" class="btn btn-primary" type="button">Apply</button>
-        <button id="reset" class="btn" type="button">Reset</button>
-      </div>
-      <div id="err" class="notice err" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <div id="err" class="notice err" role="status" aria-live="polite" style="margin-top:12px"></div>
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By model</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By model</h2>
+      <span class="meta" id="byModelMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byModel">
         <thead><tr>
@@ -13293,8 +13378,11 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By key</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By key</h2>
+      <span class="meta" id="byKeyMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byKey">
         <thead><tr>
@@ -13306,8 +13394,11 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head"><div class="panel-title">By day</div></div>
+  <section class="card">
+    <div class="card-head">
+      <h2>By day</h2>
+      <span class="meta" id="byDayMeta"></span>
+    </div>
     <div class="tablewrap">
       <table class="table" id="byDay">
         <thead><tr>
@@ -13319,9 +13410,9 @@ ${authGate()}
     </div>
   </section>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Request log</div>
+  <section class="card">
+    <div class="card-head">
+      <h2>Request log</h2>
       <span class="meta" id="logMeta"></span>
     </div>
     <div class="tablewrap">
@@ -13333,24 +13424,20 @@ ${authGate()}
       </table>
       <div id="logEmpty"></div>
     </div>
-    <div class="panel-foot"><div id="pager" class="pager"></div></div>
+    <div class="card-foot">
+      <div id="pager" class="pager" style="width:100%"></div>
+    </div>
   </section>
-</section>
+</div>
 `;
-var PAGE_SCRIPT4 = `(function () {
+var USAGE_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sReq: document.getElementById("sReq"),
-    sOk: document.getElementById("sOk"),
-    sErr: document.getElementById("sErr"),
-    sRot: document.getElementById("sRot"),
-    sPrompt: document.getElementById("sPrompt"),
-    sCompletion: document.getElementById("sCompletion"),
-    sCached: document.getElementById("sCached"),
-    sCost: document.getElementById("sCost"),
-    sLatency: document.getElementById("sLatency"),
+    kpis: document.getElementById("kpis"),
+    stamp: document.getElementById("stamp"),
     fDay: document.getElementById("fDay"),
     fModel: document.getElementById("fModel"),
     fKey: document.getElementById("fKey"),
@@ -13360,6 +13447,9 @@ var PAGE_SCRIPT4 = `(function () {
     byModel: document.getElementById("byModel"),
     byKey: document.getElementById("byKey"),
     byDay: document.getElementById("byDay"),
+    byModelMeta: document.getElementById("byModelMeta"),
+    byKeyMeta: document.getElementById("byKeyMeta"),
+    byDayMeta: document.getElementById("byDayMeta"),
     log: document.getElementById("log"),
     logMeta: document.getElementById("logMeta"),
     pager: document.getElementById("pager"),
@@ -13401,11 +13491,23 @@ var PAGE_SCRIPT4 = `(function () {
     sel.value = keep;
   }
 
-  function renderBuckets(table, emptyId, buckets, cols) {
+  function renderKpis(data) {
+    var t = data.totals || {};
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), data.mode + " ring, capacity " + GX.fmt.num(data.capacity)));
+    el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic yet", t.errors ? "bad" : "ok"));
+    el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
+    el.kpis.appendChild(GX.kpi("Prompt tokens", GX.fmt.compact(t.promptTokens), "input side"));
+    el.kpis.appendChild(GX.kpi("Output tokens", GX.fmt.compact(t.completionTokens), "completion side"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "avg " + GX.fmt.num(t.avgLatencyMs) + " ms per request"));
+  }
+
+  function renderBuckets(table, emptyId, metaId, buckets, cols) {
     var body = table.querySelector("tbody");
     body.textContent = "";
     var empty = document.getElementById(emptyId);
     empty.textContent = "";
+    document.getElementById(metaId).textContent = buckets.length + (buckets.length === 1 ? " row" : " rows");
     if (!buckets.length) {
       empty.appendChild(GX.state("empty", "No traffic in this view", "Send a request through the gateway and it shows up here."));
       return;
@@ -13436,10 +13538,8 @@ var PAGE_SCRIPT4 = `(function () {
       GX.cell(tr, r.model || "-", "mono", "model");
       GX.cell(tr, r.keyMasked || "-", "mono", "key");
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.badge(String(r.status) + (r.errorCode ? " " + r.errorCode : ""), r.ok ? "ok" : "bad"));
-      if (r.rotated) {
-        statusCell.appendChild(GX.el("span", { class: "badge info", text: "rotated", style: "margin-left:6px" }));
-      }
+      statusCell.appendChild(GX.tag(String(r.status) + (r.errorCode ? " " + r.errorCode : ""), r.ok ? "ok" : "bad"));
+      if (r.rotated) statusCell.appendChild(GX.el("span", { class: "tag info", text: "rotated", style: "margin-left:6px" }));
       tr.appendChild(statusCell);
       GX.cell(tr, GX.fmt.num(r.promptTokens), "num", "prompt");
       GX.cell(tr, GX.fmt.num(r.completionTokens), "num", "output");
@@ -13464,15 +13564,13 @@ var PAGE_SCRIPT4 = `(function () {
     var box = GX.el("div", { class: "pages" });
     function pageBtn(label, n, active, disabled) {
       var b = GX.el("button", {
-        class: "small" + (active ? " active" : ""),
+        class: active ? "active" : "",
         type: "button",
         text: label,
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
-      if (!active && !disabled) {
-        b.addEventListener("click", function () { state.page = n; load(); });
-      }
+      if (!active && !disabled) b.addEventListener("click", function () { state.page = n; load(); });
       box.appendChild(b);
     }
     pageBtn("first", 1, false, data.page === 1);
@@ -13487,24 +13585,12 @@ var PAGE_SCRIPT4 = `(function () {
   }
 
   function paint(data) {
-    var t = data.totals || {};
-    el.sReq.textContent = GX.fmt.num(t.requests);
-    el.sOk.textContent = GX.fmt.num(t.ok);
-    el.sErr.textContent = GX.fmt.num(t.errors);
-    el.sRot.textContent = GX.fmt.num(t.rotated);
-    el.sPrompt.textContent = GX.fmt.num(t.promptTokens);
-    el.sCompletion.textContent = GX.fmt.num(t.completionTokens);
-    el.sCached.textContent = GX.fmt.num(t.cachedTokens);
-    el.sCost.textContent = GX.fmt.money(t.costUsd);
-    el.sLatency.textContent = "avg " + GX.fmt.num(t.avgLatencyMs) + " ms" +
-      (data.since ? " \xB7 oldest " + new Date(data.since).toLocaleString() : "");
-    el.logMeta.textContent = data.mode + " ring, capacity " + GX.fmt.num(data.capacity);
-
+    renderKpis(data);
     fillSelect(el.fDay, data.byDay);
     fillSelect(el.fModel, data.byModel);
     fillSelect(el.fKey, data.byKey);
 
-    renderBuckets(el.byModel, "byModelEmpty", data.byModel || [], [
+    renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
@@ -13515,7 +13601,7 @@ var PAGE_SCRIPT4 = `(function () {
       { k: "avgLatencyMs", num: true, label: "ms" }
     ]);
 
-    renderBuckets(el.byKey, "byKeyEmpty", data.byKey || [], [
+    renderBuckets(el.byKey, "byKeyEmpty", "byKeyMeta", data.byKey || [], [
       { k: "key", label: "key" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
@@ -13526,7 +13612,7 @@ var PAGE_SCRIPT4 = `(function () {
       { k: "avgLatencyMs", num: true, label: "ms" }
     ]);
 
-    renderBuckets(el.byDay, "byDayEmpty", data.byDay || [], [
+    renderBuckets(el.byDay, "byDayEmpty", "byDayMeta", data.byDay || [], [
       { k: "key", label: "day" },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
@@ -13537,6 +13623,8 @@ var PAGE_SCRIPT4 = `(function () {
 
     renderLog(data.rows || []);
     renderPager(data);
+    el.logMeta.textContent = (data.rows || []).length + " rows on this page";
+    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
   }
 
   function load() {
@@ -13562,9 +13650,7 @@ var PAGE_SCRIPT4 = `(function () {
   function exportCsv() {
     GX.busy(el.csv, "Exporting");
     GX.download("/pengatur/usage/export.csv" + filterQuery(), "geminesx-usage.csv")
-      .catch(function (err) {
-        GX.say(el.err, err.message, "err");
-      })
+      .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });
   }
 
@@ -13593,43 +13679,44 @@ var PAGE_SCRIPT4 = `(function () {
   });
 
   GX.gate({ onSuccess: load });
-})();`;
+})();
+`;
 var USAGE_HTML = consolePage({
   title: "Logs",
   subtitle: "Every request that passed through the gateway",
   active: "/pengatur/logs",
-  actions: `<button id="csvBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/></svg>Export CSV</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
-  body: PAGE_BODY4,
-  script: PAGE_SCRIPT4
+  actions: '<button id="csvBtn" class="btn btn-sm" type="button">' + icon("download") + 'Export CSV</button><button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
+  body: USAGE_BODY,
+  script: USAGE_SCRIPT
 });
 
 // src/keys-ui.ts
-var PAGE_BODY5 = `
-
+var KEYS_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
-    <div class="kv ok"><b id="sReady">0</b><span class="k">ready</span></div>
-    <div class="kv warn"><b id="sCooling">0</b><span class="k">cooling</span></div>
-    <div class="kv bad"><b id="sDead">0</b><span class="k">dead</span></div>
-    <div class="kv"><b id="sStorage">-</b><span class="k">storage</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="poolMeta">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Keys</h1>
+      <p class="sub">Every pooled key, its plan and its health.</p>
+    </div>
+    <span class="meta" id="poolMeta">-</span>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Pool <span class="meta" id="listMeta"></span></div>
-      <div class="row">
-        <button id="testAllBtn" class="btn small" type="button">Test all</button>
-        <button id="refreshBtn" class="btn small" type="button">Refresh</button>
+  <div class="grid kpis" id="kpis"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Pool</h2>
+      <span class="meta" id="listMeta"></span>
+      <div class="actions">
+        <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all</button>
+        <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       </div>
     </div>
 
-    <div class="panel-body">
-      <div class="row">
+    <div class="card-body">
+      <div class="toolbar">
         <div class="grow">
           <label class="field" for="keyFilter">Filter</label>
           <input id="keyFilter" type="search" spellcheck="false" placeholder="masked key, id or plan">
@@ -13652,59 +13739,56 @@ ${authGate()}
             <option value="100">100</option>
           </select>
         </div>
+        <label class="check" style="margin-bottom:8px"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
       </div>
     </div>
 
-    <div id="bulkBar" class="panel-body" hidden style="border-top:1px solid var(--line)">
-      <div class="row">
+    <div id="bulkBar" class="card-body" hidden style="border-top:1px solid var(--line)">
+      <div class="toolbar">
         <b id="selCount" style="font-variant-numeric:tabular-nums">0 selected</b>
-        <select id="bulkTier" class="tier" aria-label="Billing plan for the selected keys"></select>
-        <button id="bulkApply" class="btn small" type="button">Apply plan</button>
-        <button id="bulkRemove" class="btn small btn-danger" type="button">Remove selected</button>
+        <select id="bulkTier" aria-label="Billing plan for the selected keys" style="width:auto"></select>
+        <button id="bulkApply" class="btn btn-sm" type="button">Apply plan</button>
+        <button id="bulkRemove" class="btn btn-sm btn-danger" type="button">Remove selected</button>
         <span class="spacer"></span>
-        <button id="bulkClear" class="btn btn-ghost small" type="button">Clear</button>
+        <button id="bulkClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
       </div>
-      <div id="bulkMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
+      <div id="bulkMsg" class="notice" role="status" aria-live="polite" style="margin-top:10px"></div>
     </div>
 
-    <div id="keysBody" class="tablewrap">stateBlock("loading", "Loading the pool")</div>
+    <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading the pool")}</div>
 
-    <div class="panel-foot">
-      <div id="keyPager" class="pager"></div>
-      <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
+    <div class="card-foot">
+      <div id="keyPager" class="pager" style="width:100%"></div>
     </div>
   </section>
-</section>
+</div>
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="panel-head">
-      <div class="panel-title" id="addTitle">Add keys</div>
-      <button class="btn btn-ghost small" type="button" id="addClose" aria-label="Close"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10"/><path d="M15 5 5 15"/></svg></button>
+    <div class="card-head">
+      <h2 id="addTitle">Add keys</h2>
+      <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
+    <div class="card-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row" style="margin-top:12px">
+      <div class="row" style="margin-top:14px">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
       <div id="addMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
-      <p class="hint" style="margin-top:12px">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+      <p class="hint" style="margin-top:14px">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
     </div>
   </form>
 </dialog>
 `;
-var PAGE_SCRIPT5 = `(function () {
+var KEYS_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sTotal: document.getElementById("sTotal"),
-    sReady: document.getElementById("sReady"),
-    sCooling: document.getElementById("sCooling"),
-    sDead: document.getElementById("sDead"),
-    sStorage: document.getElementById("sStorage"),
+    kpis: document.getElementById("kpis"),
     poolMeta: document.getElementById("poolMeta"),
     listMeta: document.getElementById("listMeta"),
     keysBody: document.getElementById("keysBody"),
@@ -13737,19 +13821,13 @@ var PAGE_SCRIPT5 = `(function () {
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
     { value: "free", label: "Free tier" },
-    { value: "paid", label: "Pay-as-you-go" },
+    { value: "paid", label: "Pay as you go" },
     { value: "pro", label: "AI Pro / Ultra" }
   ];
 
   function tierLabel(value) {
     for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
     return value;
-  }
-
-  function statusKind(status) {
-    if (status === "ready") return "ok";
-    if (status === "cooling") return "warn";
-    return "bad";
   }
 
   function visibleKeys() {
@@ -13770,7 +13848,16 @@ var PAGE_SCRIPT5 = `(function () {
   function paintBulk() {
     var ids = selectedIds();
     el.bulkBar.hidden = ids.length === 0;
-    el.selCount.textContent = ids.length + " selected";
+    el.selCount.textContent = ids.length + (ids.length === 1 ? " key selected" : " keys selected");
+  }
+
+  function renderKpis(pool) {
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "storage degraded" : "shared by every instance"));
+    el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
+    el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
+    el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
+    el.kpis.appendChild(GX.kpi("Storage", pool.storage, pool.degraded ? "degraded, serving from memory" : "key identities and ledger"));
   }
 
   function drawTable() {
@@ -13829,7 +13916,7 @@ var PAGE_SCRIPT5 = `(function () {
 
       var idCell = GX.el("td", { "data-l": "id" });
       idCell.appendChild(GX.el("a", {
-        class: "mono",
+        class: "mono link",
         href: "/pengatur/keys/" + encodeURIComponent(k.id),
         text: k.id
       }));
@@ -13851,17 +13938,17 @@ var PAGE_SCRIPT5 = `(function () {
       tr.appendChild(tierCell);
 
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.badge(k.status, statusKind(k.status)));
+      statusCell.appendChild(GX.tag(k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
       tr.appendChild(statusCell);
 
       GX.cell(tr, k.failures, "num", "fails");
-      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num cool", "cooldown");
+      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num", "cooldown");
       GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
       var actions = GX.el("td", { class: "actions" });
-      var testBtn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
       testBtn.addEventListener("click", function () { testKey(k, testBtn); });
-      var delBtn = GX.el("button", { class: "small btn-danger", type: "button", text: "Remove" });
+      var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
       actions.appendChild(testBtn);
       actions.appendChild(delBtn);
@@ -13895,7 +13982,7 @@ var PAGE_SCRIPT5 = `(function () {
     var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
       var b = GX.el("button", {
-        class: "small" + (active ? " active" : ""),
+        class: active ? "active" : "",
         type: "button",
         text: label,
         disabled: disabled ? true : null
@@ -14028,14 +14115,9 @@ var PAGE_SCRIPT5 = `(function () {
         state.keys = data.keys || [];
         state.knownTiers = data.knownTiers || [];
         var pool = data.pool || {};
-        el.sTotal.textContent = pool.total;
-        el.sReady.textContent = pool.ready;
-        el.sCooling.textContent = pool.cooling;
-        el.sDead.textContent = pool.dead;
-        el.sStorage.textContent = pool.storage;
-        GX.storage(pool.storage + (pool.degraded ? " degraded" : ""));
-        el.poolMeta.textContent = (pool.degraded ? "storage degraded, serving from memory \xB7 " : "") +
-          "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+        renderKpis(pool);
+        el.poolMeta.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+        GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
         var keep = el.bulkTier.value;
         el.bulkTier.textContent = "";
         state.knownTiers.forEach(function (t) {
@@ -14109,116 +14191,97 @@ var PAGE_SCRIPT5 = `(function () {
       return refresh().then(function () { startAuto(); });
     }
   });
-})();`;
-var KEYS_HTML = consolePage({
-  title: "Keys",
-  subtitle: "Every pooled key, its plan and its health",
-  active: "/pengatur/keys",
-  actions: `<button id="addBtn" class="btn btn-primary" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 4.5v11"/><path d="M4.5 10h11"/></svg>Add keys</button>`,
-  body: PAGE_BODY5,
-  script: PAGE_SCRIPT5
-});
+})();
+`;
 var DETAIL_BODY = `
+${authGate()}
 
-<section id="gate" class="panel"><div class="panel-head"><div class="panel-title">Admin token</div></div><div class="panel-body"><form id="gateForm" autocomplete="off"><label class="field" for="token">Paste the deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input" type="password" spellcheck="false" placeholder="ADMIN_TOKEN"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint" style="margin-top:12px">The token is kept in this browser and sent only to this deployment as a bearer token.</p></form><div id="gateMsg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div></div></section>
-
-<section id="console" hidden>
-  <div class="row" style="margin-bottom:4px">
-    <a class="btn btn-ghost small" href="/pengatur/keys"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4 6 10l6 6"/></svg>All keys</a>
-    <span class="hint" id="keyPath"></span>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1 id="keyTitle">Key</h1>
+      <p class="sub" id="keyPath">-</p>
+    </div>
+    <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
   </div>
 
-  <div class="stats" id="summary"></div>
-
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Daily requests <span class="meta" id="dailyNote"></span></div>
-    </div>
-    <div class="panel-body">
-      <div id="dailyBars" class="bars"></div>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="dailyTable">
-        <thead><tr><th>Day</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Cost</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
+  <div class="grid kpis" id="summary"></div>
 
   <div class="grid split">
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Cooldown timeline</div>
-        <span class="meta" id="cooldownNote"></span>
+    <section class="card">
+      <div class="card-head">
+        <h2>Daily requests</h2>
+        <span class="meta" id="dailyNote"></span>
+      </div>
+      <div class="card-body">
+        <div id="dailyBars" class="bars"></div>
       </div>
       <div class="tablewrap">
-        <table class="table" id="eventTable">
-          <thead><tr><th>When</th><th>Status</th><th>Error</th><th>Rotated</th></tr></thead>
+        <table class="table" id="dailyTable">
+          <thead><tr><th>Day</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Cost</th></tr></thead>
           <tbody></tbody>
         </table>
-        <div id="eventEmpty"></div>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Recent requests</div>
-        <span class="meta" id="recentNote"></span>
+    <section class="card">
+      <div class="card-head">
+        <h2>Cooldown timeline</h2>
+        <span class="meta" id="cooldownNote"></span>
       </div>
-      <div class="tablewrap">
-        <table class="table" id="recentTable">
-          <thead><tr><th>When</th><th>Route</th><th>Model</th><th>Status</th><th class="num">ms</th><th class="num">Tokens</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <div id="recentEmpty"></div>
-      </div>
+      <div id="eventsFeed" class="feed"></div>
     </section>
   </div>
-</section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Recent requests</h2>
+      <span class="meta" id="recentNote"></span>
+    </div>
+    <div class="tablewrap">
+      <table class="table" id="recentTable">
+        <thead><tr><th>When</th><th>Route</th><th>Model</th><th>Status</th><th class="num">ms</th><th class="num">Tokens</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="recentEmpty"></div>
+    </div>
+  </section>
+</div>
 `;
-var DETAIL_SCRIPT = `(function () {
+var DETAIL_SCRIPT = `
+(function () {
   "use strict";
 
   var keyId = location.pathname.split("/").filter(Boolean).pop();
 
   var el = {
     console: document.getElementById("console"),
-    summary: document.getElementById("summary"),
+    keyTitle: document.getElementById("keyTitle"),
     keyPath: document.getElementById("keyPath"),
+    summary: document.getElementById("summary"),
     dailyNote: document.getElementById("dailyNote"),
     dailyBars: document.getElementById("dailyBars"),
     dailyTable: document.getElementById("dailyTable"),
     cooldownNote: document.getElementById("cooldownNote"),
-    eventTable: document.getElementById("eventTable"),
-    eventEmpty: document.getElementById("eventEmpty"),
+    eventsFeed: document.getElementById("eventsFeed"),
     recentNote: document.getElementById("recentNote"),
     recentTable: document.getElementById("recentTable"),
     recentEmpty: document.getElementById("recentEmpty")
   };
 
-  function stat(label, value) {
-    return GX.el("div", { class: "stat" }, [
-      GX.el("b", { text: value === null || value === undefined ? "-" : String(value) }),
-      GX.el("span", { text: label })
-    ]);
-  }
-
-  function statusKind(status) {
-    if (status === "ready") return "ok";
-    if (status === "cooling") return "warn";
-    return "bad";
+  function stat(label, value, tone) {
+    return GX.kpi(label, value === null || value === undefined ? "-" : String(value), null, tone);
   }
 
   function renderSummary(k) {
     el.summary.textContent = "";
-    el.summary.appendChild(stat("plan", k.plan));
-    el.summary.appendChild(stat("state", k.status));
-    el.summary.appendChild(stat("enabled", k.enabled === false ? "no" : "yes"));
-    el.summary.appendChild(stat("failures", k.failures));
-    el.summary.appendChild(stat("invalidations", k.invalidations));
-    el.summary.appendChild(stat("last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never"));
-    el.summary.appendChild(stat("cooldown left", GX.fmt.left(k.cooldownLeftMs)));
-    el.summary.appendChild(stat("cooldown until", k.cooldownUntil ? GX.fmt.stamp(k.cooldownUntil) : "-"));
+    el.summary.appendChild(stat("Plan", k.plan, k.plan === "free" ? "ok" : ""));
+    el.summary.appendChild(stat("State", k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
+    el.summary.appendChild(stat("Enabled", k.enabled === false ? "no" : "yes", k.enabled === false ? "warn" : "ok"));
+    el.summary.appendChild(stat("Failures", k.failures, k.failures ? "warn" : ""));
+    el.summary.appendChild(stat("Invalidations", k.invalidations, k.invalidations ? "bad" : ""));
+    el.summary.appendChild(stat("Last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never"));
+    el.summary.appendChild(stat("Cooldown left", GX.fmt.left(k.cooldownLeftMs), k.cooldownLeftMs ? "warn" : ""));
   }
 
   function renderDaily(daily) {
@@ -14238,12 +14301,13 @@ var DETAIL_SCRIPT = `(function () {
     daily.forEach(function (d) {
       var requests = Number(d.requests) || 0;
       var width = max > 0 ? Math.round((requests / max) * 100) : 0;
-      var row = GX.el("div", { class: "bar-row" }, [
+      var errors = Number(d.errors) || 0;
+      var tone = requests === 0 ? "" : errors > 0 ? "warn" : "ok";
+      el.dailyBars.appendChild(GX.el("div", { class: "bar-row" }, [
         GX.el("span", { class: "label", text: d.day }),
-        GX.el("div", { class: "bar-track" }, GX.el("div", { class: "bar-fill", style: "width:" + width + "%" })),
+        GX.el("div", { class: "bar-track" }, GX.el("div", { class: "bar-fill " + tone, style: "width:" + width + "%" })),
         GX.el("span", { class: "value", text: GX.fmt.num(requests) })
-      ]);
-      el.dailyBars.appendChild(row);
+      ]));
     });
 
     daily.forEach(function (d) {
@@ -14257,24 +14321,18 @@ var DETAIL_SCRIPT = `(function () {
   }
 
   function renderEvents(events) {
-    var body = el.eventTable.querySelector("tbody");
-    body.textContent = "";
-    el.eventEmpty.textContent = "";
-    el.eventTable.hidden = !events.length;
+    el.eventsFeed.textContent = "";
     el.cooldownNote.textContent = events.length ? events.length + " events" : "";
     if (!events.length) {
-      el.eventEmpty.appendChild(GX.state("empty", "No failures recorded", "Every request this key served succeeded."));
+      el.eventsFeed.appendChild(GX.state("empty", "No failures recorded", "Every request this key served succeeded."));
       return;
     }
     events.forEach(function (e) {
-      var tr = GX.el("tr");
-      GX.cell(tr, GX.fmt.stamp(e.ts), "mono", "when");
-      var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.badge(String(e.status), e.ok ? "ok" : e.status === 429 ? "warn" : "bad"));
-      tr.appendChild(statusCell);
-      GX.cell(tr, e.errorCode || "-", "", "error");
-      GX.cell(tr, e.rotated ? "yes" : "no", "", "rotated");
-      body.appendChild(tr);
+      el.eventsFeed.appendChild(GX.el("div", { class: "feed-item" }, [
+        GX.el("span", { class: "act", text: String(e.status) }),
+        GX.el("span", { class: "what", text: e.errorCode ? e.errorCode + (e.rotated ? " \xB7 rotated to another key" : "") : (e.rotated ? "rotated to another key" : "failed") }),
+        GX.el("time", { text: GX.fmt.time(e.ts) })
+      ]));
     });
   }
 
@@ -14294,7 +14352,7 @@ var DETAIL_SCRIPT = `(function () {
       GX.cell(tr, r.route, "mono", "route");
       GX.cell(tr, r.model || "-", "mono", "model");
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.badge(String(r.status), r.ok ? "ok" : "bad"));
+      statusCell.appendChild(GX.tag(String(r.status), r.ok ? "ok" : "bad"));
       tr.appendChild(statusCell);
       GX.cell(tr, GX.fmt.num(r.latencyMs), "num", "ms");
       GX.cell(tr, GX.fmt.num(r.totalTokens), "num", "tokens");
@@ -14304,14 +14362,12 @@ var DETAIL_SCRIPT = `(function () {
 
   function render(d) {
     var k = d.key;
-    el.keyPath.textContent = k.masked + " \xB7 id " + k.id;
-    var head = document.querySelector(".pagebar h1");
-    if (head) head.textContent = k.masked;
+    el.keyTitle.textContent = k.masked;
+    el.keyPath.textContent = "id " + k.id;
     renderSummary(k);
     renderDaily(d.daily || []);
     renderEvents(d.events || []);
     renderRecent(d.recent || []);
-    el.dailyNote.textContent = d.dailyNote || el.dailyNote.textContent;
     el.console.hidden = false;
   }
 
@@ -14334,55 +14390,64 @@ var DETAIL_SCRIPT = `(function () {
   }
 
   GX.gate({ onSuccess: refresh });
-})();`;
+})();
+`;
+var KEYS_HTML = consolePage({
+  title: "Keys",
+  subtitle: "Every pooled key, its plan and its health",
+  active: "/pengatur/keys",
+  actions: '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
+  body: KEYS_BODY,
+  script: KEYS_SCRIPT
+});
 var KEY_DETAIL_HTML = consolePage({
-  title: "Key detail",
-  subtitle: "One key, its counters, its history",
+  title: "Key",
+  subtitle: "One key, its counters and its history",
   active: "/pengatur/keys",
   body: DETAIL_BODY,
   script: DETAIL_SCRIPT
 });
 
 // src/settings-ui.ts
-var PAGE_BODY6 = `
-
+var SETTINGS_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sDefaults">0</b><span class="k">defaults</span></div>
-    <div class="kv"><b id="sLimits">0</b><span class="k">limits</span></div>
-    <div class="kv"><b id="sLedger">0</b><span class="k">ledger</span></div>
-    <div class="kv"><b id="sEnv">0</b><span class="k">env vars</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="sStorage">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Settings</h1>
+      <p class="sub">The effective configuration of this deployment. Read only.</p>
+    </div>
+    <span class="meta" id="sStorage">-</span>
   </div>
 
-  <div class="grid cols2">
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Defaults</div></div>
-      <div class="panel-body"><div class="defs" id="defaults"></div></div>
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid split">
+    <section class="card">
+      <div class="card-head"><h2>Defaults</h2></div>
+      <div class="card-body"><div class="defs" id="defaults"></div></div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Limits</div></div>
-      <div class="panel-body"><div class="defs" id="limits"></div></div>
+    <section class="card">
+      <div class="card-head"><h2>Limits</h2></div>
+      <div class="card-body"><div class="defs" id="limits"></div></div>
     </section>
   </div>
 
-  <div class="grid cols2">
-    <section class="panel">
-      <div class="panel-head"><div class="panel-title">Ledger and storage</div></div>
-      <div class="panel-body">
+  <div class="grid split">
+    <section class="card">
+      <div class="card-head"><h2>Ledger and storage</h2></div>
+      <div class="card-body">
         <div class="defs" id="ledger"></div>
-        <div class="sep" style="margin:12px 0"></div>
+        <div class="sep" style="margin:14px 0"></div>
         <div class="defs" id="storage"></div>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Environment</div>
+    <section class="card">
+      <div class="card-head">
+        <h2>Environment</h2>
         <span class="meta">values are never shown</span>
       </div>
       <div class="tablewrap scroll-y">
@@ -14394,26 +14459,22 @@ ${authGate()}
     </section>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Caveats</div>
-    </div>
-    <div class="panel-body">
+  <section class="card">
+    <div class="card-head"><h2>Caveats</h2></div>
+    <div class="card-body">
       <p class="hint" id="note"></p>
       <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
     </div>
   </section>
-</section>
+</div>
 `;
-var PAGE_SCRIPT6 = `(function () {
+var SETTINGS_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sDefaults: document.getElementById("sDefaults"),
-    sLimits: document.getElementById("sLimits"),
-    sLedger: document.getElementById("sLedger"),
-    sEnv: document.getElementById("sEnv"),
+    kpis: document.getElementById("kpis"),
     sStorage: document.getElementById("sStorage"),
     defaults: document.getElementById("defaults"),
     limits: document.getElementById("limits"),
@@ -14436,7 +14497,7 @@ var PAGE_SCRIPT6 = `(function () {
     keys.forEach(function (key) {
       node.appendChild(GX.el("div", { class: "def" }, [
         GX.el("dt", { text: key }),
-        GX.el("dd", { class: "mono", text: obj[key] === null || obj[key] === undefined ? "-" : String(obj[key]) })
+        GX.el("dd", { text: obj[key] === null || obj[key] === undefined ? "-" : String(obj[key]) })
       ]));
     });
     return keys.length;
@@ -14449,21 +14510,28 @@ var PAGE_SCRIPT6 = `(function () {
       var tr = GX.el("tr");
       GX.cell(tr, row.name, "mono", "name");
       var stateCell = GX.el("td", { "data-l": "state" });
-      stateCell.appendChild(GX.badge(row.state === "set" ? "set" : "unset", row.state === "set" ? "ok" : ""));
+      stateCell.appendChild(GX.tag(row.state === "set" ? "set" : "unset", row.state === "set" ? "ok" : "plain"));
       tr.appendChild(stateCell);
       body.appendChild(tr);
     });
   }
 
   function render(d) {
-    el.sDefaults.textContent = defs(el.defaults, d.defaults);
-    el.sLimits.textContent = defs(el.limits, d.limits);
-    el.sLedger.textContent = defs(el.ledger, d.ledger);
+    var nDefaults = defs(el.defaults, d.defaults);
+    var nLimits = defs(el.limits, d.limits);
+    var nLedger = defs(el.ledger, d.ledger);
     defs(el.storage, d.storage);
     renderEnv(d.env);
-    el.sEnv.textContent = (d.env || []).length;
-    el.sStorage.textContent = (d.storage && d.storage.mode) ? d.storage.mode : "-";
-    GX.storage((d.storage && d.storage.mode) ? d.storage.mode : "-");
+
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Defaults", String(nDefaults), "model, voice and search model"));
+    el.kpis.appendChild(GX.kpi("Limits", String(nLimits), "cooldown, attempts and timeouts"));
+    el.kpis.appendChild(GX.kpi("Ledger", String(nLedger), "batch size, flush and retention"));
+    el.kpis.appendChild(GX.kpi("Environment", String((d.env || []).length), "variables read by the process"));
+    el.kpis.appendChild(GX.kpi("Storage", d.storage ? d.storage.mode : "-", d.storage && d.storage.regionHostSuffix ? d.storage.regionHostSuffix : "no database configured"));
+
+    el.sStorage.textContent = d.storage ? d.storage.mode + " storage" : "-";
+    GX.storage(d.storage ? d.storage.mode : "-", d.storage && d.storage.mode === "memory" ? "warn" : "");
     el.note.textContent = d.note || "";
   }
 
@@ -14491,21 +14559,20 @@ var PAGE_SCRIPT6 = `(function () {
   el.exportBtn.addEventListener("click", function () {
     GX.busy(el.exportBtn, "Exporting");
     GX.download("/pengatur/settings/export", "geminesx-config.json")
-      .catch(function (err) {
-        GX.say(el.msg, err.message, "err");
-      })
+      .catch(function (err) { GX.say(el.msg, err.message, "err"); })
       .then(function () { GX.idle(el.exportBtn); });
   });
 
   GX.gate({ onSuccess: refresh });
-})();`;
+})();
+`;
 var SETTINGS_HTML = consolePage({
   title: "Settings",
   subtitle: "The effective configuration of this deployment",
   active: "/pengatur/settings",
-  actions: `<button id="exportBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5V12"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 16h12"/></svg>Export JSON</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
-  body: PAGE_BODY6,
-  script: PAGE_SCRIPT6
+  actions: '<button id="exportBtn" class="btn btn-sm" type="button">' + icon("download") + 'Export JSON</button><button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
+  body: SETTINGS_BODY,
+  script: SETTINGS_SCRIPT
 });
 
 // src/settings.ts
@@ -14584,28 +14651,30 @@ function settingsView() {
 }
 
 // src/audit-ui.ts
-var PAGE_BODY7 = `
-
+var AUDIT_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sRows">0</b><span class="k">actions</span></div>
-    <div class="kv"><b id="sActions">0</b><span class="k">kinds</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="sWindow">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Audit</h1>
+      <p class="sub">Every admin action, newest first.</p>
+    </div>
+    <span class="meta" id="sWindow">-</span>
   </div>
 
-  <section class="panel">
-    <div class="panel-head">
-      <div class="panel-title">Recorded admin actions</div>
-      <div class="row">
+  <div class="grid kpis" id="kpis"></div>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Filters</h2>
+      <div class="actions">
         <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
-        <button id="refreshBtn" class="btn small" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>
+        <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       </div>
     </div>
-    <div class="panel-body">
-      <div class="row">
+    <div class="card-body">
+      <div class="toolbar">
         <div class="grow">
           <label class="field" for="action">Action prefix</label>
           <input id="action" type="search" spellcheck="false" placeholder="keys." autocomplete="off">
@@ -14624,34 +14693,35 @@ ${authGate()}
           </select>
         </div>
       </div>
-      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:8px"></div>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="body">
-        <thead><tr><th>When</th><th>Action</th><th>Target</th><th>Actor</th><th>Detail</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="empty"></div>
+      <div id="msg" class="notice" role="status" aria-live="polite" style="margin-top:10px"></div>
     </div>
   </section>
-</section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Trail</h2>
+      <span class="meta" id="trailMeta"></span>
+    </div>
+    <div class="feed" id="trail"></div>
+  </section>
+</div>
 `;
-var PAGE_SCRIPT7 = `(function () {
+var AUDIT_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sRows: document.getElementById("sRows"),
-    sActions: document.getElementById("sActions"),
+    kpis: document.getElementById("kpis"),
     sWindow: document.getElementById("sWindow"),
-    body: document.getElementById("body"),
-    empty: document.getElementById("empty"),
     action: document.getElementById("action"),
     since: document.getElementById("since"),
     limit: document.getElementById("limit"),
     auto: document.getElementById("auto"),
+    refresh: document.getElementById("refreshBtn"),
     msg: document.getElementById("msg"),
-    refresh: document.getElementById("refreshBtn")
+    trail: document.getElementById("trail"),
+    trailMeta: document.getElementById("trailMeta")
   };
 
   var state = { timer: null };
@@ -14673,20 +14743,19 @@ var PAGE_SCRIPT7 = `(function () {
 
   function render(payload) {
     var rows = payload.rows || [];
-    var body = el.body.querySelector("tbody");
-    body.textContent = "";
-    el.empty.textContent = "";
-
     var kinds = {};
     rows.forEach(function (r) { kinds[r.action] = true; });
-    el.sRows.textContent = rows.length;
-    el.sActions.textContent = Object.keys(kinds).length;
-    el.sWindow.textContent = el.action.value.trim()
-      ? "action starts with " + el.action.value.trim()
-      : "all actions";
 
+    el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "in this view"));
+    el.kpis.appendChild(GX.kpi("Kinds", GX.fmt.num(Object.keys(kinds).length), "distinct action names"));
+    el.kpis.appendChild(GX.kpi("Window", el.since.value ? "since " + el.since.value.replace("T", " ") : "all time", el.action.value.trim() ? "action " + el.action.value.trim() : "every action"));
+    el.sWindow.textContent = rows.length ? rows.length + " recorded" : "-";
+
+    el.trail.textContent = "";
+    el.trailMeta.textContent = rows.length ? rows.length + (rows.length === 1 ? " entry" : " entries") : "";
     if (!rows.length) {
-      el.empty.appendChild(GX.state(
+      el.trail.appendChild(GX.state(
         "empty",
         "No admin action recorded yet",
         "Key additions, probes, plan changes and exports land here the moment they happen."
@@ -14695,15 +14764,14 @@ var PAGE_SCRIPT7 = `(function () {
     }
 
     rows.forEach(function (r) {
-      var tr = GX.el("tr");
-      GX.cell(tr, GX.fmt.stamp(r.ts), "mono nowrap", "when");
-      var actionCell = GX.el("td", { "data-l": "action" });
-      actionCell.appendChild(GX.el("span", { class: "mono", text: r.action }));
-      tr.appendChild(actionCell);
-      GX.cell(tr, r.target || "-", "mono", "target");
-      GX.cell(tr, r.actor || "-", "", "actor");
-      GX.cell(tr, detailText(r.detail), "dimtext", "detail");
-      body.appendChild(tr);
+      var what = r.target || "";
+      var detail = detailText(r.detail);
+      el.trail.appendChild(GX.el("div", { class: "feed-item" }, [
+        GX.el("span", { class: "act", text: r.action }),
+        GX.el("span", { class: "what", text: (what ? what + " \xB7 " : "") + detail }),
+        GX.el("span", { class: "what", text: r.actor || "" }),
+        GX.el("time", { text: GX.fmt.stamp(r.ts) })
+      ]));
     });
   }
 
@@ -14743,13 +14811,14 @@ var PAGE_SCRIPT7 = `(function () {
   });
 
   GX.gate({ onSuccess: refresh });
-})();`;
+})();
+`;
 var AUDIT_HTML = consolePage({
   title: "Audit",
   subtitle: "Every admin action, newest first",
   active: "/pengatur/audit",
-  body: PAGE_BODY7,
-  script: PAGE_SCRIPT7
+  body: AUDIT_BODY,
+  script: AUDIT_SCRIPT
 });
 
 // src/app.ts
