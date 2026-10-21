@@ -1,41 +1,70 @@
 /**
  * Overview console shell, served at GET /pengatur.
  *
- * The shell carries no data. It asks for the admin token, stores it in
- * localStorage, and renders from /pengatur/keys/list. Every mutation addresses
- * a key by its sha256 id, so the browser never holds a raw credential.
+ * The page is a product dashboard, not a table with a header. It answers three
+ * questions in this order: is the pool healthy, what needs my attention, and
+ * what is the traffic doing. Everything else is one click away.
  *
- * Layout: a left rail with the console sections, a page header with the two
- * actions that apply to the whole view, an instrument strip with the pool
- * counters, then the pool table next to a narrow column that holds the plan
- * breakdown and the pool level actions.
+ * The shell carries no data. It asks for the admin token, stores it in
+ * localStorage, and renders from /pengatur/keys/list, /pengatur/stats/data
+ * and /pengatur/audit/data. Every mutation addresses a key by its sha256 id,
+ * so the browser never holds a raw credential.
  */
 
-import { authGate, consolePage, stateBlock } from "./ui.ts";
+import { authGate, consolePage, icon, stateBlock } from "./ui.ts";
 
-const PAGE_BODY = `
-
+const OVERVIEW_BODY = `
 ${authGate()}
 
-<section id="console" hidden>
-  <div class="strip">
-    <div class="kv"><b id="sTotal">0</b><span class="k">keys</span></div>
-    <div class="kv ok"><b id="sReady">0</b><span class="k">ready</span></div>
-    <div class="kv warn"><b id="sCooling">0</b><span class="k">cooling</span></div>
-    <div class="kv bad"><b id="sDead">0</b><span class="k">dead</span></div>
-    <div class="kv"><b id="sTier">-</b><span class="k">plans</span></div>
-    <div class="spacer"></div>
-    <div class="meta" id="nextReady">-</div>
+<div id="console" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Overview</h1>
+      <p class="sub">Pool health, key intake and live probe for this deployment.</p>
+    </div>
+    <span class="meta" id="updated">-</span>
   </div>
 
-  <div class="grid split">
-    <section class="panel">
-      <div class="panel-head">
-        <div class="panel-title">Pool <span class="meta" id="poolMeta"></span></div>
-        <a class="btn small" href="/pengatur/keys">Keys console</a>
+  <div class="grid hero">
+    <section class="card">
+      <div class="card-head">
+        <h2>Pool health</h2>
+        <span class="meta" id="healthMeta">-</span>
       </div>
-      <div class="panel-body">
-        <div class="row">
+      <div class="card-body">
+        <div class="hero-row">
+          <div id="donut"></div>
+          <div class="facts" id="facts" style="flex:1"></div>
+        </div>
+      </div>
+      <div class="card-body" style="padding-top:0">
+        <div class="chips" id="chips"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Needs attention</h2>
+        <span class="meta" id="attnMeta">-</span>
+      </div>
+      <div class="attn" id="attn"></div>
+      <div class="card-foot">
+        <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
+        <span class="meta" id="testAllNote">one live call per key, four at a time</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid split">
+    <section class="card">
+      <div class="card-head">
+        <h2>Pool</h2>
+        <span class="meta" id="poolMeta"></span>
+      </div>
+      <div class="card-body">
+        <div class="toolbar">
           <div class="grow">
             <label class="field" for="keyFilter">Filter</label>
             <input id="keyFilter" type="search" spellcheck="false" placeholder="key, id or status">
@@ -60,48 +89,45 @@ ${authGate()}
           </div>
         </div>
       </div>
-      <div id="keysBody" class="tablewrap">stateBlock("loading", "Loading the pool")</div>
-      <div class="panel-foot"><div id="keyPager" class="pager"></div></div>
+      <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading the pool")}</div>
+      <div class="card-foot">
+        <div id="keyPager" class="pager" style="width:100%"></div>
+      </div>
     </section>
 
     <div class="stack">
-      <section class="panel">
-        <div class="panel-head"><div class="panel-title">Plans</div></div>
-        <div class="panel-body">
-          <div class="stats" id="planStats"></div>
-          <p class="hint" style="margin-top:12px">Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
+      <section class="card">
+        <div class="card-head">
+          <h2>Plan mix</h2>
+          <span class="meta">declared per key</span>
+        </div>
+        <div class="card-body">
+          <div class="meters" id="planMix"></div>
+          <p class="hint" style="margin-top:14px">Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-head"><div class="panel-title">Pool actions</div></div>
-        <div class="panel-body">
-          <div class="row">
-            <button id="testAllBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3 5.5 11H9.5l-1 6 5.5-8H10l1-6Z"/></svg>Test all live keys</button>
-          </div>
-          <p class="hint" style="margin-top:8px" id="testAllNote">One live call per key, four at a time.</p>
-          <div class="sep" style="margin:12px 0"></div>
-          <label class="check"><input id="auto" type="checkbox" checked> Auto refresh every 5s</label>
-          <div class="row" style="margin-top:12px">
-            <button id="forget" class="btn btn-ghost small" type="button">Forget token</button>
-          </div>
-          <div id="keyMsg" class="notice" role="status" aria-live="polite" style="margin-top:12px"></div>
+      <section class="card">
+        <div class="card-head">
+          <h2>Recent activity</h2>
+          <span class="meta">admin actions</span>
         </div>
+        <div class="feed" id="activity"></div>
       </section>
     </div>
   </div>
-</section>
+</div>
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="panel-head">
-      <div class="panel-title" id="addTitle">Add keys</div>
-      <button class="btn btn-ghost small" type="button" id="addClose" aria-label="Close"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 5l10 10"/><path d="M15 5 5 15"/></svg></button>
+    <div class="card-head">
+      <h2 id="addTitle">Add keys</h2>
+      <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
+    <div class="card-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row" style="margin-top:12px">
+      <div class="row" style="margin-top:14px">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
@@ -111,35 +137,36 @@ ${authGate()}
 </dialog>
 `;
 
-const PAGE_SCRIPT = `(function () {
+const OVERVIEW_SCRIPT = `
+(function () {
   "use strict";
 
   var el = {
     console: document.getElementById("console"),
-    sTotal: document.getElementById("sTotal"),
-    sReady: document.getElementById("sReady"),
-    sCooling: document.getElementById("sCooling"),
-    sDead: document.getElementById("sDead"),
-    sTier: document.getElementById("sTier"),
-    nextReady: document.getElementById("nextReady"),
+    updated: document.getElementById("updated"),
+    donut: document.getElementById("donut"),
+    facts: document.getElementById("facts"),
+    chips: document.getElementById("chips"),
+    healthMeta: document.getElementById("healthMeta"),
+    attn: document.getElementById("attn"),
+    attnMeta: document.getElementById("attnMeta"),
+    testAllBtn: document.getElementById("testAllBtn"),
+    testAllNote: document.getElementById("testAllNote"),
+    kpis: document.getElementById("kpis"),
     poolMeta: document.getElementById("poolMeta"),
-    planStats: document.getElementById("planStats"),
+    planMix: document.getElementById("planMix"),
+    activity: document.getElementById("activity"),
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
     keyStatus: document.getElementById("keyStatus"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
-    keyMsg: document.getElementById("keyMsg"),
-    testAllBtn: document.getElementById("testAllBtn"),
-    testAllNote: document.getElementById("testAllNote"),
-    auto: document.getElementById("auto"),
-    forget: document.getElementById("forget"),
-    refreshBtn: document.getElementById("refreshBtn"),
-    addBtn: document.getElementById("addBtn"),
     addDialog: document.getElementById("addDialog"),
     addClose: document.getElementById("addClose"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
+    addBtn: document.getElementById("addBtn"),
+    refreshBtn: document.getElementById("refreshBtn"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg")
@@ -150,13 +177,148 @@ const PAGE_SCRIPT = `(function () {
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
     { value: "free", label: "Free tier" },
-    { value: "paid", label: "Pay-as-you-go" },
+    { value: "paid", label: "Pay as you go" },
     { value: "pro", label: "AI Pro / Ultra" }
   ];
 
   function tierLabel(value) {
     for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
     return value;
+  }
+
+  function safe(promise) {
+    return promise.catch(function () { return null; });
+  }
+
+  function renderHero(pool, tiers, stats) {
+    el.donut.textContent = "";
+    el.donut.appendChild(GX.donut(pool.ready, pool.cooling, pool.dead));
+
+    var declared = (tiers ? (tiers.free || 0) + (tiers.paid || 0) + (tiers.pro || 0) : 0);
+    el.facts.textContent = "";
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Ready now" }),
+      GX.el("div", { class: "v ok", text: String(pool.ready) })
+    ]));
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Cooling" }),
+      GX.el("div", { class: "v warn", text: String(pool.cooling) })
+    ]));
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Dead" }),
+      GX.el("div", { class: "v bad", text: String(pool.dead) })
+    ]));
+    el.facts.appendChild(GX.el("div", { class: "fact" }, [
+      GX.el("div", { class: "l", text: "Plans declared" }),
+      GX.el("div", { class: "v", text: declared + " of " + pool.total })
+    ]));
+
+    el.chips.textContent = "";
+    el.chips.appendChild(GX.chip(
+      pool.cooling > 0 ? "next key free in" : "all ready keys selectable",
+      pool.cooling > 0 ? GX.fmt.left(pool.soonestReadyMs) : null
+    ));
+    if (stats) {
+      el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
+      el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
+      el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
+    }
+    el.healthMeta.textContent = pool.degraded ? "storage degraded, serving from memory" : pool.storage + " storage";
+    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
+  }
+
+  function renderAttention(pool, tiers) {
+    var items = [];
+    if (pool.dead > 0) {
+      items.push({
+        tone: "bad",
+        title: pool.dead + (pool.dead === 1 ? " key is dead" : " keys are dead"),
+        detail: "Revoked or out of quota. Remove them to shrink the pool.",
+        href: "/pengatur/keys"
+      });
+    }
+    if (pool.cooling > 0) {
+      items.push({
+        tone: "warn",
+        title: pool.cooling + (pool.cooling === 1 ? " key is cooling" : " keys are cooling"),
+        detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
+        href: "/pengatur/keys"
+      });
+    }
+    var unset = tiers ? tiers.unknown || 0 : 0;
+    if (unset > 0) {
+      items.push({
+        tone: "info",
+        title: unset + (unset === 1 ? " key has no plan" : " keys have no plan"),
+        detail: "Pricing on the models page stays unknown for these.",
+        href: "/pengatur/keys"
+      });
+    }
+
+    el.attn.textContent = "";
+    el.attnMeta.textContent = items.length ? items.length + (items.length === 1 ? " item" : " items") : "nothing";
+    if (!items.length) {
+      el.attn.appendChild(GX.state("empty", "Nothing needs attention", "Every key is ready and every plan is declared."));
+      return;
+    }
+    items.forEach(function (item) {
+      var link = GX.el("a", { class: "attn-item", href: item.href }, [
+        GX.el("span", { class: "dot", style: "background:var(--" + item.tone + ")" }),
+        GX.el("span", null, [
+          GX.el("span", { class: "t", text: item.title }),
+          GX.el("span", { class: "d", text: item.detail })
+        ]),
+        GX.el("span", { class: "go", text: "Open" })
+      ]);
+      el.attn.appendChild(link);
+    });
+  }
+
+  function renderKpis(stats) {
+    el.kpis.textContent = "";
+    if (!stats) {
+      el.kpis.appendChild(GX.kpi("Requests", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("Errors", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("Tokens", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("Estimated cost", "-", "statistics unavailable"));
+      return;
+    }
+    var t = stats.totals || {};
+    var requests = t.requests || 0;
+    var errors = t.errors || 0;
+    var share = requests > 0 ? ((errors / requests) * 100).toFixed(1) + "% of traffic" : "no traffic in range";
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(requests), "last 30 days"));
+    el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(errors), share));
+    el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt, output and cached"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
+  }
+
+  function renderPlanMix(tiers) {
+    el.planMix.textContent = "";
+    var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
+    var total = (t.free || 0) + (t.paid || 0) + (t.pro || 0) + (t.unknown || 0);
+    el.planMix.appendChild(GX.meter("Free tier", t.free || 0, total, "ok"));
+    el.planMix.appendChild(GX.meter("Pay as you go", t.paid || 0, total, "info"));
+    el.planMix.appendChild(GX.meter("AI Pro", t.pro || 0, total, "info"));
+    el.planMix.appendChild(GX.meter("Unspecified", t.unknown || 0, total, "warn"));
+  }
+
+  function renderActivity(payload) {
+    el.activity.textContent = "";
+    var rows = payload && payload.rows ? payload.rows : [];
+    if (!rows.length) {
+      el.activity.appendChild(GX.state("empty", "No admin action yet", "Key changes and exports land here the moment they happen."));
+      return;
+    }
+    rows.slice(0, 6).forEach(function (r) {
+      var what = r.target ? r.target : "";
+      if (r.detail && r.detail.updated !== undefined) what += " (" + r.detail.updated + " updated)";
+      el.activity.appendChild(GX.el("div", { class: "feed-item" }, [
+        GX.el("span", { class: "act", text: r.action }),
+        GX.el("span", { class: "what", text: what }),
+        GX.el("time", { text: GX.fmt.time(r.ts) })
+      ]));
+    });
   }
 
   function probeClass(status) {
@@ -166,55 +328,11 @@ const PAGE_SCRIPT = `(function () {
   }
 
   function probeText(res) {
-    if (!res) return "not tested";
+    if (!res) return "-";
     var label = String(res.status).replace(/_/g, " ");
     if (res.status === "ok") label = "serving";
     if (res.status === "rate_limited") label = "429, free in " + GX.fmt.left(res.retryAfterMs);
     return label + " (" + res.latencyMs + "ms)";
-  }
-
-  function renderStrip(pool) {
-    el.sTotal.textContent = pool.total;
-    el.sReady.textContent = pool.ready;
-    el.sCooling.textContent = pool.cooling;
-    el.sDead.textContent = pool.dead;
-    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""));
-    el.nextReady.textContent = pool.cooling > 0
-      ? "next key free in " + GX.fmt.left(pool.soonestReadyMs)
-      : pool.ready > 0
-        ? "every key selectable"
-        : "no key can serve right now";
-  }
-
-  function renderPlans(tiers) {
-    state.tiers = tiers || {};
-    var t = state.tiers;
-    var parts = [];
-    if (t.free) parts.push(t.free + " free");
-    if (t.paid) parts.push(t.paid + " paid");
-    if (t.pro) parts.push(t.pro + " pro");
-    if (t.unknown) parts.push(t.unknown + " unset");
-    el.sTier.textContent = parts.length ? parts.join(" / ") : "-";
-
-    el.planStats.textContent = "";
-    var rows = [
-      ["free", t.free || 0],
-      ["paid", t.paid || 0],
-      ["pro", t.pro || 0],
-      ["unknown", t.unknown || 0]
-    ];
-    for (var i = 0; i < rows.length; i++) {
-      var box = GX.el("div", { class: "stat" }, [
-        GX.el("b", { text: String(rows[i][1]) }),
-        GX.el("span", { text: rows[i][0] })
-      ]);
-      el.planStats.appendChild(box);
-    }
-  }
-
-  function statusBadge(status) {
-    var kind = status === "ready" ? "ok" : status === "cooling" ? "warn" : "bad";
-    return GX.badge(status, kind);
   }
 
   function visibleKeys() {
@@ -228,18 +346,17 @@ const PAGE_SCRIPT = `(function () {
 
   function drawTable() {
     var filtered = visibleKeys();
-    el.poolMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
+    el.poolMeta.textContent = state.keys.length + " keys · " + filtered.length + " shown";
 
     if (!filtered.length) {
       el.keysBody.textContent = "";
-      var empty = GX.state(
+      el.keysBody.appendChild(GX.state(
         "empty",
         state.keys.length ? "No key matches this filter" : "Pool is empty",
         state.keys.length
           ? "Clear the filter box to see the whole pool."
-          : "Add keys from the button above, or set GEMINI_API_KEYS on the deployment."
-      );
-      el.keysBody.appendChild(empty);
+          : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
+      ));
       renderPager(0, 1);
       return;
     }
@@ -247,15 +364,13 @@ const PAGE_SCRIPT = `(function () {
     var pages = Math.max(1, Math.ceil(filtered.length / state.size));
     if (state.page > pages) state.page = pages;
     if (state.page < 1) state.page = 1;
-    var start = (state.page - 1) * state.size;
-    var slice = filtered.slice(start, start + state.size);
+    var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
 
     var table = GX.el("table", { class: "table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
       GX.el("th", { text: "Key" }),
       GX.el("th", { text: "Status" }),
       GX.el("th", { text: "Plan" }),
-      GX.el("th", { class: "num", text: "Fails" }),
       GX.el("th", { class: "num", text: "Cooldown" }),
       GX.el("th", { text: "Last used" }),
       GX.el("th", { text: "Probe" }),
@@ -268,42 +383,31 @@ const PAGE_SCRIPT = `(function () {
       var tr = GX.el("tr");
 
       var keyCell = GX.el("td", { class: "key", "data-l": "key" });
-      var link = GX.el("a", { href: "/pengatur/keys/" + encodeURIComponent(k.id), text: k.key });
+      var link = GX.el("a", { class: "link", href: "/pengatur/keys/" + encodeURIComponent(k.id), text: k.key });
       link.title = "id " + k.id;
       keyCell.appendChild(link);
       tr.appendChild(keyCell);
 
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(statusBadge(k.status));
+      statusCell.appendChild(GX.tag(k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
       tr.appendChild(statusCell);
 
       var tierCell = GX.el("td", { "data-l": "plan" });
-      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
-      TIERS.forEach(function (t) {
-        var option = GX.el("option", { value: t.value, text: t.label });
-        if ((k.tier || "unknown") === t.value) option.selected = true;
-        select.appendChild(option);
-      });
-      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
-      tierCell.appendChild(select);
+      tierCell.appendChild(GX.tag(tierLabel(k.tier || "unknown"), k.tier === "free" ? "ok" : k.tier === "unknown" ? "plain" : "info"));
       tr.appendChild(tierCell);
 
-      GX.cell(tr, k.failures, "num", "fails");
-      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num cool", "cooldown");
+      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num", "cooldown");
       GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
       var probeCell = GX.el("td", { "data-l": "probe" });
       var known = state.testing[k.id];
-      probeCell.appendChild(GX.el("span", {
-        class: "probe " + (known ? probeClass(known.status) : ""),
-        text: known ? probeText(known) : "-"
-      }));
+      probeCell.appendChild(GX.el("span", { class: "mono", text: known ? probeText(known) : "-" }));
       tr.appendChild(probeCell);
 
       var actions = GX.el("td", { class: "actions" });
-      var testBtn = GX.el("button", { class: "small", type: "button", text: "Test" });
+      var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
       testBtn.addEventListener("click", function () { testKey(k, testBtn); });
-      var delBtn = GX.el("button", { class: "small btn-danger", type: "button", text: "Remove" });
+      var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
       actions.appendChild(testBtn);
       actions.appendChild(delBtn);
@@ -321,17 +425,15 @@ const PAGE_SCRIPT = `(function () {
   function renderPager(total, pages) {
     el.keyPager.textContent = "";
     if (!total) return;
-
-    var info = GX.el("span", {
+    el.keyPager.appendChild(GX.el("span", {
       text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
         Math.min(total, state.page * state.size) + " of " + total
-    });
-    el.keyPager.appendChild(info);
+    }));
 
     var box = GX.el("div", { class: "pages" });
     function mk(label, page, disabled, active) {
       var b = GX.el("button", {
-        class: "small" + (active ? " active" : ""),
+        class: active ? "active" : "",
         type: "button",
         text: label,
         disabled: disabled ? true : null
@@ -340,7 +442,6 @@ const PAGE_SCRIPT = `(function () {
       b.addEventListener("click", function () { state.page = page; drawTable(); });
       return b;
     }
-
     box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
     var win = 5;
     var from = Math.max(1, state.page - Math.floor(win / 2));
@@ -360,15 +461,15 @@ const PAGE_SCRIPT = `(function () {
   }
 
   function setTier(ids, tier, control) {
-    if (!ids.length) { GX.say(el.keyMsg, "Nothing to update.", "err"); return; }
+    if (!ids.length) return;
     if (control) control.disabled = true;
     GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
       .then(function (data) {
-        GX.say(el.keyMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        GX.say(el.addMsg, "Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.keyMsg, "Plan update failed: " + err.message, "err");
+        GX.say(el.addMsg, "Plan update failed: " + err.message, "err");
       })
       .then(function () { if (control) control.disabled = false; });
   }
@@ -382,11 +483,11 @@ const PAGE_SCRIPT = `(function () {
         var note = data.applied === "revived" ? " back in rotation"
           : data.applied === "cooling" ? " parked again"
           : data.applied === "retired" ? " retired from the pool" : "";
-        GX.say(el.keyMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
+        GX.say(el.addMsg, k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.keyMsg, "Test failed: " + err.message, "err");
+        GX.say(el.addMsg, "Test failed: " + err.message, "err");
       })
       .then(function () {
         btn.disabled = false;
@@ -396,26 +497,21 @@ const PAGE_SCRIPT = `(function () {
 
   function testAll() {
     GX.busy(el.testAllBtn, "Testing");
-    el.testAllNote.textContent = "One live call per key, four at a time.";
+    el.testAllNote.textContent = "one live call per key, four at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         var results = data.results || [];
         results.forEach(function (r) { state.testing[r.id] = r.probe; });
         var ok = results.filter(function (r) { return r.probe.status === "ok"; }).length;
-        GX.say(
-          el.keyMsg,
-          "Probed " + data.tested + " keys, " + ok + " serving. Pool: " +
-            data.pool.ready + " ready, " + data.pool.cooling + " cooling, " + data.pool.dead + " dead.",
-          ok ? "ok" : ""
-        );
+        GX.say(el.addMsg, "Probed " + data.tested + " keys, " + ok + " serving.", ok ? "ok" : "");
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.keyMsg, "Test all failed: " + err.message, "err");
+        GX.say(el.addMsg, "Test all failed: " + err.message, "err");
       })
       .then(function () {
         GX.idle(el.testAllBtn);
-        el.testAllNote.textContent = "One live call per key, four at a time.";
+        el.testAllNote.textContent = "one live call per key, four at a time";
       });
   }
 
@@ -424,13 +520,13 @@ const PAGE_SCRIPT = `(function () {
     btn.disabled = true;
     GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
       .then(function (data) {
-        GX.say(el.keyMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
+        GX.say(el.addMsg, "Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
         delete state.testing[k.id];
         return reload();
       })
       .catch(function (err) {
         btn.disabled = false;
-        GX.say(el.keyMsg, "Remove failed: " + err.message, "err");
+        GX.say(el.addMsg, "Remove failed: " + err.message, "err");
       });
   }
 
@@ -449,41 +545,42 @@ const PAGE_SCRIPT = `(function () {
       .catch(function (err) {
         GX.say(el.addMsg, "Add failed: " + err.message, "err");
       })
-      .then(function () {
-        GX.idle(el.addSubmit);
-      });
+      .then(function () { GX.idle(el.addSubmit); });
   }
 
   function refresh() {
-    return GX.api("/pengatur/keys/list")
-      .then(function (data) {
-        state.keys = data.keys || [];
-        renderStrip(data.pool || {});
-        renderPlans(data.tiers);
-        drawTable();
-        el.console.hidden = false;
-      })
-      .catch(function (err) {
-        if (err.status === 401 || err.status === 403) {
-          GX.lock(err.message + " Re-enter the token.");
-          throw err;
-        }
-        GX.say(el.keyMsg, "Refresh failed: " + err.message, "err");
-      });
+    return Promise.all([
+      GX.api("/pengatur/keys/list"),
+      safe(GX.api("/pengatur/stats/data?range=30d")),
+      safe(GX.api("/pengatur/audit/data?limit=6"))
+    ]).then(function (res) {
+      var pool = res[0].pool || {};
+      state.keys = res[0].keys || [];
+      state.tiers = res[0].tiers;
+      renderHero(pool, state.tiers, res[1]);
+      renderAttention(pool, state.tiers);
+      renderKpis(res[1]);
+      renderPlanMix(state.tiers);
+      renderActivity(res[2]);
+      drawTable();
+      el.updated.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+      el.console.hidden = false;
+    }).catch(function (err) {
+      if (err.status === 401 || err.status === 403) {
+        GX.lock(err.message + " Re-enter the token.");
+        throw err;
+      }
+      GX.say(el.addMsg, "Refresh failed: " + err.message, "err");
+    });
   }
 
-  /* Same refresh, but a failure must not break the caller chain. */
   function reload() {
     return refresh().catch(function () {});
   }
 
   function startAuto() {
     if (state.timer) return;
-    if (!el.auto.checked) return;
-    state.timer = GX.every(5000, reload);
-  }
-  function stopAuto() {
-    if (state.timer) { state.timer(); state.timer = null; }
+    state.timer = GX.every(15000, reload);
   }
 
   el.addBtn.addEventListener("click", function () {
@@ -491,24 +588,14 @@ const PAGE_SCRIPT = `(function () {
     GX.openDialog(el.addDialog);
     if (el.newKeys) el.newKeys.focus();
   });
+  el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
-  el.addForm.addEventListener("submit", function (event) {
-    event.preventDefault();
-    addKeys();
-  });
+  el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
   });
-  el.refreshBtn.addEventListener("click", function () { refresh(); });
   el.testAllBtn.addEventListener("click", testAll);
-  el.auto.addEventListener("change", function () {
-    if (el.auto.checked) startAuto(); else stopAuto();
-  });
-  el.forget.addEventListener("click", function () {
-    stopAuto();
-    GX.lock("Token cleared from this browser.");
-  });
   el.keyFilter.addEventListener("input", GX.debounce(function () {
     state.query = el.keyFilter.value.trim().toLowerCase();
     state.page = 1;
@@ -527,18 +614,23 @@ const PAGE_SCRIPT = `(function () {
 
   GX.gate({
     onSuccess: function () {
-      return refresh().then(function () {
-        startAuto();
-      });
+      return refresh().then(function () { startAuto(); });
     }
   });
-})();`;
+})();
+`;
 
 export const ADMIN_HTML = consolePage({
   title: "Overview",
   subtitle: "Pool health, key intake and live probe",
   active: "/pengatur",
-  actions: `<button id="addBtn" class="btn btn-primary" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 4.5v11"/><path d="M4.5 10h11"/></svg>Add keys</button><button id="refreshBtn" class="btn" type="button"><svg class="icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16.5 8A6.5 6.5 0 1 0 17 12"/><path d="M16.5 3.5V8H12"/></svg>Refresh</button>`,
-  body: PAGE_BODY,
-  script: PAGE_SCRIPT,
+  actions:
+    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
+    icon("refresh") +
+    "Refresh</button>" +
+    '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' +
+    icon("plus") +
+    "Add keys</button>",
+  body: OVERVIEW_BODY,
+  script: OVERVIEW_SCRIPT,
 });
