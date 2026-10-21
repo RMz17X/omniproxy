@@ -16,48 +16,51 @@ const SETTINGS_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1>Settings</h1>
-      <p class="sub">The effective configuration of this deployment. Read only.</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Govern</span>
+      <h1 class="page-title">Settings</h1>
+      <p class="page-lede">The effective configuration of this deployment. Read only.</p>
     </div>
-    <span class="meta" id="sStorage">-</span>
-  </div>
+    <div class="page-head-side">
+      <span class="meta" id="sStorage">-</span>
+      <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
+      <button id="exportBtn" class="btn btn-sm" type="button">${icon("download")}Export</button>
+    </div>
+  </header>
 
   ${noticeBand()}
 
-  <div class="grid kpis" id="kpis"></div>
+  <div class="figures" id="kpis"></div>
 
-  <div class="grid split">
-    <section class="card">
-      <div class="card-head"><h2>Defaults</h2></div>
-      <div class="card-body"><div class="defs" id="defaults"></div></div>
+  <div class="grid grid-2 u-mt-6">
+    <section class="panel">
+      <div class="panel-head"><h2>Defaults</h2></div>
+      <div class="panel-body"><dl class="defs" id="defaults"></dl></div>
     </section>
 
-    <section class="card">
-      <div class="card-head"><h2>Limits</h2></div>
-      <div class="card-body"><div class="defs" id="limits"></div></div>
+    <section class="panel">
+      <div class="panel-head"><h2>Limits</h2></div>
+      <div class="panel-body"><dl class="defs" id="limits"></dl></div>
     </section>
   </div>
 
-  
-
-  <div class="grid split">
-    <section class="card">
-      <div class="card-head"><h2>Ledger and storage</h2></div>
-      <div class="card-body">
-        <div class="defs" id="ledger"></div>
-        <div class="sep u-rule-gap" ></div>
-        <div class="defs" id="storage"></div>
+  <div class="grid grid-2 u-mt-4">
+    <section class="panel">
+      <div class="panel-head"><h2>Ledger and storage</h2></div>
+      <div class="panel-body">
+        <dl class="defs" id="ledger"></dl>
+        <div class="sep u-rule-gap"></div>
+        <dl class="defs" id="storage"></dl>
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
+    <section class="panel">
+      <div class="panel-head">
         <h2>Environment</h2>
         <span class="meta">values are never shown</span>
       </div>
-      <div class="tablewrap scroll-y">
+      <div class="table-wrap scroll-y">
         <table class="table" id="envTable">
           <thead><tr><th>Name</th><th>State</th></tr></thead>
           <tbody></tbody>
@@ -66,11 +69,11 @@ ${authGate()}
     </section>
   </div>
 
-  <section class="card">
-    <div class="card-head"><h2>Caveats</h2></div>
-    <div class="card-body">
+  <section class="panel u-mt-4">
+    <div class="panel-head"><h2>Caveats</h2></div>
+    <div class="panel-body">
       <p class="hint" id="note"></p>
-      <div id="msg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
+      <div id="msg" class="notice u-mt-2" role="status" aria-live="polite"></div>
     </div>
   </section>
 </div>

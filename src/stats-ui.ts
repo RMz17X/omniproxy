@@ -15,98 +15,105 @@ const STATS_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1>Statistics</h1>
-      <p class="sub" id="meta">-</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Observe</span>
+      <h1 class="page-title">Statistics</h1>
+      <p class="page-lede" id="meta">-</p>
     </div>
-    <div class="seg" id="range" role="group" aria-label="Time range"></div>
-  </div>
+    <div class="page-head-side">
+      <div class="seg" id="range" role="group" aria-label="Time range"></div>
+    </div>
+  </header>
 
-  ${noticeBand()}
+  <div id="dataErr" class="notice u-mb-4" role="status" aria-live="polite"></div>
 
-  <div class="grid kpis" id="kpis"></div>
+  <div class="figures" id="kpis"></div>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-6">
+    <div class="panel-head">
       <h2>Hour and weekday heatmap <span class="meta">WIB</span></h2>
-      <div class="actions">
-        <label class="check"><input id="heatValues" type="checkbox"> show values</label>
-        <div class="heat-legend">
-          <span>low</span>
-          <i style="background:rgba(79,209,197,0.18)"></i>
-          <i style="background:rgba(79,209,197,0.36)"></i>
-          <i style="background:rgba(79,209,197,0.56)"></i>
-          <i style="background:rgba(79,209,197,0.78)"></i>
-          <i style="background:rgba(79,209,197,0.96)"></i>
-          <span>high</span>
-        </div>
+      <label class="check"><input id="heatValues" type="checkbox"> show values</label>
+      <div class="legend" aria-hidden="true">
+        <span class="meta">low</span>
+        <span class="legend-item"><i class="dot neutral"></i></span>
+        <span class="legend-item"><i class="dot" style="background:color-mix(in srgb,var(--accent) 30%,var(--surface-3))"></i></span>
+        <span class="legend-item"><i class="dot" style="background:color-mix(in srgb,var(--accent) 55%,var(--surface-3))"></i></span>
+        <span class="legend-item"><i class="dot" style="background:color-mix(in srgb,var(--accent) 78%,var(--surface-3))"></i></span>
+        <span class="legend-item"><i class="dot" style="background:var(--accent)"></i></span>
+        <span class="meta">high</span>
       </div>
     </div>
-    <div class="card-body">
+    <div class="panel-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
       <table class="sr-only" id="heatTable"></table>
-      <p class="hint u-mt-4" id="heatNote" ></p>
+      <p class="hint u-mt-4" id="heatNote"></p>
       <div id="heatEmpty"></div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>By model</h2>
-      <span class="meta" id="byModelMeta"></span>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="byModel">
-        <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="byModelEmpty"></div>
-    </div>
-  </section>
+  <div class="zone">
+    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">where the traffic went in this range</span></div>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>By key</h2>
-      <span class="meta" id="byKeyMeta"></span>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="byKey">
-        <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="byKeyEmpty"></div>
-    </div>
-  </section>
+    <div class="grid grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By model</h2>
+          <span class="meta" id="byModelMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byModel">
+            <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byModelEmpty"></div>
+        </div>
+      </section>
 
-  <div class="grid split">
-    <section class="card">
-      <div class="card-head">
-        <h2>By route</h2>
-        <span class="meta" id="byRouteMeta"></span>
-      </div>
-      <div class="tablewrap">
-        <table class="table" id="byRoute">
-          <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <div id="byRouteEmpty"></div>
-      </div>
-    </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By key</h2>
+          <span class="meta" id="byKeyMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byKey">
+            <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byKeyEmpty"></div>
+        </div>
+      </section>
+    </div>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>By status</h2>
-        <span class="meta" id="byStatusMeta"></span>
-      </div>
-      <div class="tablewrap">
-        <table class="table" id="byStatus">
-          <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
-          <tbody></tbody>
-        </table>
-        <div id="byStatusEmpty"></div>
-      </div>
-    </section>
+    <div class="grid grid-2 u-mt-4">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By route</h2>
+          <span class="meta" id="byRouteMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byRoute">
+            <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byRouteEmpty"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By status</h2>
+          <span class="meta" id="byStatusMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byStatus">
+            <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byStatusEmpty"></div>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
 `;

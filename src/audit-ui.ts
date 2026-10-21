@@ -15,26 +15,27 @@ const AUDIT_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1>Audit</h1>
-      <p class="sub">Every admin action, newest first.</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Govern</span>
+      <h1 class="page-title">Audit</h1>
+      <p class="page-lede">Every admin action, newest first.</p>
     </div>
-    <span class="meta" id="sWindow">-</span>
-  </div>
+    <div class="page-head-side">
+      <span class="meta" id="sWindow">-</span>
+    </div>
+  </header>
 
   ${noticeBand()}
 
-  <div class="grid kpis" id="kpis"></div>
+  <div class="figures" id="kpis"></div>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-6">
+    <div class="panel-head">
       <h2>Filters</h2>
-      <div class="actions">
-        <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
-      </div>
+      <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
     </div>
-    <div class="card-body">
+    <div class="panel-body">
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="action">Action prefix</label>
@@ -46,7 +47,7 @@ ${authGate()}
         </div>
         <div class="grow">
           <label class="field" for="limit">Limit</label>
-          <select id="limit">
+          <select id="limit" class="select">
             <option value="50">50</option>
             <option value="100" selected>100</option>
             <option value="250">250</option>
@@ -54,12 +55,12 @@ ${authGate()}
           </select>
         </div>
       </div>
-      <div id="msg" class="notice u-mt-3" role="status" aria-live="polite" ></div>
+      <div id="msg" class="notice u-mt-3" role="status" aria-live="polite"></div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-4">
+    <div class="panel-head">
       <h2>Trail</h2>
       <span class="meta" id="trailMeta"></span>
     </div>

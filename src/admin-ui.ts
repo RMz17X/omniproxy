@@ -17,112 +17,106 @@ const OVERVIEW_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1>Overview</h1>
-      <p class="sub">Pool health, key intake and live probe for this deployment.</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Deployment</span>
+      <h1 class="page-title">Overview</h1>
+      <p class="page-lede">Whether the pool can serve right now, what is blocking it, and what the traffic is doing.</p>
     </div>
-    <div class="row">
-      <label class="check"><input id="auto" type="checkbox" checked> Auto refresh 15s</label>
+    <div class="page-head-side">
+      <label class="check"><input id="auto" type="checkbox" checked> Refresh every 15s</label>
       <span class="meta" id="updated">-</span>
     </div>
-  </div>
+  </header>
 
-  ${noticeBand()}
+  <div id="storageNote" class="panel-note" style="border:1px solid var(--line);border-radius:var(--r-surface);margin-bottom:var(--sp-4)" hidden></div>
 
-  <div id="storageNote" class="page-note"></div>
-
-  <div class="grid hero">
-    <section class="card">
-      <div class="card-head">
+  <div class="split">
+    <section class="panel">
+      <div class="panel-head">
         <h2>Pool health</h2>
         <span class="meta" id="healthMeta">-</span>
       </div>
-      <div class="card-body">
-        <div class="hero-row">
-          <div id="donut"></div>
-          <div class="facts u-grow" id="facts"></div>
-        </div>
-        <div class="donut-legend">
-          <span><i class="ok"></i>ready</span>
-          <span><i class="warn"></i>cooling</span>
-          <span><i class="bad"></i>dead</span>
-        </div>
-        <div class="chips u-mt-4" id="chips"></div>
+      <div class="panel-body">
+        <div id="poolBar" class="u-mb-4"></div>
+        <div class="figures" id="facts"></div>
+        <div class="row u-mt-4" id="chips"></div>
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
+    <section class="panel">
+      <div class="panel-head">
         <h2>Needs attention</h2>
         <span class="meta" id="attnMeta">-</span>
       </div>
-      <div class="attn" id="attn"></div>
-      <div class="card-foot">
+      <div class="feed" id="attn"></div>
+      <div class="panel-foot">
         <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
         <span class="meta" id="testAllNote">one live call per key, four at a time</span>
       </div>
     </section>
   </div>
 
-  
+  <section class="zone">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Last 30 days</h2>
+        <span class="meta">from the request ledger</span>
+      </div>
+      <div class="panel-body">
+        <div class="figures" id="kpis"></div>
+      </div>
+    </div>
+  </section>
 
-  <div class="grid kpis" id="kpis"></div>
-
-  <div class="grid split">
-    <section class="card">
-      <div class="card-head">
-        <h2>Pool</h2>
+  <div class="zone split">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Keys</h2>
         <span class="meta" id="poolMeta"></span>
       </div>
-      <div class="card-body">
-        <div class="toolbar">
-          <div class="grow">
-            <label class="field" for="keyFilter">Filter</label>
-            <input id="keyFilter" type="search" spellcheck="false" placeholder="key, id or status">
+      <div class="panel-body" style="padding-bottom:0">
+        <div class="toolbar u-mb-4">
+          <div class="grow search">
+            ${icon("search")}
+            <input id="keyFilter" class="input" type="search" spellcheck="false" placeholder="key, id or status" aria-label="Filter keys">
           </div>
-          <div class="grow">
-            <label class="field" for="keyStatus">Status</label>
-            <select id="keyStatus">
-              <option value="">all</option>
-              <option value="ready">ready</option>
-              <option value="cooling">cooling</option>
-              <option value="dead">dead</option>
-            </select>
-          </div>
-          <div class="grow">
-            <label class="field" for="keySize">Per page</label>
-            <select id="keySize">
-              <option value="10">10</option>
-              <option value="25" selected>25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
+          <select id="keyStatus" class="select" aria-label="Status">
+            <option value="">any status</option>
+            <option value="ready">ready</option>
+            <option value="cooling">cooling</option>
+            <option value="dead">dead</option>
+          </select>
+          <select id="keySize" class="select" aria-label="Rows per page">
+            <option value="10">10 rows</option>
+            <option value="25" selected>25 rows</option>
+            <option value="50">50 rows</option>
+            <option value="100">100 rows</option>
+          </select>
         </div>
       </div>
-      <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading the pool")}</div>
-      <div class="card-foot">
-        <div id="keyPager" class="pager u-full" ></div>
+      <div id="keysBody" class="table-wrap">${stateBlock("loading", "Loading the pool")}</div>
+      <div class="panel-foot">
+        <div id="keyPager" class="pager"></div>
       </div>
     </section>
 
-    <div class="stack">
-      <section class="card">
-        <div class="card-head">
+    <div class="grid" style="gap:var(--sp-4)">
+      <section class="panel">
+        <div class="panel-head">
           <h2>Plan mix</h2>
           <span class="meta">declared per key</span>
         </div>
-        <div class="card-body">
-          <div class="meters" id="planMix"></div>
-          <p class="hint u-mt-4" >Google never reports a project plan over the API. The plan is declared here and the models page prices a test run against it.</p>
+        <div class="panel-body">
+          <div class="bars" id="planMix"></div>
+          <p class="hint u-mt-4">Google never reports a project plan over the API. Declare it here; the models page prices a test run against it.</p>
         </div>
       </section>
 
-      <section class="card">
-        <div class="card-head">
+      <section class="panel">
+        <div class="panel-head">
           <h2>Recent activity</h2>
-          <span class="meta">admin actions</span>
+          <a class="meta" href="/pengatur/audit">audit log</a>
         </div>
         <div class="feed" id="activity"></div>
       </section>
@@ -134,18 +128,19 @@ ${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="card-head">
+    <div class="panel-head">
       <h2 id="addTitle">Add keys</h2>
+      <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="card-body">
+    <div class="panel-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
-      <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row u-mt-4" >
+      <textarea id="newKeys" class="textarea" spellcheck="false" placeholder="key one&#10;key two"></textarea>
+      <div class="row u-mt-4">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
-      <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
+      <div id="addMsg" class="hint u-mt-2" role="status" aria-live="polite"></div>
     </div>
   </form>
 </dialog>
@@ -158,7 +153,6 @@ const OVERVIEW_SCRIPT = `
   var el = {
     console: document.getElementById("console"),
     updated: document.getElementById("updated"),
-    donut: document.getElementById("donut"),
     facts: document.getElementById("facts"),
     chips: document.getElementById("chips"),
     healthMeta: document.getElementById("healthMeta"),
@@ -206,39 +200,30 @@ const OVERVIEW_SCRIPT = `
   }
 
   function renderHero(pool, tiers, stats) {
-    el.donut.textContent = "";
-    el.donut.appendChild(GX.donut(pool.ready, pool.cooling, pool.dead));
-
     var declared = (tiers ? (tiers.free || 0) + (tiers.paid || 0) + (tiers.pro || 0) : 0);
+
+    if (el.poolBar) {
+      el.poolBar.textContent = "";
+      el.poolBar.appendChild(GX.poolBar([
+        { label: "ready", value: pool.ready, tone: "ok" },
+        { label: "cooling", value: pool.cooling, tone: "warn" },
+        { label: "dead", value: pool.dead, tone: "bad" }
+      ]));
+    }
+
     el.facts.textContent = "";
-    el.facts.appendChild(GX.el("div", { class: "fact" }, [
-      GX.el("div", { class: "l", text: "Ready now" }),
-      GX.el("div", { class: "v ok", text: String(pool.ready) })
-    ]));
-    el.facts.appendChild(GX.el("div", { class: "fact" }, [
-      GX.el("div", { class: "l", text: "Cooling" }),
-      GX.el("div", { class: "v warn", text: String(pool.cooling) })
-    ]));
-    el.facts.appendChild(GX.el("div", { class: "fact" }, [
-      GX.el("div", { class: "l", text: "Dead" }),
-      GX.el("div", { class: "v bad", text: String(pool.dead) })
-    ]));
-    el.facts.appendChild(GX.el("div", { class: "fact" }, [
-      GX.el("div", { class: "l", text: "Plans declared" }),
-      GX.el("div", { class: "v", text: declared + " of " + pool.total })
-    ]));
+    el.facts.appendChild(GX.stat("Ready now", String(pool.ready), pool.total ? "of " + pool.total + " in the pool" : "the pool is empty", pool.ready ? "ok" : "bad"));
+    el.facts.appendChild(GX.stat("Cooling", String(pool.cooling), pool.cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", pool.cooling ? "warn" : ""));
+    el.facts.appendChild(GX.stat("Dead", String(pool.dead), pool.dead ? "revoked or out of quota" : "none retired", pool.dead ? "bad" : ""));
+    el.facts.appendChild(GX.stat("Plans declared", declared + " of " + pool.total, "pricing stays unknown for the rest"));
 
     el.chips.textContent = "";
-    el.chips.appendChild(GX.chip(
-      pool.cooling > 0 ? "next key free in" : "all ready keys selectable",
-      pool.cooling > 0 ? GX.fmt.left(pool.soonestReadyMs) : null
-    ));
     if (stats) {
       el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
       el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
       el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
     }
-    el.healthMeta.textContent = pool.degraded ? "storage degraded, serving from memory" : pool.storage + " storage";
+    el.healthMeta.textContent = pool.degraded ? "degraded, serving from memory" : pool.storage + " storage";
     GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
 
     var note = document.getElementById("storageNote");
@@ -249,15 +234,15 @@ const OVERVIEW_SCRIPT = `
         note.appendChild(document.createTextNode(
           " The key pool and the request ledger live in this process. A restart empties them."
         ));
-        note.classList.add("show");
+        note.hidden = false;
       } else if (pool.degraded) {
         note.appendChild(GX.el("b", { text: "Storage degraded." }));
         note.appendChild(document.createTextNode(
           " The database is not reachable, so the gateway is serving from memory only."
         ));
-        note.classList.add("show");
+        note.hidden = false;
       } else {
-        note.classList.remove("show");
+        note.hidden = true;
       }
     }
   }

@@ -20,20 +20,23 @@ const KEYS_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1>Keys</h1>
-      <p class="sub">Every pooled key, its plan and its health.</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Govern</span>
+      <h1 class="page-title">Keys</h1>
+      <p class="page-lede">Every pooled key, its plan and its health.</p>
     </div>
-    <span class="meta" id="poolMeta">-</span>
-  </div>
+    <div class="page-head-side">
+      <span class="meta" id="poolMeta">-</span>
+    </div>
+  </header>
 
   ${noticeBand()}
 
-  <div class="grid kpis" id="kpis"></div>
+  <div class="figures" id="kpis"></div>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-6">
+    <div class="panel-head">
       <h2>Pool</h2>
       <span class="meta" id="listMeta"></span>
       <div class="actions">
@@ -41,7 +44,7 @@ ${authGate()}
       </div>
     </div>
 
-    <div class="card-body">
+    <div class="panel-body">
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="keyFilter">Filter</label>
@@ -49,7 +52,7 @@ ${authGate()}
         </div>
         <div class="grow">
           <label class="field" for="keyStatus">Status</label>
-          <select id="keyStatus">
+          <select id="keyStatus" class="select">
             <option value="">all</option>
             <option value="ready">ready</option>
             <option value="cooling">cooling</option>
@@ -58,34 +61,34 @@ ${authGate()}
         </div>
         <div class="grow">
           <label class="field" for="keySize">Per page</label>
-          <select id="keySize">
+          <select id="keySize" class="select">
             <option value="10">10</option>
             <option value="25" selected>25</option>
             <option value="50">50</option>
             <option value="100">100</option>
           </select>
         </div>
-        <label class="check u-mb-2" ><input id="auto" type="checkbox"> Auto refresh every 15s</label>
+        <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
         <button id="selectAllBtn" class="btn btn-sm" type="button">Select all</button>
       </div>
     </div>
 
-    <div id="bulkBar" class="card-body u-rule-top" hidden >
+    <div id="bulkBar" class="panel-body u-rule-top" hidden>
       <div class="toolbar">
         <b id="selCount" class="u-tnum">0 selected</b>
-        <select id="bulkTier" aria-label="Billing plan for the selected keys" class="u-auto"></select>
+        <select id="bulkTier" aria-label="Billing plan for the selected keys" class="select u-auto"></select>
         <button id="bulkApply" class="btn btn-sm" type="button">Apply plan</button>
         <button id="bulkRemove" class="btn btn-sm btn-danger" type="button">Remove selected</button>
         <span class="spacer"></span>
         <button id="bulkClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
       </div>
-      <div id="bulkMsg" class="notice u-mt-3" role="status" aria-live="polite" ></div>
+      <div id="bulkMsg" class="notice u-mt-3" role="status" aria-live="polite"></div>
     </div>
 
-    <div id="keysBody" class="tablewrap">${stateBlock("loading", "Loading the pool")}</div>
+    <div id="keysBody" class="table-wrap">${stateBlock("loading", "Loading the pool")}</div>
 
-    <div class="card-foot">
-      <div id="keyPager" class="pager u-full" ></div>
+    <div class="panel-foot">
+      <div id="keyPager" class="pager u-full"></div>
     </div>
   </section>
 </div>
@@ -94,19 +97,19 @@ ${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="card-head">
+    <div class="panel-head">
       <h2 id="addTitle">Add keys</h2>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="card-body">
+    <div class="panel-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row u-mt-4" >
+      <div class="toolbar u-mt-4">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
-      <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
-      <p class="hint u-mt-4" >Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+      <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
+      <p class="hint u-mt-4">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
     </div>
   </form>
 </dialog>
@@ -606,28 +609,31 @@ const DETAIL_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1 id="keyTitle">Key</h1>
-      <p class="sub" id="keyPath">-</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Govern · Key</span>
+      <h1 class="page-title" id="keyTitle">Key</h1>
+      <p class="page-lede" id="keyPath">-</p>
     </div>
-    <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
-  </div>
+    <div class="page-head-side">
+      <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
+    </div>
+  </header>
 
   ${noticeBand()}
 
-  <div class="grid kpis" id="summary"></div>
+  <div class="figures" id="summary"></div>
 
-  <div class="grid split">
-    <section class="card">
-      <div class="card-head">
+  <div class="grid grid-2 u-mt-6">
+    <section class="panel">
+      <div class="panel-head">
         <h2>Daily requests</h2>
         <span class="meta" id="dailyNote"></span>
       </div>
-      <div class="card-body">
+      <div class="panel-body">
         <div id="dailyBars" class="bars"></div>
       </div>
-      <div class="tablewrap">
+      <div class="table-wrap">
         <table class="table" id="dailyTable">
           <thead><tr><th>Day</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Cost</th></tr></thead>
           <tbody></tbody>
@@ -635,8 +641,8 @@ ${authGate()}
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
+    <section class="panel">
+      <div class="panel-head">
         <h2>Cooldown timeline</h2>
         <span class="meta" id="cooldownNote"></span>
       </div>
@@ -644,12 +650,12 @@ ${authGate()}
     </section>
   </div>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-4">
+    <div class="panel-head">
       <h2>Recent requests</h2>
       <span class="meta" id="recentNote"></span>
     </div>
-    <div class="tablewrap">
+    <div class="table-wrap">
       <table class="table" id="recentTable">
         <thead><tr><th>When</th><th>Route</th><th>Model</th><th>Status</th><th class="num">ms</th><th class="num">Tokens</th></tr></thead>
         <tbody></tbody>

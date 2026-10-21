@@ -15,26 +15,29 @@ const MODELS_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1>Models</h1>
-      <p class="sub">Live inventory from the Generative Language API, joined with published pricing.</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Catalog</span>
+      <h1 class="page-title">Models</h1>
+      <p class="page-lede">Live inventory from the Generative Language API, joined with published pricing.</p>
     </div>
-    <span class="meta" id="asOf">-</span>
-  </div>
+    <div class="page-head-side">
+      <span class="meta" id="asOf">-</span>
+    </div>
+  </header>
 
   ${noticeBand()}
 
-  <div class="grid kpis" id="kpis"></div>
+  <div class="figures" id="kpis"></div>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-6">
+    <div class="panel-head">
       <h2>Find a model</h2>
       <div class="actions">
         <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh live list</button>
       </div>
     </div>
-    <div class="card-body">
+    <div class="panel-body">
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="q">Search</label>
@@ -42,7 +45,7 @@ ${authGate()}
         </div>
         <div class="grow">
           <label class="field" for="kind">Capability</label>
-          <select id="kind">
+          <select id="kind" class="select">
             <option value="">all</option>
             <option value="text">text</option>
             <option value="tts">tts</option>
@@ -58,10 +61,10 @@ ${authGate()}
         </div>
         <div class="grow">
           <label class="field" for="size">Per page</label>
-          <select id="size"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
+          <select id="size" class="select"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
         </div>
       </div>
-      <div class="row u-mt-4" >
+      <div class="toolbar u-mt-4">
         <span class="field u-mb-0">Your plan</span>
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
@@ -70,19 +73,19 @@ ${authGate()}
           <button type="button" data-tier="any" aria-pressed="false">Everything</button>
         </div>
       </div>
-      <p class="hint u-mt-3" id="tierNote" ></p>
-      <div id="msg" class="notice u-mt-2" role="status" aria-live="polite" ></div>
+      <p class="hint u-mt-3" id="tierNote"></p>
+      <div id="msg" class="notice u-mt-2" role="status" aria-live="polite"></div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-4">
+    <div class="panel-head">
       <h2>Models</h2>
       <span class="meta" id="listMeta"></span>
     </div>
-    <div id="body" class="tablewrap">${stateBlock("loading", "Loading the model list")}</div>
-    <div class="card-foot">
-      <div id="pager" class="pager u-full" ></div>
+    <div id="body" class="table-wrap">${stateBlock("loading", "Loading the model list")}</div>
+    <div class="panel-foot">
+      <div id="pager" class="pager u-full"></div>
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
     </div>
   </section>

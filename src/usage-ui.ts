@@ -16,63 +16,63 @@ const USAGE_BODY = `
 ${authGate()}
 
 <div id="console" hidden>
-  <div class="page-head">
-    <div>
-      <h1>Logs</h1>
-      <p class="sub">Every request that passed through the gateway.</p>
+  <header class="page-head">
+    <div class="page-head-main">
+      <span class="eyebrow">Observe</span>
+      <h1 class="page-title">Logs</h1>
+      <p class="page-lede">Every request that passed through the gateway, with the filters that produced it in the URL.</p>
     </div>
-    <span class="meta" id="stamp">-</span>
-  </div>
+    <div class="page-head-side">
+      <label class="check"><input id="auto" type="checkbox"> Auto refresh every 60s</label>
+      <span class="meta" id="stamp">-</span>
+    </div>
+  </header>
 
-  ${noticeBand()}
+  <div class="figures" id="kpis"></div>
 
-  <div class="grid kpis" id="kpis"></div>
-
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-6">
+    <div class="panel-head">
       <h2>Filters</h2>
-      <div class="actions">
-        <label class="check"><input id="auto" type="checkbox"> Auto refresh every 60s</label>
-      </div>
+      <span class="meta">the selection survives a reload</span>
     </div>
-    <div class="card-body">
+    <div class="panel-body">
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="fDay">Day</label>
-          <select id="fDay"><option value="">all</option></select>
+          <select id="fDay" class="select"><option value="">all</option></select>
         </div>
         <div class="grow">
           <label class="field" for="fModel">Model</label>
-          <select id="fModel"><option value="">all</option></select>
+          <select id="fModel" class="select"><option value="">all</option></select>
         </div>
         <div class="grow">
           <label class="field" for="fKey">Key</label>
-          <select id="fKey"><option value="">all</option></select>
+          <select id="fKey" class="select"><option value="">all</option></select>
         </div>
         <div class="grow">
           <label class="field" for="fStatus">Status</label>
-          <select id="fStatus">
+          <select id="fStatus" class="select">
             <option value="">all</option>
             <option value="ok">ok</option>
             <option value="error">error</option>
             <option value="rotated">rotated</option>
           </select>
         </div>
-        <div class="row u-gap-2" >
+        <div class="toolbar">
           <button id="apply" class="btn btn-primary" type="button">Apply</button>
           <button id="reset" class="btn" type="button">Reset</button>
         </div>
       </div>
-      <div id="err" class="notice err u-mt-3" role="status" aria-live="polite" ></div>
+      <div id="err" class="notice u-mt-3" role="status" aria-live="polite"></div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
+  <section class="panel u-mt-4">
+    <div class="panel-head">
       <h2>Request log</h2>
       <span class="meta" id="logMeta"></span>
     </div>
-    <div class="tablewrap">
+    <div class="table-wrap">
       <table class="table" id="log">
         <thead><tr>
           <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
@@ -81,59 +81,63 @@ ${authGate()}
       </table>
       <div id="logEmpty"></div>
     </div>
-    <div class="card-foot">
-      <div id="pager" class="pager u-full" ></div>
+    <div class="panel-foot">
+      <div id="pager" class="pager u-full"></div>
     </div>
   </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>By model</h2>
-      <span class="meta" id="byModelMeta"></span>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="byModel">
-        <thead><tr>
-          <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="byModelEmpty"></div>
-    </div>
-  </section>
+  <div class="zone">
+    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">same filter, three groupings</span></div>
+    <div class="grid grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By model</h2>
+          <span class="meta" id="byModelMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byModel">
+            <thead><tr>
+              <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byModelEmpty"></div>
+        </div>
+      </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>By key</h2>
-      <span class="meta" id="byKeyMeta"></span>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By key</h2>
+          <span class="meta" id="byKeyMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byKey">
+            <thead><tr>
+              <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byKeyEmpty"></div>
+        </div>
+      </section>
     </div>
-    <div class="tablewrap">
-      <table class="table" id="byKey">
-        <thead><tr>
-          <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="byKeyEmpty"></div>
-    </div>
-  </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>By day</h2>
-      <span class="meta" id="byDayMeta"></span>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="byDay">
-        <thead><tr>
-          <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="byDayEmpty"></div>
-    </div>
-  </section>
-
+    <section class="panel u-mt-4">
+      <div class="panel-head">
+        <h2>By day</h2>
+        <span class="meta" id="byDayMeta"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="byDay">
+          <thead><tr>
+            <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="byDayEmpty"></div>
+      </div>
+    </section>
+  </div>
 </div>
 `;
 

@@ -31,20 +31,26 @@ runtime. The seven templates only describe their own content.
 
 ### Shell
 
-A top bar: brand and mark, the seven sections as a switcher, the session and
-storage state as pills, and the actions of the current page. Below it the
-page head with the title, one line of explanation and the update time.
+A persistent left rail: brand, the seven sections grouped as observe / operate
+/ system, and the session, storage and theme controls at its foot. On a narrow
+viewport the rail collapses into a drawer opened from the sticky crumb bar.
+The crumb bar carries the path, `Ctrl K` and the actions of the current page.
+Each page renders its own head underneath: title, one line of explanation and
+the update time. The shell never renders a page header, so a page cannot ship
+two.
+
 
 ### Components that carry meaning
 
 | Component | What it is for |
 |---|---|
-| `.donut` | The pool split, ready / cooling / dead, as a ring |
-| `.kpi` | A figure with a label and one line of context |
-| `.facts` | The counters that belong next to a ring |
-| `.chips` | Facts that do not deserve a card |
+| `.poolbar` | The pool split, ready / cooling / dead, as one proportional bar plus a legend |
+| `.fig` | A figure with a label, a value and one line of context |
+| `.figures` | The rail of figures at the top of a page |
+| `.zone` | A named band of the page with its own head |
+| `.split` | Two zones side by side, stacking on a narrow viewport |
+| `.chip` | A fact that does not deserve a panel |
 | `.meter` | A proportion with a label and a count |
-| `.attn-item` | Something that needs the operator, with a way to open it |
 | `.feed-item` | A trail of actions, newest first |
 | `.tag` | Status as a dot plus a word, never a painted block |
 | `.seg` | A segmented control for a small set of choices |
@@ -61,7 +67,7 @@ above.
 
 | Page | Layout |
 |---|---|
-| `/pengatur` Overview | Pool health ring and counters, a needs attention list, four traffic figures, the pool table, the plan mix, the activity feed |
+| `/pengatur` Overview | Pool bar and legend, the figure rail, needs attention, four traffic figures, the pool table, the activity feed |
 | `/pengatur/logs` Logs | Six figures, the filters, three full width breakdowns, the request log with its pager |
 | `/pengatur/stats` Statistics | Range control in the page head, six figures, the heatmap with a legend and a peak line, three breakdowns |
 | `/pengatur/keys` Keys | Five figures, the full table with bulk tools, a pager |
@@ -72,8 +78,8 @@ above.
 
 ## Rules
 
-- No decorative gradient, no shadow, no blur, no glow. The only gradients are
-  the pool ring and the heatmap, where the colour is the data.
+- No decorative gradient, no shadow, no blur, no glow. The only gradient is the
+  heatmap, where the colour is the data.
 - Radii: 4, 6, 7, 10, 12 and pills for tags and chips.
 - Type: 11, 12, 13, 14, 16, 18, 20, 26, 28. A product console needs a wider
   scale than a control panel, because hierarchy has to be visible.
@@ -146,7 +152,7 @@ rhythm: tight where things belong together, generous where they do not.
 ## Verification
 
 1. `bun run check` exits 0 with no output.
-2. `bun test` passes 39 tests across 6 files.
+2. `bun test` passes 66 tests across 10 files.
 3. `bun run bundle:api` succeeds and the artefact is committed, so a deploy
    ships the same console the source holds.
 4. With `ADMIN_TOKEN` unset, all nine console paths answer 200 and `/health`
@@ -156,4 +162,6 @@ rhythm: tight where things belong together, generous where they do not.
 6. `rg -c '—' src/*-ui.ts src/ui.ts` is 0.
 7. `rg -n '[▶❚✕🔊★⚙→]' src/*-ui.ts src/ui.ts` finds nothing.
 8. `rg -n 'AIza' src/*-ui.ts` finds nothing.
-9. Every page was checked in Chrome at 1440 and 390 pixels wide.
+9. Every page was checked in Chrome at 1440, 390 and 320 pixels wide, with the
+   rendered DOM measured for horizontal overflow (0 on all seven routes) and
+   for sub-40px interactive targets (none outside the offscreen skip link).
