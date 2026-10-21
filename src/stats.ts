@@ -79,7 +79,7 @@ export type StatsSnapshot = {
   heatmap: HeatCell[];
   /** Observed daily cost mean x 30. */
   projectedMonthlyUsd: number;
-  /** Plain-language caveat (empty range, coarse status, disabled storage…). */
+  /** Plain-language caveat (empty range, coarse status, disabled storage...). */
   note?: string;
   /** Failure reason when ok is false. */
   error?: string;

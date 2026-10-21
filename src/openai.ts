@@ -133,7 +133,7 @@ function toolDeclarations(tools: OAITool[] | undefined): Record<string, unknown>
   return decls;
 }
 
-/** `data:image/png;base64,…` → inlineData; other URLs → fileData. */
+/** `data:image/png;base64,...` → inlineData; other URLs → fileData. */
 function imagePart(url: string): Record<string, unknown> | null {
   if (!url) return null;
   const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(url);
