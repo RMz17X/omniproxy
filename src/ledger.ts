@@ -32,7 +32,7 @@ const KEY_SHAPED = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/;
  * id from the masked form: the same key always maps to the same id. This is
  * NOT `pool.keyId()` and must not be treated as interchangeable with it.
  */
-function ledgerKeyId(masked: string): string {
+export function ledgerKeyId(masked: string): string {
   return createHash("sha256").update(`masked:${masked}`).digest("hex").slice(0, 12);
 }
 

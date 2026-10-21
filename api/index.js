@@ -1,12 +1,12 @@
-// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+// ../../node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
 var X_ALREADY_SENT = "x-hono-already-sent";
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 import { STATUS_CODES, ServerResponse, createServer } from "node:http";
 import { Http2ServerRequest, constants } from "node:http2";
 import { Readable } from "node:stream";
 
-// node_modules/hono/dist/helper/websocket/index.js
+// ../../node_modules/hono/dist/helper/websocket/index.js
 var defineWebSocketHelper = (handler2) => {
   return (...args) => {
     if (typeof args[0] === "function") {
@@ -27,7 +27,7 @@ var defineWebSocketHelper = (handler2) => {
   };
 };
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 var RequestError = class extends Error {
   constructor(message, options) {
     super(message, options);
@@ -1194,15 +1194,15 @@ var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
   return new Response();
 });
 
-// node_modules/hono/dist/request/constants.js
+// ../../node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = Symbol();
 
-// node_modules/hono/dist/utils/buffer.js
+// ../../node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType2) => {
   return new Response(arrayBuffer, { headers: { "Content-Type": contentType2.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase()) } }).formData();
 };
 
-// node_modules/hono/dist/utils/body.js
+// ../../node_modules/hono/dist/utils/body.js
 var MAX_NESTED_OBJECTS = 1e4;
 var isRawRequest = (request) => "headers" in request;
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
@@ -1266,7 +1266,7 @@ var throwNestingLimitExceeded = () => {
   throw new Error("Nesting limit exceeded");
 };
 
-// node_modules/hono/dist/utils/url.js
+// ../../node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split("/");
   if (paths[0] === "") paths.shift();
@@ -1437,7 +1437,7 @@ var getQueryParams = (url, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// node_modules/hono/dist/request.js
+// ../../node_modules/hono/dist/request.js
 var HonoRequest = class {
   /**
   * `.raw` can get the raw Request object.
@@ -1707,7 +1707,7 @@ var HonoRequest = class {
   }
 };
 
-// node_modules/hono/dist/utils/html.js
+// ../../node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -1737,7 +1737,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   else return resStr;
 };
 
-// node_modules/hono/dist/context.js
+// ../../node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType2, headers) => {
   return {
@@ -2115,7 +2115,7 @@ var Context = class {
   };
 };
 
-// node_modules/hono/dist/compose.js
+// ../../node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -2146,7 +2146,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// node_modules/hono/dist/router.js
+// ../../node_modules/hono/dist/router.js
 var METHODS = [
   "get",
   "post",
@@ -2160,10 +2160,10 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 var UnsupportedPathError = class extends Error {
 };
 
-// node_modules/hono/dist/utils/constants.js
+// ../../node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
-// node_modules/hono/dist/hono-base.js
+// ../../node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -2504,10 +2504,10 @@ var Hono = class Hono2 {
   };
 };
 
-// node_modules/hono/dist/router/utils.js
+// ../../node_modules/hono/dist/router/utils.js
 var createNullObject = () => /* @__PURE__ */ Object.create(null);
 
-// node_modules/hono/dist/router/reg-exp-router/matcher.js
+// ../../node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -2524,7 +2524,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// node_modules/hono/dist/router/reg-exp-router/node.js
+// ../../node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
 var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
 var PATH_ERROR = Symbol();
@@ -2605,7 +2605,7 @@ var Node = class Node2 {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/trie.js
+// ../../node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -2670,7 +2670,7 @@ var Trie = class {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/router.js
+// ../../node_modules/hono/dist/router/reg-exp-router/router.js
 var wildcardRegExpCache = createNullObject();
 function buildWildcardRegExp(path) {
   return wildcardRegExpCache[path] ??= new RegExp(`^${path.replace(/\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g, (match2, metaChar) => metaChar ? `\\${metaChar}` : match2 === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match2 === "*" ? ".*" : `/:${LABEL_REG_EXP_STR}`)}$`);
@@ -2764,7 +2764,7 @@ var RegExpRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/smart-router/router.js
+// ../../node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = "SmartRouter";
   #routers = [];
@@ -2811,7 +2811,7 @@ var SmartRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/node.js
+// ../../node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = createNullObject();
 var order = 0;
 var Node3 = class Node4 {
@@ -2941,7 +2941,7 @@ var Node3 = class Node4 {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/router.js
+// ../../node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = "TrieRouter";
   #node = new Node3();
@@ -2953,7 +2953,7 @@ var TrieRouter = class {
   }
 };
 
-// node_modules/hono/dist/hono.js
+// ../../node_modules/hono/dist/hono.js
 var Hono3 = class extends Hono {
   /**
   * Creates an instance of the Hono class.
@@ -2966,7 +2966,7 @@ var Hono3 = class extends Hono {
   }
 };
 
-// node_modules/hono/dist/middleware/cors/index.js
+// ../../node_modules/hono/dist/middleware/cors/index.js
 var cors = (options) => {
   const opts = {
     origin: "*",
@@ -3142,7 +3142,7 @@ var counters = {
   toolCalls: 0
 };
 
-// node_modules/@neondatabase/serverless/index.mjs
+// ../../node_modules/@neondatabase/serverless/index.mjs
 var Po = Object.create;
 var Ie = Object.defineProperty;
 var Ro = Object.getOwnPropertyDescriptor;
@@ -8740,9 +8740,9 @@ async function listKeys() {
     cooldownUntil: s.cooldownUntil
   })).sort((a2, b2) => a2.id.localeCompare(b2.id));
 }
-function tierCounts(list) {
+function tierCounts(list2) {
   const out = { unknown: 0, free: 0, paid: 0, pro: 0 };
-  for (const k of list) out[k.tier] = (out[k.tier] ?? 0) + 1;
+  for (const k of list2) out[k.tier] = (out[k.tier] ?? 0) + 1;
   return out;
 }
 async function snapshot() {
@@ -9435,7 +9435,7 @@ var ADMIN_HTML = `<!doctype html>
   function refresh() {
     if (!state.token || state.busy) return Promise.resolve();
     state.busy = true;
-    return api("/pengatur/keys")
+    return api("/pengatur/keys/list")
       .then(function (data) {
         renderStats(data.pool);
         state.tiers = data.tiers;
@@ -9471,7 +9471,7 @@ var ADMIN_HTML = `<!doctype html>
     if (!t) { say(el.authHint, "Token is empty.", "err"); return; }
     state.token = t;
     el.connect.disabled = true;
-    api("/pengatur/keys")
+    api("/pengatur/keys/list")
       .then(function (data) {
         try { localStorage.setItem(STORE, t); } catch (e) {}
         renderStats(data.pool);
@@ -11237,14 +11237,14 @@ function finish(acc) {
   if (acc.costUsd !== null) acc.costUsd = Number(acc.costUsd.toFixed(6));
   return acc;
 }
-function sumRows(list) {
+function sumRows(list2) {
   const acc = emptyTotals();
-  for (const r of list) addInto(acc, r);
+  for (const r of list2) addInto(acc, r);
   return finish(acc);
 }
-function bucketBy(list, keyOf) {
+function bucketBy(list2, keyOf) {
   const map = /* @__PURE__ */ new Map();
-  for (const r of list) {
+  for (const r of list2) {
     const k = keyOf(r) || "unknown";
     let acc = map.get(k);
     if (!acc) {
@@ -11256,8 +11256,8 @@ function bucketBy(list, keyOf) {
   return [...map.entries()].map(([key, acc]) => ({ key, ...finish(acc) })).sort((a2, b2) => b2.requests - a2.requests || b2.totalTokens - a2.totalTokens);
 }
 var dayOf = (ts2) => new Date(ts2).toISOString().slice(0, 10);
-function filterRows(list, f) {
-  return list.filter((r) => {
+function filterRows(list2, f) {
+  return list2.filter((r) => {
     if (f.day && dayOf(r.ts) !== f.day) return false;
     if (f.model && r.model !== f.model) return false;
     if (f.key && r.keyId !== f.key && r.keyMasked !== f.key) return false;
@@ -11290,7 +11290,10 @@ function usageOverview(page = 1, pageSize = 25, filter = {}) {
     since: tail.length ? tail[tail.length - 1].ts : null
   };
 }
-function toCsv(list) {
+function allRows() {
+  return tail.slice();
+}
+function toCsv(list2) {
   const cols = [
     "id",
     "ts",
@@ -11319,7 +11322,7 @@ function toCsv(list) {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [cols.join(",")];
-  for (const r of list) lines.push(cols.map((c) => esc(r[c])).join(","));
+  for (const r of list2) lines.push(cols.map((c) => esc(r[c])).join(","));
   return lines.join("\n") + "\n";
 }
 
@@ -12105,6 +12108,680 @@ function defaultDay(now2 = Date.now()) {
   return yesterdayWib(now2);
 }
 
+// src/audit.ts
+var KEY_SHAPED3 = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/g;
+var DETAIL_MAX = 2e3;
+var ACTOR_MAX = 120;
+function actorFrom(ua) {
+  const s = (ua ?? "").trim();
+  return (s || "api").slice(0, ACTOR_MAX);
+}
+function safeDetail(detail) {
+  if (!detail) return null;
+  const json2 = JSON.stringify(detail).replace(KEY_SHAPED3, "[redacted]");
+  if (json2.length > DETAIL_MAX) {
+    return JSON.stringify({ truncated: true, chars: json2.length, head: json2.slice(0, DETAIL_MAX) });
+  }
+  return json2;
+}
+function record2(action, input = {}) {
+  if (!dbEnabled()) return;
+  void sql(
+    `insert into admin_audit (actor, action, target, detail)
+     values ($1, $2, $3, $4::jsonb)`,
+    [
+      (input.actor ?? "api").slice(0, ACTOR_MAX),
+      action,
+      input.target ? input.target.slice(0, 200) : null,
+      safeDetail(input.detail)
+    ]
+  );
+}
+async function list(filter = {}) {
+  if (!dbEnabled()) return { ok: true, rows: [] };
+  const params = [];
+  const where = [];
+  if (filter.action) {
+    params.push(`${filter.action}%`);
+    where.push(`action like $${params.length}`);
+  }
+  if (filter.since) {
+    params.push(filter.since);
+    where.push(`ts >= $${params.length}::timestamptz`);
+  }
+  const limit = Math.min(Math.max(1, Math.floor(filter.limit ?? 100) || 100), 500);
+  params.push(limit);
+  const res = await sql(
+    `select id, ts, actor, action, target, detail
+       from admin_audit
+       ${where.length ? `where ${where.join(" and ")}` : ""}
+       order by ts desc, id desc
+       limit $${params.length}`,
+    params
+  );
+  if (!res.ok) {
+    if (res.reason === "disabled") return { ok: true, rows: [] };
+    return { ok: false, rows: [], error: res.message };
+  }
+  return {
+    ok: true,
+    rows: res.rows.map((r) => ({
+      id: Number(r.id),
+      ts: new Date(r.ts).toISOString(),
+      actor: r.actor,
+      action: r.action,
+      target: r.target,
+      detail: r.detail && typeof r.detail === "object" ? r.detail : null
+    }))
+  };
+}
+
+// src/stats-ui.ts
+var STATS_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Statistics</title>
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #0d1014;
+    --panel: #12161b;
+    --panel-2: #171c22;
+    --line: #242b34;
+    --text: #e6eaf0;
+    --muted: #8c96a5;
+    --accent: #e8a33d;
+    --ready: #57c98a;
+    --dead: #e8737b;
+    --focus: #7fb4ff;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
+  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .brand .sub { font-size: 12px; color: var(--muted); }
+  .top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
+  .top-right a { color: var(--accent); text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
+  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 0 20px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
+  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .strip .kv span { font-size: 12px; color: var(--muted); }
+  .strip .kv.dead b { color: var(--dead); }
+  .strip .kv.ready b { color: var(--ready); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .card + .card { margin-top: 12px; }
+  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  input[type=password], select {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 9px 11px;
+    font-size: 13px;
+    font-family: inherit;
+    min-height: 40px;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button {
+    background: var(--accent);
+    color: #1a1206;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 650;
+    padding: 0 14px;
+    min-height: 40px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .row .grow { flex: 1 1 220px; }
+  .muted { color: var(--muted); font-size: 12.5px; }
+  .err { color: var(--dead); font-size: 12.5px; margin: 10px 0 0; min-height: 1em; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: 0; }
+  th.num, td.num { text-align: right; }
+  .heat { display: grid; grid-template-columns: 34px repeat(24, minmax(18px, 1fr)); gap: 2px; font-size: 10px; color: var(--muted); }
+  .heat .h { text-align: center; }
+  .heat .cell { height: 18px; border-radius: 3px; background: var(--panel-2); }
+  .note { margin: 12px 0 0; color: var(--muted); font-size: 12.5px; }
+  .empty { padding: 22px 16px; text-align: center; color: var(--muted); }
+  .empty b { display: block; color: var(--text); margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <span class="dot"></span>
+      <div>
+        <h1>Statistics</h1>
+        <div class="sub">Range breakdowns, heatmap and cost projection</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <a href="/pengatur">overview &rarr;</a>
+      <a href="/pengatur/logs">logs &rarr;</a>
+      <a href="/pengatur/keys">keys &rarr;</a>
+      <a href="/pengatur/settings">settings &rarr;</a>
+      <a href="/pengatur/audit">audit &rarr;</a>
+    </div>
+  </header>
+
+  <div class="card" id="gate">
+    <label class="field" for="token">Admin token</label>
+    <div class="row">
+      <div class="grow">
+        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+      </div>
+      <button id="connect" type="button">Connect</button>
+    </div>
+    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is only sent to this deployment.</p>
+    <div id="gateErr" class="err"></div>
+  </div>
+
+  <div id="console" hidden>
+
+    <div class="strip">
+      <div class="kv"><b id="sReq">0</b><span>requests</span></div>
+      <div class="kv ready"><b id="sOk">0</b><span>ok</span></div>
+      <div class="kv dead"><b id="sErr">0</b><span>errors</span></div>
+      <div class="kv"><b id="sRot">0</b><span>rotated</span></div>
+      <div class="kv"><b id="sTokens">0</b><span>tokens</span></div>
+      <div class="kv"><b id="sCost">$0</b><span>cost</span></div>
+      <div class="kv"><b id="sP50">0</b><span>p50 ms</span></div>
+      <div class="kv"><b id="sP95">0</b><span>p95 ms</span></div>
+      <div class="kv"><b id="sProj">$0</b><span>projected / 30d</span></div>
+    </div>
+
+    <h2 class="sec">Range</h2>
+    <div class="card">
+      <div class="row">
+        <div>
+          <label class="field" for="range">Window</label>
+          <select id="range">
+            <option value="1h">last hour</option>
+            <option value="24h" selected>last 24 hours</option>
+            <option value="7d">last 7 days</option>
+            <option value="30d">last 30 days</option>
+          </select>
+        </div>
+        <button id="apply" type="button">Apply</button>
+      </div>
+      <p class="note" id="meta"></p>
+      <div id="dataErr" class="err"></div>
+    </div>
+
+    <h2 class="sec">Hour &times; weekday heatmap (WIB)</h2>
+    <div class="card">
+      <div id="heat" class="heat"></div>
+      <div class="empty" id="heatEmpty" hidden><b>No hourly data</b>This range has no events with hourly granularity.</div>
+    </div>
+
+    <h2 class="sec">By model</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="byModel">
+        <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
+    </div>
+
+    <h2 class="sec">By key</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="byKey">
+        <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
+    </div>
+
+    <h2 class="sec">By route</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="byRoute">
+        <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
+    </div>
+
+    <h2 class="sec">By status</h2>
+    <div class="card" style="padding:0;overflow-x:auto">
+      <table id="byStatus">
+        <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="empty" data-empty hidden><b>Nothing in range</b>No requests matched this window.</div>
+    </div>
+
+  </div>
+</div>
+<script>
+(function () {
+  var STORE = "geminesx.admin.token";
+  var state = { token: "", range: "24h" };
+
+  function el(id) { return document.getElementById(id); }
+  var gate = el("gate"), box = el("console"), tokenIn = el("token");
+
+  function err(id, msg) { el(id).textContent = msg || ""; }
+
+  function money(n) {
+    return "$" + (Number(n) || 0).toFixed(6).replace(/0+$/, "").replace(/\\.$/, "");
+  }
+
+  function int(n) {
+    return String(Number(n) || 0).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ",");
+  }
+
+  function api(path) {
+    return fetch(path, { headers: { authorization: "Bearer " + state.token } }).then(function (r) {
+      if (r.status === 401) throw new Error("Unauthorized. Re-enter the admin token.");
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          var msg = t;
+          try { msg = JSON.parse(t).error.message || t; } catch (e) {}
+          throw new Error(msg || ("HTTP " + r.status));
+        });
+      }
+      return r.json();
+    });
+  }
+
+  function fillBucket(tableId, rows, cols) {
+    var table = el(tableId);
+    var body = table.querySelector("tbody");
+    body.textContent = "";
+    var empty = table.querySelector("[data-empty]");
+    if (!rows || !rows.length) { if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var tr = document.createElement("tr");
+      for (var c = 0; c < cols.length; c++) {
+        var td = document.createElement("td");
+        if (c > 0) td.className = "num";
+        td.textContent = cols[c](r);
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+  }
+
+  function fillStatus(rows) {
+    var body = el("byStatus").querySelector("tbody");
+    body.textContent = "";
+    var empty = el("byStatus").querySelector("[data-empty]");
+    if (!rows || !rows.length) { if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
+    for (var i = 0; i < rows.length; i++) {
+      var tr = document.createElement("tr");
+      var a = document.createElement("td");
+      a.textContent = rows[i].key;
+      var b = document.createElement("td");
+      b.className = "num";
+      b.textContent = int(rows[i].requests);
+      tr.appendChild(a);
+      tr.appendChild(b);
+      body.appendChild(tr);
+    }
+  }
+
+  function fillHeat(cells) {
+    var heat = el("heat");
+    heat.textContent = "";
+    if (!cells || !cells.length) { el("heatEmpty").hidden = false; return; }
+    el("heatEmpty").hidden = true;
+    var max = 0;
+    for (var i = 0; i < cells.length; i++) max = Math.max(max, cells[i].requests);
+    var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    var grid = {};
+    for (var j = 0; j < cells.length; j++) grid[cells[j].weekday + ":" + cells[j].hour] = cells[j].requests;
+    for (var d = 0; d < 7; d++) {
+      var lbl = document.createElement("div");
+      lbl.textContent = days[d];
+      heat.appendChild(lbl);
+      for (var h = 0; h < 24; h++) {
+        var cell = document.createElement("div");
+        cell.className = "cell";
+        var v = grid[d + ":" + h] || 0;
+        if (v > 0) {
+          var alpha = 0.25 + 0.75 * (v / max);
+          cell.style.background = "rgba(232, 163, 61, " + alpha.toFixed(3) + ")";
+          cell.title = days[d] + " " + (h < 10 ? "0" + h : h) + ":00 \u2014 " + v + " req";
+        }
+        heat.appendChild(cell);
+      }
+    }
+  }
+
+  function paint(d) {
+    var t = d.totals || {};
+    el("sReq").textContent = int(t.requests);
+    el("sOk").textContent = int((t.requests || 0) - (t.errors || 0));
+    el("sErr").textContent = int(t.errors);
+    el("sRot").textContent = int(t.rotated);
+    el("sTokens").textContent = int(t.totalTokens);
+    el("sCost").textContent = money(t.costUsd);
+    el("sP50").textContent = int(t.p50Ms);
+    el("sP95").textContent = int(t.p95Ms);
+    el("sProj").textContent = money(d.projectedMonthlyUsd);
+    el("meta").textContent = (d.source === "ring" ? "Source: in-memory ring. " : "Source: usage_daily. ") + (d.note || "");
+    fillHeat(d.heatmap);
+    fillBucket("byModel", d.byModel, [
+      function (r) { return r.key; },
+      function (r) { return int(r.requests); },
+      function (r) { return int(r.errors); },
+      function (r) { return int(r.totalTokens); },
+      function (r) { return money(r.costUsd); },
+      function (r) { return int(r.avgLatencyMs); }
+    ]);
+    fillBucket("byKey", d.byKey, [
+      function (r) { return r.key; },
+      function (r) { return int(r.requests); },
+      function (r) { return int(r.errors); },
+      function (r) { return int(r.rotated); },
+      function (r) { return int(r.totalTokens); },
+      function (r) { return money(r.costUsd); }
+    ]);
+    fillBucket("byRoute", d.byRoute, [
+      function (r) { return r.key; },
+      function (r) { return int(r.requests); },
+      function (r) { return int(r.errors); },
+      function (r) { return int(r.totalTokens); },
+      function (r) { return money(r.costUsd); }
+    ]);
+    fillStatus(d.byStatus);
+  }
+
+  function load() {
+    err("dataErr", "");
+    api("/pengatur/stats/data?range=" + encodeURIComponent(state.range)).then(paint).catch(function (e) {
+      err("dataErr", e.message);
+    });
+  }
+
+  function connect() {
+    var t = tokenIn.value.trim();
+    if (!t) { err("gateErr", "Enter the admin token."); return; }
+    state.token = t;
+    api("/pengatur/stats/data?range=" + encodeURIComponent(state.range)).then(function (d) {
+      try { localStorage.setItem(STORE, t); } catch (e) {}
+      err("gateErr", "");
+      gate.hidden = true;
+      box.hidden = false;
+      paint(d);
+    }).catch(function (e) {
+      state.token = "";
+      err("gateErr", e.message);
+    });
+  }
+
+  el("connect").addEventListener("click", connect);
+  tokenIn.addEventListener("keydown", function (e) { if (e.key === "Enter") connect(); });
+  el("apply").addEventListener("click", function () {
+    state.range = el("range").value;
+    load();
+  });
+
+  var saved = "";
+  try { saved = localStorage.getItem(STORE) || ""; } catch (e) {}
+  if (saved) { tokenIn.value = saved; connect(); }
+})();
+</script>
+</body>
+</html>`;
+
+// src/stats.ts
+var STATS_RANGES = ["1h", "24h", "7d", "30d"];
+var isStatsRange = (v2) => v2 !== null && v2 !== void 0 && STATS_RANGES.includes(v2);
+var RANGE_MS = {
+  "1h": 60 * 60 * 1e3,
+  "24h": 24 * 60 * 60 * 1e3,
+  "7d": 7 * 24 * 60 * 60 * 1e3,
+  "30d": 30 * 24 * 60 * 60 * 1e3
+};
+var WIB_OFFSET_MS2 = 7 * 60 * 60 * 1e3;
+function percentile(sorted, p2) {
+  if (!sorted.length) return 0;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil(p2 / 100 * sorted.length) - 1));
+  return sorted[idx];
+}
+var emptyTotals2 = () => ({
+  requests: 0,
+  errors: 0,
+  rotated: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+  totalTokens: 0,
+  costUsd: 0,
+  p50Ms: 0,
+  p95Ms: 0
+});
+function bucketRows(list2, keyOf) {
+  const map = /* @__PURE__ */ new Map();
+  for (const r of list2) {
+    const k = keyOf(r) || "unknown";
+    let acc = map.get(k);
+    if (!acc) {
+      acc = { key: k, requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
+      map.set(k, acc);
+    }
+    acc.requests++;
+    if (!r.ok) acc.errors++;
+    if (r.rotated) acc.rotated++;
+    acc.promptTokens += r.promptTokens;
+    acc.completionTokens += r.completionTokens;
+    acc.totalTokens += r.totalTokens;
+    acc.costUsd += r.costUsd ?? 0;
+    acc.avgLatencyMs += r.latencyMs;
+  }
+  const out = [...map.values()];
+  for (const b2 of out) b2.avgLatencyMs = b2.requests ? Math.round(b2.avgLatencyMs / b2.requests) : 0;
+  return out.sort((a2, b2) => b2.requests - a2.requests || b2.totalTokens - a2.totalTokens);
+}
+function wibHourWeekday(ts2) {
+  const d = new Date(ts2 + WIB_OFFSET_MS2);
+  return { hour: d.getUTCHours(), weekday: d.getUTCDay() };
+}
+function heatmapFromRing(rows) {
+  const grid = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const { hour, weekday } = wibHourWeekday(r.ts);
+    const idx = weekday * 24 + hour;
+    grid.set(idx, (grid.get(idx) ?? 0) + 1);
+  }
+  return [...grid.entries()].map(([idx, requests]) => ({ weekday: Math.floor(idx / 24), hour: idx % 24, requests })).sort((a2, b2) => a2.weekday - b2.weekday || a2.hour - b2.hour);
+}
+function statsFromRing(range, now2) {
+  const since = now2 - RANGE_MS[range];
+  const rows = allRows().filter((r) => r.ts >= since);
+  const totals = sumRows(rows);
+  const latencies = rows.map((r) => r.latencyMs).sort((a2, b2) => a2 - b2);
+  const statusMap = /* @__PURE__ */ new Map();
+  for (const r of rows) statusMap.set(String(r.status), (statusMap.get(String(r.status)) ?? 0) + 1);
+  const costUsd = totals.costUsd ?? 0;
+  const observedDays = RANGE_MS[range] / (24 * 60 * 60 * 1e3);
+  const projected = observedDays > 0 ? costUsd / observedDays * 30 : 0;
+  return {
+    ok: true,
+    range,
+    source: "ring",
+    since,
+    until: now2,
+    totals: {
+      requests: totals.requests,
+      errors: totals.errors,
+      rotated: totals.rotated,
+      promptTokens: totals.promptTokens,
+      completionTokens: totals.completionTokens,
+      totalTokens: totals.totalTokens,
+      costUsd,
+      p50Ms: percentile(latencies, 50),
+      p95Ms: percentile(latencies, 95)
+    },
+    byModel: bucketRows(rows, (r) => r.model),
+    byKey: bucketRows(rows, (r) => r.keyId || r.keyMasked),
+    byRoute: bucketRows(rows, (r) => r.route),
+    byStatus: [...statusMap.entries()].map(([key, requests]) => ({ key, requests })).sort((a2, b2) => b2.requests - a2.requests),
+    heatmap: heatmapFromRing(rows),
+    projectedMonthlyUsd: Number(projected.toFixed(6)),
+    ...rows.length ? {} : { note: "No traffic in this range." }
+  };
+}
+var num2 = (v2) => {
+  const n = Number(v2);
+  return Number.isFinite(n) ? n : 0;
+};
+function dailyBucket(rows, keyOf) {
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const k = keyOf(r) || "unknown";
+    let acc = map.get(k);
+    if (!acc) {
+      acc = { key: k, requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
+      map.set(k, acc);
+    }
+    const requests = num2(r.requests);
+    acc.requests += requests;
+    acc.errors += num2(r.errors);
+    acc.rotated += num2(r.rotated);
+    acc.promptTokens += num2(r.prompt_tokens);
+    acc.completionTokens += num2(r.completion_tokens);
+    acc.totalTokens += num2(r.prompt_tokens) + num2(r.completion_tokens);
+    acc.costUsd += num2(r.cost_usd);
+    acc.avgLatencyMs += requests * num2(r.p50_ms);
+  }
+  const out = [...map.values()];
+  for (const b2 of out) b2.avgLatencyMs = b2.requests ? Math.round(b2.avgLatencyMs / b2.requests) : 0;
+  for (const b2 of out) b2.costUsd = Number(b2.costUsd.toFixed(6));
+  return out.sort((a2, b2) => b2.requests - a2.requests);
+}
+async function statsFromDaily(range, now2) {
+  const since = now2 - RANGE_MS[range];
+  const base = {
+    ok: true,
+    range,
+    source: "usage_daily",
+    since,
+    until: now2,
+    byStatus: [],
+    heatmap: [],
+    projectedMonthlyUsd: 0
+  };
+  const sinceDay = wibDayOf(since);
+  const daily = await sql(
+    `select day::text as day, route, model, key_id,
+            requests, errors, rotated,
+            prompt_tokens, completion_tokens, cost_usd, p50_ms, p95_ms
+       from usage_daily
+      where day >= $1::date
+      order by day`,
+    [sinceDay]
+  );
+  if (!daily.ok) {
+    if (daily.reason === "disabled") {
+      return {
+        ...base,
+        totals: emptyTotals2(),
+        byModel: [],
+        byKey: [],
+        byRoute: [],
+        note: "Daily history needs Postgres; DATABASE_URL is not set."
+      };
+    }
+    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], error: daily.message };
+  }
+  const rows = daily.rows;
+  const requests = rows.reduce((s, r) => s + num2(r.requests), 0);
+  const errors = rows.reduce((s, r) => s + num2(r.errors), 0);
+  const rotated = rows.reduce((s, r) => s + num2(r.rotated), 0);
+  const promptTokens = rows.reduce((s, r) => s + num2(r.prompt_tokens), 0);
+  const completionTokens = rows.reduce((s, r) => s + num2(r.completion_tokens), 0);
+  const costUsd = Number(rows.reduce((s, r) => s + num2(r.cost_usd), 0).toFixed(6));
+  let p50Num = 0;
+  let p95Num = 0;
+  for (const r of rows) {
+    const w = num2(r.requests);
+    p50Num += w * num2(r.p50_ms);
+    p95Num += w * num2(r.p95_ms);
+  }
+  const p50Ms = requests ? Math.round(p50Num / requests) : 0;
+  const p95Ms = requests ? Math.round(p95Num / requests) : 0;
+  const observedDays = RANGE_MS[range] / (24 * 60 * 60 * 1e3);
+  const projectedMonthlyUsd = Number((costUsd / observedDays * 30).toFixed(6));
+  const heat = await sql(
+    `select extract(hour from ts at time zone 'Asia/Jakarta')::int as hour,
+            extract(dow from ts at time zone 'Asia/Jakarta')::int as weekday,
+            count(*)::int as requests
+       from usage_events
+      where ts >= $1
+      group by 1, 2`,
+    [new Date(since).toISOString()]
+  );
+  if (!heat.ok) {
+    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], error: heat.message };
+  }
+  const note = rows.length ? "Status codes are aggregated to ok/error for this range; p50/p95 are requests-weighted bucket means." : `No usage_daily rows for this range (rollup runs daily via /internal/rollup).`;
+  return {
+    ...base,
+    totals: { requests, errors, rotated, promptTokens, completionTokens, totalTokens: promptTokens + completionTokens, costUsd, p50Ms, p95Ms },
+    byModel: dailyBucket(rows, (r) => r.model),
+    byKey: dailyBucket(rows, (r) => r.key_id),
+    byRoute: dailyBucket(rows, (r) => r.route),
+    byStatus: [
+      { key: "ok", requests: Math.max(0, requests - errors) },
+      { key: "error", requests: errors }
+    ].filter((b2) => b2.requests > 0),
+    heatmap: heat.rows.map((r) => ({ weekday: num2(r.weekday), hour: num2(r.hour), requests: num2(r.requests) })).sort((a2, b2) => a2.weekday - b2.weekday || a2.hour - b2.hour),
+    projectedMonthlyUsd,
+    note
+  };
+}
+async function statsSnapshot(range, now2 = Date.now()) {
+  if (range === "1h" || range === "24h") return statsFromRing(range, now2);
+  if (!dbEnabled()) {
+    return {
+      ok: true,
+      range,
+      source: "usage_daily",
+      since: now2 - RANGE_MS[range],
+      until: now2,
+      totals: emptyTotals2(),
+      byModel: [],
+      byKey: [],
+      byRoute: [],
+      byStatus: [],
+      heatmap: [],
+      projectedMonthlyUsd: 0,
+      note: "Daily history needs Postgres; DATABASE_URL is not set."
+    };
+  }
+  return statsFromDaily(range, now2);
+}
+
 // src/usage-ui.ts
 var USAGE_HTML = `<!doctype html>
 <html lang="en">
@@ -12752,6 +13429,1057 @@ var USAGE_HTML = `<!doctype html>
 </html>
 `;
 
+// src/keys-ui.ts
+var KEYS_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keys \xB7 geminesx</title>
+<style>
+:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
+header h1 { font-size:15px; margin:0; font-weight:600; }
+header a { color:var(--accent); text-decoration:none; }
+header .dim, .dim { color:var(--dim); }
+main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:not-allowed; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
+button.danger { color:var(--err); }
+input, select, textarea { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
+textarea { width:100%; min-height:88px; resize:vertical; }
+input[type=password] { width:280px; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
+th { color:var(--dim); font-weight:500; font-size:12px; }
+tr:last-child td { border-bottom:none; }
+td.id a { color:var(--accent); text-decoration:none; }
+.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+.tag.ok { color:var(--ok); border-color:var(--ok); }
+.tag.warn { color:var(--warn); border-color:var(--warn); }
+.tag.err { color:var(--err); border-color:var(--err); }
+.msg { min-height:20px; font-size:13px; }
+.msg.err { color:var(--err); }
+.msg.ok { color:var(--ok); }
+.hint { color:var(--dim); font-size:12px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; }
+.stat b { display:block; font-size:20px; font-variant-numeric:tabular-nums; }
+.stat span { color:var(--dim); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Keys</h1>
+  <a href="/pengatur/stats">stats</a>
+  <a href="/pengatur/settings">settings</a>
+  <a href="/pengatur/audit">audit</a>
+  <a href="/pengatur/logs">logs</a>
+  <span class="dim" id="authState">token required</span>
+</header>
+<main>
+  <section class="panel" id="authPanel">
+    <h2>Admin token</h2>
+    <div class="row">
+      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
+      <button class="primary" id="connect">Connect</button>
+      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+    </div>
+    <div class="msg" id="authHint"></div>
+  </section>
+
+  <section class="panel" id="statsPanel" hidden>
+    <h2>Pool</h2>
+    <div class="grid" id="stats"></div>
+  </section>
+
+  <section class="panel" id="bulkPanel" hidden>
+    <h2>Bulk actions</h2>
+    <div class="row">
+      <select id="tierSel"></select>
+      <button id="applyTier">Set tier on selected</button>
+      <button id="testAll">Test all</button>
+      <button id="refresh">Refresh</button>
+      <label class="hint"><input type="checkbox" id="auto"> auto-refresh 15s</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="enableBtn" disabled>Enable selected</button>
+      <button id="disableBtn" disabled>Disable selected</button>
+      <span class="hint">Enable/disable is not implemented by the admin API yet \u2014 no route toggles the keys table. Remove and re-add a key to reset it.</span>
+    </div>
+    <div class="msg" id="bulkMsg"></div>
+  </section>
+
+  <section class="panel" id="addPanel" hidden>
+    <h2>Add keys</h2>
+    <textarea id="newKeys" placeholder="One raw key per line"></textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" id="addBtn">Add</button>
+      <span class="hint">Raw values are never returned by the API; only masked ids are.</span>
+    </div>
+    <div class="msg" id="addMsg"></div>
+  </section>
+
+  <section class="panel" id="keysPanel" hidden>
+    <h2>Keys</h2>
+    <table>
+      <thead><tr>
+        <th><input type="checkbox" id="all"></th>
+        <th>id</th><th>masked</th><th>plan</th><th>state</th><th>enabled</th><th>fails</th><th>last seen</th><th></th>
+      </tr></thead>
+      <tbody id="keyRows"></tbody>
+    </table>
+    <div class="msg" id="keyMsg"></div>
+  </section>
+</main>
+<script>
+const TOKEN_KEY = "geminesx.admin.token";
+
+function token() {
+  return localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+/** Fetch helper. Every console request carries the pasted token. */
+async function api(path, opts) {
+  const init = Object.assign({ headers: {} }, opts ?? {});
+  init.headers = Object.assign({}, init.headers, { authorization: "Bearer " + token() });
+  if (init.body !== undefined) {
+    init.headers["content-type"] = "application/json";
+    init.body = JSON.stringify(init.body);
+  }
+  const res = await fetch(path, init);
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!res.ok) {
+    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
+    throw new Error(message);
+  }
+  return data;
+}
+
+function say(node, text, cls) {
+  node.textContent = text;
+  node.className = "msg" + (cls ? " " + cls : "");
+}
+
+function when(ms) {
+  if (!ms) return "never";
+  const d = new Date(ms);
+  return d.toISOString().replace("T", " ").slice(0, 19);
+}
+
+function left(ms) {
+  if (!ms || ms <= 0) return "-";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.round(s / 60) + "m";
+  return Math.round(s / 3600) + "h";
+}
+
+const state = { keys: [], tiers: [], knownTiers: [], timer: null };
+
+function row(k) {
+  const tr = document.createElement("tr");
+  const status = k.status ?? "ready";
+  const badge = status === "ready" ? "ok" : status === "cooling" ? "warn" : "err";
+  tr.innerHTML =
+    '<td><input type="checkbox" data-id="' + k.id + '"></td>' +
+    '<td class="id"><a href="/pengatur/keys/' + k.id + '">' + k.id + "</a></td>" +
+    "<td>" + k.key + "</td>" +
+    "<td>" + k.tier + "</td>" +
+    '<td><span class="tag ' + badge + '">' + status + "</span></td>" +
+    "<td>" + (k.enabled === false ? "no" : "yes") + "</td>" +
+    "<td>" + k.failures + "</td>" +
+    "<td>" + when(k.lastUsed) + "</td>" +
+    '<td><button data-test="' + k.id + '">test</button> <button class="danger" data-del="' + k.id + '">delete</button></td>';
+  return tr;
+}
+
+function selected() {
+  return [...document.querySelectorAll("#keyRows input[type=checkbox]:checked")].map((n) => n.dataset.id);
+}
+
+function render(data) {
+  state.keys = data.keys ?? [];
+  state.tiers = data.tiers ?? [];
+  state.knownTiers = data.knownTiers ?? [];
+
+  const pool = data.pool ?? {};
+  const stats = document.getElementById("stats");
+  stats.innerHTML = "";
+  for (const [label, value] of [
+    ["total", pool.total],
+    ["ready", pool.ready],
+    ["cooling", pool.cooling],
+    ["dead", pool.dead],
+    ["storage", pool.storage],
+    ["degraded", pool.degraded ? "yes" : "no"],
+  ]) {
+    const cell = document.createElement("div");
+    cell.className = "stat";
+    cell.innerHTML = "<b>" + (value ?? 0) + "</b><span>" + label + "</span>";
+    stats.appendChild(cell);
+  }
+
+  const sel = document.getElementById("tierSel");
+  const keep = sel.value;
+  sel.innerHTML = "";
+  for (const t of state.knownTiers) {
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t;
+    sel.appendChild(opt);
+  }
+  if (keep) sel.value = keep;
+
+  const body = document.getElementById("keyRows");
+  body.innerHTML = "";
+  for (const k of state.keys) body.appendChild(row(k));
+
+  document.getElementById("keysPanel").hidden = false;
+  document.getElementById("bulkPanel").hidden = false;
+  document.getElementById("addPanel").hidden = false;
+  document.getElementById("statsPanel").hidden = false;
+}
+
+async function refresh() {
+  try {
+    const data = await api("/pengatur/keys/list");
+    render(data);
+    say(document.getElementById("keyMsg"), state.keys.length + " keys", "ok");
+  } catch (err) {
+    say(document.getElementById("keyMsg"), err.message, "err");
+  }
+}
+
+function act(fn) {
+  return async (ev) => {
+    const id = ev.currentTarget.dataset.test ?? ev.currentTarget.dataset.del;
+    ev.currentTarget.disabled = true;
+    try {
+      await fn(id);
+    } catch (err) {
+      say(document.getElementById("keyMsg"), err.message, "err");
+    } finally {
+      ev.currentTarget.disabled = false;
+    }
+  };
+}
+
+document.getElementById("token").value = token();
+
+document.getElementById("connect").addEventListener("click", async () => {
+  const value = document.getElementById("token").value.trim();
+  if (!value) {
+    say(document.getElementById("authHint"), "Paste the admin token.", "err");
+    return;
+  }
+  localStorage.setItem(TOKEN_KEY, value);
+  document.getElementById("authHint").textContent = "";
+  await refresh();
+});
+
+document.getElementById("refresh").addEventListener("click", refresh);
+
+document.getElementById("auto").addEventListener("change", (ev) => {
+  clearInterval(state.timer);
+  state.timer = ev.target.checked ? setInterval(refresh, 15000) : null;
+});
+
+document.getElementById("all").addEventListener("change", (ev) => {
+  for (const box of document.querySelectorAll("#keyRows input[type=checkbox]")) box.checked = ev.target.checked;
+});
+
+document.getElementById("applyTier").addEventListener("click", async () => {
+  const ids = selected();
+  if (!ids.length) {
+    say(document.getElementById("bulkMsg"), "Select at least one key.", "err");
+    return;
+  }
+  try {
+    const res = await api("/pengatur/keys/tier", {
+      method: "POST",
+      body: { ids: ids, tier: document.getElementById("tierSel").value },
+    });
+    say(document.getElementById("bulkMsg"), "updated " + (res.updated ?? ids.length) + " keys", "ok");
+    await refresh();
+  } catch (err) {
+    say(document.getElementById("bulkMsg"), err.message, "err");
+  }
+});
+
+document.getElementById("testAll").addEventListener("click", async (ev) => {
+  ev.currentTarget.disabled = true;
+  say(document.getElementById("bulkMsg"), "testing\u2026", "");
+  try {
+    const res = await api("/pengatur/keys/test-all", { method: "POST" });
+    say(document.getElementById("bulkMsg"), "tested " + (res.tested ?? 0) + " keys", "ok");
+    await refresh();
+  } catch (err) {
+    say(document.getElementById("bulkMsg"), err.message, "err");
+  } finally {
+    ev.currentTarget.disabled = false;
+  }
+});
+
+document.getElementById("addBtn").addEventListener("click", async () => {
+  const raw = document.getElementById("newKeys").value;
+  const keys = raw.split(/[s,]+/).map((s) => s.trim()).filter(Boolean);
+  if (!keys.length) {
+    say(document.getElementById("addMsg"), "Paste at least one key.", "err");
+    return;
+  }
+  try {
+    const res = await api("/pengatur/keys", { method: "POST", body: { keys: keys } });
+    say(document.getElementById("addMsg"), "added " + (res.added ?? keys.length) + " keys", "ok");
+    document.getElementById("newKeys").value = "";
+    await refresh();
+  } catch (err) {
+    say(document.getElementById("addMsg"), err.message, "err");
+  }
+});
+
+document.getElementById("keyRows").addEventListener("click", async (ev) => {
+  const testId = ev.target.dataset?.test;
+  const delId = ev.target.dataset?.del;
+  if (testId) await act(async (id) => {
+    const res = await api("/pengatur/keys/test", { method: "POST", body: { id: id } });
+    say(document.getElementById("keyMsg"), id + ": " + (res.probe?.status ?? "tested") + " (" + (res.applied ?? "none") + ")", "ok");
+    await refresh();
+  })({ currentTarget: ev.target });
+  else if (delId) await act(async (id) => {
+    await api("/pengatur/keys", { method: "DELETE", body: { id: id } });
+    say(document.getElementById("keyMsg"), "deleted " + id, "ok");
+    await refresh();
+  })({ currentTarget: ev.target });
+});
+
+refresh();
+</script>
+</body>
+</html>`;
+var KEY_DETAIL_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Key detail</title>
+<style>
+:root { --bg:#0b0d12; --panel:#12151d; --line:#242938; --ink:#e6e9f0; --dim:#8b93a7; --accent:#6ea8fe; --ok:#3ecf8e; --warn:#e0b341; --err:#ef6b6b; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+header { display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid var(--line); }
+header h1 { font-size:16px; margin:0; font-weight:600; }
+header a { color:var(--dim); text-decoration:none; }
+header a:hover { color:var(--accent); }
+.dim { color:var(--dim); margin-left:auto; font-size:12px; }
+main { padding:18px 20px; display:grid; gap:14px; max-width:1200px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+.panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:0 0 10px; font-weight:600; }
+.row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+button { background:#1a1f2b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 11px; font:inherit; cursor:pointer; }
+button:hover { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:not-allowed; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#0b0d12; font-weight:600; }
+input { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
+input[type=password] { width:280px; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
+th { color:var(--dim); font-weight:500; font-size:12px; }
+tr:last-child td { border-bottom:none; }
+.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+.tag.ok { color:var(--ok); border-color:var(--ok); }
+.tag.warn { color:var(--warn); border-color:var(--warn); }
+.tag.err { color:var(--err); border-color:var(--err); }
+.msg { min-height:20px; font-size:13px; }
+.msg.err { color:var(--err); }
+.msg.ok { color:var(--ok); }
+.hint { color:var(--dim); font-size:12px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
+.stat b { display:block; font-size:18px; font-variant-numeric:tabular-nums; }
+.stat span { color:var(--dim); font-size:12px; }
+.bar { height:8px; background:var(--accent); border-radius:2px; min-width:1px; }
+.barCell { width:180px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Key</h1>
+  <a href="/pengatur/keys">keys</a>
+  <a href="/pengatur/stats">stats</a>
+  <span class="dim" id="authState">token required</span>
+</header>
+<main>
+  <section class="panel" id="authPanel">
+    <h2>Admin token</h2>
+    <div class="row">
+      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
+      <button class="primary" id="connect">Connect</button>
+      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+    </div>
+    <div class="msg" id="authHint"></div>
+  </section>
+
+  <section class="panel" id="summaryPanel" hidden>
+    <h2 id="keyTitle">Summary</h2>
+    <div class="grid" id="summary"></div>
+    <div class="msg" id="summaryMsg"></div>
+  </section>
+
+  <section class="panel" id="chartPanel" hidden>
+    <h2>Daily requests</h2>
+    <div class="msg" id="chartNote"></div>
+    <table>
+      <thead><tr><th>day</th><th>requests</th><th></th><th>errors</th><th>cost</th></tr></thead>
+      <tbody id="dailyRows"></tbody>
+    </table>
+  </section>
+
+  <section class="panel" id="cooldownPanel" hidden>
+    <h2>Cooldown timeline</h2>
+    <div class="msg" id="coolNow"></div>
+    <table>
+      <thead><tr><th>when</th><th>status</th><th>error</th><th>rotated</th></tr></thead>
+      <tbody id="eventRows"></tbody>
+    </table>
+  </section>
+
+  <section class="panel" id="recentPanel" hidden>
+    <h2>Recent requests</h2>
+    <div class="msg" id="recentNote"></div>
+    <table>
+      <thead><tr><th>when</th><th>route</th><th>model</th><th>status</th><th>ms</th><th>tokens</th></tr></thead>
+      <tbody id="recentRows"></tbody>
+    </table>
+  </section>
+</main>
+<script>
+const TOKEN_KEY = "geminesx.admin.token";
+const keyId = location.pathname.split("/").filter(Boolean).pop();
+
+function token() {
+  return localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+async function api(path) {
+  const res = await fetch(path, { headers: { authorization: "Bearer " + token() } });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!res.ok || (data && data.ok === false)) {
+    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
+    throw new Error(message);
+  }
+  return data;
+}
+
+function say(node, text, cls) {
+  node.textContent = text;
+  node.className = "msg" + (cls ? " " + cls : "");
+}
+
+function when(ms) {
+  if (!ms) return "-";
+  const d = new Date(ms);
+  return d.toISOString().replace("T", " ").slice(0, 19);
+}
+
+function left(ms) {
+  if (!ms || ms <= 0) return "-";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.round(s / 60) + "m";
+  return Math.round(s / 3600) + "h";
+}
+
+function cell(text) {
+  const td = document.createElement("td");
+  td.textContent = text == null ? "-" : String(text);
+  return td;
+}
+
+function tagCell(status, ok) {
+  const td = document.createElement("td");
+  const span = document.createElement("span");
+  span.className = "tag " + (ok ? "ok" : status === 429 ? "warn" : "err");
+  span.textContent = String(status);
+  td.appendChild(span);
+  return td;
+}
+
+function summaryStat(label, value) {
+  const box = document.createElement("div");
+  box.className = "stat";
+  const b = document.createElement("b");
+  b.textContent = value == null ? "-" : String(value);
+  const s = document.createElement("span");
+  s.textContent = label;
+  box.appendChild(b);
+  box.appendChild(s);
+  document.getElementById("summary").appendChild(box);
+}
+
+function renderDaily(daily) {
+  const body = document.getElementById("dailyRows");
+  body.innerHTML = "";
+  const max = daily.reduce((m, d) => Math.max(m, Number(d.requests) || 0), 0);
+  for (const d of daily) {
+    const tr = document.createElement("tr");
+    const barTd = document.createElement("td");
+    barTd.className = "barCell";
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.style.width = max > 0 ? Math.round(((Number(d.requests) || 0) / max) * 100) + "%" : "0%";
+    barTd.appendChild(bar);
+    tr.appendChild(cell(d.day));
+    tr.appendChild(cell(d.requests));
+    tr.appendChild(barTd);
+    tr.appendChild(cell(d.errors));
+    tr.appendChild(cell(d.costUsd == null ? "-" : "$" + Number(d.costUsd).toFixed(4)));
+    body.appendChild(tr);
+  }
+}
+
+function renderEvents(events) {
+  const body = document.getElementById("eventRows");
+  body.innerHTML = "";
+  for (const e of events) {
+    const tr = document.createElement("tr");
+    tr.appendChild(cell(when(e.ts)));
+    tr.appendChild(tagCell(e.status, e.ok));
+    tr.appendChild(cell(e.errorCode));
+    tr.appendChild(cell(e.rotated ? "yes" : "no"));
+    body.appendChild(tr);
+  }
+}
+
+function renderRecent(recent) {
+  const body = document.getElementById("recentRows");
+  body.innerHTML = "";
+  for (const r of recent) {
+    const tr = document.createElement("tr");
+    tr.appendChild(cell(when(r.ts)));
+    tr.appendChild(cell(r.route));
+    tr.appendChild(cell(r.model));
+    tr.appendChild(tagCell(r.status, r.status >= 200 && r.status < 300));
+    tr.appendChild(cell(r.latencyMs));
+    tr.appendChild(cell(r.totalTokens));
+    body.appendChild(tr);
+  }
+}
+
+function render(d) {
+  const k = d.key;
+  document.getElementById("keyTitle").textContent = k.masked + " \xB7 " + k.id;
+  document.getElementById("summary").innerHTML = "";
+  summaryStat("plan", k.plan);
+  summaryStat("state", k.status);
+  summaryStat("enabled", k.enabled === false ? "no" : "yes");
+  summaryStat("failures", k.failures);
+  summaryStat("invalidations", k.invalidations);
+  summaryStat("last used", when(k.lastUsed));
+  summaryStat("cooldown left", left(k.cooldownLeftMs));
+  summaryStat("cooldown until", when(k.cooldownUntil));
+
+  say(document.getElementById("chartNote"), d.dailyNote ?? "", "");
+  renderDaily(d.daily ?? []);
+
+  const cool = d.cooldown ?? {};
+  say(
+    document.getElementById("coolNow"),
+    "status " + (cool.status ?? "ready") +
+      " \xB7 until " + when(cool.until) +
+      " \xB7 left " + left(cool.leftMs),
+    "",
+  );
+  renderEvents(d.events ?? []);
+
+  say(document.getElementById("recentNote"), (d.recent ?? []).length + " rows from the ring", "");
+  renderRecent(d.recent ?? []);
+
+  for (const id of ["summaryPanel", "chartPanel", "cooldownPanel", "recentPanel"]) {
+    document.getElementById(id).hidden = false;
+  }
+}
+
+async function refresh() {
+  try {
+    const data = await api("/pengatur/keys/" + encodeURIComponent(keyId) + "/data");
+    render(data);
+    document.getElementById("authState").textContent = "connected";
+    say(document.getElementById("summaryMsg"), "", "");
+  } catch (err) {
+    say(document.getElementById("summaryMsg"), err.message, "err");
+  }
+}
+
+document.getElementById("token").value = token();
+
+document.getElementById("connect").addEventListener("click", async () => {
+  const value = document.getElementById("token").value.trim();
+  if (!value) {
+    say(document.getElementById("authHint"), "Paste the admin token.", "err");
+    return;
+  }
+  localStorage.setItem(TOKEN_KEY, value);
+  say(document.getElementById("authHint"), "", "");
+  await refresh();
+});
+
+refresh();
+</script>
+</body>
+</html>`;
+
+// src/settings-ui.ts
+var SETTINGS_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings \xB7 geminesx</title>
+<style>
+:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
+header h1 { font-size:15px; margin:0; font-weight:600; }
+header a { color:var(--accent); text-decoration:none; }
+header .dim, .dim { color:var(--dim); }
+main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:not-allowed; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
+input { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
+input[type=password] { width:280px; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums; white-space:nowrap; }
+th { color:var(--dim); font-weight:500; font-size:12px; }
+tr:last-child td { border-bottom:none; }
+code { color:var(--ink); }
+.tag { display:inline-block; padding:1px 7px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+.tag.ok { color:var(--ok); border-color:var(--ok); }
+.tag.miss { color:var(--dim); }
+.msg { min-height:20px; font-size:13px; }
+.msg.err { color:var(--err); }
+.msg.ok { color:var(--ok); }
+.hint { color:var(--dim); font-size:12px; }
+.note { border-left:2px solid var(--warn); padding-left:10px; color:var(--dim); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Settings</h1>
+  <a href="/pengatur/stats">stats</a>
+  <a href="/pengatur/keys">keys</a>
+  <a href="/pengatur/audit">audit</a>
+  <a href="/pengatur/logs">logs</a>
+  <span class="dim" id="authState">token required</span>
+</header>
+<main>
+  <section class="panel" id="authPanel">
+    <h2>Admin token</h2>
+    <div class="row">
+      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
+      <button class="primary" id="connect">Connect</button>
+      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+    </div>
+    <div class="msg" id="authMsg"></div>
+  </section>
+
+  <section class="panel" id="viewPanel" hidden>
+    <h2>Effective configuration</h2>
+    <div class="row" style="margin-bottom:12px">
+      <button id="refresh">Refresh</button>
+      <button id="exportBtn">Export JSON</button>
+      <span class="hint">Export contains no secret values.</span>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div id="body"></div>
+    <p class="note" id="note"></p>
+  </section>
+</main>
+<script>
+const TOKEN_KEY = "geminesx.admin.token";
+
+function token() {
+  return localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+async function api(path, opts) {
+  const init = Object.assign({ headers: {} }, opts ?? {});
+  init.headers = Object.assign({}, init.headers, { authorization: "Bearer " + token() });
+  const res = await fetch(path, init);
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) {
+    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
+    throw new Error(message);
+  }
+  return data;
+}
+
+function say(node, text, cls) {
+  node.textContent = text;
+  node.className = "msg" + (cls ? " " + cls : "");
+}
+
+function esc(v) {
+  return String(v).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+function table(title, obj) {
+  const rows = Object.entries(obj)
+    .map(([k, v]) => "<tr><th>" + esc(k) + "</th><td>" + esc(v) + "</td></tr>")
+    .join("");
+  return "<h2>" + esc(title) + "</h2><table><tbody>" + rows + "</tbody></table>";
+}
+
+function render(d) {
+  const parts = [];
+  parts.push(table("Defaults", d.defaults));
+  parts.push(table("Limits (ms)", d.limits));
+  parts.push(table("Ledger", d.ledger));
+  parts.push(table("Storage", d.storage));
+  const env = (d.env ?? [])
+    .map((e) => "<tr><td><code>" + esc(e.name) + "</code></td><td><span class="tag " + (e.state === "set" ? "ok">set" : "miss">unset") + "</span></td></tr>")
+    .join("");
+  parts.push("<h2>Environment</h2><table><thead><tr><th>name</th><th>state</th></tr></thead><tbody>" + env + "</tbody></table>");
+  document.getElementById("body").innerHTML = parts.join("");
+  document.getElementById("note").textContent = d.note ?? "";
+}
+
+async function refresh() {
+  try {
+    render(await api("/pengatur/settings/data"));
+    say(document.getElementById("msg"), "", "");
+    document.getElementById("viewPanel").hidden = false;
+    document.getElementById("authPanel").hidden = true;
+  } catch (err) {
+    say(document.getElementById("msg"), err.message, "err");
+  }
+}
+
+document.getElementById("token").value = token();
+
+document.getElementById("connect").addEventListener("click", async () => {
+  const value = document.getElementById("token").value.trim();
+  if (!value) { say(document.getElementById("authMsg"), "Token is empty.", "err"); return; }
+  localStorage.setItem(TOKEN_KEY, value);
+  document.getElementById("authState").textContent = "token saved";
+  say(document.getElementById("authMsg"), "", "");
+  await refresh();
+});
+
+document.getElementById("refresh").addEventListener("click", refresh);
+
+document.getElementById("exportBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("exportBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/pengatur/settings/export", { headers: { authorization: "Bearer " + token() } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (res.headers.get("content-disposition") ?? "").match(/filename="([^"]+)"/)?.[1] ?? "geminesx-config.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    say(document.getElementById("msg"), err.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+if (token()) refresh();
+</script>
+</body>
+</html>`;
+
+// src/settings.ts
+var TOKEN_ENVS = ["ADMIN_TOKEN", "CLIENT_TOKEN", "ROLLUP_TOKEN", "GEMINI_API_KEYS"];
+var FLAG_ENVS = [
+  "DATABASE_URL",
+  "DEFAULT_MODEL",
+  "DEFAULT_TTS_MODEL",
+  "DEFAULT_EMBED_MODEL",
+  "DEFAULT_VOICE",
+  "SEARCH_MODEL",
+  "GEMINI_BASE_URL",
+  "KEY_COOLDOWN_MS",
+  "KEY_5XX_COOLDOWN_MS",
+  "KEY_RATE_WINDOW_MS",
+  "MAX_ATTEMPTS",
+  "MAX_WAIT_MS",
+  "UPSTREAM_TIMEOUT_MS",
+  "DB_QUERY_TIMEOUT_MS",
+  "LEDGER_FLUSH_MS",
+  "LEDGER_MAX_ROWS",
+  "LEDGER_TAIL_ROWS",
+  "RETENTION_DAYS",
+  "PORT",
+  "LOG_LEVEL"
+];
+var NOTES = "Cooldown values and tokens are deploy-time settings: change them in the host environment, then redeploy. This page is read-only.";
+function regionHostSuffix(dsn) {
+  const at = dsn.indexOf("@");
+  if (at < 0) return "unknown";
+  const hostAndRest = dsn.slice(at + 1);
+  const host = hostAndRest.split(/[/?#]/)[0].toLowerCase();
+  if (!host) return "unknown";
+  const labels = host.split(":").join(".").split(".").filter((l) => l !== "");
+  const safe = labels.filter((l) => /^[a-z0-9-]+$/.test(l));
+  if (safe.length < 2) return "unknown";
+  return safe.slice(1).join(".");
+}
+function settingsView() {
+  const flags = [...TOKEN_ENVS, ...FLAG_ENVS].map((name) => {
+    const raw2 = process.env[name];
+    return { name, state: raw2 && raw2.trim() !== "" ? "set" : "unset" };
+  });
+  const hosted = cfg.databaseUrl !== "";
+  return {
+    ok: true,
+    defaults: {
+      model: cfg.defaultModel,
+      ttsModel: cfg.defaultTtsModel,
+      embedModel: cfg.defaultEmbedModel,
+      voice: cfg.defaultVoice,
+      searchModel: cfg.searchModel
+    },
+    limits: {
+      keyCooldownMs: cfg.cooldownMs,
+      serverErrCooldownMs: cfg.serverErrCooldownMs,
+      rateWindowMs: cfg.rateWindowMs,
+      maxAttempts: cfg.maxAttempts,
+      maxWaitMs: cfg.maxWaitMs,
+      upstreamTimeoutMs: cfg.upstreamTimeoutMs
+    },
+    ledger: {
+      flushMs: cfg.ledgerFlushMs,
+      maxRows: cfg.ledgerMaxRows,
+      tailRows: cfg.ledgerTailRows,
+      retentionDays: cfg.retentionDays,
+      queryTimeoutMs: cfg.dbQueryTimeoutMs
+    },
+    storage: {
+      mode: hosted ? "hosted" : "memory",
+      regionHostSuffix: hosted ? regionHostSuffix(cfg.databaseUrl) : "none"
+    },
+    env: flags,
+    note: NOTES
+  };
+}
+
+// src/audit-ui.ts
+var AUDIT_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit \xB7 geminesx</title>
+<style>
+:root { --bg:#0f1115; --panel:#171a21; --line:#262b36; --ink:#e6e9ef; --dim:#98a1b3; --ok:#3ddc97; --warn:#f5c451; --err:#ff6b6b; --accent:#7aa2ff; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+header { padding:18px 22px; border-bottom:1px solid var(--line); display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; }
+header h1 { font-size:15px; margin:0; font-weight:600; }
+header a { color:var(--accent); text-decoration:none; }
+header .dim, .dim { color:var(--dim); }
+main { padding:18px 22px; display:grid; gap:16px; max-width:1280px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; }
+.panel h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 10px; }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+button { background:#202634; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+button:disabled { opacity:.45; cursor:not-allowed; }
+button.primary { background:var(--accent); border-color:var(--accent); color:#0b0e14; font-weight:600; }
+input, select { background:#11141b; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 9px; font:inherit; }
+input[type=password] { width:280px; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--dim); font-weight:500; font-size:12px; white-space:nowrap; }
+tr:last-child td { border-bottom:none; }
+td.ts, td.actor { color:var(--dim); white-space:nowrap; font-variant-numeric:tabular-nums; }
+td.action { color:var(--accent); white-space:nowrap; }
+td.target { white-space:nowrap; }
+td.detail { font-size:12px; color:var(--dim); word-break:break-word; max-width:520px; }
+.empty { color:var(--dim); padding:14px 2px; }
+.msg { min-height:20px; font-size:13px; }
+.msg.err { color:var(--err); }
+.msg.ok { color:var(--ok); }
+.hint { color:var(--dim); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Audit</h1>
+  <a href="/pengatur/stats">stats</a>
+  <a href="/pengatur/keys">keys</a>
+  <a href="/pengatur/settings">settings</a>
+  <a href="/pengatur/logs">logs</a>
+  <span class="dim" id="authState">token required</span>
+</header>
+<main>
+  <section class="panel" id="authPanel">
+    <h2>Admin token</h2>
+    <div class="row">
+      <input type="password" id="token" placeholder="ADMIN_TOKEN" autocomplete="off">
+      <button class="primary" id="connect">Connect</button>
+      <span class="hint">Held in localStorage for this browser only. Sent as a bearer token.</span>
+    </div>
+    <div class="msg" id="authMsg"></div>
+  </section>
+
+  <section class="panel" id="viewPanel" hidden>
+    <h2>Recorded admin actions</h2>
+    <div class="row" style="margin-bottom:12px">
+      <input id="action" placeholder="action prefix, e.g. keys." size="22" autocomplete="off">
+      <input id="since" type="datetime-local">
+      <select id="limit">
+        <option value="50">50</option>
+        <option value="100" selected>100</option>
+        <option value="250">250</option>
+        <option value="500">500</option>
+      </select>
+      <button id="refresh">Refresh</button>
+      <label class="hint"><input type="checkbox" id="auto"> auto-refresh 15s</label>
+    </div>
+    <div class="msg" id="msg"></div>
+    <div id="body"></div>
+  </section>
+</main>
+<script>
+const TOKEN_KEY = "geminesx.admin.token";
+let timer = null;
+
+function token() {
+  return localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+async function api(path) {
+  const res = await fetch(path, { headers: { authorization: "Bearer " + token() } });
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) {
+    const message = data && data.error && data.error.message ? data.error.message : "HTTP " + res.status;
+    throw new Error(message);
+  }
+  return data;
+}
+
+function say(node, text, cls) {
+  node.textContent = text;
+  node.className = "msg" + (cls ? " " + cls : "");
+}
+
+function esc(v) {
+  return String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function when(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " +
+    p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+
+function detailText(v) {
+  if (v === null || v === undefined) return "";
+  try { return JSON.stringify(v); } catch { return String(v); }
+}
+
+function query() {
+  const q = new URLSearchParams();
+  const action = document.getElementById("action").value.trim();
+  const since = document.getElementById("since").value;
+  if (action) q.set("action", action);
+  if (since) q.set("since", new Date(since).toISOString());
+  q.set("limit", document.getElementById("limit").value);
+  return "/pengatur/audit/data?" + q.toString();
+}
+
+function render(payload) {
+  const rows = payload.rows ?? [];
+  if (!payload.ok) {
+    document.getElementById("body").innerHTML =
+      "<p class=\\"empty\\">audit query failed: " + esc(payload.error ?? "database error") + "</p>";
+    return;
+  }
+  if (!rows.length) {
+    document.getElementById("body").innerHTML = "<p class=\\"empty\\">no admin actions recorded yet</p>";
+    return;
+  }
+  const head = "<tr><th>when</th><th>action</th><th>target</th><th>actor</th><th>detail</th></tr>";
+  const html = rows.map((r) =>
+    "<tr>" +
+      "<td class=\\"ts\\">" + esc(when(r.ts)) + "</td>" +
+      "<td class=\\"action\\">" + esc(r.action) + "</td>" +
+      "<td class=\\"target\\">" + (r.target ? esc(r.target) : "<span class=\\"dim\\">\u2014</span>") + "</td>" +
+      "<td class=\\"actor\\">" + esc(r.actor) + "</td>" +
+      "<td class=\\"detail\\">" + (r.detail ? esc(detailText(r.detail)) : "") + "</td>" +
+    "</tr>"
+  ).join("");
+  document.getElementById("body").innerHTML = "<table><thead>" + head + "</thead><tbody>" + html + "</tbody></table>";
+}
+
+async function refresh() {
+  try {
+    const payload = await api(query());
+    render(payload);
+    say(document.getElementById("msg"), payload.ok ? "" : "", payload.ok ? "" : "err");
+    document.getElementById("viewPanel").hidden = false;
+    document.getElementById("authPanel").hidden = true;
+    document.getElementById("authState").textContent = "connected";
+  } catch (err) {
+    say(document.getElementById("msg"), err.message, "err");
+  }
+}
+
+function autoRefresh() {
+  if (timer) { clearInterval(timer); timer = null; return; }
+  timer = setInterval(refresh, 15000);
+}
+
+document.getElementById("token").value = token();
+document.getElementById("connect").addEventListener("click", () => {
+  localStorage.setItem(TOKEN_KEY, document.getElementById("token").value.trim());
+  say(document.getElementById("authMsg"), "", "");
+  refresh();
+});
+document.getElementById("refresh").addEventListener("click", refresh);
+document.getElementById("limit").addEventListener("change", refresh);
+document.getElementById("auto").addEventListener("change", autoRefresh);
+document.getElementById("action").addEventListener("keydown", (e) => { if (e.key === "Enter") refresh(); });
+document.getElementById("since").addEventListener("change", refresh);
+if (token()) refresh();
+</script>
+</body>
+</html>`;
+
 // src/app.ts
 var app = new Hono3();
 app.use("*", cors());
@@ -12782,9 +14510,20 @@ app.use("/v1/*", async (c, next) => {
   }
   return next();
 });
+var SHELL_PATHS = [
+  "/pengatur",
+  "/pengatur/models",
+  "/pengatur/usage",
+  "/pengatur/stats",
+  "/pengatur/keys",
+  "/pengatur/settings",
+  "/pengatur/audit",
+  "/pengatur/logs"
+];
+var KEY_PAGE = /^\/pengatur\/keys\/[0-9a-f]{12}$/;
 app.use("/pengatur/*", async (c, next) => {
   const adminPath = new URL(c.req.url).pathname;
-  if (adminPath === "/pengatur" || adminPath === "/pengatur/models" || adminPath === "/pengatur/usage") return next();
+  if (SHELL_PATHS.includes(adminPath) || KEY_PAGE.test(adminPath)) return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -12832,6 +14571,18 @@ app.get("/favicon.ico", (c) => {
 });
 app.get("/pengatur", (c) => c.html(ADMIN_HTML));
 app.get("/pengatur/models", (c) => c.html(MODELS_HTML));
+app.get("/pengatur/stats", (c) => c.html(STATS_HTML));
+app.get("/pengatur/stats/data", async (c) => {
+  const range = new URL(c.req.url).searchParams.get("range") ?? "24h";
+  if (!isStatsRange(range)) {
+    return c.json({ error: { message: "`range` must be one of: 1h, 24h, 7d, 30d" } }, 400);
+  }
+  const stats = await statsSnapshot(range);
+  if (!stats.ok) {
+    return c.json({ ok: false, error: { message: stats.error ?? "Statistics unavailable." } }, 500);
+  }
+  return c.json(stats);
+});
 app.get("/pengatur/models/list", async (c) => {
   const force = new URL(c.req.url).searchParams.get("refresh") === "1";
   try {
@@ -12867,9 +14618,80 @@ app.post("/pengatur/models/test", async (c) => {
   );
   return c.json({ ok: true, model, result });
 });
-app.get("/pengatur/keys", async (c) => {
-  const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
-  return c.json({ pool: snap, keys, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+app.get("/pengatur/keys", (c) => c.html(KEYS_HTML));
+app.get("/pengatur/keys/list", async (c) => {
+  const [keys, snap, identities] = await Promise.all([listKeys(), snapshot(), loadKeys()]);
+  const byId = new Map(identities.map((k) => [k.id, k]));
+  const merged = keys.map((k) => {
+    const identity = byId.get(k.id);
+    return { ...k, enabled: identity ? identity.enabled : true, label: identity?.label ?? null };
+  });
+  return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+});
+app.get("/pengatur/keys/:id", async (c) => {
+  const id = c.req.param("id");
+  const keys = await listKeys();
+  if (!keys.some((k) => k.id === id)) return c.text("not found", 404);
+  return c.html(KEY_DETAIL_HTML);
+});
+app.get("/pengatur/keys/:id/data", async (c) => {
+  const id = c.req.param("id");
+  const key = (await listKeys()).find((k) => k.id === id);
+  if (!key) return c.json({ error: { message: "No key with that id." } }, 404);
+  const ledgerId = ledgerKeyId(key.key);
+  const daily = [];
+  let dailyNote = "";
+  if (!dbEnabled()) {
+    dailyNote = "Database disabled: no daily history.";
+  } else {
+    const res = await sql(
+      `select day::text as day,
+              sum(requests)::int as requests,
+              sum(errors)::int as errors,
+              sum(cost_usd)::numeric as cost_usd
+         from usage_daily
+        where key_id = $1 and day >= current_date - 30
+        group by day
+        order by day`,
+      [ledgerId]
+    );
+    if (!res.ok) {
+      return c.json({ ok: false, error: { message: res.message ?? "Daily history unavailable." } }, 500);
+    }
+    for (const row of res.rows) {
+      daily.push({
+        day: row.day,
+        requests: Number(row.requests) || 0,
+        errors: Number(row.errors) || 0,
+        costUsd: row.cost_usd == null ? null : Number(row.cost_usd)
+      });
+    }
+  }
+  const recent = allRows().filter((r) => r.keyId === ledgerId).slice(0, 100);
+  const events = recent.filter((r) => !r.ok || r.rotated).slice(0, 50).map((r) => ({ ts: r.ts, status: r.status, ok: r.ok, errorCode: r.errorCode, rotated: r.rotated }));
+  const identity = (await loadKeys()).find((k) => k.id === id);
+  return c.json({
+    ok: true,
+    key: {
+      id: key.id,
+      masked: key.key,
+      plan: key.tier,
+      status: key.status,
+      enabled: identity ? identity.enabled : true,
+      label: identity?.label ?? null,
+      failures: key.failures,
+      invalidations: key.invalidations,
+      invalid: key.invalid,
+      lastUsed: key.lastUsed,
+      cooldownUntil: key.cooldownUntil,
+      cooldownLeftMs: key.cooldownLeftMs
+    },
+    daily,
+    dailyNote,
+    recent,
+    events,
+    cooldown: { status: key.status, until: key.cooldownUntil, leftMs: key.cooldownLeftMs }
+  });
 });
 app.post("/pengatur/keys/tier", async (c) => {
   let body;
@@ -12889,6 +14711,11 @@ app.post("/pengatur/keys/tier", async (c) => {
   if (!ids.length) return c.json({ error: { message: "`id`, `ids` or `all` is required." } }, 400);
   let updated = 0;
   for (const id of ids) if (await setTierById(id, tier)) updated++;
+  record2("keys.tier", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { tier, updated }
+  });
   const keys = await listKeys();
   return c.json({ ok: true, tier, updated, tiers: tierCounts(keys), pool: await snapshot() });
 });
@@ -12913,6 +14740,11 @@ app.post("/pengatur/keys", async (c) => {
       ids.push(keyId(k));
     }
   }
+  record2("keys.add", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { received: clean.length, added }
+  });
   return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
 });
 app.delete("/pengatur/keys", async (c) => {
@@ -12925,12 +14757,22 @@ app.delete("/pengatur/keys", async (c) => {
   if (typeof body.id === "string" && body.id) {
     const removed = await removeKeyById(body.id);
     if (!removed) return c.json({ error: { message: "No key with that id." } }, 404);
+    record2("keys.delete", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: body.id,
+      detail: { by: "id" }
+    });
     return c.json({ ok: true, pool: await snapshot() });
   }
   if (typeof body.key !== "string" || !body.key) {
     return c.json({ error: { message: "`id` or `key` is required." } }, 400);
   }
   await removeKey(body.key);
+  record2("keys.delete", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: keyId(body.key),
+    detail: { by: "raw-key" }
+  });
   return c.json({ ok: true, pool: await snapshot() });
 });
 app.post("/pengatur/keys/test", async (c) => {
@@ -12971,6 +14813,11 @@ app.post("/pengatur/keys/test", async (c) => {
       applied = "cooling";
     }
   }
+  record2("keys.test", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: id,
+    detail: { model: model ?? "default", status: result.status, applied }
+  });
   return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
 });
 app.post("/pengatur/keys/test-all", async (c) => {
@@ -13005,6 +14852,10 @@ app.post("/pengatur/keys/test-all", async (c) => {
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  record2("keys.test-all", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { tested: results.length }
+  });
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
 });
 app.post("/internal/rollup", async (c) => {
@@ -13073,6 +14924,33 @@ app.get("/pengatur/usage/export.csv", (c) => {
       "content-disposition": `attachment; filename="geminesx-usage-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv"`
     }
   });
+});
+app.get("/pengatur/logs", (c) => c.html(USAGE_HTML));
+app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
+app.get("/pengatur/settings/data", (c) => c.json(settingsView()));
+app.get("/pengatur/settings/export", (c) => {
+  const view = settingsView();
+  record2("settings.export", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { envFlags: view.env.length }
+  });
+  return new Response(JSON.stringify(view, null, 2), {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="geminesx-config-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
+    }
+  });
+});
+app.get("/pengatur/audit", (c) => c.html(AUDIT_HTML));
+app.get("/pengatur/audit/data", async (c) => {
+  const q = c.req.query();
+  const res = await list({
+    action: q.action?.trim() || void 0,
+    since: q.since?.trim() || void 0,
+    limit: q.limit ? Number(q.limit) : void 0
+  });
+  if (!res.ok) return c.json({ ok: false, error: { message: res.error ?? "audit query failed" } }, 500);
+  return c.json(res);
 });
 var app_default = app;
 

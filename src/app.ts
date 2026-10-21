@@ -31,10 +31,21 @@ import {
   routeOf,
   toCsv,
   usageOverview,
+  allRows,
+  ledgerKeyId,
   type RowFilter,
 } from "./ledger.ts";
 import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
+import { actorFrom, list as listAudit, record as auditRecord } from "./audit.ts";
+import { STATS_HTML } from "./stats-ui.ts";
+import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
+import { KEYS_HTML, KEY_DETAIL_HTML } from "./keys-ui.ts";
+import { loadKeys } from "./keys-repo.ts";
+import { SETTINGS_HTML } from "./settings-ui.ts";
+import { settingsView } from "./settings.ts";
+import { AUDIT_HTML } from "./audit-ui.ts";
+import { dbEnabled, sql } from "./db.ts";
 
 const app = new Hono();
 
@@ -84,12 +95,25 @@ app.use("/v1/*", async (c, next) => {
   return next();
 });
 
+/** Shells carry no data; their client scripts fetch `/data` with the token. */
+const SHELL_PATHS = [
+  "/pengatur",
+  "/pengatur/models",
+  "/pengatur/usage",
+  "/pengatur/stats",
+  "/pengatur/keys",
+  "/pengatur/settings",
+  "/pengatur/audit",
+  "/pengatur/logs",
+];
+
+/** The key detail shell. `/data` carries a suffix and so stays gated. */
+const KEY_PAGE = /^\/pengatur\/keys\/[0-9a-f]{12}$/;
+
 app.use("/pengatur/*", async (c, next) => {
-  // The console shells carry no data and must load before a token exists;
-  // /pengatur and /pengatur/models are the only admin paths reachable
-  // without credentials.
+  // The console shells carry no data and must load before a token exists.
   const adminPath = new URL(c.req.url).pathname;
-  if (adminPath === "/pengatur" || adminPath === "/pengatur/models" || adminPath === "/pengatur/usage") return next();
+  if (SHELL_PATHS.includes(adminPath) || KEY_PAGE.test(adminPath)) return next();
   if (!cfg.adminToken) {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
@@ -170,6 +194,26 @@ app.get("/pengatur", (c) => c.html(ADMIN_HTML));
 /** Model inventory console. The shell is public; its data endpoints are not. */
 app.get("/pengatur/models", (c) => c.html(MODELS_HTML));
 
+/** Statistics console shell. Public like the others; its data endpoint is not. */
+app.get("/pengatur/stats", (c) => c.html(STATS_HTML));
+
+/**
+ * Range statistics. 1h/24h come from the in-memory ring, 7d/30d from
+ * usage_daily. An empty range answers zeros; a database failure answers
+ * ok:false rather than a silent zero.
+ */
+app.get("/pengatur/stats/data", async (c) => {
+  const range = new URL(c.req.url).searchParams.get("range") ?? "24h";
+  if (!isStatsRange(range)) {
+    return c.json({ error: { message: "`range` must be one of: 1h, 24h, 7d, 30d" } }, 400);
+  }
+  const stats = await statsSnapshot(range);
+  if (!stats.ok) {
+    return c.json({ ok: false, error: { message: stats.error ?? "Statistics unavailable." } }, 500);
+  }
+  return c.json(stats);
+});
+
 /**
  * Live model list. Queried from the Generative Language API with a pooled key
  * and cached briefly; pricing/free-tier columns come from the static catalog.
@@ -213,9 +257,108 @@ app.post("/pengatur/models/test", async (c) => {
   return c.json({ ok: true, model, result });
 });
 
-app.get("/pengatur/keys", async (c) => {
-  const [keys, snap] = await Promise.all([listKeys(), snapshot()]);
-  return c.json({ pool: snap, keys, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+/** Keys console shell. Public like the other shells; its data routes are not. */
+app.get("/pengatur/keys", (c) => c.html(KEYS_HTML));
+
+/**
+ * Pool state plus one row per key. Moved off /pengatur/keys so the shell can
+ * live there; `enabled`/`label` are merged in from the durable identities.
+ */
+app.get("/pengatur/keys/list", async (c) => {
+  const [keys, snap, identities] = await Promise.all([listKeys(), snapshot(), loadKeys()]);
+  const byId = new Map(identities.map((k) => [k.id, k]));
+  const merged = keys.map((k) => {
+    const identity = byId.get(k.id);
+    return { ...k, enabled: identity ? identity.enabled : true, label: identity?.label ?? null };
+  });
+  return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+});
+
+/** Keys detail shell. Public like the list shell; its /data sibling is gated. */
+app.get("/pengatur/keys/:id", async (c) => {
+  const id = c.req.param("id");
+  const keys = await listKeys();
+  if (!keys.some((k) => k.id === id)) return c.text("not found", 404);
+  return c.html(KEY_DETAIL_HTML);
+});
+
+/**
+ * Everything the detail page shows about one key: pool state, the daily
+ * rollup chart, the requests still in the ring, and the cooldown timeline.
+ * The ledger hashes the masked form rather than the raw key, so the history
+ * lookup goes through `ledgerKeyId` instead of the pool id.
+ */
+app.get("/pengatur/keys/:id/data", async (c) => {
+  const id = c.req.param("id");
+  const key = (await listKeys()).find((k) => k.id === id);
+  if (!key) return c.json({ error: { message: "No key with that id." } }, 404);
+
+  const ledgerId = ledgerKeyId(key.key);
+  const daily: { day: string; requests: number; errors: number; costUsd: number | null }[] = [];
+  let dailyNote = "";
+  if (!dbEnabled()) {
+    dailyNote = "Database disabled: no daily history.";
+  } else {
+    const res = await sql<{
+      day: string;
+      requests: number | string;
+      errors: number | string;
+      cost_usd: number | string | null;
+    }>(
+      `select day::text as day,
+              sum(requests)::int as requests,
+              sum(errors)::int as errors,
+              sum(cost_usd)::numeric as cost_usd
+         from usage_daily
+        where key_id = $1 and day >= current_date - 30
+        group by day
+        order by day`,
+      [ledgerId],
+    );
+    if (!res.ok) {
+      return c.json({ ok: false, error: { message: res.message ?? "Daily history unavailable." } }, 500);
+    }
+    for (const row of res.rows) {
+      daily.push({
+        day: row.day,
+        requests: Number(row.requests) || 0,
+        errors: Number(row.errors) || 0,
+        costUsd: row.cost_usd == null ? null : Number(row.cost_usd),
+      });
+    }
+  }
+
+  const recent = allRows()
+    .filter((r) => r.keyId === ledgerId)
+    .slice(0, 100);
+  const events = recent
+    .filter((r) => !r.ok || r.rotated)
+    .slice(0, 50)
+    .map((r) => ({ ts: r.ts, status: r.status, ok: r.ok, errorCode: r.errorCode, rotated: r.rotated }));
+
+  const identity = (await loadKeys()).find((k) => k.id === id);
+  return c.json({
+    ok: true,
+    key: {
+      id: key.id,
+      masked: key.key,
+      plan: key.tier,
+      status: key.status,
+      enabled: identity ? identity.enabled : true,
+      label: identity?.label ?? null,
+      failures: key.failures,
+      invalidations: key.invalidations,
+      invalid: key.invalid,
+      lastUsed: key.lastUsed,
+      cooldownUntil: key.cooldownUntil,
+      cooldownLeftMs: key.cooldownLeftMs,
+    },
+    daily,
+    dailyNote,
+    recent,
+    events,
+    cooldown: { status: key.status, until: key.cooldownUntil, leftMs: key.cooldownLeftMs },
+  });
 });
 
 /**
@@ -245,6 +388,11 @@ app.post("/pengatur/keys/tier", async (c) => {
 
   let updated = 0;
   for (const id of ids) if (await setTierById(id, tier)) updated++;
+  auditRecord("keys.tier", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { tier, updated },
+  });
   const keys = await listKeys();
   return c.json({ ok: true, tier, updated, tiers: tierCounts(keys), pool: await snapshot() });
 });
@@ -271,6 +419,11 @@ app.post("/pengatur/keys", async (c) => {
       ids.push(keyId(k));
     }
   }
+  auditRecord("keys.add", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { received: clean.length, added },
+  });
   return c.json({ ok: true, received: clean.length, added, ids, pool: await snapshot() });
 });
 
@@ -285,12 +438,22 @@ app.delete("/pengatur/keys", async (c) => {
   if (typeof body.id === "string" && body.id) {
     const removed = await removeKeyById(body.id);
     if (!removed) return c.json({ error: { message: "No key with that id." } }, 404);
+    auditRecord("keys.delete", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: body.id,
+      detail: { by: "id" },
+    });
     return c.json({ ok: true, pool: await snapshot() });
   }
   if (typeof body.key !== "string" || !body.key) {
     return c.json({ error: { message: "`id` or `key` is required." } }, 400);
   }
   await removeKey(body.key);
+  auditRecord("keys.delete", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: keyId(body.key),
+    detail: { by: "raw-key" },
+  });
   return c.json({ ok: true, pool: await snapshot() });
 });
 
@@ -344,6 +507,12 @@ app.post("/pengatur/keys/test", async (c) => {
     }
   }
 
+  auditRecord("keys.test", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: id,
+    detail: { model: model ?? "default", status: result.status, applied },
+  });
+
   return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
 });
 
@@ -382,6 +551,10 @@ app.post("/pengatur/keys/test-all", async (c) => {
   };
 
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  auditRecord("keys.test-all", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { tested: results.length },
+  });
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
 });
 
@@ -479,4 +652,50 @@ app.get("/pengatur/usage/export.csv", (c) => {
   });
 });
 
+/** Request-log console also answers on /pengatur/logs; same shell, same data. */
+app.get("/pengatur/logs", (c) => c.html(USAGE_HTML));
+
+/** Settings console shell. Public like the other shells; its data routes are not. */
+app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
+
+/**
+ * Effective configuration. Built from an explicit allowlist inside
+ * `settingsView`, so a newly added secret can never leak by accident.
+ */
+app.get("/pengatur/settings/data", (c) => c.json(settingsView()));
+
+/** The same object as a file. Zero secrets by construction; recorded in audit. */
+app.get("/pengatur/settings/export", (c) => {
+  const view = settingsView();
+  auditRecord("settings.export", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { envFlags: view.env.length },
+  });
+  return new Response(JSON.stringify(view, null, 2), {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="geminesx-config-${new Date().toISOString().slice(0, 10)}.json"`,
+    },
+  });
+});
+
+/** Audit console shell. Public like the others; its data route is gated. */
+app.get("/pengatur/audit", (c) => c.html(AUDIT_HTML));
+
+/**
+ * Admin action trail, newest first. Filters are passed straight through; the
+ * module clamps the limit to 1..500 and treats an empty result as a normal
+ * state, so a fresh deployment renders the empty-state line rather than an
+ * error.
+ */
+app.get("/pengatur/audit/data", async (c) => {
+  const q = c.req.query();
+  const res = await listAudit({
+    action: q.action?.trim() || undefined,
+    since: q.since?.trim() || undefined,
+    limit: q.limit ? Number(q.limit) : undefined,
+  });
+  if (!res.ok) return c.json({ ok: false, error: { message: res.error ?? "audit query failed" } }, 500);
+  return c.json(res);
+});
 export default app;
