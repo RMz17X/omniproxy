@@ -210,6 +210,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .row.tight { gap: 4px; }
 .grow { flex: 1; min-width: 160px; }
 .spacer { flex: 1; }
+.stack { display: flex; flex-direction: column; gap: 24px; }
 .muted { color: var(--text-2); }
 .dimtext { color: var(--text-3); }
 .mono { font-family: var(--mono); font-size: 12px; }
