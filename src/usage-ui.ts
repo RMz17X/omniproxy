@@ -6,10 +6,12 @@
  * admin token, stores it in localStorage, and reads /pengatur/usage.
  *
  * Dials: ENERGY calm-utilitarian, RHYTHM tabular numbers over generous section
- * padding, MOTION none except a single fade on row arrival — this is a report,
- * not a dashboard toy. Refresh is manual plus a 60s opt-in tick, because a tab
- * left open must not hammer the API.
+ * padding, MOTION none: this is a report, not a dashboard toy. Refresh is
+ * manual plus a 60s opt-in tick, because a tab left open must not hammer the
+ * API.
  */
+
+import { BASE_CSS, stateBlock } from "./ui.ts";
 
 export const USAGE_HTML = `<!doctype html>
 <html lang="en">
@@ -21,278 +23,166 @@ export const USAGE_HTML = `<!doctype html>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/favicon.svg">
-<style>
-  :root {
-    --bg: #0d1014;
-    --panel: #12161b;
-    --panel-2: #171c22;
-    --line: #242b34;
-    --line-soft: #1c222a;
-    --text: #e6eaf0;
-    --muted: #8c96a5;
-    --accent: #e8a33d;
-    --ready: #57c98a;
-    --cool: #e0b64a;
-    --dead: #e8737b;
-    --focus: #7fb4ff;
-    --radius: 8px;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
-
-  header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand h1 { font-size: 16px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
-  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-  .brand .sub { font-size: 12px; color: var(--muted); }
-  .top-right { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--muted); }
-  .top-right a { color: var(--accent); text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
-  .top-right .mono { font-size: 12px; }
-
-  h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin: 26px 0 10px; }
-
-  .strip { display: flex; flex-wrap: wrap; align-items: center; gap: 0 20px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-  .strip .kv { display: flex; align-items: baseline; gap: 6px; }
-  .strip .kv b { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
-  .strip .kv span { font-size: 12px; color: var(--muted); }
-  .strip .kv.ready b { color: var(--ready); }
-  .strip .kv.dead b { color: var(--dead); }
-  .strip .spacer { flex: 1; }
-  .strip .meta { font-size: 12px; color: var(--muted); }
-
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-  .card + .card { margin-top: 12px; }
-
-  label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-  input[type=password], input[type=text], select {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    color: var(--text);
-    padding: 9px 11px;
-    font-size: 13px;
-    font-family: inherit;
-    min-height: 40px;
-  }
-  input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-  }
-  button {
-    background: var(--accent);
-    color: #1a1206;
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 650;
-    padding: 0 14px;
-    min-height: 40px;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  button.small { min-height: 32px; padding: 0 10px; font-size: 12px; font-weight: 600; }
-  button.ghost { background: transparent; color: var(--text); border-color: var(--line); }
-  button:disabled { opacity: 0.45; cursor: default; }
-
-  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-  .row > * { flex: 0 1 auto; }
-  .row .grow { flex: 1 1 200px; }
-
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  thead th {
-    text-align: left;
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    font-weight: 600;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--line);
-    white-space: nowrap;
-  }
-  thead th.num, tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  tbody td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
-  tbody tr { transition: background 120ms ease; }
-  tbody tr:hover { background: #161b21; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; }
-  .dim { color: var(--muted); }
-  .nowrap { white-space: nowrap; }
-
-  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid; }
-  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-  .badge.ok { color: var(--ready); border-color: #1f4c36; background: #101f18; }
-  .badge.err { color: var(--dead); border-color: #4a2b30; background: #211416; }
-  .badge.rot { color: var(--cool); border-color: #4d3d12; background: #221d0c; }
-
-  .empty { padding: 30px 12px; text-align: center; color: var(--muted); font-size: 13.5px; }
-  .empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; font-weight: 600; }
-
-  .pager { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
-  .pager:empty { display: none; }
-  .pager .pages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .pager button.small { min-width: 36px; font-variant-numeric: tabular-nums; }
-  .pager button.active { background: var(--accent); border-color: var(--accent); color: #1a1206; font-weight: 700; }
-
-  .err-box { border: 1px solid #4a2b30; background: #211416; color: var(--dead); border-radius: 6px; padding: 10px 12px; font-size: 13px; margin-top: 12px; }
-  .err-box:empty { display: none; }
-
-  .foot { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-top: 14px; }
-  .muted { color: var(--muted); font-size: 12px; }
-  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; min-height: 44px; }
-  .check input { width: 17px; height: 17px; accent-color: var(--accent); }
-
-  @media (max-width: 820px) {
-    .wrap { padding: 20px 14px 56px; }
-    thead { display: none; }
-    tbody tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
-    tbody td { border: 0; padding: 0; }
-    tbody td::before { content: attr(data-l); display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    tbody td.wide { grid-column: 1 / -1; }
-    tbody td.num { text-align: left; }
-  }
-</style>
+<style>${BASE_CSS}</style>
 </head>
 <body>
-<div class="wrap">
 
-  <header class="top">
-    <div class="brand">
-      <span class="dot"></span>
-      <div>
-        <h1>Usage ledger</h1>
-        <div class="sub">Requests, tokens, cost &mdash; in-memory, reset on redeploy</div>
-      </div>
-    </div>
-    <div class="top-right">
-      <a href="/pengatur">keys &rarr;</a>
-      <a href="/pengatur/models">models &rarr;</a>
-      <span id="mode" class="mono">-</span>
-    </div>
-  </header>
+<header class="topbar">
+  <a class="wordmark" href="/pengatur">GeminesX</a>
+  <nav class="nav">
+    <a href="/pengatur">Keys</a>
+    <a href="/pengatur/usage" class="active" aria-current="page">Usage</a>
+    <a href="/pengatur/models">Models</a>
+  </nav>
+  <div class="meta">
+    <span id="mode">-</span>
+  </div>
+</header>
 
-  <div class="card" id="gate">
-    <label class="field" for="token">Admin token</label>
-    <div class="row">
-      <div class="grow">
-        <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
-      </div>
-      <button id="connect" type="button">Connect</button>
-    </div>
-    <p class="muted" style="margin:12px 0 0">The token stays in this browser. It is only sent to this deployment.</p>
-    <div id="gateErr" class="err-box"></div>
+<main class="page">
+
+  <div class="page-head">
+    <h1>Usage ledger</h1>
+    <span class="meta">Requests, tokens, cost. In-memory, reset on redeploy.</span>
   </div>
 
-  <div id="console" hidden>
+  <!-- auth -->
+  <section id="gate" class="panel">
+    <div class="panel-body">
+      <label class="field" for="token">Admin token</label>
+      <div class="row">
+        <div class="grow">
+          <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="ADMIN_TOKEN">
+        </div>
+        <button id="connect" class="btn btn-primary" type="button">Connect</button>
+      </div>
+      <p class="dimtext" style="margin-top:12px">The token stays in this browser. It is only sent to this deployment.</p>
+      <div id="gateErr" class="notice err"></div>
+    </div>
+  </section>
+
+  <div id="console" class="stack" hidden>
+
+    <div id="loadState" hidden>${stateBlock("loading", "Loading usage...")}</div>
 
     <div class="strip">
-      <div class="kv"><b id="sReq">0</b><span>requests</span></div>
-      <div class="kv ready"><b id="sOk">0</b><span>ok</span></div>
-      <div class="kv dead"><b id="sErr">0</b><span>errors</span></div>
-      <div class="kv"><b id="sRot">0</b><span>rotated</span></div>
-      <div class="kv"><b id="sPrompt">0</b><span>prompt tok</span></div>
-      <div class="kv"><b id="sCompletion">0</b><span>output tok</span></div>
-      <div class="kv"><b id="sCached">0</b><span>cached</span></div>
-      <div class="kv"><b id="sCost">-</b><span>est. USD</span></div>
+      <div class="kv"><b id="sReq">0</b><span class="k">requests</span></div>
+      <div class="kv ready"><b id="sOk">0</b><span class="k">ok</span></div>
+      <div class="kv dead"><b id="sErr">0</b><span class="k">errors</span></div>
+      <div class="kv"><b id="sRot">0</b><span class="k">rotated</span></div>
+      <div class="kv"><b id="sPrompt">0</b><span class="k">prompt tok</span></div>
+      <div class="kv"><b id="sCompletion">0</b><span class="k">output tok</span></div>
+      <div class="kv"><b id="sCached">0</b><span class="k">cached</span></div>
+      <div class="kv"><b id="sCost">-</b><span class="k">est. USD</span></div>
       <div class="spacer"></div>
       <div class="meta" id="sLatency">-</div>
     </div>
 
-    <h2 class="sec">Filter</h2>
-    <div class="card">
-      <div class="row">
-        <div style="flex:1 1 140px">
-          <label class="field" for="fDay">Day</label>
-          <select id="fDay"><option value="">all</option></select>
+    <!-- filters -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Filters</div></div>
+      <div class="panel-body">
+        <div class="row">
+          <div class="grow">
+            <label class="field" for="fDay">Day</label>
+            <select id="fDay"><option value="">all</option></select>
+          </div>
+          <div class="grow">
+            <label class="field" for="fModel">Model</label>
+            <select id="fModel"><option value="">all</option></select>
+          </div>
+          <div class="grow">
+            <label class="field" for="fKey">Key</label>
+            <select id="fKey"><option value="">all</option></select>
+          </div>
+          <div class="grow">
+            <label class="field" for="fStatus">Status</label>
+            <select id="fStatus">
+              <option value="">all</option>
+              <option value="ok">ok</option>
+              <option value="error">error</option>
+              <option value="rotated">rotated</option>
+            </select>
+          </div>
         </div>
-        <div style="flex:1 1 160px">
-          <label class="field" for="fModel">Model</label>
-          <select id="fModel"><option value="">all</option></select>
+        <div class="row" style="margin-top:12px">
+          <button id="apply" class="btn btn-primary" type="button">Apply</button>
+          <button id="reset" class="btn" type="button">Reset</button>
         </div>
-        <div style="flex:1 1 160px">
-          <label class="field" for="fKey">Key</label>
-          <select id="fKey"><option value="">all</option></select>
-        </div>
-        <div style="flex:1 1 130px">
-          <label class="field" for="fStatus">Status</label>
-          <select id="fStatus">
-            <option value="">all</option>
-            <option value="ok">ok</option>
-            <option value="error">error</option>
-            <option value="rotated">rotated</option>
-          </select>
-        </div>
-        <button id="apply" type="button">Apply</button>
-        <button id="reset" class="ghost" type="button">Reset</button>
       </div>
-    </div>
+    </section>
 
-    <h2 class="sec">By model</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byModel">
-        <thead><tr>
-          <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>No traffic yet</b>Send a request through the gateway and it shows up here.</div>
-    </div>
+    <!-- by model -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By model</div></div>
+      <div class="tablewrap">
+        <table id="byModel">
+          <thead><tr>
+            <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No traffic yet</b><br>Send a request through the gateway and it shows up here.</div>
+      </div>
+    </section>
 
-    <h2 class="sec">By key</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byKey">
-        <thead><tr>
-          <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>No key attributed yet</b>A request that reached a key is listed here by its masked form.</div>
-    </div>
+    <!-- by key -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By key</div></div>
+      <div class="tablewrap">
+        <table id="byKey">
+          <thead><tr>
+            <th>Key</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No key attributed yet</b><br>A request that reached a key is listed here by its masked form.</div>
+      </div>
+    </section>
 
-    <h2 class="sec">By day</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="byDay">
-        <thead><tr>
-          <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    <!-- by day -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">By day</div></div>
+      <div class="tablewrap">
+        <table id="byDay">
+          <thead><tr>
+            <th>Day</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No daily rollup yet</b><br>Days appear once traffic has been recorded.</div>
+      </div>
+    </section>
 
-    <h2 class="sec">Request log</h2>
-    <div class="card" style="padding:0;overflow-x:auto">
-      <table id="log">
-        <thead><tr>
-          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="empty" data-empty hidden><b>No requests match</b>Loosen the filter or send traffic through the gateway.</div>
-    </div>
+    <!-- request log -->
+    <section class="panel">
+      <div class="panel-head"><div class="panel-title">Request log</div></div>
+      <div class="tablewrap">
+        <table id="log">
+          <thead><tr>
+            <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" data-empty hidden><b>No requests match</b><br>Loosen the filter or send traffic through the gateway.</div>
+      </div>
+    </section>
 
-    <div class="pager" id="pager"></div>
+    <div id="pager" class="pager"></div>
 
-    <div class="foot">
-      <div class="row" style="gap:10px">
-        <button id="refresh" type="button" class="small">Refresh</button>
-        <button id="csv" type="button" class="small ghost">Export CSV</button>
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <button id="refresh" class="btn small" type="button">Refresh</button>
+        <button id="csv" class="btn small" type="button">Export CSV</button>
         <label class="check"><input id="auto" type="checkbox"> auto-refresh 60s</label>
       </div>
-      <div class="muted" id="stamp">-</div>
+      <span class="dimtext" id="stamp">-</span>
     </div>
 
-    <div id="err" class="err-box"></div>
+    <div id="err" class="notice err"></div>
   </div>
-</div>
+
+</main>
 
 <script>
 (function () {
@@ -305,6 +195,7 @@ export const USAGE_HTML = `<!doctype html>
     token: document.getElementById("token"),
     connect: document.getElementById("connect"),
     console: document.getElementById("console"),
+    loadState: document.getElementById("loadState"),
     mode: document.getElementById("mode"),
     sReq: document.getElementById("sReq"),
     sOk: document.getElementById("sOk"),
@@ -503,6 +394,7 @@ export const USAGE_HTML = `<!doctype html>
 
   function paint(data) {
     state.last = data;
+    el.loadState.hidden = true;
     el.mode.textContent = "mode: " + data.mode + " / cap " + fmt(data.capacity);
     var t = data.totals;
     el.sReq.textContent = fmt(t.requests);
@@ -567,6 +459,7 @@ export const USAGE_HTML = `<!doctype html>
   function load() {
     if (!state.token) return;
     el.refresh.disabled = true;
+    if (!state.last) el.loadState.hidden = false;
     api(query()).then(function (data) {
       setErr("");
       paint(data);
