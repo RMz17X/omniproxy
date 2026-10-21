@@ -3078,8 +3078,10 @@ var cfg = {
   ledgerTailRows: num(process.env.LEDGER_TAIL_ROWS, 500),
   /** how long raw usage_events survive a rollup run */
   retentionDays: num(process.env.RETENTION_DAYS, 30),
-  /** bearer for POST /internal/rollup; unset disables the route */
-  rollupToken: process.env.ROLLUP_TOKEN ?? ""
+  /** bearer for /internal/rollup; unset disables the route */
+  rollupToken: process.env.ROLLUP_TOKEN ?? "",
+  /** Vercel sends this as `Authorization: Bearer <CRON_SECRET>` on cron runs */
+  cronSecret: process.env.CRON_SECRET ?? ""
 };
 var VOICE_MAP = {
   alloy: "Kore",
@@ -8508,6 +8510,11 @@ function sqlLater(query, params = []) {
 
 // src/keys-repo.ts
 var isTier = (v2) => v2 === "free" || v2 === "paid" || v2 === "pro";
+var toEpoch = (v2) => {
+  if (!v2) return 0;
+  const t = v2 instanceof Date ? v2.getTime() : Date.parse(v2);
+  return Number.isFinite(t) ? t : 0;
+};
 var toIdentity = (r) => ({
   id: r.id,
   masked: r.masked,
@@ -8515,16 +8522,22 @@ var toIdentity = (r) => ({
   enabled: r.enabled,
   label: r.label,
   owner: r.owner,
-  failCount: Number(r.fail_count) || 0
+  failCount: Number(r.fail_count) || 0,
+  cooldownUntil: toEpoch(r.cooldown_until)
 });
 async function loadKeys() {
   if (!dbEnabled()) return [];
   const res = await sql(
-    `select id, masked, label, owner, plan, enabled, fail_count
+    `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until
        from keys
       order by id`
   );
   return res.ok ? res.rows.map(toIdentity) : [];
+}
+async function setCooldown(id, until) {
+  if (!dbEnabled()) return;
+  const deadline = until > Date.now() ? new Date(until).toISOString() : null;
+  await sql(`update keys set cooldown_until = $2 where id = $1`, [id, deadline]);
 }
 async function upsertKey(identity) {
   if (!dbEnabled()) return;
@@ -8643,6 +8656,7 @@ function persistHealth(st) {
   }
   later(() => touchLastSeen(id));
   if (st.failures > 0) later(() => bumpFailCount(id));
+  later(() => setCooldown(id, st.cooldownUntil));
 }
 function seed(key) {
   if (!local.has(key)) local.set(key, blank(key));
@@ -8671,6 +8685,8 @@ async function hydrate() {
     if (!row.enabled) {
       hit.invalid = true;
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
+    } else if (row.cooldownUntil > now()) {
+      hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
   log("info", "pool.hydrated", {
@@ -8779,6 +8795,7 @@ async function markHealthy(key) {
   const id = keyId(key);
   later(() => setEnabled(id, true));
   later(() => touchLastSeen(id));
+  later(() => setCooldown(id, 0));
 }
 async function listKeys() {
   const t = now();
@@ -15910,12 +15927,16 @@ app.post("/pengatur/keys/test-all", async (c) => {
   });
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
 });
-app.post("/internal/rollup", async (c) => {
-  if (!cfg.rollupToken) {
-    return c.json({ error: { message: "Rollup disabled: ROLLUP_TOKEN is not set." } }, 403);
-  }
+app.all("/internal/rollup", async (c) => {
   const presented = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() || c.req.header("x-rollup-token") || "";
-  if (presented !== cfg.rollupToken) {
+  const accepted = [cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
+  if (accepted.length === 0) {
+    return c.json(
+      { error: { message: "Rollup disabled: neither ROLLUP_TOKEN nor CRON_SECRET is set." } },
+      403
+    );
+  }
+  if (!accepted.includes(presented)) {
     return c.json({ error: { message: "Unauthorized." } }, 401);
   }
   let bodyDay;
