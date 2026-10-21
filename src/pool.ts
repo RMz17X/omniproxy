@@ -19,6 +19,7 @@ import { log } from "./log.ts";
 import { counters } from "./metrics.ts";
 import { dbEnabled } from "./db.ts";
 import * as repo from "./keys-repo.ts";
+import { loadMaterial, materialEnabled, saveMaterial, deleteMaterial } from "./key-material.ts";
 
 /** Where durable key metadata lives. */
 export const storageMode: "memory" | "postgres" = dbEnabled() ? "postgres" : "memory";
@@ -117,24 +118,41 @@ function persistHealth(st: KeyState): void {
 
 /* ---------- cold start ---------- */
 
+/** Insert one key into the mirror when absent; never disturbs live state. */
+function seed(key: string): void {
+  if (!local.has(key)) local.set(key, blank(key));
+}
+
 /**
- * Fill the mirror. Raw key material always comes from the environment — the
- * `keys` table stores masked identities only, by design. When the database is
- * enabled its rows supply plan and enable state for the matching ids.
+ * Fill the mirror, in priority order:
+ *
+ *   1. `GEMINI_API_KEYS` — the deployment's own supply
+ *   2. `key_material`    — keys added through the console or by the hunter
+ *   3. `keys`            — identity overlay (plan, enable flag, fail count)
+ *
+ * Step 2 is what makes a key survive a cold start; step 3 never introduces a
+ * key, it only decorates ones already present. A missing table is not fatal:
+ * `loadMaterial()` swallows the failure and returns an empty map.
  */
 export async function hydrate(): Promise<number> {
-  const seed = (process.env.GEMINI_API_KEYS ?? "")
+  const env = (process.env.GEMINI_API_KEYS ?? "")
     .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  for (const k of seed) {
-    if (!local.has(k)) local.set(k, blank(k));
-  }
+  for (const k of env) seed(k);
 
   if (!dbEnabled()) {
-    log("info", "pool.hydrated", { source: "env", keys: local.size });
+    log("info", "pool.hydrated", { source: "env", keys: local.size, material: 0 });
     return local.size;
+  }
+
+  let material = 0;
+  if (materialEnabled()) {
+    for (const raw of (await loadMaterial()).values()) {
+      seed(raw);
+      material++;
+    }
   }
 
   const rows = await repo.loadKeys();
@@ -149,8 +167,18 @@ export async function hydrate(): Promise<number> {
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
     }
   }
-  log("info", "pool.hydrated", { source: "postgres+env", keys: local.size, rows: rows.length });
+  log("info", "pool.hydrated", {
+    source: "postgres+env",
+    keys: local.size,
+    rows: rows.length,
+    material,
+  });
   return local.size;
+}
+
+/** True when key material outlives the process. Consoles report this. */
+export function keyMaterialDurable(): boolean {
+  return materialEnabled();
 }
 
 /* ---------- pool management ---------- */
@@ -163,6 +191,7 @@ export async function addKey(key: string): Promise<boolean> {
   const st = blank(k);
   local.set(k, st);
   persistIdentity(st);
+  saveMaterial(keyId(k), k);
   return true;
 }
 
@@ -172,6 +201,7 @@ export async function removeKey(key: string): Promise<boolean> {
   if (had) {
     const id = keyId(k);
     later(() => repo.deleteKey(id));
+    deleteMaterial(id);
   }
   return had;
 }
