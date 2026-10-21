@@ -42,6 +42,8 @@ import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 import { KEYS_HTML, KEY_DETAIL_HTML } from "./keys-ui.ts";
 import { loadKeys } from "./keys-repo.ts";
+import { SETTINGS_HTML } from "./settings-ui.ts";
+import { settingsView } from "./settings.ts";
 import { dbEnabled, sql } from "./db.ts";
 
 const app = new Hono();
@@ -645,6 +647,33 @@ app.get("/pengatur/usage/export.csv", (c) => {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="geminesx-usage-${new Date().toISOString().slice(0, 10)}.csv"`,
+    },
+  });
+});
+
+/** Request-log console also answers on /pengatur/logs; same shell, same data. */
+app.get("/pengatur/logs", (c) => c.html(USAGE_HTML));
+
+/** Settings console shell. Public like the other shells; its data routes are not. */
+app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
+
+/**
+ * Effective configuration. Built from an explicit allowlist inside
+ * `settingsView`, so a newly added secret can never leak by accident.
+ */
+app.get("/pengatur/settings/data", (c) => c.json(settingsView()));
+
+/** The same object as a file. Zero secrets by construction; recorded in audit. */
+app.get("/pengatur/settings/export", (c) => {
+  const view = settingsView();
+  auditRecord("settings.export", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { envFlags: view.env.length },
+  });
+  return new Response(JSON.stringify(view, null, 2), {
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "content-disposition": `attachment; filename="geminesx-config-${new Date().toISOString().slice(0, 10)}.json"`,
     },
   });
 });
