@@ -1,5 +1,10 @@
 # F4c2 — finish the console restyle
 
+> **Superseded.** The console was redesigned as a whole in
+> `f5-console-redesign.md`. `src/ui.ts` was replaced there, so the writable
+> set, the primitives and the layout this brief describes no longer match the
+> code. Read `f5-console-redesign.md` instead.
+
 Repo: `/workspaces/geminesx`. Base: `master` at `4b92299`.
 
 ## What already exists

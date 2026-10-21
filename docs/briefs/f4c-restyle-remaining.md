@@ -1,5 +1,10 @@
 # F4c — put the four remaining console pages on the shared design system
 
+> **Superseded.** The console was redesigned as a whole in
+> `f5-console-redesign.md`. The four pages named here are on the new shared
+> system now, and `src/ui.ts` was replaced there. Read
+> `f5-console-redesign.md` instead.
+
 Repo: `/workspaces/geminesx`. Base: `master` at `ca39c14`.
 
 ## State now
