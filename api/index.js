@@ -13217,18 +13217,21 @@ function safeDetail(detail) {
   }
   return json2;
 }
-function record2(action, input = {}) {
+async function recordNow(action, input = {}) {
   if (!dbEnabled()) return;
-  void sql(
-    `insert into admin_audit (actor, action, target, detail)
-     values ($1, $2, $3, $4::jsonb)`,
-    [
-      (input.actor ?? "api").slice(0, ACTOR_MAX),
-      action,
-      input.target ? input.target.slice(0, 200) : null,
-      safeDetail(input.detail)
-    ]
-  );
+  try {
+    await sql(
+      `insert into admin_audit (actor, action, target, detail)
+       values ($1, $2, $3, $4::jsonb)`,
+      [
+        (input.actor ?? "api").slice(0, ACTOR_MAX),
+        action,
+        input.target ? input.target.slice(0, 200) : null,
+        safeDetail(input.detail)
+      ]
+    );
+  } catch {
+  }
 }
 async function list(filter = {}) {
   if (!dbEnabled()) return { ok: true, rows: [] };
@@ -15742,7 +15745,7 @@ app.post("/pengatur/keys/tier", async (c) => {
   if (!ids.length) return c.json({ error: { message: "`id`, `ids` or `all` is required." } }, 400);
   let updated = 0;
   for (const id of ids) if (await setTierById(id, tier)) updated++;
-  record2("keys.tier", {
+  await recordNow("keys.tier", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
     detail: { tier, updated }
@@ -15771,7 +15774,7 @@ app.post("/pengatur/keys", async (c) => {
       ids.push(keyId(k));
     }
   }
-  record2("keys.add", {
+  await recordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
     detail: { received: clean.length, added }
@@ -15796,7 +15799,7 @@ app.delete("/pengatur/keys", async (c) => {
       if (ok) removed.push(id);
       else failed.push(id);
     }
-    record2("keys.delete", {
+    await recordNow("keys.delete", {
       actor: actorFrom(c.req.header("user-agent")),
       target: removed.join(","),
       detail: { by: "id", bulk: true, removed: removed.length, failed: failed.length }
@@ -15806,7 +15809,7 @@ app.delete("/pengatur/keys", async (c) => {
   if (typeof body.id === "string" && body.id) {
     const removed = await removeKeyById(body.id);
     if (!removed) return c.json({ error: { message: "No key with that id." } }, 404);
-    record2("keys.delete", {
+    await recordNow("keys.delete", {
       actor: actorFrom(c.req.header("user-agent")),
       target: body.id,
       detail: { by: "id" }
@@ -15817,7 +15820,7 @@ app.delete("/pengatur/keys", async (c) => {
     return c.json({ error: { message: "`id` or `key` is required." } }, 400);
   }
   await removeKey(body.key);
-  record2("keys.delete", {
+  await recordNow("keys.delete", {
     actor: actorFrom(c.req.header("user-agent")),
     target: keyId(body.key),
     detail: { by: "raw-key" }
@@ -15862,7 +15865,7 @@ app.post("/pengatur/keys/test", async (c) => {
       applied = "cooling";
     }
   }
-  record2("keys.test", {
+  await recordNow("keys.test", {
     actor: actorFrom(c.req.header("user-agent")),
     target: id,
     detail: { model: model ?? "default", status: result.status, applied }
@@ -15901,7 +15904,7 @@ app.post("/pengatur/keys/test-all", async (c) => {
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
-  record2("keys.test-all", {
+  await recordNow("keys.test-all", {
     actor: actorFrom(c.req.header("user-agent")),
     detail: { tested: results.length }
   });
@@ -15977,9 +15980,9 @@ app.get("/pengatur/usage/export.csv", (c) => {
 app.get("/pengatur/logs", (c) => c.html(USAGE_HTML));
 app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
 app.get("/pengatur/settings/data", (c) => c.json(settingsView()));
-app.get("/pengatur/settings/export", (c) => {
+app.get("/pengatur/settings/export", async (c) => {
   const view = settingsView();
-  record2("settings.export", {
+  await recordNow("settings.export", {
     actor: actorFrom(c.req.header("user-agent")),
     detail: { envFlags: view.env.length }
   });

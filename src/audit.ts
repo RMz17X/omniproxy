@@ -84,6 +84,36 @@ export function record(
   );
 }
 
+/**
+ * Awaited variant of `record`, for mutating routes.
+ *
+ * `record` is fire-and-forget by design (the ledger must never block a
+ * request), but on a serverless runtime a detached promise can be frozen the
+ * instant the response is written — which silently drops the audit row. Admin
+ * mutations are rare, so one extra round trip is the right price for a row
+ * that is guaranteed to land. A failed insert still never fails the action.
+ */
+export async function recordNow(
+  action: string,
+  input: { target?: string; detail?: Record<string, unknown>; actor?: string } = {},
+): Promise<void> {
+  if (!dbEnabled()) return;
+  try {
+    await sql(
+      `insert into admin_audit (actor, action, target, detail)
+       values ($1, $2, $3, $4::jsonb)`,
+      [
+        (input.actor ?? "api").slice(0, ACTOR_MAX),
+        action,
+        input.target ? input.target.slice(0, 200) : null,
+        safeDetail(input.detail),
+      ],
+    );
+  } catch {
+    // Swallowed on purpose: the audit trail must never break the action.
+  }
+}
+
 type AuditDbRow = {
   id: string | number;
   ts: string;

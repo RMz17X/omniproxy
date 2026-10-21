@@ -36,7 +36,7 @@ import {
   type RowFilter,
 } from "./ledger.ts";
 import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
-import { actorFrom, list as listAudit, record as auditRecord } from "./audit.ts";
+import { actorFrom, list as listAudit, recordNow as auditRecordNow } from "./audit.ts";
 import { STATS_HTML } from "./stats-ui.ts";
 import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
@@ -392,7 +392,7 @@ app.post("/pengatur/keys/tier", async (c) => {
 
   let updated = 0;
   for (const id of ids) if (await setTierById(id, tier)) updated++;
-  auditRecord("keys.tier", {
+  await auditRecordNow("keys.tier", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
     detail: { tier, updated },
@@ -423,7 +423,7 @@ app.post("/pengatur/keys", async (c) => {
       ids.push(keyId(k));
     }
   }
-  auditRecord("keys.add", {
+  await auditRecordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
     detail: { received: clean.length, added },
@@ -453,7 +453,7 @@ app.delete("/pengatur/keys", async (c) => {
       if (ok) removed.push(id);
       else failed.push(id);
     }
-    auditRecord("keys.delete", {
+    await auditRecordNow("keys.delete", {
       actor: actorFrom(c.req.header("user-agent")),
       target: removed.join(","),
       detail: { by: "id", bulk: true, removed: removed.length, failed: failed.length },
@@ -464,7 +464,7 @@ app.delete("/pengatur/keys", async (c) => {
   if (typeof body.id === "string" && body.id) {
     const removed = await removeKeyById(body.id);
     if (!removed) return c.json({ error: { message: "No key with that id." } }, 404);
-    auditRecord("keys.delete", {
+    await auditRecordNow("keys.delete", {
       actor: actorFrom(c.req.header("user-agent")),
       target: body.id,
       detail: { by: "id" },
@@ -475,7 +475,7 @@ app.delete("/pengatur/keys", async (c) => {
     return c.json({ error: { message: "`id` or `key` is required." } }, 400);
   }
   await removeKey(body.key);
-  auditRecord("keys.delete", {
+  await auditRecordNow("keys.delete", {
     actor: actorFrom(c.req.header("user-agent")),
     target: keyId(body.key),
     detail: { by: "raw-key" },
@@ -533,7 +533,7 @@ app.post("/pengatur/keys/test", async (c) => {
     }
   }
 
-  auditRecord("keys.test", {
+  await auditRecordNow("keys.test", {
     actor: actorFrom(c.req.header("user-agent")),
     target: id,
     detail: { model: model ?? "default", status: result.status, applied },
@@ -577,7 +577,7 @@ app.post("/pengatur/keys/test-all", async (c) => {
   };
 
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
-  auditRecord("keys.test-all", {
+  await auditRecordNow("keys.test-all", {
     actor: actorFrom(c.req.header("user-agent")),
     detail: { tested: results.length },
   });
@@ -691,9 +691,9 @@ app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
 app.get("/pengatur/settings/data", (c) => c.json(settingsView()));
 
 /** The same object as a file. Zero secrets by construction; recorded in audit. */
-app.get("/pengatur/settings/export", (c) => {
+app.get("/pengatur/settings/export", async (c) => {
   const view = settingsView();
-  auditRecord("settings.export", {
+  await auditRecordNow("settings.export", {
     actor: actorFrom(c.req.header("user-agent")),
     detail: { envFlags: view.env.length },
   });
