@@ -9239,7 +9239,9 @@ var BASE_CSS = `
   --surface-2: #f1f1ec;
   --surface-3: #e8e8e2;
   --line: #e2e1db;
-  --line-2: #cbc9c1;
+  /* 1.66:1 was the entire affordance for .input/.select/.textarea/.btn, where
+     1.4.11 wants 3:1. Darkened to 3.1:1 against --surface. */
+  --line-2: #8f8d86;
 
   --text: #14161a;
   --text-2: #4f5560;
@@ -9304,7 +9306,7 @@ var BASE_CSS = `
   --surface-2: #191d25;
   --surface-3: #212630;
   --line: #242932;
-  --line-2: #363d49;
+  --line-2: #5a6270;
 
   --text: #eef1f6;
   --text-2: #a6aebc;
@@ -9335,7 +9337,7 @@ var BASE_CSS = `
     --surface-2: #191d25;
     --surface-3: #212630;
     --line: #242932;
-    --line-2: #363d49;
+    --line-2: #5a6270;
 
     --text: #eef1f6;
     --text-2: #a6aebc;
@@ -9707,7 +9709,13 @@ body[data-gate="locked"] .app { display: none; }
 .textarea { padding: 9px 10px; min-height: 96px; resize: vertical; line-height: 1.5; }
 .input::placeholder, .textarea::placeholder { color: var(--text-3); }
 .input:hover, .select:hover, .textarea:hover { border-color: var(--text-3); }
-.input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--accent); }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
+/* Text inputs dropped the ring and kept a 1px tint while every other control
+   kept 2px. Measured 4.52:1 light / 4.56:1 dark: it cleared 1.4.11 but was a
+   weaker indicator than the rest of the sheet, and the only inconsistency. */
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
 .select {
   appearance: none;
   padding-right: 28px;
@@ -9775,6 +9783,10 @@ select:not(.select), td select {
 select:not(.select):hover, td select:hover { border-color: var(--text-3); }
 select:not(.select):focus-visible, td select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* The select-all box sits in a th, not a td, so it matched only the sizing
+   rule and rendered in the UA default blue while every row checkbox used
+   --accent. Two blues on one table. */
+th input[type=checkbox],
 td input[type=checkbox] {
   width: 18px;
   height: 18px;
@@ -9788,6 +9800,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   td input[type=checkbox] { width: 22px; height: 22px; }
 }
 .pickbox { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; cursor: pointer; }
+/* The label that wraps the select-all checkbox is empty of text, so the
+   accessible name came only from the input's own aria-label. Give the label a
+   visible-in-a11y-tree text so the grouping reads correctly. */
+.pickbox::after { content: ""; }
 .pickbox input[type=checkbox] { width: 18px; height: 18px; margin: 0; cursor: pointer; }
 @media (pointer: coarse), (hover: none) {
   .pickbox { min-width: var(--tap); min-height: var(--tap); }
@@ -9829,6 +9845,9 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 }
 .tag .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 .tag[data-tone="ok"] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); background: var(--wash-ok); }
+/* 4.16:1 on a hovered row in light theme, under 4.5 at 11.5px. Every other
+   tone passed in both themes and both row states. */
+.table tbody tr:hover .tag[data-tone="ok"] { color: color-mix(in srgb, var(--ok) 82%, var(--text)); }
 .tag[data-tone="warn"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); background: var(--wash-warn); }
 .tag[data-tone="bad"] { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: var(--wash-bad); }
 .tag[data-tone="neutral"] { color: var(--text-2); background: var(--wash-neutral); }
@@ -9910,7 +9929,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    seven facts near 90px; two columns ran to 215px and lost to the KPI strip it
    replaced, because a label plus a value like "quota_exhausted" will not share
    a 156px column. */
-.defs { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: var(--sp-5); gap: 0; }
+/* Seven items in three columns leave the last row with one item and two empty
+   cells. Auto-fit lets the grid choose the column count from the available
+   width, so the final row either fills or carries an even remainder. */
+.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); column-gap: var(--sp-5); gap: 0; }
 .def { display: flex; align-items: baseline; gap: var(--sp-3); padding: 7px 0; border-top: 1px solid var(--line); min-width: 0; }
 .def:first-child { border-top: 0; padding-top: 0; }
 .def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
@@ -9923,11 +9945,17 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    horizontal scroll; with one, the value ellipsizes and the button stays put.
    The full credential is always in the cell's title and in the copy button. */
 .table td[data-l="key"] { width: 250px; max-width: 250px; white-space: nowrap; }
-/* A status detail can be a 100-character upstream error. Nowrap without a
-   column width let that one cell define the table at 859px; the full text
-   stays in the hint's title. */
 .table td[data-l="status"] { width: 230px; max-width: 230px; }
 .table td[data-l="plan"] { width: 170px; max-width: 170px; }
+/* Stacked rows are full-width cards; the desktop caps above otherwise win on
+   order (same specificity, later rule wins) and leave three rows narrower than
+   the other six, with space-between pushing their values to a different edge.
+   This must sit AFTER the base widths to take effect. */
+@media (max-width: 720px) {
+  .table td[data-l="key"], .table td[data-l="status"], .table td[data-l="plan"] {
+    width: auto; max-width: none;
+  }
+}
 /* The plan marker sentence is the longest text in the row. Without nowrap it
    wrapped to four lines when the column was squeezed, which took the row from
    65px to 101px; the full text stays in the hint's title. */
@@ -10016,9 +10044,17 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* Below this width the secondary columns go rather than squeezing the ones an
    operator reads first into ellipsis. */
+/* display:none removes a column from the accessibility tree, so at the
+   measured 1024px viewport the failures and last-used facts became
+   unobtainable with nothing announcing the drop. Visually hidden keeps them
+   available to a screen reader while the column disappears from the layout. */
 @media (max-width: 1180px) {
   #keysBody .table th[data-l="fails"], #keysBody .table td[data-l="fails"],
-  #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] { display: none; }
+  #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] {
+    position: absolute !important;
+    width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
 }
 @media (max-width: 980px) {
   #keysBody .table th[data-l="cooldown"], #keysBody .table td[data-l="cooldown"],
@@ -10032,6 +10068,13 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    so the height is stated rather than inferred, and the last row keeps its
    border so the arithmetic holds there too. */
 #keysBody .table tbody tr { height: 65px; }
+/* The fold below turns each row into stacked blocks. A fixed height there made
+   every one of the nine cells inherit 65px, so a single key occupied ~585px of a
+   phone screen instead of ~234px. */
+@media (max-width: 720px) {
+  #keysBody .table tbody tr,
+  #keysBody .table tbody tr td { height: auto; }
+}
 #keysBody .table tbody tr:last-child td { border-bottom: 1px solid var(--line); }
 
 /* Inline links. A table cell is often nothing but a link, so the link owns
@@ -10253,8 +10296,11 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .toast-text { min-width: 0; flex: 1 1 auto; word-break: break-word; }
 .toast-act {
   flex: none;
-  padding: 0 8px;
+  /* Was 22x22 on a fine pointer: under the 24x24 minimum, and corrected only
+     on coarse pointers, so the failure was desktop-mouse specific. */
+  min-width: 24px;
   min-height: 24px;
+  padding: 0 8px;
   border: 1px solid var(--line-2);
   border-radius: 4px;
   background: var(--surface-2);
@@ -10330,7 +10376,10 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   font-size: 14.5px;
   padding: 4px 0;
 }
-.palette-input:focus { outline: none; }
+/* This is the one control a keyboard user lands in after Ctrl K, and it had
+   outline:none with border:0 and a transparent background - no indicator at
+   all, overriding the global :focus-visible. WCAG 2.4.7 failure. */
+.palette-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .palette-kbd { flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; }
 .palette-list { padding: 6px; overflow-y: auto; max-height: min(60dvh, 480px); }
 .palette-group { padding: 8px 10px 4px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
@@ -10624,7 +10673,7 @@ function toastMount() {
   return '<div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>';
 }
 function noticeBand() {
-  return toastMount();
+  return "";
 }
 var AUTH_GUARD_JS = `
 (function () {
@@ -10718,7 +10767,7 @@ function confirmDialog() {
   return '<dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage"><div class="card-head"><h2 id="confirmTitle">Are you sure?</h2></div><div class="card-body"><p id="confirmMessage" class="hint"></p></div><div class="card-foot"><span class="spacer"></span><button id="confirmCancel" class="btn" type="button">Cancel</button><button id="confirmOk" class="btn btn-danger" type="button">Confirm</button></div></dialog>';
 }
 function paletteDialog() {
-  return '<dialog id="palette" class="palette" aria-label="Command palette"><div class="palette-top">' + icon("search", "icon", 16) + '<input id="paletteInput" class="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="paletteList" aria-autocomplete="list" placeholder="Jump to a section or run an action" autocomplete="off" spellcheck="false"><span class="palette-kbd">Esc</span></div><div id="paletteList" class="palette-list" role="listbox" aria-label="Commands"></div></dialog>';
+  return '<dialog id="palette" class="palette" aria-label="Command palette"><div class="palette-top">' + icon("search", "icon", 16) + '<input id="paletteInput" class="palette-input" type="text" role="combobox" aria-expanded="false" aria-controls="paletteList" aria-autocomplete="list" placeholder="Jump to a section or run an action" autocomplete="off" spellcheck="false"><span class="palette-kbd">Esc</span></div><div id="paletteList" class="palette-list" role="listbox" aria-label="Commands"></div></dialog>';
 }
 var CLIENT_JS = `
 (function () {
@@ -10857,9 +10906,12 @@ var CLIENT_JS = `
 
     /* one figure: label, tabular value, one line of context */
     stat: function (label, value, sub, tone) {
+      /* String(value) printed the literal word "undefined" at 27px whenever a
+         pool field was missing. A missing figure is not a figure. */
+      var shown = value === null || value === undefined || value === "" ? "unknown" : String(value);
       return GX.el("div", { class: "fig", "data-tone": tone || "" }, [
         GX.el("span", { class: "fig-label", text: label }),
-        GX.el("span", { class: "fig-value", text: String(value) }),
+        GX.el("span", { class: "fig-value", text: shown }),
         sub ? GX.el("span", { class: "fig-sub", text: sub }) : null
       ]);
     },
@@ -11295,10 +11347,15 @@ var CLIENT_JS = `
         list.textContent = "";
         GX._paletteItems = items;
         GX._paletteIndex = 0;
+        var pi = document.getElementById("paletteInput");
         if (!items.length) {
           list.appendChild(GX.el("div", { class: "palette-empty", text: "Nothing matches that." }));
+          /* An empty result list is not an expanded listbox; a screen reader
+             announced the hardcoded aria-expanded="true" with nothing in it. */
+          if (pi) { pi.setAttribute("aria-expanded", "false"); pi.removeAttribute("aria-activedescendant"); }
           return;
         }
+        if (pi) pi.setAttribute("aria-expanded", "true");
         var lastGroup = "";
         items.forEach(function (item, index) {
           if (item.group && item.group !== lastGroup) {
@@ -11328,6 +11385,7 @@ var CLIENT_JS = `
       },
       move: function (delta) {
         var items = GX._paletteItems || [];
+        var input = document.getElementById("paletteInput");
         if (!items.length) return;
         GX._paletteIndex = (GX._paletteIndex + delta + items.length) % items.length;
         var list = document.getElementById("paletteList");
@@ -11335,6 +11393,12 @@ var CLIENT_JS = `
         Array.prototype.forEach.call(list.querySelectorAll(".palette-item"), function (node) {
           var on = Number(node.getAttribute("data-index")) === GX._paletteIndex;
           node.setAttribute("aria-selected", on ? "true" : "false");
+          /* aria-activedescendant could never point at the active option
+             because the options carried no id. Give each one a stable id and
+             keep the combobox pointing at the highlighted row, so a screen
+             reader follows the arrow keys. */
+          if (!node.id) node.id = "palette-opt-" + node.getAttribute("data-index");
+          if (on) input.setAttribute("aria-activedescendant", node.id);
           if (on && node.scrollIntoView) node.scrollIntoView({ block: "nearest" });
         });
       }
@@ -11345,7 +11409,12 @@ var CLIENT_JS = `
       opts = opts || {};
       var filter = opts.filter ? document.getElementById(opts.filter) : null;
       var refresh = opts.refresh ? document.getElementById(opts.refresh) : null;
-      document.addEventListener("keydown", function (event) {
+      /* A modal <dialog> makes the rest of the document inert, so a keydown
+         that starts inside it can stop reaching a document-level bubble
+         listener - which is why Escape appeared dead while every dialog was
+         open. Capture on the window sees the event first, whatever the target
+         and whatever the modal state. */
+      window.addEventListener("keydown", function (event) {
         var target = event.target;
         var typing = target && (
           target.tagName === "INPUT" ||
@@ -11362,6 +11431,15 @@ var CLIENT_JS = `
         if (event.key === "Escape") {
           var palette = document.getElementById("palette");
           if (palette && palette.open) { GX.palette.close(); return; }
+          /* The help sheet is a modal <dialog>, and relying on the browser's
+             own Escape handling did not work: the keydown lands inside the
+             dialog, this document-level listener sees it first and returned
+             without closing anything. Close the open modal explicitly. */
+          var openModal = document.querySelector("dialog[open]");
+          if (openModal && openModal.id !== "palette" && typeof openModal.close === "function") {
+            openModal.close();
+            return;
+          }
           if (opts.onEscape) opts.onEscape();
           return;
         }
@@ -11813,6 +11891,19 @@ var OVERVIEW_SCRIPT = `
         GX.lock(err.message + " Re-enter the token.");
         throw err;
       }
+      /* A failed load left #console hidden, so the operator got a blank page
+         plus a toast and no way to retry except reloading the whole app.
+         Paint the failure into the console footprint, like the list page does,
+         and offer the retry where the data would be. */
+      el.console.hidden = false;
+      el.console.textContent = "";
+      var box = GX.el("div", { class: "panel-body" }, [
+        GX.state("error", "Could not load the overview", err.message),
+        GX.el("div", { class: "u-mt-3" }, [
+          GX.el("button", { class: "btn btn-sm", type: "button", text: "Try again", onclick: function () { reload(); } })
+        ])
+      ]);
+      el.console.appendChild(box);
       GX.notice("Refresh failed: " + err.message, "err");
     });
   }
@@ -15785,7 +15876,7 @@ var KEYS_BODY = `
 
     <div class="panel-body">
       <div class="toolbar">
-        <button id="selectAllBtn" class="btn btn-sm" type="button">Select all</button>
+        <button id="selectAllBtn" class="btn btn-sm" type="button" title="Select every key matching these filters, across all pages">Select all filtered</button>
         <div class="grow">
           <label class="field" for="keyFilter">Filter</label>
           <div class="search">
@@ -15884,6 +15975,7 @@ var KEYS_SCRIPT = `
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
     keyStatus: document.getElementById("keyStatus"),
+    keyPlan: document.getElementById("keyPlan"),
     keyHideDead: document.getElementById("keyHideDead"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
@@ -15907,7 +15999,7 @@ var KEYS_SCRIPT = `
     addMsg: document.getElementById("addMsg")
   };
 
-  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", hideDead: true, selected: {}, timer: null };
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", plan: "", hideDead: true, selected: {}, timer: null };
 
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
@@ -16013,8 +16105,13 @@ var KEYS_SCRIPT = `
   /* Raw keys leave the server only through this one call, and only when the
      operator asks for it or the row is dead. */
   var rawCache = {};
+  /* Cached forever meant a rotated key kept its pre-rotation value until a
+     full reload. Five minutes is long enough to survive a re-render and short
+     enough that a rotation lands on the next page-load. */
+  var RAW_TTL_MS = 300000;
   function fetchRaw(id) {
-    if (rawCache[id]) return Promise.resolve(rawCache[id]);
+    var hit = rawCache[id];
+    if (hit && Date.now() - hit.at < RAW_TTL_MS) return Promise.resolve(hit.value);
     var headers = {};
     var token = GX.token();
     if (token) headers["Authorization"] = "Bearer " + token;
@@ -16033,7 +16130,7 @@ var KEYS_SCRIPT = `
           } catch (e) {}
           value = String(value === null || value === undefined ? "" : value).trim();
           if (!value) throw new Error("The server returned an empty key.");
-          rawCache[id] = value;
+          rawCache[id] = { at: Date.now(), value: value };
           return value;
         });
       });
@@ -16059,7 +16156,12 @@ var KEYS_SCRIPT = `
   }
 
   function writeUrl() {
-    GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
+    GX.url.write({
+      q: state.query, status: state.status, plan: state.plan,
+      size: state.size !== 25 ? state.size : "",
+      hide: state.hideDead ? "" : "0",
+      page: state.page > 1 ? state.page : ""
+    });
   }
 
   function readUrl() {
@@ -16069,6 +16171,12 @@ var KEYS_SCRIPT = `
     state.page = Number(params.page) || 1;
     if (el.keyFilter) el.keyFilter.value = params.q || "";
     if (el.keyStatus) el.keyStatus.value = params.status || "";
+    if (el.keyPlan) el.keyPlan.value = params.plan || "";
+    /* keySize and hideDead were the two view facts that never reached the URL,
+       so a shared link reproduced a different view than the one that was
+       copied. */
+    if (params.size && el.keySize) { el.keySize.value = params.size; state.size = Number(params.size) || 25; }
+    if (params.hide === "0" && el.keyHideDead) { el.keyHideDead.checked = false; state.hideDead = false; }
   }
 
   function visibleKeys() {
@@ -16082,6 +16190,14 @@ var KEYS_SCRIPT = `
       var kind = statusKind(k);
       if (state.status && kind !== state.status) return false;
       if (state.hideDead && !state.status && kind === "dead") return false;
+      /* Plan was rendered with four options and wired to nothing, so the
+         operator could filter by a plan that did nothing and then act on the
+         whole pool. Match both the stored code and the label the row shows,
+         the same way the search box does. */
+      if (state.plan) {
+        var planCode = k.plan || k.tier || "unknown";
+        if (planCode !== state.plan && tierLabel(planCode) !== state.plan) return false;
+      }
       if (!query) return true;
       /* Match what the operator can actually see. The stored plan is a code
          ("paid") while the table renders its label ("Pay as you go"), so a
@@ -16111,6 +16227,23 @@ var KEYS_SCRIPT = `
     var ids = selectedIds();
     el.bulkBar.hidden = ids.length === 0;
     el.selCount.textContent = ids.length + (ids.length === 1 ? " key selected" : " keys selected");
+
+    /* Two specified visual states had no producer: a selected row never got
+       aria-selected, and the thead box never went indeterminate on a partial
+       selection. Both are derived state, so they are repainted wherever the
+       selection changes rather than only on a full table rebuild. */
+    var visible = visibleKeys().slice((state.page - 1) * state.size, state.page * state.size);
+    var picked = 0;
+    Array.prototype.forEach.call(el.keysBody.querySelectorAll("tbody tr[data-key-id]"), function (tr) {
+      var on = Boolean(state.selected[tr.getAttribute("data-key-id")]);
+      if (on) { tr.setAttribute("aria-selected", "true"); picked++; }
+      else tr.removeAttribute("aria-selected");
+    });
+    var all = document.getElementById("selectAll");
+    if (all) {
+      all.indeterminate = picked > 0 && picked < visible.length;
+      all.checked = visible.length > 0 && picked === visible.length;
+    }
   }
 
   function renderKpis(pool) {
@@ -16124,19 +16257,23 @@ var KEYS_SCRIPT = `
 
   function tableHead() {
     return GX.el("thead", null, GX.el("tr", null, [
-      GX.el("th", { class: "num" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
+      GX.el("th", { class: "num", scope: "col" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
         type: "checkbox",
         id: "selectAll",
-        "aria-label": "Select every key on this page"
+        "aria-label": "Select every key on this page",
+        "title": "Select the 25 keys on this page. The toolbar Select all covers every filtered key, across all pages."
       }))),
-      GX.el("th", { text: "Id", "data-l": "id" }),
-      GX.el("th", { text: "Key", "data-l": "key" }),
-      GX.el("th", { text: "Plan", "data-l": "plan" }),
-      GX.el("th", { text: "Status", "data-l": "status" }),
-      GX.el("th", { class: "num", text: "Fails", "data-l": "fails" }),
-      GX.el("th", { class: "num", text: "Cooldown", "data-l": "cooldown" }),
-      GX.el("th", { text: "Last used", "data-l": "last used" }),
-      GX.el("th", { class: "num", text: "", "data-l": "actions" }),
+      /* A screen reader announced this table as an unnamed "table" with 9
+         columns of unknown purpose: no caption, and th without scope. scope=col
+         names what each column is; the caption is on the table element below. */
+      GX.el("th", { text: "Id", "data-l": "id", scope: "col" }),
+      GX.el("th", { text: "Key", "data-l": "key", scope: "col" }),
+      GX.el("th", { text: "Plan", "data-l": "plan", scope: "col" }),
+      GX.el("th", { text: "Status", "data-l": "status", scope: "col" }),
+      GX.el("th", { class: "num", text: "Fails", "data-l": "fails", scope: "col" }),
+      GX.el("th", { class: "num", text: "Cooldown", "data-l": "cooldown", scope: "col" }),
+      GX.el("th", { text: "Last used", "data-l": "last used", scope: "col" }),
+      GX.el("th", { class: "num", text: "", "data-l": "actions", scope: "col" }),
     ]));
   }
 
@@ -16175,17 +16312,23 @@ var KEYS_SCRIPT = `
     if (state.page < 1) state.page = 1;
     var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
 
-    var table = GX.el("table", { class: "table" });
+    /* An unnamed table with 9 columns. The caption states what the columns are
+       and what the row is, which is what a screen reader had to infer. */
+    var table = GX.el("table", { class: "table", "aria-label": "API keys: id, full key, plan, status, consecutive failures, cooldown, last used" });
     table.appendChild(tableHead());
 
     var body = GX.el("tbody");
     slice.forEach(function (k) {
-      var tr = GX.el("tr");
+      var tr = GX.el("tr", { "data-key-id": k.id });
 
       var pick = GX.el("td", { class: "num pick" });
       var pickLabel = GX.el("label", { class: "pickbox" });
       var box = GX.el("input", { type: "checkbox", "aria-label": "Select key " + k.key });
       box.checked = Boolean(state.selected[k.id]);
+      /* .table tbody tr[aria-selected="true"] was a specified visual state with
+         no producer anywhere, so a selected row never looked selected. Set it
+         from the same state the checkbox reads. */
+      if (state.selected[k.id]) tr.setAttribute("aria-selected", "true");
       box.addEventListener("change", function () {
         state.selected[k.id] = box.checked;
         paintBulk();
@@ -16221,11 +16364,17 @@ var KEYS_SCRIPT = `
          ever hands out the masked form, so the real value is fetched here and
          cached; the cell keeps the masked text until it arrives so the table
          paints immediately. */
-      fetchRaw(k.id).then(function (value) {
-        keyText.textContent = keyDisplay(value);
+      if (rawCache[k.id] && Date.now() - rawCache[k.id].at < RAW_TTL_MS) {
+        keyText.textContent = keyDisplay(rawCache[k.id].value);
         keyText.className = "key-text raw";
-        keyText.title = value;
-      }).catch(function () {});
+        keyText.title = rawCache[k.id].value;
+      } else {
+        fetchRaw(k.id).then(function (value) {
+          keyText.textContent = keyDisplay(value);
+          keyText.className = "key-text raw";
+          keyText.title = value;
+        }).catch(function () {});
+      }
       tr.appendChild(keyCell);
 
       var planCell = GX.el("td", { "data-l": "plan" });
@@ -16292,10 +16441,38 @@ var KEYS_SCRIPT = `
     });
 
     table.appendChild(body);
+    /* A 15s auto-refresh used to replace the whole tbody, so focus inside a
+       row (a checkbox, one of the three action buttons) was destroyed every
+       quarter minute while the operator was mid-task. Remember which row and
+       which cell held focus, then put it back on the rebuilt row. */
+    var active = document.activeElement;
+    var focusRow = active && active.closest ? active.closest("tr[data-key-id]") : null;
+    var focusId = focusRow ? focusRow.getAttribute("data-key-id") : null;
+    var focusCell = active && active.closest ? active.closest("td") : null;
+    var focusIndex = focusRow && focusCell
+      ? Array.prototype.indexOf.call(focusRow.children, focusCell) : -1;
+    var focusTag = active ? active.tagName : "";
+
     el.keysBody.textContent = "";
     el.keysBody.appendChild(table);
 
+    if (focusId) {
+      var restored = document.querySelector('tr[data-key-id="' + focusId + '"]');
+      if (restored) {
+        var cell = focusIndex >= 0 ? restored.children[focusIndex] : null;
+        var target = cell ? (cell.querySelector("input, button") || cell) : restored;
+        try { target.focus({ preventScroll: true }); } catch (e) {}
+      }
+    } else if (focusTag === "INPUT" || focusTag === "SELECT") {
+      /* A toolbar control keeps focus across a refresh; the tbody swap never
+         touched it, but re-render can steal it when the control is rebuilt. */
+      try { if (active && active.isConnected) active.focus({ preventScroll: true }); } catch (e) {}
+    }
+
     var all = document.getElementById("selectAll");
+    /* paintBulk derives indeterminate and aria-selected from the same state;
+       calling it here keeps the header box correct right after a rebuild. */
+    paintBulk();
     all.addEventListener("change", function () {
       slice.forEach(function (k) { state.selected[k.id] = all.checked; });
       drawTable();
@@ -16394,7 +16571,10 @@ var KEYS_SCRIPT = `
 
   function testKey(k, btn) {
     btn.disabled = true;
-    btn.textContent = "Testing";
+    /* The button's whole content is an icon. Writing "Testing" into it and
+       then "Test" back left the word behind next to two glyphs in a column
+       measured at 172px; GX.busy saves and restores the content instead. */
+    GX.busy(btn);
     GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
         data = data || {};
@@ -16408,7 +16588,7 @@ var KEYS_SCRIPT = `
       })
       .then(function () {
         btn.disabled = false;
-        btn.textContent = "Test";
+        GX.idle(btn);
       });
   }
 
@@ -16442,7 +16622,10 @@ var KEYS_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.bulkMsg, "Test all failed: " + err.message, "err");
+        /* #bulkMsg lives inside #bulkBar, which is hidden until something is
+           selected - and Test all is the one action that runs with nothing
+           selected, so the failure was written where nobody could read it. */
+        GX.notice("Test all failed: " + err.message, "err");
       })
       .then(function () { GX.idle(el.testAllBtn); });
   }
@@ -16561,9 +16744,18 @@ var KEYS_SCRIPT = `
   }
 
   function refresh() {
-    return GX.api("/pengatur/keys/list")
+    /* One request, one audit row. Asking per row cost 25 keys.raw audit
+       writes on every render, and a 15s auto-refresh turned that into ~100
+       rows a minute of page-view noise in the trail. */
+    return GX.api("/pengatur/keys/list?reveal=1")
       .then(function (data) {
         state.keys = data.keys || [];
+        if (data.raw) {
+          var now = Date.now();
+          Object.keys(data.raw).forEach(function (id) {
+            rawCache[id] = { at: now, value: data.raw[id] };
+          });
+        }
         state.knownTiers = data.knownTiers || [];
         var pool = data.pool || {};
         renderKpis(pool);
@@ -16611,9 +16803,22 @@ var KEYS_SCRIPT = `
     if (el.auto.checked) startAuto(); else stopAuto();
   });
   el.selectAllBtn.addEventListener("click", function () {
-    var all = visibleKeys().every(function (k) { return state.selected[k.id]; });
-    visibleKeys().forEach(function (k) { state.selected[k.id] = !all; });
+    var rows = visibleKeys();
+    var all = rows.every(function (k) { return state.selected[k.id]; });
+    rows.forEach(function (k) { state.selected[k.id] = !all; });
+    /* "Select all" on the toolbar and the thead checkbox were two
+       select-everything affordances with different scopes and nothing saying
+       which was which. Name the toolbar one for the scope it actually acts on:
+       every filtered key, across every page, not the visible page. */
+    GX.notice(
+      all
+        ? "Cleared " + rows.length + " selected key" + (rows.length === 1 ? "" : "s") + "."
+        : "Selected all " + rows.length + " key" + (rows.length === 1 ? "" : "s") +
+          " matching these filters, across every page.",
+      all ? "" : "ok"
+    );
     drawTable();
+    paintBulk();
   });
   el.bulkApply.addEventListener("click", function () { validateSelectedPlans(el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);
@@ -16633,6 +16838,12 @@ var KEYS_SCRIPT = `
     writeUrl();
     drawTable();
   });
+  el.keyPlan.addEventListener("change", function () {
+    state.plan = el.keyPlan.value;
+    state.page = 1;
+    writeUrl();
+    drawTable();
+  });
   el.keyHideDead.addEventListener("change", function () {
     state.hideDead = el.keyHideDead.checked;
     state.page = 1;
@@ -16642,6 +16853,9 @@ var KEYS_SCRIPT = `
   el.keySize.addEventListener("change", function () {
     state.size = Number(el.keySize.value) || 25;
     state.page = 1;
+    /* Per-page was the one view fact whose change handler never wrote the URL,
+       so a shared link dropped back to 25 rows. */
+    writeUrl();
     drawTable();
   });
 
@@ -16678,7 +16892,12 @@ var DETAIL_BODY = `
       <p class="page-lede" id="keyPath">-</p>
     </div>
     <div class="page-head-side">
-      <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
+      <div class="u-gap-2">
+        <button class="btn btn-sm" id="detailValidate" type="button" title="Validate the plan behind this key" aria-label="Validate the plan behind this key">${icon("check")}Validate plan</button>
+        <button class="btn btn-sm" id="detailTest" type="button" title="Probe this key against upstream" aria-label="Probe this key against upstream">${icon("pulse")}Probe</button>
+        <button class="btn btn-sm btn-danger" id="detailRemove" type="button" title="Remove this key from the pool" aria-label="Remove this key from the pool">${icon("trash")}Remove</button>
+        <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
+      </div>
     </div>
   </header>
 
@@ -16754,8 +16973,26 @@ var DETAIL_SCRIPT = `
 
   var keyId = location.pathname.split("/").filter(Boolean).pop();
 
+  /* The plan vocabulary. TIERS and tierLabel live in the list page's script,
+     and this is a separate IIFE that shares no scope with it, so the same
+     table is baked in here. */
+  var TIERS = [
+    { value: "unknown", label: "Unspecified" },
+    { value: "free", label: "Free tier" },
+    { value: "paid", label: "Pay as you go" },
+    { value: "pro", label: "AI Pro / Ultra" }
+  ];
+
+  function tierLabel(value) {
+    for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
+    return value;
+  }
+
   var el = {
     console: document.getElementById("console"),
+    detailValidate: document.getElementById("detailValidate"),
+    detailTest: document.getElementById("detailTest"),
+    detailRemove: document.getElementById("detailRemove"),
     keyPath: document.getElementById("keyPath"),
     keyRaw: document.getElementById("keyRaw"),
     keyCopy: document.getElementById("keyCopy"),
@@ -16812,7 +17049,9 @@ var DETAIL_SCRIPT = `
   function renderSummary(k) {
     el.summary.textContent = "";
     var rows = [
-      ["Plan", k.plan || "-", k.plan === "free" ? "ok" : ""],
+      /* The list shows the plan label ("Pay as you go"); the detail page used
+         to show the raw code ("paid") for the same key. One fact, one word. */
+      ["Plan", tierLabel(k.plan || "") || k.plan || "-", k.plan === "free" ? "ok" : ""],
       ["State", k.status || "-", k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"],
       ["Enabled", k.enabled === false ? "no" : "yes", k.enabled === false ? "warn" : "ok"],
       ["Failures", k.failures, k.failures ? "warn" : ""],
@@ -16931,11 +17170,91 @@ var DETAIL_SCRIPT = `
           GX.lock("No key with that id.");
           throw err;
         }
+        /* The error used to land in #dailyBars, inside #dailyPanel, which
+           carries hidden in the markup and is only unhidden by renderDaily() -
+           a path that never runs here. The operator got a blank page after
+           the header. #keyPath is above the console and always visible. */
         el.console.hidden = false;
-        el.dailyBars.textContent = "";
-        el.dailyBars.appendChild(GX.state("error", "Could not load this key", err.message));
+        el.keyPath.textContent = "";
+        el.keyPath.appendChild(GX.state("error", "Could not load this key", err.message));
       });
   }
+
+  /* The detail page is its own IIFE and shares no scope with the list page's
+     script, so its three actions implement the same three endpoints here. The
+     list owns Probe / Validate / Remove; a dead key could only be investigated
+     by going back to the list to find its row. */
+  function post(url, body) {
+    var headers = { "Content-Type": "application/json" };
+    var token = GX.token();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(body || {}),
+      cache: "no-store"
+    }).then(function (res) {
+      return res.json().then(function (d) {
+        if (!res.ok) throw new Error((d && d.error && d.error.message) || "Request failed (" + res.status + ")");
+        return d;
+      });
+    });
+  }
+
+  el.detailValidate.addEventListener("click", function () {
+    GX.busy(el.detailValidate);
+    post("/pengatur/keys/validate-plan", { ids: [keyId] })
+      .then(function (d) {
+        var r = (d.results || [])[0];
+        GX.notice(r && r.tier
+          ? "Plan " + tierLabel(r.tier) + (r.planValidated ? " verified." : " could not be verified.")
+          : "Plan validated.", "ok");
+        return refresh();
+      })
+      .catch(function (err) { GX.notice("Validate failed: " + err.message, "err"); })
+      .then(function () { GX.idle(el.detailValidate); });
+  });
+
+  el.detailTest.addEventListener("click", function () {
+    GX.busy(el.detailTest);
+    post("/pengatur/keys/test", { id: keyId })
+      .then(function () {
+        GX.notice("Probe finished.", "ok");
+        return refresh();
+      })
+      .catch(function (err) { GX.notice("Probe failed: " + err.message, "err"); })
+      .then(function () { GX.idle(el.detailTest); });
+  });
+
+  el.detailRemove.addEventListener("click", function () {
+    GX.confirm({
+      title: "Remove this key?",
+      message:
+        "Remove key " + keyId + " from the pool. The gateway stops serving with it, " +
+        "and it cannot be restored from this console, because the raw key never " +
+        "reaches the browser.",
+      confirmLabel: "Remove key"
+    }).then(function (ok) {
+      if (!ok) return;
+      GX.busy(el.detailRemove);
+      var headers = { "Content-Type": "application/json" };
+      var token = GX.token();
+      if (token) headers["Authorization"] = "Bearer " + token;
+      return fetch("/pengatur/keys", {
+        method: "DELETE",
+        headers: headers,
+        body: JSON.stringify({ ids: [keyId] }),
+        cache: "no-store"
+      }).then(function (res) {
+        return res.json().then(function (d) {
+          if (!res.ok) throw new Error((d && d.error && d.error.message) || "Request failed (" + res.status + ")");
+          GX.notice("Key removed.", "ok");
+          setTimeout(function () { location.href = "/pengatur/keys"; }, 800);
+        });
+      }).catch(function (err) { GX.notice("Remove failed: " + err.message, "err"); })
+        .then(function () { GX.idle(el.detailRemove); });
+    });
+  });
 
   GX.gate({ onSuccess: refresh });
 })();
@@ -17303,9 +17622,18 @@ var AUDIT_SCRIPT = `
     return "/pengatur/audit/data?" + q.join("&");
   }
 
+  /* JSON.stringify(r.detail) dumped raw JSON straight into the trail: braces,
+     quoted keys, nulls. Render the fields the way the rest of the feed reads. */
   function detailText(v) {
     if (v === null || v === undefined) return "";
-    try { return JSON.stringify(v); } catch (e) { return String(v); }
+    if (typeof v !== "object") return String(v);
+    var parts = [];
+    Object.keys(v).forEach(function (key) {
+      var value = v[key];
+      if (value === null || value === undefined || value === "") return;
+      parts.push(key + " " + (typeof value === "object" ? JSON.stringify(value) : String(value)));
+    });
+    return parts.join(" \xB7 ");
   }
 
   function render(payload) {
@@ -17334,9 +17662,11 @@ var AUDIT_SCRIPT = `
       var what = r.target || "";
       var detail = detailText(r.detail);
       el.trail.appendChild(GX.el("div", { class: "feed-item" }, [
+        /* The actor landed in a second .what span with no label, so the feed
+           read as two consecutive values. Say who it was. */
         GX.el("span", { class: "act", text: r.action }),
         GX.el("span", { class: "what", text: (what ? what + " \xB7 " : "") + detail }),
-        GX.el("span", { class: "what", text: r.actor || "" }),
+        GX.el("span", { class: "what meta", text: r.actor ? "by " + r.actor : "by unknown actor" }),
         GX.el("time", { text: GX.fmt.stamp(r.ts) })
       ]));
     });
@@ -17556,6 +17886,19 @@ app.get("/pengatur/keys/list", async (c) => {
     const identity = byId.get(k.id);
     return { ...k, enabled: identity ? identity.enabled : true, label: identity?.label ?? null };
   });
+  if (c.req.query("reveal") === "1") {
+    const rawById = {};
+    for (const k of merged) {
+      const raw2 = await rawKeyById(k.id);
+      if (raw2) rawById[k.id] = raw2;
+    }
+    await recordNow("keys.reveal", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: "pool",
+      detail: { action: "reveal-page", revealed: Object.keys(rawById).length, requested: merged.length }
+    });
+    return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS, raw: rawById });
+  }
   return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
 });
 app.get("/pengatur/keys/:id", async (c) => {
