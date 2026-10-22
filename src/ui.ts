@@ -727,6 +727,42 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   white-space: nowrap;
   vertical-align: bottom;
 }
+/* A switch, not a checkbox. The auto-refresh control sits beside the action it
+   governs, and a square tick box beside a button read as another button. */
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); cursor: pointer; user-select: none; min-height: var(--tap-sm); }
+.switch input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 19px;
+  margin: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+.switch input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--text-3);
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+.switch input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+.switch input[type="checkbox"]:checked::after { transform: translateX(15px); background: var(--accent-ink); }
+.switch input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 560px) {
+  .switch { min-height: var(--tap); }
+  .switch input[type="checkbox"] { width: 40px; height: 23px; }
+  .switch input[type="checkbox"]::after { width: 15px; height: 15px; }
+  .switch input[type="checkbox"]:checked::after { transform: translateX(17px); }
+}
 /* Row height must be a property of the table, not of the data in a row. A
    status cell with a detail line made its row 116px while its neighbours sat
    at 65px, which is what made the pool table feel unreadable. One line with an

@@ -98,12 +98,17 @@ const KEYS_BODY = `
       <h2>Pool</h2>
       <span class="meta" id="listMeta"></span>
       <div class="actions">
+        <label class="switch" for="auto">
+          <input id="auto" type="checkbox">
+          <span>Auto refresh</span>
+        </label>
         <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all</button>
       </div>
     </div>
 
     <div class="panel-body">
       <div class="toolbar">
+        <button id="selectAllBtn" class="btn btn-sm" type="button">Select all</button>
         <div class="grow">
           <label class="field" for="keyFilter">Filter</label>
           <div class="search">
@@ -123,6 +128,22 @@ const KEYS_BODY = `
           </select>
         </div>
         <div class="grow">
+          <label class="field" for="keyPlan">Plan</label>
+          <select id="keyPlan" class="select">
+            <option value="">all</option>
+            <option value="free">Free tier</option>
+            <option value="paid">Pay as you go</option>
+            <option value="pro">AI Pro / Ultra</option>
+            <option value="unknown">Unspecified</option>
+          </select>
+        </div>
+        <div class="check-wrap">
+          <label class="check" for="keyHideDead">
+            <input id="keyHideDead" type="checkbox" checked>
+            <span>Hide dead</span>
+          </label>
+        </div>
+        <div class="grow">
           <label class="field" for="keySize">Per page</label>
           <select id="keySize" class="select">
             <option value="10">10</option>
@@ -131,8 +152,6 @@ const KEYS_BODY = `
             <option value="100">100</option>
           </select>
         </div>
-        <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
-        <button id="selectAllBtn" class="btn btn-sm" type="button">Select all</button>
       </div>
     </div>
 
@@ -189,6 +208,7 @@ const KEYS_SCRIPT = `
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
     keyStatus: document.getElementById("keyStatus"),
+    keyHideDead: document.getElementById("keyHideDead"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
     testAllBtn: document.getElementById("testAllBtn"),
@@ -211,7 +231,7 @@ const KEYS_SCRIPT = `
     addMsg: document.getElementById("addMsg")
   };
 
-  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", selected: {}, timer: null };
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", hideDead: true, selected: {}, timer: null };
 
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
@@ -372,8 +392,15 @@ const KEYS_SCRIPT = `
 
   function visibleKeys() {
     var query = state.query;
+    /* A dead key is never re-probed (test-all skips it) and can only return
+       through a manual Validate, so most of a large pool is dead rows that can
+       never serve again. They stay enrolled for the retiredAt/retiredReason
+       record, but they are hidden by default: 964 of them meant 39 pages of
+       scrolling to reach the 81 ready keys. Asking for status=dead shows them. */
     return state.keys.filter(function (k) {
-      if (state.status && statusKind(k) !== state.status) return false;
+      var kind = statusKind(k);
+      if (state.status && kind !== state.status) return false;
+      if (state.hideDead && !state.status && kind === "dead") return false;
       if (!query) return true;
       /* Match what the operator can actually see. The stored plan is a code
          ("paid") while the table renders its label ("Pay as you go"), so a
@@ -436,7 +463,13 @@ const KEYS_SCRIPT = `
     var filtered = visibleKeys();
     /* "shown" claimed every matching key while the pager renders one page.
        Say how many match, and let the pager state the visible range. */
-    el.listMeta.textContent = state.keys.length + " in pool, " + filtered.length +
+    /* "N in pool" claimed the enrolled total while the pager renders one page,
+       and it counted the dead rows that are hidden. Split the three numbers:
+       enrolled, retired, and what actually matches right now. */
+    var retired = 0;
+    state.keys.forEach(function (k) { if (statusKind(k) === "dead") retired++; });
+    var hiddenNote = state.hideDead && !state.status && retired ? ", " + retired + " dead hidden" : "";
+    el.listMeta.textContent = state.keys.length + " in pool" + hiddenNote + ", " + filtered.length +
       (filtered.length === 1 ? " matches" : " match") +
       (state.status || state.query ? " these filters" : "");
 
@@ -446,7 +479,9 @@ const KEYS_SCRIPT = `
         "empty",
         state.keys.length ? "No key matches this filter" : "Pool is empty",
         state.keys.length
-          ? "Clear the filter box to see the whole pool."
+          ? (state.hideDead && !state.status && retired
+            ? "Every key is dead and dead keys are hidden. Uncheck Hide dead, or pick status dead, to see them."
+            : "Clear the filter box to see the whole pool.")
           : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
       ));
       renderPager(0, 1);
@@ -890,6 +925,12 @@ const KEYS_SCRIPT = `
   }, 140));
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
+    state.page = 1;
+    writeUrl();
+    drawTable();
+  });
+  el.keyHideDead.addEventListener("change", function () {
+    state.hideDead = el.keyHideDead.checked;
     state.page = 1;
     writeUrl();
     drawTable();
