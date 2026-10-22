@@ -763,6 +763,33 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 /* feed ------------------------------------------------------------------- */
 
 .feed { display: flex; flex-direction: column; }
+
+/* Attention items live inside a .feed but are links with two text lines and
+   a CTA. Without this block the browser stacks title, detail and "Open" as
+   bare inline text with zero spacing. */
+.attn-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  text-decoration: none;
+  min-width: 0;
+}
+.attn-item:last-child { border-bottom: 0; }
+.attn-item .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
+.attn-item > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.attn-item .t { color: var(--text); font-size: 13px; font-weight: 600; }
+.attn-item .d { color: var(--text-2); font-size: 12.5px; }
+.attn-item .go {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.attn-item:hover .go { text-decoration: underline; }
 .feed-item {
   display: flex;
   align-items: baseline;

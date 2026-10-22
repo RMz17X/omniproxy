@@ -11,7 +11,7 @@
  * so the browser never holds a raw credential.
  */
 
-import { authGate, confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
+import { authGate, confirmDialog, consolePage, icon, noticeBand } from "./ui.ts";
 
 const OVERVIEW_BODY = `
 ${authGate()}
@@ -69,58 +69,25 @@ ${authGate()}
     </div>
   </section>
 
-  <div class="zone split">
+  <div class="split">
     <section class="panel">
       <div class="panel-head">
-        <h2>Keys</h2>
-        <span class="meta" id="poolMeta"></span>
+        <h2>Plan mix</h2>
+        <span class="meta">declared per key</span>
       </div>
-      <div class="panel-body" style="padding-bottom:0">
-        <div class="toolbar u-mb-4">
-          <div class="grow search">
-            ${icon("search")}
-            <input id="keyFilter" class="input" type="search" spellcheck="false" placeholder="key, id or status" aria-label="Filter keys">
-          </div>
-          <select id="keyStatus" class="select" aria-label="Status">
-            <option value="">any status</option>
-            <option value="ready">ready</option>
-            <option value="cooling">cooling</option>
-            <option value="dead">dead</option>
-          </select>
-          <select id="keySize" class="select" aria-label="Rows per page">
-            <option value="10">10 rows</option>
-            <option value="25" selected>25 rows</option>
-            <option value="50">50 rows</option>
-            <option value="100">100 rows</option>
-          </select>
-        </div>
-      </div>
-      <div id="keysBody" class="table-wrap">${stateBlock("loading", "Loading the pool")}</div>
-      <div class="panel-foot">
-        <div id="keyPager" class="pager"></div>
+      <div class="panel-body">
+        <div class="bars" id="planMix"></div>
+        <p class="hint u-mt-4">Google never reports a project plan over the API. Declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
 
-    <div class="grid" style="gap:var(--sp-4)">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Plan mix</h2>
-          <span class="meta">declared per key</span>
-        </div>
-        <div class="panel-body">
-          <div class="bars" id="planMix"></div>
-          <p class="hint u-mt-4">Google never reports a project plan over the API. Declare it here; the models page prices a test run against it.</p>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Recent activity</h2>
-          <a class="meta" href="/pengatur/audit">audit log</a>
-        </div>
-        <div class="feed" id="activity"></div>
-      </section>
-    </div>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Recent activity</h2>
+        <a class="meta" href="/pengatur/audit">audit log</a>
+      </div>
+      <div class="feed" id="activity"></div>
+    </section>
   </div>
 </div>
 
@@ -162,14 +129,6 @@ const OVERVIEW_SCRIPT = `
     auto: document.getElementById("auto"),
     testAllNote: document.getElementById("testAllNote"),
     kpis: document.getElementById("kpis"),
-    poolMeta: document.getElementById("poolMeta"),
-    planMix: document.getElementById("planMix"),
-    activity: document.getElementById("activity"),
-    keysBody: document.getElementById("keysBody"),
-    keyFilter: document.getElementById("keyFilter"),
-    keyStatus: document.getElementById("keyStatus"),
-    keySize: document.getElementById("keySize"),
-    keyPager: document.getElementById("keyPager"),
     addDialog: document.getElementById("addDialog"),
     addClose: document.getElementById("addClose"),
     addForm: document.getElementById("addForm"),
@@ -178,22 +137,13 @@ const OVERVIEW_SCRIPT = `
     refreshBtn: document.getElementById("refreshBtn"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
-    addMsg: document.getElementById("addMsg")
+    addMsg: document.getElementById("addMsg"),
+    planMix: document.getElementById("planMix"),
+    activity: document.getElementById("activity")
   };
 
-  var state = { keys: [], tiers: null, testing: {}, page: 1, size: 25, query: "", status: "", timer: null };
+  var state = { tiers: null, timer: null };
 
-  var TIERS = [
-    { value: "unknown", label: "Unspecified" },
-    { value: "free", label: "Free tier" },
-    { value: "paid", label: "Pay as you go" },
-    { value: "pro", label: "AI Pro / Ultra" }
-  ];
-
-  function tierLabel(value) {
-    for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
-    return value;
-  }
 
   function safe(promise) {
     return promise.catch(function () { return null; });
@@ -341,200 +291,12 @@ const OVERVIEW_SCRIPT = `
     });
   }
 
-  function probeClass(status) {
-    if (status === "ok") return "ok";
-    if (status === "rate_limited" || status === "zero_quota" || status === "server_error") return "warn";
-    return "bad";
-  }
-
-  function probeText(res) {
-    if (!res) return "-";
-    var label = String(res.status).replace(/_/g, " ");
-    if (res.status === "ok") label = "serving";
-    if (res.status === "rate_limited") label = "429, free in " + GX.fmt.left(res.retryAfterMs);
-    return label + " (" + res.latencyMs + "ms)";
-  }
-
-  function writeUrl() {
-    GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
-  }
-
-  function readUrl() {
-    var params = GX.url.read();
-    state.query = (params.q || "").toLowerCase();
-    state.status = params.status || "";
-    state.page = Number(params.page) || 1;
-    if (el.keyFilter) el.keyFilter.value = params.q || "";
-    if (el.keyStatus) el.keyStatus.value = params.status || "";
-  }
-
-  function visibleKeys() {
-    var query = state.query;
-    return state.keys.filter(function (k) {
-      if (state.status && k.status !== state.status) return false;
-      if (!query) return true;
-      return (k.key + " " + k.id + " " + k.status).toLowerCase().indexOf(query) >= 0;
-    });
-  }
-
-  function drawTable() {
-    var filtered = visibleKeys();
-    el.poolMeta.textContent = state.keys.length + " keys · " + filtered.length + " shown";
-
-    if (!filtered.length) {
-      el.keysBody.textContent = "";
-      el.keysBody.appendChild(GX.state(
-        "empty",
-        state.keys.length ? "No key matches this filter" : "Pool is empty",
-        state.keys.length
-          ? "Clear the filter box to see the whole pool."
-          : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
-      ));
-      renderPager(0, 1);
-      return;
-    }
-
-    var pages = Math.max(1, Math.ceil(filtered.length / state.size));
-    if (state.page > pages) state.page = pages;
-    if (state.page < 1) state.page = 1;
-    var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
-
-    var table = GX.el("table", { class: "table" });
-    var head = GX.el("thead", null, GX.el("tr", null, [
-      GX.el("th", { text: "Key" }),
-      GX.el("th", { text: "Status" }),
-      GX.el("th", { text: "Plan" }),
-      GX.el("th", { class: "num", text: "Cooldown" }),
-      GX.el("th", { text: "Last used" }),
-      GX.el("th", { text: "Probe" }),
-      GX.el("th", { class: "num", text: "" })
-    ]));
-    table.appendChild(head);
-
-    var body = GX.el("tbody");
-    slice.forEach(function (k) {
-      var tr = GX.el("tr");
-
-      var keyCell = GX.el("td", { class: "key", "data-l": "key" });
-      var link = GX.el("a", { class: "link", href: "/pengatur/keys/" + encodeURIComponent(k.id), text: k.key });
-      link.title = "id " + k.id;
-      keyCell.appendChild(link);
-      tr.appendChild(keyCell);
-
-      var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.tag(k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
-      tr.appendChild(statusCell);
-
-      var tierCell = GX.el("td", { "data-l": "plan" });
-      tierCell.appendChild(GX.tag(tierLabel(k.tier || "unknown"), k.tier === "free" ? "ok" : k.tier === "unknown" ? "plain" : "info"));
-      tr.appendChild(tierCell);
-
-      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num", "cooldown");
-      GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
-
-      var probeCell = GX.el("td", { "data-l": "probe" });
-      var known = state.testing[k.id];
-      probeCell.appendChild(GX.el("span", { class: "mono", text: known ? probeText(known) : "-" }));
-      tr.appendChild(probeCell);
-
-      var actions = GX.el("td", { class: "actions" });
-      var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
-      testBtn.addEventListener("click", function () { testKey(k, testBtn); });
-      var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
-      delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
-      actions.appendChild(testBtn);
-      actions.appendChild(delBtn);
-      tr.appendChild(actions);
-
-      body.appendChild(tr);
-    });
-
-    table.appendChild(body);
-    el.keysBody.textContent = "";
-    el.keysBody.appendChild(table);
-    renderPager(filtered.length, pages);
-  }
-
-  function renderPager(total, pages) {
-    el.keyPager.textContent = "";
-    if (!total) return;
-    el.keyPager.appendChild(GX.el("span", {
-      text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
-        Math.min(total, state.page * state.size) + " of " + total
-    }));
-
-    var box = GX.el("div", { class: "pages" });
-    function mk(label, page, disabled, active) {
-      var b = GX.el("button", {
-        class: active ? "active" : "",
-        type: "button",
-        text: label,
-        disabled: disabled ? true : null
-      });
-      if (active) b.setAttribute("aria-current", "page");
-      b.addEventListener("click", function () { state.page = page; writeUrl(); drawTable(); });
-      return b;
-    }
-    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
-    var win = 5;
-    var from = Math.max(1, state.page - Math.floor(win / 2));
-    var to = Math.min(pages, from + win - 1);
-    from = Math.max(1, to - win + 1);
-    if (from > 1) {
-      box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
-    }
-    for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
-    if (to < pages) {
-      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
-      box.appendChild(mk(String(pages), pages, false, state.page === pages));
-    }
-    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
-    el.keyPager.appendChild(box);
-  }
-
-  function setTier(ids, tier, control) {
-    if (!ids.length) return;
-    if (control) control.disabled = true;
-    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
-      .then(function (data) {
-        GX.notice("Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
-        return reload();
-      })
-      .catch(function (err) {
-        GX.notice("Plan update failed: " + err.message, "err");
-      })
-      .then(function () { if (control) control.disabled = false; });
-  }
-
-  function testKey(k, btn) {
-    btn.disabled = true;
-    btn.textContent = "Testing";
-    GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
-      .then(function (data) {
-        state.testing[k.id] = data.probe;
-        var note = data.applied === "revived" ? " back in rotation"
-          : data.applied === "cooling" ? " parked again"
-          : data.applied === "retired" ? " retired from the pool" : "";
-        GX.notice(k.key + ": " + data.probe.message + note, data.probe.status === "ok" ? "ok" : "");
-        return reload();
-      })
-      .catch(function (err) {
-        GX.notice("Test failed: " + err.message, "err");
-      })
-      .then(function () {
-        btn.disabled = false;
-        btn.textContent = "Test";
-      });
-  }
-
   function testAll() {
     GX.busy(el.testAllBtn, "Testing");
     el.testAllNote.textContent = "one live call per key, four at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         var results = data.results || [];
-        results.forEach(function (r) { state.testing[r.id] = r.probe; });
         var ok = results.filter(function (r) { return r.probe.status === "ok"; }).length;
         GX.notice("Probed " + data.tested + " keys, " + ok + " serving.", ok ? "ok" : "");
         return reload();
@@ -545,33 +307,6 @@ const OVERVIEW_SCRIPT = `
       .then(function () {
         GX.idle(el.testAllBtn);
         el.testAllNote.textContent = "one live call per key, four at a time";
-      });
-  }
-
-  function removeKey(k, btn) {
-    GX.confirm({
-      title: "Remove this key?",
-      message:
-        "Remove " + k.key + " from the pool. The gateway stops serving with it. " +
-        "It cannot be restored from this console, because the raw key never reaches the browser.",
-      confirmLabel: "Remove key"
-    }).then(function (ok) {
-      if (!ok) return;
-      removeKeyNow(k, btn);
-    });
-  }
-
-  function removeKeyNow(k, btn) {
-    btn.disabled = true;
-    GX.api("/pengatur/keys", { method: "DELETE", body: { id: k.id } })
-      .then(function (data) {
-        GX.notice("Removed " + k.key + ". Pool total " + data.pool.total + ".", "ok");
-        delete state.testing[k.id];
-        return reload();
-      })
-      .catch(function (err) {
-        btn.disabled = false;
-        GX.notice("Remove failed: " + err.message, "err");
       });
   }
 
@@ -606,14 +341,12 @@ const OVERVIEW_SCRIPT = `
       safe(GX.api("/pengatur/audit/data?limit=6"))
     ]).then(function (res) {
       var pool = res[0].pool || {};
-      state.keys = res[0].keys || [];
       state.tiers = res[0].tiers;
       renderHero(pool, state.tiers, res[1]);
       renderAttention(pool, state.tiers);
       renderKpis(res[1]);
       renderPlanMix(state.tiers);
       renderActivity(res[2]);
-      drawTable();
       el.updated.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
       el.console.hidden = false;
     }).catch(function (err) {
@@ -653,42 +386,13 @@ const OVERVIEW_SCRIPT = `
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
   });
-  el.keyFilter.addEventListener("input", GX.debounce(function () {
-    state.query = el.keyFilter.value.trim().toLowerCase();
-    state.page = 1;
-    writeUrl();
-    drawTable();
-  }, 140));
-  el.keyStatus.addEventListener("change", function () {
-    state.status = el.keyStatus.value;
-    state.page = 1;
-    writeUrl();
-    drawTable();
-  });
-  el.keySize.addEventListener("change", function () {
-    state.size = Number(el.keySize.value) || 25;
-    state.page = 1;
-    drawTable();
-  });
 
   GX.shortcuts({
-    filter: "keyFilter",
-    refresh: "refreshBtn",
-    onEscape: function () {
-      if (!state.query && !state.status) return;
-      state.query = "";
-      state.status = "";
-      state.page = 1;
-      el.keyFilter.value = "";
-      el.keyStatus.value = "";
-      writeUrl();
-      drawTable();
-    }
+    refresh: "refreshBtn"
   });
 
   GX.gate({
     onSuccess: function () {
-      readUrl();
       return refresh().then(function () { startAuto(); });
     }
   });
