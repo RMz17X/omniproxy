@@ -14,6 +14,65 @@
 
 import { authGate, confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
 
+/* ---------- response shapes ----------
+ * The server half of this console lands on a parallel branch, so the fields
+ * this page reads are declared here and every one of them is optional and
+ * read defensively: the page still renders against the current server. */
+
+export type KeyQuota = {
+  metric: string | null;
+  quotaId: string | null;
+  limit: string | null;
+  limitValue: string | null;
+  window: string | null;
+  location: string | null;
+  consumer: string | null;
+  resetAt: number | null;
+  retryAfterMs: number;
+  freeTier: boolean;
+};
+
+export type KeyTierEvidence = {
+  tier: string;
+  source: string;
+  quotaId: string | null;
+  quotaMetric: string | null;
+  consumer: string | null;
+  observedAt: number;
+};
+
+export type KeyRow = {
+  id: string;
+  key: string;
+  status: string;
+  plan: string;
+  planValidated?: boolean;
+  quota?: KeyQuota | null;
+  nextAccessAt?: number | null;
+  lastCheckedAt?: number | null;
+  failCount?: number;
+  reason?: string | null;
+  lastError?: string | null;
+  error?: string | null;
+};
+
+export type KeyTestResponse = {
+  ok?: boolean;
+  id?: string;
+  status?: string;
+  verdict?: string;
+  httpStatus?: number;
+  applied?: string;
+  plan?: string;
+  planValidated?: boolean;
+  tierEvidence?: KeyTierEvidence | null;
+  quota?: KeyQuota | null;
+  message?: string;
+  retryAfterMs?: number;
+  nextAccessAt?: number | null;
+  error?: string;
+};
+
 /* ---------- list ---------- */
 
 const KEYS_BODY = `
@@ -56,7 +115,9 @@ ${authGate()}
             <option value="">all</option>
             <option value="ready">ready</option>
             <option value="cooling">cooling</option>
+            <option value="quota">quota exhausted</option>
             <option value="dead">dead</option>
+            <option value="unverified">unverified</option>
           </select>
         </div>
         <div class="grow">
@@ -76,8 +137,7 @@ ${authGate()}
     <div id="bulkBar" class="panel-body u-rule-top" hidden>
       <div class="toolbar">
         <b id="selCount" class="u-tnum">0 selected</b>
-        <select id="bulkTier" aria-label="Billing plan for the selected keys" class="select u-auto"></select>
-        <button id="bulkApply" class="btn btn-sm" type="button">Apply plan</button>
+        <button id="bulkApply" class="btn btn-sm" type="button">Validate plan</button>
         <button id="bulkRemove" class="btn btn-sm btn-danger" type="button">Remove selected</button>
         <span class="spacer"></span>
         <button id="bulkClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
@@ -134,7 +194,6 @@ const KEYS_SCRIPT = `
     auto: document.getElementById("auto"),
     selectAllBtn: document.getElementById("selectAllBtn"),
     bulkBar: document.getElementById("bulkBar"),
-    bulkTier: document.getElementById("bulkTier"),
     bulkApply: document.getElementById("bulkApply"),
     bulkRemove: document.getElementById("bulkRemove"),
     bulkClear: document.getElementById("bulkClear"),
@@ -164,6 +223,134 @@ const KEYS_SCRIPT = `
     return value;
   }
 
+  var COPY_ICON = ${JSON.stringify(icon("copy", "icon", 12))};
+
+  var STATUS_LABEL = {
+    ready: "Ready",
+    cooling: "Cooling",
+    quota: "Quota exhausted",
+    dead: "Dead",
+    unverified: "Unverified"
+  };
+  var STATUS_TONE = { ready: "ok", cooling: "accent", quota: "warn", dead: "bad", unverified: "neutral" };
+
+  /* The status word on a row is not a fixed vocabulary yet, so the page reads
+     the row instead of trusting one string. A quota answer must never fall
+     into the dead column. */
+  function statusKind(k) {
+    var status = String((k && k.status) || "").toLowerCase();
+    var quota = k && k.quota ? k.quota : null;
+    if (status.indexOf("cool") >= 0 || status.indexOf("wait") >= 0) return "cooling";
+    if (status.indexOf("quota") >= 0 || status.indexOf("exhaust") >= 0 ||
+        status.indexOf("429") >= 0 || status.indexOf("rate") >= 0 ||
+        status.indexOf("limit") >= 0) return "quota";
+    if (status.indexOf("dead") >= 0 || status.indexOf("invalid") >= 0 ||
+        status.indexOf("revoked") >= 0 || status.indexOf("denied") >= 0 ||
+        status.indexOf("reject") >= 0) return "dead";
+    if (status.indexOf("ready") >= 0 || status.indexOf("active") >= 0 || status === "ok") return "ready";
+    if (!status) return quota ? "quota" : "unverified";
+    if (status.indexOf("unverified") >= 0 || status.indexOf("unknown") >= 0) return "unverified";
+    if (quota && quota.resetAt && Number(quota.resetAt) > Date.now()) return "quota";
+    if (k && k.nextAccessAt && Number(k.nextAccessAt) > Date.now()) return "cooling";
+    return "unverified";
+  }
+
+  /* Browser locale on purpose: the operator reads the clock on this machine. */
+  function whenText(ms) {
+    if (ms === null || ms === undefined || ms === "") return "";
+    var n = Number(ms);
+    if (!n || isNaN(n)) return "";
+    var date = new Date(n);
+    if (isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+  }
+
+  function quotaText(q) {
+    if (!q) return "";
+    var parts = [];
+    if (q.metric) parts.push(q.metric);
+    var cap = "";
+    if (q.limitValue) cap = q.limitValue + (q.window ? "/" + q.window : "");
+    else if (q.window) cap = q.window;
+    if (cap) parts.push(cap);
+    if (q.consumer) parts.push("consumer " + q.consumer);
+    var reset = whenText(q.resetAt);
+    if (reset) parts.push("resets " + reset);
+    else if (q.retryAfterMs) parts.push("retry in " + GX.fmt.left(q.retryAfterMs));
+    else if (q.freeTier) parts.push("free tier");
+    return parts.join(" · ");
+  }
+
+  function statusDetail(k, kind) {
+    if (kind === "cooling") {
+      var until = whenText(k.nextAccessAt) || whenText(k.quota && k.quota.resetAt);
+      return until ? "until " + until : "waiting out the window";
+    }
+    if (kind === "quota") return quotaText(k.quota) || "upstream quota is spent";
+    if (kind === "dead") return k.reason || k.lastError || k.error || "rejected upstream";
+    if (kind === "unverified") return "not probed yet";
+    return "";
+  }
+
+  /* The plan is what the upstream answer said, never what an operator picked. */
+  function rowPlan(k) {
+    var kind = statusKind(k);
+    var value = k.plan || k.tier || "";
+    var out = { text: "Unspecified", marker: "" };
+    if (k.planValidated === false) { out.marker = "not yet validated"; return out; }
+    if (kind === "cooling" || kind === "quota") {
+      out.marker = "held back while the key cannot serve";
+      return out;
+    }
+    if (value) out.text = tierLabel(value);
+    else out.marker = "not yet validated";
+    return out;
+  }
+
+  /* Raw keys leave the server only through this one call, and only when the
+     operator asks for it or the row is dead. */
+  var rawCache = {};
+  function fetchRaw(id) {
+    if (rawCache[id]) return Promise.resolve(rawCache[id]);
+    var headers = {};
+    var token = GX.token();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch("/pengatur/keys/" + encodeURIComponent(id) + "/raw", { headers: headers, cache: "no-store" })
+      .then(function (res) {
+        return res.text().then(function (text) {
+          if (!res.ok) {
+            var line = text ? text.split("\\n")[0].slice(0, 160) : "";
+            throw new Error(line || "Request failed (" + res.status + ")");
+          }
+          var value = text;
+          try {
+            var parsed = JSON.parse(text);
+            if (typeof parsed === "string") value = parsed;
+            else if (parsed && typeof parsed === "object") value = parsed.key || parsed.raw || parsed.value || text;
+          } catch (e) {}
+          value = String(value === null || value === undefined ? "" : value).trim();
+          if (!value) throw new Error("The server returned an empty key.");
+          rawCache[id] = value;
+          return value;
+        });
+      });
+  }
+
+  function copyKey(k, btn) {
+    btn.disabled = true;
+    fetchRaw(k.id)
+      .then(function (value) { GX.copy(value, "Raw key"); })
+      .catch(function (err) { GX.notice("Could not read the raw key: " + err.message, "err"); })
+      .then(function () { btn.disabled = false; });
+  }
+
+  /* The list masks the credential; a dead row is allowed to show it plainly. */
+  function isMasked(value) {
+    var text = String(value || "");
+    return text.indexOf("•") >= 0 || text.indexOf("*") >= 0 || text.indexOf("…") >= 0 ||
+      text.slice(-3) === "...";
+  }
+
   function writeUrl() {
     GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
   }
@@ -180,9 +367,10 @@ const KEYS_SCRIPT = `
   function visibleKeys() {
     var query = state.query;
     return state.keys.filter(function (k) {
-      if (state.status && k.status !== state.status) return false;
+      if (state.status && statusKind(k) !== state.status) return false;
       if (!query) return true;
-      return (k.key + " " + k.id + " " + k.status + " " + (k.tier || "unknown")).toLowerCase().indexOf(query) >= 0;
+      var plan = k.plan || k.tier || "unknown";
+      return (k.key + " " + k.id + " " + k.status + " " + plan).toLowerCase().indexOf(query) >= 0;
     });
   }
 
@@ -205,6 +393,24 @@ const KEYS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
     el.kpis.appendChild(GX.kpi("Storage", pool.storage, pool.degraded ? "degraded, serving from memory" : "key identities and ledger"));
+  }
+
+  function tableHead() {
+    return GX.el("thead", null, GX.el("tr", null, [
+      GX.el("th", { class: "num" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
+        type: "checkbox",
+        id: "selectAll",
+        "aria-label": "Select every key on this page"
+      }))),
+      GX.el("th", { text: "Id" }),
+      GX.el("th", { text: "Key" }),
+      GX.el("th", { text: "Plan" }),
+      GX.el("th", { text: "Status" }),
+      GX.el("th", { class: "num", text: "Fails" }),
+      GX.el("th", { class: "num", text: "Cooldown" }),
+      GX.el("th", { text: "Last used" }),
+      GX.el("th", { class: "num", text: "" })
+    ]));
   }
 
   function drawTable() {
@@ -231,22 +437,7 @@ const KEYS_SCRIPT = `
     var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
 
     var table = GX.el("table", { class: "table" });
-    var head = GX.el("thead", null, GX.el("tr", null, [
-      GX.el("th", { class: "num" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
-        type: "checkbox",
-        id: "selectAll",
-        "aria-label": "Select every key on this page"
-      }))),
-      GX.el("th", { text: "Id" }),
-      GX.el("th", { text: "Key" }),
-      GX.el("th", { text: "Plan" }),
-      GX.el("th", { text: "Status" }),
-      GX.el("th", { class: "num", text: "Fails" }),
-      GX.el("th", { class: "num", text: "Cooldown" }),
-      GX.el("th", { text: "Last used" }),
-      GX.el("th", { class: "num", text: "" })
-    ]));
-    table.appendChild(head);
+    table.appendChild(tableHead());
 
     var body = GX.el("tbody");
     slice.forEach(function (k) {
@@ -272,34 +463,53 @@ const KEYS_SCRIPT = `
       }));
       tr.appendChild(idCell);
 
-      var keyCell = GX.el("td", { class: "key", "data-l": "key" });
-      keyCell.textContent = k.key;
+      var kind = statusKind(k);
+      var keyCell = GX.el("td", { class: "key mono", "data-l": "key" });
+      var keyText = GX.el("span", { class: "key-text", text: k.key });
+      keyCell.appendChild(keyText);
+      var copyBtn = GX.el("button", {
+        class: "btn btn-ghost btn-sm icon-btn",
+        type: "button",
+        title: "Copy the raw key",
+        "aria-label": "Copy the raw key for " + k.key,
+        html: COPY_ICON
+      });
+      copyBtn.addEventListener("click", function () { copyKey(k, copyBtn); });
+      /* A dead key is the one row where the raw value is the useful fact, and
+         the list may already carry it. */
+      if (kind === "dead" && isMasked(k.key)) {
+        fetchRaw(k.id).then(function (value) {
+          keyText.textContent = value;
+          keyText.className = "key-text raw";
+        }).catch(function () {});
+      }
       tr.appendChild(keyCell);
 
-      var tierCell = GX.el("td", { "data-l": "plan" });
-      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
-      TIERS.forEach(function (t) {
-        var option = GX.el("option", { value: t.value, text: t.label });
-        if ((k.tier || "unknown") === t.value) option.selected = true;
-        select.appendChild(option);
-      });
-      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
-      tierCell.appendChild(select);
-      tr.appendChild(tierCell);
+      var planCell = GX.el("td", { "data-l": "plan" });
+      var plan = rowPlan(k);
+      planCell.appendChild(GX.el("span", { class: "plan-text", text: plan.text }));
+      if (plan.marker) planCell.appendChild(GX.el("div", { class: "hint", text: plan.marker }));
+      tr.appendChild(planCell);
 
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.tag(k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
+      statusCell.appendChild(GX.tag(STATUS_LABEL[kind], STATUS_TONE[kind]));
+      var detail = statusDetail(k, kind);
+      if (detail) statusCell.appendChild(GX.el("div", { class: "hint", text: detail }));
       tr.appendChild(statusCell);
 
-      GX.cell(tr, k.failures, "num", "fails");
-      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num", "cooldown");
+      GX.cell(tr, k.failCount !== undefined ? k.failCount : k.failures, "num", "fails");
+      var coolMs = k.nextAccessAt ? Number(k.nextAccessAt) - Date.now() : k.cooldownLeftMs;
+      GX.cell(tr, GX.fmt.left(coolMs), "num", "cooldown");
       GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
       var actions = GX.el("td", { class: "actions" });
+      var valBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Validate" });
+      valBtn.addEventListener("click", function () { validatePlan(k, valBtn); });
       var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
       testBtn.addEventListener("click", function () { testKey(k, testBtn); });
       var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
+      actions.appendChild(valBtn);
       actions.appendChild(testBtn);
       actions.appendChild(delBtn);
       tr.appendChild(actions);
@@ -359,18 +569,53 @@ const KEYS_SCRIPT = `
     el.keyPager.appendChild(box);
   }
 
-  function setTier(ids, tier, control) {
+  /* The plan is what the upstream answer proves, so a bulk action asks the
+     upstream rather than declaring a tier. There is no operator dropdown. */
+  function validateSelectedPlans(control) {
+    var ids = selectedIds();
     if (!ids.length) { GX.notice("Select at least one key.", "err"); return; }
-    if (control) control.disabled = true;
-    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
+    GX.busy(control, "Validating");
+    GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: ids } })
       .then(function (data) {
-        GX.notice("Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        var list = (data && (data.results || data.keys)) || [];
+        var ok = 0, failed = 0;
+        list.forEach(function (row) { if (row && row.error) failed += 1; else ok += 1; });
+        if (!list.length) ok = data && data.updated ? data.updated : 0;
+        GX.notice(
+          "Validated " + ok + " key(s)" + (failed ? ", " + failed + " could not be read." : "."),
+          failed ? "warn" : "ok"
+        );
         return reload();
       })
-      .catch(function (err) {
-        GX.notice("Plan update failed: " + err.message, "err");
+      .catch(function (err) { GX.notice("Plan validation failed: " + err.message, "err"); })
+      .then(function () { GX.idle(control); });
+  }
+
+  function pickValidation(data, id) {
+    data = data || {};
+    var list = data.results || data.keys || null;
+    if (list && list.length) {
+      for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i];
+      if (list.length === 1 && list[0]) return list[0];
+    }
+    return data;
+  }
+
+  function validatePlan(k, btn) {
+    GX.busy(btn, "Validating");
+    GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: [k.id] } })
+      .then(function (data) {
+        var row = pickValidation(data, k.id);
+        if (row.error) { GX.notice(k.key + ": " + row.error, "err"); return; }
+        var tier = row.plan || row.tier || "";
+        if (tier) {
+          GX.notice(k.key + ": plan is " + tierLabel(tier) + ".", "ok");
+          return;
+        }
+        GX.notice(k.key + ": " + (row.message || "the upstream answer did not name a plan."), "warn");
       })
-      .then(function () { if (control) control.disabled = false; });
+      .catch(function (err) { GX.notice("Plan validation failed: " + err.message, "err"); })
+      .then(function () { GX.idle(btn); return reload(); });
   }
 
   function testKey(k, btn) {
@@ -378,7 +623,10 @@ const KEYS_SCRIPT = `
     btn.textContent = "Testing";
     GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
-        GX.notice(k.key + ": " + data.probe.status + " (" + data.applied + ")", data.probe.status === "ok" ? "ok" : "");
+        data = data || {};
+        var kind = statusKind({ status: data.status || data.verdict, quota: data.quota });
+        var tone = data.error || kind === "dead" ? "err" : kind === "ready" ? "ok" : "warn";
+        GX.toast(testSummary(k, data), tone);
         return reload();
       })
       .catch(function (err) {
@@ -388,6 +636,28 @@ const KEYS_SCRIPT = `
         btn.disabled = false;
         btn.textContent = "Test";
       });
+  }
+
+  /* What the upstream actually answered, not what the console wishes it said. */
+  function testSummary(k, data) {
+    var parts = [];
+    if (data.httpStatus) parts.push("HTTP " + data.httpStatus);
+    if (data.verdict || data.status) parts.push(data.verdict || data.status);
+    var quota = quotaText(data.quota);
+    if (quota) parts.push(quota);
+    var next = whenText(data.nextAccessAt);
+    if (next) parts.push("next access " + next);
+    else if (data.retryAfterMs) parts.push("retry in " + GX.fmt.left(data.retryAfterMs));
+    var evidence = data.tierEvidence || null;
+    if (evidence && evidence.tier) {
+      parts.push("plan " + tierLabel(evidence.tier) + (evidence.source ? " via " + evidence.source : ""));
+    } else if (data.plan) {
+      parts.push("plan " + tierLabel(data.plan));
+    }
+    if (data.message) parts.push(data.message);
+    if (data.error) parts.push("error: " + data.error);
+    if (!parts.length) parts.push("no answer from upstream");
+    return k.key + ": " + parts.join(" · ");
   }
 
   function testAll() {
@@ -495,6 +765,27 @@ const KEYS_SCRIPT = `
       .then(function () { GX.idle(el.addSubmit); });
   }
 
+  /* A failed list keeps the header on screen: the operator still sees which
+     columns exist, and the retry sits inside the table. */
+  function drawListError(err) {
+    el.keysBody.textContent = "";
+    var table = GX.el("table", { class: "table" });
+    table.appendChild(tableHead());
+    var body = GX.el("tbody");
+    var row = GX.el("tr");
+    var td = GX.el("td", { colspan: "9" });
+    var box = GX.state("error", "Could not load the pool", err && err.message ? err.message : "The list request failed.");
+    var retry = GX.el("button", { class: "btn btn-sm", type: "button", text: "Try again" });
+    retry.addEventListener("click", function () { refresh(); });
+    box.appendChild(GX.el("div", { class: "u-mt-3" }, [retry]));
+    td.appendChild(box);
+    row.appendChild(td);
+    body.appendChild(row);
+    table.appendChild(body);
+    el.keysBody.appendChild(table);
+    el.listMeta.textContent = "could not load";
+  }
+
   function refresh() {
     return GX.api("/pengatur/keys/list")
       .then(function (data) {
@@ -504,12 +795,6 @@ const KEYS_SCRIPT = `
         renderKpis(pool);
         el.poolMeta.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
         GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
-        var keep = el.bulkTier.value;
-        el.bulkTier.textContent = "";
-        state.knownTiers.forEach(function (t) {
-          el.bulkTier.appendChild(GX.el("option", { value: t, text: tierLabel(t) }));
-        });
-        if (keep) el.bulkTier.value = keep;
         drawTable();
         el.console.hidden = false;
       })
@@ -518,6 +803,8 @@ const KEYS_SCRIPT = `
           GX.lock(err.message + " Re-enter the token.");
           throw err;
         }
+        drawListError(err);
+        el.console.hidden = false;
         GX.notice("Refresh failed: " + err.message, "err");
       });
   }
@@ -555,7 +842,7 @@ const KEYS_SCRIPT = `
     visibleKeys().forEach(function (k) { state.selected[k.id] = !all; });
     drawTable();
   });
-  el.bulkApply.addEventListener("click", function () { setTier(selectedIds(), el.bulkTier.value, el.bulkApply); });
+  el.bulkApply.addEventListener("click", function () { validateSelectedPlans(el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);
   el.bulkClear.addEventListener("click", function () {
     state.selected = {};
