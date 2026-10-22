@@ -13322,7 +13322,40 @@ function reconcile(first, second) {
   }
   return first;
 }
+async function probeLeak(rawKey, timeoutMs = TIMEOUT_MS2) {
+  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/cachedContents`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+      body: JSON.stringify({
+        model: `models/${cfg.defaultModel}`,
+        contents: [{ parts: [{ text: "cache probe" }] }]
+      }),
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch {
+    return false;
+  }
+  if (res.status !== 403) return false;
+  const body = await res.text().catch(() => "");
+  return /reported as leaked/i.test(body);
+}
 async function probeKey(rawKey, model) {
+  const result = await probeModels(rawKey, model);
+  if (result.status !== "zero_quota") return result;
+  if (!await probeLeak(rawKey)) return result;
+  return {
+    ...result,
+    status: "invalid",
+    message: "upstream reported the API key as leaked",
+    quota: null,
+    tierEvidence: null
+  };
+}
+async function probeModels(rawKey, model) {
   const chain = probeChain(model);
   let candidate = chain[0] ?? null;
   let refused = null;
