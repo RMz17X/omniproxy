@@ -8698,6 +8698,11 @@ async function setRetryAfter(id, at) {
   if (!dbEnabled()) return;
   await sql(`update keys set retry_after_at = $2 where id = $1`, [id, deadline(at)]);
 }
+async function setLastCheckedAt(id, at) {
+  if (!dbEnabled()) return;
+  const stamp = at > 0 ? new Date(at).toISOString() : null;
+  await sql(`update keys set last_checked_at = $2 where id = $1`, [id, stamp]);
+}
 async function setValidatedPlan(id, plan, evidence) {
   if (!dbEnabled()) return;
   await sql(
@@ -8814,6 +8819,7 @@ function persistHealth(st) {
   later(() => setCooldown(id, st.cooldownUntil));
   if (st.retryAfterAt > 0) later(() => setRetryAfter(id, st.retryAfterAt));
   if (st.quota) later(() => setQuotaState(id, st.quota));
+  if (st.lastCheckedAt > 0) later(() => setLastCheckedAt(id, st.lastCheckedAt));
 }
 function seed(key) {
   if (!local.has(key)) local.set(key, blank(key));
