@@ -3131,6 +3131,13 @@ var cfg = {
   ]),
   /** keys per recheck batch on /internal/keys/recheck */
   recheckBatchSize: num(process.env.RECHECK_BATCH_SIZE, 25),
+  /**
+   * How often the in-process timer probes what is due. A per-minute rate
+   * limit is the common case, so 19 minutes clears every window with margin
+   * while staying well inside a serverless function's practical lifetime.
+   * 0 disables the timer (the HTTP route still works).
+   */
+  recheckIntervalMinutes: num(process.env.RECHECK_INTERVAL_MINUTES, 19),
   /** a key rejected as invalid is not re-probed more often than this */
   invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
   /**
@@ -8699,6 +8706,23 @@ async function retire(id, observedAt, reason) {
     [id, at, reason]
   );
 }
+async function purgeDead() {
+  if (!dbEnabled()) return { removed: 0, byReason: {} };
+  const census = await sql(
+    `select retired_reason, count(*)::int as n
+       from keys
+      where status = 'dead'
+      group by 1`
+  );
+  const byReason = {};
+  if (census.ok) for (const row of census.rows) byReason[row.retired_reason ?? "unset"] = row.n;
+  const ids = await sql(`select id from keys where status = 'dead'`);
+  if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason };
+  const doomed = ids.rows.map((r) => r.id);
+  await sql(`delete from key_material where id = any($1::text[])`, [doomed]);
+  await sql(`delete from keys where status = 'dead'`);
+  return { removed: doomed.length, byReason };
+}
 async function revive(id, observedAt, status) {
   if (!dbEnabled()) return;
   await sql(
@@ -8954,6 +8978,16 @@ async function removeKey(key) {
     deleteMaterial(id);
   }
   return had;
+}
+function forgetDead() {
+  let dropped2 = 0;
+  for (const [raw2, st] of local) {
+    if (st.status === "dead" || st.invalid) {
+      local.delete(raw2);
+      dropped2++;
+    }
+  }
+  return dropped2;
 }
 async function removeKeyById(id) {
   const hit = [...local.values()].find((s) => keyId(s.key) === id);
@@ -10051,9 +10085,20 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 @media (max-width: 1180px) {
   #keysBody .table th[data-l="fails"], #keysBody .table td[data-l="fails"],
   #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] {
-    position: absolute !important;
-    width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    /* Stay in flow. The classic visually-hidden pattern uses position:absolute,
+       which removes these cells from the table's scroll container and they
+       escaped #keysBody's overflow-x:auto, pushing the whole document 165px
+       wider than the viewport. Collapsed in-flow cells are still read by a
+       screen reader and stay inside the wrap. */
+    width: 1px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-width: 0 !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    color: transparent !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
   }
 }
 @media (max-width: 980px) {
@@ -10209,19 +10254,57 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   white-space: nowrap;
 }
 .attn-item:hover .go { text-decoration: underline; }
+/* An audit row is the data the page exists to show. It was one flex line with
+   nowrap + ellipsis on .what, and 99 of 100 rows were clipped - the worst lost
+   275px, which is the entire tail of the detail ("applied quota_exhausted",
+   the model, the counters). The action and the time stay on the first line;
+   the target and detail get their own full-width line and wrap. */
 .feed-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    "act  .    time"
+    "what what what"
+    "who  who  who";
   align-items: baseline;
-  gap: 10px;
-  padding: 9px 0;
+  gap: 2px 10px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   min-width: 0;
 }
 .feed-item:last-child { border-bottom: 0; }
-.feed-item .act { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; }
-.feed-item .what { color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.feed-item time { margin-left: auto; color: var(--text-3); font-size: 11.5px; font-family: var(--mono); white-space: nowrap; }
+.feed-item .act {
+  grid-area: act;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.feed-item .what {
+  grid-area: what;
+  color: var(--text-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+/* The actor got grid-area:auto and auto-placed itself into the first row
+   beside the action, so the row read as action / actor on one line and the
+   target + detail on the next. It belongs after the detail, in its own row. */
+.feed-item .what.meta {
+  grid-area: who;
+  color: var(--text-3);
+  font-size: 11.5px;
+  margin-top: 3px;
+}
+.feed-item time {
+  grid-area: time;
+  justify-self: end;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
 
 /* dialogs ---------------------------------------------------------------- */
 
@@ -10276,13 +10359,16 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   width: min(400px, calc(100vw - 24px));
   pointer-events: none;
 }
+/* A thick coloured border on one side of a card is the single most
+   recognisable "AI-generated UI" tell, and the toast's 3px left bar was the
+   only thing carrying its tone. Tone now lives in a small leading dot plus a
+   tinted surface, which reads the same at a glance and stops shouting. */
 .toast {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 11px 12px;
   border: 1px solid var(--line-2);
-  border-left: 3px solid var(--text-3);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
@@ -10290,9 +10376,21 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   line-height: 1.45;
   pointer-events: auto;
 }
-.toast[data-tone="ok"] { border-left-color: var(--ok); }
-.toast[data-tone="warn"] { border-left-color: var(--warn); }
-.toast[data-tone="err"] { border-left-color: var(--bad); }
+.toast::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--text-3);
+}
+.toast[data-tone="ok"] { background: color-mix(in srgb, var(--ok) 7%, var(--surface)); }
+.toast[data-tone="ok"]::before { background: var(--ok); }
+.toast[data-tone="warn"] { background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.toast[data-tone="warn"]::before { background: var(--warn); }
+.toast[data-tone="err"] { background: color-mix(in srgb, var(--bad) 7%, var(--surface)); }
+.toast[data-tone="err"]::before { background: var(--bad); }
 .toast-text { min-width: 0; flex: 1 1 auto; word-break: break-word; }
 .toast-act {
   flex: none;
@@ -14397,10 +14495,10 @@ async function chatCompletions(req) {
           const { done, value } = await reader.read();
           if (done) break;
           buf += decoder.decode(value, { stream: true });
-          const frames = buf.split("\n\n");
+          const frames = buf.split(/\r?\n\r?\n/);
           buf = frames.pop() ?? "";
           for (const frame of frames) {
-            const line = frame.split("\n").find((l) => l.startsWith("data:"));
+            const line = frame.split(/\r?\n/).find((l) => l.startsWith("data:"));
             if (!line) continue;
             const raw2 = line.slice(5).trim();
             if (!raw2 || raw2 === "[DONE]") continue;
@@ -14458,6 +14556,29 @@ async function chatCompletions(req) {
               });
             }
           }
+        }
+        if (buf.trim()) {
+          const tailLine = buf.split(/\r?\n/).find((l) => l.startsWith("data:"));
+          const tailRaw = tailLine ? tailLine.slice(5).trim() : "";
+          if (tailRaw && tailRaw !== "[DONE]") {
+            try {
+              const tail2 = JSON.parse(tailRaw);
+              const tailCand = tail2.candidates?.[0];
+              const tailParsed = parseCandidate(tailCand);
+              if (tailCand?.finishReason) finish2 = mapFinish(tailCand.finishReason);
+              if (tailParsed.text) {
+                send({
+                  id,
+                  object: "chat.completion.chunk",
+                  created,
+                  model,
+                  choices: [{ index: 0, delta: { content: tailParsed.text }, finish_reason: null }]
+                });
+              }
+            } catch {
+            }
+          }
+          buf = "";
         }
         send({
           id,
@@ -15871,6 +15992,7 @@ var KEYS_BODY = `
           <span>Auto refresh</span>
         </label>
         <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all</button>
+        <button id="purgeDeadBtn" class="btn btn-sm" type="button" title="Delete every retired key (invalid or leaked). Quota-exhausted keys are live and stay.">${icon("trash")}Purge dead</button>
       </div>
     </div>
 
@@ -16612,6 +16734,23 @@ var KEYS_SCRIPT = `
     if (data.error) parts.push("error: " + data.error);
     if (!parts.length) parts.push("no answer from upstream");
     return k.key + ": " + parts.join(" \xB7 ");
+  }
+
+  function purgeDead() {
+    GX.busy(el.purgeDeadBtn, "Purging");
+    GX.api("/pengatur/keys/purge-dead", { method: "POST" })
+      .then(function () {
+        /* The recheck timer now keeps the live pool healthy; this button only
+           removes credentials that can never serve (invalid/leaked), so a dead
+           row stops inflating the count. quota_exhausted keys stay - they are
+           live and come back when the project gets an allocation. */
+        GX.notice("Purged dead keys (invalid/leaked). Live keys untouched.", "ok");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.notice("Purge failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.purgeDeadBtn); });
   }
 
   function testAll() {
@@ -17631,7 +17770,17 @@ var AUDIT_SCRIPT = `
     Object.keys(v).forEach(function (key) {
       var value = v[key];
       if (value === null || value === undefined || value === "") return;
-      parts.push(key + " " + (typeof value === "object" ? JSON.stringify(value) : String(value)));
+      /* A nested object (an array of ids, a per-model map) still came out as
+         raw JSON in the middle of the sentence. Flatten one level so the feed
+         reads the same whatever the detail shape. */
+      if (Array.isArray(value)) parts.push(key + " " + value.join(", "));
+      else if (typeof value === "object") {
+        Object.keys(value).forEach(function (sub) {
+          var sv = value[sub];
+          if (sv === null || sv === undefined || sv === "") return;
+          parts.push(key + " " + sub + " " + String(sv));
+        });
+      } else parts.push(key + " " + String(value));
     });
     return parts.join(" \xB7 ");
   }
@@ -17645,7 +17794,12 @@ var AUDIT_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "in this view"));
     el.kpis.appendChild(GX.kpi("Kinds", GX.fmt.num(Object.keys(kinds).length), "distinct action names"));
     el.kpis.appendChild(GX.kpi("Window", el.since.value ? "since " + el.since.value.replace("T", " ") : "all time", el.action.value.trim() ? "action " + el.action.value.trim() : "every action"));
-    el.sWindow.textContent = rows.length ? rows.length + " recorded" : "-";
+    /* sWindow in the header and trailMeta in the panel both said "100
+       recorded" / "100 entries" - the same number twice. The header keeps the
+       window (what the filters say); the panel keeps the count. */
+    el.sWindow.textContent = el.since.value
+      ? "since " + el.since.value.replace("T", " ")
+      : (el.action.value.trim() ? "action " + el.action.value.trim() : "all time");
 
     el.trail.textContent = "";
     el.trailMeta.textContent = rows.length ? rows.length + (rows.length === 1 ? " entry" : " entries") : "";
@@ -17700,7 +17854,10 @@ var AUDIT_SCRIPT = `
   el.limit.addEventListener("change", function () { writeUrl(); reload(); });
   el.since.addEventListener("change", function () { writeUrl(); reload(); });
   el.action.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") reload();
+    /* Enter filtered correctly but never wrote the URL, so a filtered trail
+       could not be shared or restored - the only control on the page that
+       behaved differently from limit and since. */
+    if (event.key === "Enter") { writeUrl(); reload(); }
   });
   el.auto.addEventListener("change", function () {
     if (state.timer) { state.timer(); state.timer = null; }
@@ -18159,11 +18316,21 @@ app.post("/pengatur/keys/test-all", async (c) => {
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  const purged = await purgeDead();
   await recordNow("keys.test-all", {
     actor: actorFrom(c.req.header("user-agent")),
-    detail: { tested: results.length }
+    detail: { tested: results.length, purged: purged.removed, purgedBy: purged.byReason }
   });
-  return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
+  return c.json({ ok: true, tested: results.length, results, purged, pool: await snapshot() });
+});
+app.post("/pengatur/keys/purge-dead", async (c) => {
+  const purged = await purgeDead();
+  const dropped2 = forgetDead();
+  await recordNow("keys.purge-dead", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { removed: purged.removed, droppedFromPool: dropped2, byReason: purged.byReason }
+  });
+  return c.json({ ok: true, ...purged, droppedFromPool: dropped2, pool: await snapshot() });
 });
 app.post("/pengatur/keys/validate-plan", async (c) => {
   let body;
@@ -18253,18 +18420,7 @@ app.all("/internal/rollup", async (c) => {
   }
   return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
 });
-app.post("/internal/keys/recheck", async (c) => {
-  const presented = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() || c.req.header("x-rollup-token") || "";
-  const accepted = [cfg.adminToken, cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
-  if (accepted.length === 0) {
-    return c.json(
-      { error: { message: "Recheck disabled: no internal token is configured." } },
-      403
-    );
-  }
-  if (!accepted.includes(presented)) {
-    return c.json({ error: { message: "Unauthorized." } }, 401);
-  }
+async function recheckDueKeys() {
   const at = Date.now();
   const floor = cfg.invalidRecheckFloorMinutes * 6e4;
   const quotaFloor = cfg.quotaRecheckFloorMinutes * 6e4;
@@ -18305,23 +18461,59 @@ app.post("/internal/keys/recheck", async (c) => {
       }
     }
   }
+  return { due: candidates.length, checked, revived, stillQuota, retired, failed, plansValidated };
+}
+app.post("/internal/keys/recheck", async (c) => {
+  const presented = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() || c.req.header("x-rollup-token") || "";
+  const accepted = [cfg.adminToken, cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
+  if (accepted.length === 0) {
+    return c.json(
+      { error: { message: "Recheck disabled: no internal token is configured." } },
+      403
+    );
+  }
+  if (!accepted.includes(presented)) {
+    return c.json({ error: { message: "Unauthorized." } }, 401);
+  }
+  const result = await recheckDueKeys();
   await recordNow("keys.recheck", {
     actor: actorFrom(c.req.header("user-agent")),
     target: "pool",
-    detail: { due: candidates.length, checked, revived, stillQuota, retired, failed, plansValidated }
+    detail: result
   });
   return c.json({
     ok: true,
-    due: candidates.length,
-    checked,
-    revived,
-    stillQuota,
-    retired,
-    plansValidated,
-    failed,
+    ...result,
     pool: await snapshot()
   });
 });
+var RECHECK_INTERVAL_MS = cfg.recheckIntervalMinutes * 6e4;
+var recheckTimer = null;
+var recheckRunning = false;
+function startRecheckLoop() {
+  if (recheckTimer || RECHECK_INTERVAL_MS <= 0) return;
+  recheckTimer = setInterval(async () => {
+    if (recheckRunning) return;
+    recheckRunning = true;
+    try {
+      const r = await recheckDueKeys();
+      if (r.checked > 0) {
+        await recordNow("keys.recheck", {
+          actor: "scheduler",
+          target: "pool",
+          detail: { ...r, trigger: "timer" }
+        });
+        log("info", "recheck.tick", r);
+      }
+    } catch (e) {
+      log("warn", "recheck.tick_failed", { reason: e.message });
+    } finally {
+      recheckRunning = false;
+    }
+  }, RECHECK_INTERVAL_MS);
+  log("info", "recheck.scheduler_started", { intervalMs: RECHECK_INTERVAL_MS });
+}
+startRecheckLoop();
 app.notFound(
   (c) => c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
 );

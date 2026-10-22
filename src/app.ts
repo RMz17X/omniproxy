@@ -15,7 +15,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
+import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
@@ -37,11 +37,12 @@ import {
 } from "./ledger.ts";
 import { defaultDay, pruneOlderThan, rollupDay } from "./rollup.ts";
 import { actorFrom, list as listAudit, recordNow as auditRecordNow } from "./audit.ts";
+import { log } from "./log.ts";
 import { STATS_HTML } from "./stats-ui.ts";
 import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 import { KEYS_HTML, KEY_DETAIL_HTML } from "./keys-ui.ts";
-import { loadKeys } from "./keys-repo.ts";
+import { loadKeys, purgeDead } from "./keys-repo.ts";
 import { SETTINGS_HTML } from "./settings-ui.ts";
 import { settingsView } from "./settings.ts";
 import { AUDIT_HTML } from "./audit-ui.ts";
@@ -653,11 +654,32 @@ app.post("/pengatur/keys/test-all", async (c) => {
   };
 
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  /* Every credential the sweep just retired is dead forever, so it is removed
+     in the same pass. Keeping it only inflates the pool snapshot and the
+     keys list; quota_exhausted rows are left alone because a 200 revives them. */
+  const purged = await purgeDead();
   await auditRecordNow("keys.test-all", {
     actor: actorFrom(c.req.header("user-agent")),
-    detail: { tested: results.length },
+    detail: { tested: results.length, purged: purged.removed, purgedBy: purged.byReason },
   });
-  return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
+  return c.json({ ok: true, tested: results.length, results, purged, pool: await snapshot() });
+});
+
+/**
+ * Remove every retired credential. A row whose verdict was `invalid` or
+ * `leaked` can never serve traffic again, so it is deleted along with its raw
+ * key material; `quota_exhausted` and `cooling` are live and stay.
+ */
+app.post("/pengatur/keys/purge-dead", async (c) => {
+  const purged = await purgeDead();
+  /* The rows are gone from the database; the in-memory pool must forget them
+     too, or the next snapshot still counts credentials that no longer exist. */
+  const dropped = forgetDead();
+  await auditRecordNow("keys.purge-dead", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { removed: purged.removed, droppedFromPool: dropped, byReason: purged.byReason },
+  });
+  return c.json({ ok: true, ...purged, droppedFromPool: dropped, pool: await snapshot() });
 });
 
 /**
@@ -800,22 +822,20 @@ app.all("/internal/rollup", async (c) => {
  * Cadence is external on purpose: the Vercel Hobby plan allows only the daily
  * rollup cron, so an operator or an out-of-band scheduler drives this route.
  */
-app.post("/internal/keys/recheck", async (c) => {
-  const presented =
-    (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() ||
-    c.req.header("x-rollup-token") ||
-    "";
-  const accepted = [cfg.adminToken, cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
-  if (accepted.length === 0) {
-    return c.json(
-      { error: { message: "Recheck disabled: no internal token is configured." } },
-      403,
-    );
-  }
-  if (!accepted.includes(presented)) {
-    return c.json({ error: { message: "Unauthorized." } }, 401);
-  }
-
+/**
+ * Probe every due key once, outside of any HTTP request.
+ *
+ * A `cooling` key whose window has passed and a `quota_exhausted` key whose
+ * reset time is known and elapsed are both re-probed; a 200 flips them back
+ * to ready. `dead` is skipped except for the invalid-recheck floor, because a
+ * 200 on a parked credential revives it.
+ *
+ * Returns the same census the HTTP route reports.
+ */
+export async function recheckDueKeys(): Promise<{
+  due: number; checked: number; revived: number; stillQuota: number;
+  retired: number; failed: number; plansValidated: number;
+}> {
   const at = Date.now();
   const floor = cfg.invalidRecheckFloorMinutes * 60_000;
   const quotaFloor = cfg.quotaRecheckFloorMinutes * 60_000;
@@ -866,24 +886,74 @@ app.post("/internal/keys/recheck", async (c) => {
       }
     }
   }
+  return { due: candidates.length, checked, revived, stillQuota, retired, failed, plansValidated };
+}
+
+app.post("/internal/keys/recheck", async (c) => {
+  const presented =
+    (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() ||
+    c.req.header("x-rollup-token") ||
+    "";
+  const accepted = [cfg.adminToken, cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
+  if (accepted.length === 0) {
+    return c.json(
+      { error: { message: "Recheck disabled: no internal token is configured." } },
+      403,
+    );
+  }
+  if (!accepted.includes(presented)) {
+    return c.json({ error: { message: "Unauthorized." } }, 401);
+  }
+
+  const result = await recheckDueKeys();
 
   await auditRecordNow("keys.recheck", {
     actor: actorFrom(c.req.header("user-agent")),
     target: "pool",
-    detail: { due: candidates.length, checked, revived, stillQuota, retired, failed, plansValidated },
+    detail: result,
   });
   return c.json({
     ok: true,
-    due: candidates.length,
-    checked,
-    revived,
-    stillQuota,
-    retired,
-    plansValidated,
-    failed,
+    ...result,
     pool: await snapshot(),
   });
 });
+
+/**
+ * Auto-recheck timer: every 19 minutes, probe what is due so a key that hit a
+ * per-minute rate limit comes back into rotation the moment its window resets
+ * instead of waiting for an external cron that may never fire.
+ *
+ * The interval is configurable with RECHECK_INTERVAL_MINUTES; 0 disables.
+ */
+const RECHECK_INTERVAL_MS = cfg.recheckIntervalMinutes * 60_000;
+let recheckTimer: ReturnType<typeof setInterval> | null = null;
+let recheckRunning = false;
+
+function startRecheckLoop(): void {
+  if (recheckTimer || RECHECK_INTERVAL_MS <= 0) return;
+  recheckTimer = setInterval(async () => {
+    if (recheckRunning) return;
+    recheckRunning = true;
+    try {
+      const r = await recheckDueKeys();
+      if (r.checked > 0) {
+        await auditRecordNow("keys.recheck", {
+          actor: "scheduler",
+          target: "pool",
+          detail: { ...r, trigger: "timer" },
+        });
+        log("info", "recheck.tick", r);
+      }
+    } catch (e) {
+      log("warn", "recheck.tick_failed", { reason: (e as Error).message });
+    } finally {
+      recheckRunning = false;
+    }
+  }, RECHECK_INTERVAL_MS);
+  log("info", "recheck.scheduler_started", { intervalMs: RECHECK_INTERVAL_MS });
+}
+startRecheckLoop();
 
 app.notFound((c) =>
   c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404),

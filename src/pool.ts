@@ -332,6 +332,24 @@ export async function removeKey(key: string): Promise<boolean> {
 }
 
 /**
+ * Drop every dead credential from the in-memory pool.
+ *
+ * `hydrate` only overlays rows it finds; a row deleted from the database is
+ * invisible to it, so the process would keep serving a snapshot that still
+ * counts credentials which no longer exist. Called after `purgeDead`.
+ */
+export function forgetDead(): number {
+  let dropped = 0;
+  for (const [raw, st] of local) {
+    if (st.status === "dead" || st.invalid) {
+      local.delete(raw);
+      dropped++;
+    }
+  }
+  return dropped;
+}
+
+/**
  * Resolve a key id (see `keyId`) against the live pool and remove it.
  * The raw key never crosses the admin API boundary, so the id is the only
  * handle a browser can hold.

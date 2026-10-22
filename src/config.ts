@@ -107,6 +107,13 @@ export const cfg = {
   ]),
   /** keys per recheck batch on /internal/keys/recheck */
   recheckBatchSize: num(process.env.RECHECK_BATCH_SIZE, 25),
+  /**
+   * How often the in-process timer probes what is due. A per-minute rate
+   * limit is the common case, so 19 minutes clears every window with margin
+   * while staying well inside a serverless function's practical lifetime.
+   * 0 disables the timer (the HTTP route still works).
+   */
+  recheckIntervalMinutes: num(process.env.RECHECK_INTERVAL_MINUTES, 19),
   /** a key rejected as invalid is not re-probed more often than this */
   invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
   /**

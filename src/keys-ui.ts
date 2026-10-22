@@ -103,6 +103,7 @@ const KEYS_BODY = `
           <span>Auto refresh</span>
         </label>
         <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all</button>
+        <button id="purgeDeadBtn" class="btn btn-sm" type="button" title="Delete every retired key (invalid or leaked). Quota-exhausted keys are live and stay.">${icon("trash")}Purge dead</button>
       </div>
     </div>
 
@@ -845,6 +846,23 @@ const KEYS_SCRIPT = `
     if (data.error) parts.push("error: " + data.error);
     if (!parts.length) parts.push("no answer from upstream");
     return k.key + ": " + parts.join(" · ");
+  }
+
+  function purgeDead() {
+    GX.busy(el.purgeDeadBtn, "Purging");
+    GX.api("/pengatur/keys/purge-dead", { method: "POST" })
+      .then(function () {
+        /* The recheck timer now keeps the live pool healthy; this button only
+           removes credentials that can never serve (invalid/leaked), so a dead
+           row stops inflating the count. quota_exhausted keys stay - they are
+           live and come back when the project gets an allocation. */
+        GX.notice("Purged dead keys (invalid/leaked). Live keys untouched.", "ok");
+        return reload();
+      })
+      .catch(function (err) {
+        GX.notice("Purge failed: " + err.message, "err");
+      })
+      .then(function () { GX.idle(el.purgeDeadBtn); });
   }
 
   function testAll() {

@@ -224,6 +224,39 @@ export async function retire(
 }
 
 /**
+ * Physically delete every row whose verdict was `invalid` or `leaked`.
+ *
+ * A retired credential is a dead row that can never serve traffic again and
+ * only inflates the pool snapshot, so it is removed rather than kept as a
+ * tombstone. `quota_exhausted` and `cooling` are NOT touched: those are live
+ * credentials whose project has no allocation yet, and a 200 revives them.
+ *
+ * The audit row keeps the census (how many, which reason) so the removal is
+ * still traceable without keeping 800 dead keys in the hot table.
+ */
+export async function purgeDead(): Promise<{ removed: number; byReason: Record<string, number> }> {
+  if (!dbEnabled()) return { removed: 0, byReason: {} };
+  const census = await sql<{ retired_reason: string | null; n: number }>(
+    `select retired_reason, count(*)::int as n
+       from keys
+      where status = 'dead'
+      group by 1`,
+  );
+  const byReason: Record<string, number> = {};
+  if (census.ok) for (const row of census.rows) byReason[row.retired_reason ?? "unset"] = row.n;
+  const ids = await sql<{ id: string }>(`select id from keys where status = 'dead'`);
+  if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason };
+  const doomed = ids.rows.map((r) => r.id);
+  /* key_material holds the raw credential; delete it in the same pass or the
+     secret outlives the row that owned it. */
+  await sql(`delete from key_material where id = any($1::text[])`, [doomed]);
+  await sql(`delete from keys where status = 'dead'`);
+  /* The driver reports no row count for a bare DELETE, so the census is the
+     number removed. */
+  return { removed: doomed.length, byReason };
+}
+
+/**
  * Clear a retirement and set the observed status, but only when the verdict
  * carrying it is strictly newer than the retirement on record. A row retired
  * before `retired_at` existed carries NULL and counts as infinitely old, so
