@@ -719,6 +719,15 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    stays in the hint's title. */
 .table td[data-l="status"] { width: 230px; max-width: 230px; }
 .table td[data-l="plan"] { width: 170px; max-width: 170px; }
+/* The plan marker sentence is the longest text in the row. Without nowrap it
+   wrapped to four lines when the column was squeezed, which took the row from
+   65px to 101px; the full text stays in the hint's title. */
+.table td .plan-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .table td .key-text {
   display: inline-block;
   max-width: 212px;
@@ -806,6 +815,15 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   #keysBody .table th[data-l="cooldown"], #keysBody .table td[data-l="cooldown"],
   #keysBody .table th[data-l="plan"], #keysBody .table td[data-l="plan"] { display: none; }
 }
+
+/* One row, one height. The shrink-to-fit rule above leaves the row at the
+   mercy of whichever cell happens to be tallest, and a fractional line-height
+   on the status tag made that 65.5px on the first row; the last row then lost
+   its bottom border and came out at 64.5px. Every cell is one line by design,
+   so the height is stated rather than inferred, and the last row keeps its
+   border so the arithmetic holds there too. */
+#keysBody .table tbody tr { height: 65px; }
+#keysBody .table tbody tr:last-child td { border-bottom: 1px solid var(--line); }
 
 /* Inline links. A table cell is often nothing but a link, so the link owns
    the cell's height and gives a full-width row of tap surface on touch. */
