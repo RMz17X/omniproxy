@@ -54,12 +54,29 @@ export type KeyStatus =
   | "dead"
   | "unverified";
 
+/**
+ * Why a credential was retired. `leaked` and `invalid` come from upstream
+ * rejecting the key itself; `zero_quota` is the strongest quota evidence and
+ * still leaves the key enabled for the operator to inspect.
+ */
+export type RetirementReason = "invalid" | "leaked" | "zero_quota";
+
 export type KeyState = {
   key: string;
   tier: KeyTier;
   failures: number;
   /** permanence marker: the key was rejected as invalid by upstream */
   invalid: boolean;
+  /**
+   * Observation instant (epoch ms) of the retirement on record; 0 when the
+   * credential is not retired. Every verdict carries its own `observedAt`, and
+   * only one observed strictly later than this may clear the retirement: a
+   * quota or healthy answer that was issued BEFORE the leak verdict must not
+   * resurrect the key, no matter which statement reaches Postgres last.
+   */
+  retiredAt: number;
+  /** why the retirement stands: `leaked`, `invalid`, `zero_quota` */
+  retiredReason: string | null;
   /** incremented every time a cooldown is applied (metric + persistence) */
   invalidations: number;
   cooldownUntil: number;
@@ -111,6 +128,8 @@ const blank = (key: string): KeyState => ({
   failures: 0,
   invalid: false,
   invalidations: 0,
+  retiredAt: 0,
+  retiredReason: null,
   cooldownUntil: 0,
   lastUsed: 0,
   // A fresh key carries no disqualifying verdict yet: it serves until an
@@ -141,6 +160,15 @@ function later(fn: () => Promise<void>): void {
   });
 }
 
+/**
+ * True when a verdict observed at `observedAt` is too old to speak about this
+ * credential: a retirement recorded at or after it already won. The comparison
+ * is strict so a verdict that arrives later at the same millisecond still
+ * applies, which keeps in-process ordering sane.
+ */
+const outranked = (st: KeyState, observedAt: number): boolean =>
+  st.retiredAt > observedAt;
+
 /** Push the identity half of a key record to the repository. */
 function persistIdentity(st: KeyState): void {
   const id = keyId(st.key);
@@ -149,16 +177,24 @@ function persistIdentity(st: KeyState): void {
   later(() => repo.upsertKey({ id, masked, plan }));
 }
 
-function persistHealth(st: KeyState): void {
+function persistHealth(st: KeyState, observedAt: number = now()): void {
   const id = keyId(st.key);
   if (st.invalid || st.status === "dead") {
-    later(() => repo.setEnabled(id, false));
-    later(() => repo.setStatus(id, "dead"));
+    // Guarded by `retired_at`: a retirement older than the one already on the
+    // row cannot shorten it, and a stale enable=true cannot outrun it.
+    const at = st.retiredAt || observedAt;
+    const reason: RetirementReason =
+      st.retiredReason === "leaked" || st.retiredReason === "zero_quota"
+        ? st.retiredReason
+        : "invalid";
+    later(() => repo.retire(id, at, reason));
     return;
   }
   later(() => repo.touchLastSeen(id));
   if (st.failures > 0) later(() => repo.bumpFailCount(id));
-  later(() => repo.setStatus(id, st.status));
+  // Guarded too: a status from a verdict older than the recorded retirement
+  // must not overwrite `dead` on a row another instance already retired.
+  later(() => repo.setStatus(id, st.status, observedAt));
   // Serverless scales to zero; a park held only in memory is erased on the
   // next cold start and the key gets re-fired immediately. Persist the
   // deadline (or its clearing) so `hydrate()` can restore the park.
@@ -233,10 +269,17 @@ export async function hydrate(): Promise<number> {
       if (until > (hit.modelRefusals[m] ?? 0)) hit.modelRefusals[m] = until;
     }
     if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
+    hit.retiredAt = row.retiredAt;
+    hit.retiredReason = row.retiredReason;
     if (!row.enabled || row.status === "dead") {
       hit.invalid = true;
       hit.status = "dead";
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
+      // A row retired before `retired_at` existed carries no instant; it is
+      // the old 429 handling, so it is treated as infinitely old and any
+      // fresh quota verdict may still clear it.
+      hit.retiredAt = row.retiredAt || 1;
+      if (!hit.retiredReason) hit.retiredReason = "invalid";
     } else {
       // A persisted park outlives the process; `max` keeps a live in-memory
       // deadline that is already further out (the same instance served it).
@@ -416,22 +459,38 @@ export async function markUsed(key: string): Promise<void> {
  * also clears a previous retirement: if the upstream answered with a quota
  * verdict for this key, the key is alive and only owes the pool a cooldown.
  */
-export async function mark429(key: string, cooldownMs: number, quota?: QuotaDetail | null): Promise<void> {
+export async function mark429(
+  key: string,
+  cooldownMs: number,
+  quota?: QuotaDetail | null,
+  observedAt: number = now(),
+): Promise<void> {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    // A retirement newer than this throttle stands: the key is revoked, and a
+    // 429 observed before the leak verdict says nothing about it.
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    return;
+  }
   st.failures += 1;
   st.invalidations += 1;
   st.cooldownUntil = now() + cooldownMs;
   st.retryAfterAt = st.cooldownUntil;
   st.invalid = false;
+  st.retiredAt = 0;
+  st.retiredReason = null;
   st.status = "cooling";
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   if (quota !== undefined) st.quota = quota;
   if (quota?.freeTier || quota?.quotaId || quota?.consumer) {
     st.planEvidence = quota ? tierFromQuota(quota) : st.planEvidence;
   }
   counters.cooldowns++;
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
+  later(() => repo.revive(keyId(key), observedAt, "cooling"));
 }
 
 /**
@@ -439,25 +498,42 @@ export async function mark429(key: string, cooldownMs: number, quota?: QuotaDeta
  * The key is *not* retired — the credential is valid and the operator may fix
  * the project — so it stays enabled and waits for its reset to be rechecked.
  */
-export async function markQuotaExhausted(key: string, quota: QuotaDetail | null): Promise<void> {
+export async function markQuotaExhausted(
+  key: string,
+  quota: QuotaDetail | null,
+  observedAt: number = now(),
+): Promise<void> {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    // The credential was retired by a leak verdict observed AFTER this quota
+    // answer. A quota answer and a revoked key are indistinguishable on
+    // generateContent, so the stronger, newer evidence wins: stay retired.
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    log("warn", "key.quota_after_retirement", { key: maskKey(key) });
+    return;
+  }
   st.failures += 1;
   st.status = "quota_exhausted";
   st.quota = quota;
   st.retryAfterAt = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
   st.cooldownUntil = st.retryAfterAt;
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   st.invalid = false;
+  // Only a retirement OLDER than this verdict reaches here, so clearing it is
+  // safe: the key is alive, upstream just refuses its project's allowance.
+  st.retiredAt = 0;
+  st.retiredReason = null;
   if (quota) st.planEvidence = tierFromQuota(quota);
   local.set(key, st);
-  persistHealth(st);
-  // The credential is alive, so the durable "retired" flag must not survive.
-  // A key that was retired by an earlier verdict (the old 429 handling marked
-  // quota-exhausted projects as dead) was persisted with enabled=false, and
-  // `hydrate()` reads that flag back as invalid. Without this the key would be
-  // re-killed on the next cold start even though the upstream still refuses it
-  // with a quota answer rather than a credential answer.
-  later(() => repo.setEnabled(keyId(key), true));
+  persistHealth(st, observedAt);
+  // The durable "retired" flag must not survive a live credential. A key
+  // retired by the old 429 handling was persisted with enabled=false, and
+  // `hydrate()` reads that flag back as invalid, so without this it would be
+  // re-killed on the next cold start. `revive` is guarded by `retired_at`: it
+  // clears only a retirement older than the quota evidence above.
+  later(() => repo.revive(keyId(key), observedAt, "quota_exhausted"));
 }
 
 /**
@@ -472,20 +548,23 @@ export async function markModelRefused(
   key: string,
   model: string,
   quota: QuotaDetail | null,
+  observedAt: number = now(),
 ): Promise<void> {
   const st = local.get(key) ?? blank(key);
   const until = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
   // A refusal with no stated reset is held until the end of the UTC day: the
   // free tier window is daily, so re-firing sooner only repeats the 429.
   st.modelRefusals[model] = until > 0 ? until : endOfUtcDay();
-  st.lastCheckedAt = now();
-  st.invalid = false;
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+  // A per-model refusal is not credential evidence, so it must not clear a
+  // retirement newer than itself either.
+  if (!outranked(st, observedAt)) st.invalid = false;
   if (quota) {
     st.quota = quota;
     st.planEvidence = tierFromQuota(quota);
   }
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
 }
 
 /** Midnight UTC after the current instant — the free tier's daily reset. */
@@ -514,12 +593,18 @@ function tierFromQuota(quota: QuotaDetail): TierEvidence {
 }
 
 /** Admitted but not yet proven: withheld from selection until a probe passes. */
-export async function markUnverified(key: string): Promise<void> {
+export async function markUnverified(key: string, observedAt: number = now()): Promise<void> {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    return;
+  }
   st.status = "unverified";
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
 }
 
 /** Store an upstream-validated plan. A bare 200 validates nothing. */
@@ -546,18 +631,31 @@ export async function markSoftError(key: string, cooldownMs: number): Promise<vo
   persistHealth(st);
 }
 
-/** Permanently retire a key: memory takes the verdict, Postgres follows. */
-export async function markInvalid(key: string): Promise<boolean> {
+/**
+ * Permanently retire a key: memory takes the verdict, Postgres follows.
+ *
+ * `observedAt` is when upstream answered, and `reason` is what it answered.
+ * A retirement already on record from a NEWER observation keeps its instant,
+ * so the strongest evidence survives regardless of arrival order.
+ */
+export async function markInvalid(
+  key: string,
+  observedAt: number = now(),
+  reason: RetirementReason = "invalid",
+): Promise<boolean> {
   const st = local.get(key) ?? blank(key);
+  const at = Math.max(st.retiredAt, observedAt);
   st.invalid = true;
   st.status = "dead";
+  st.retiredAt = at;
+  if (observedAt >= st.retiredAt || st.retiredReason === null) st.retiredReason = reason;
   st.invalidations += 1;
   st.failures = 999;
   st.cooldownUntil = Number.MAX_SAFE_INTEGER;
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   counters.invalidated++;
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
   return true;
 }
 
@@ -566,20 +664,33 @@ export async function markInvalid(key: string): Promise<boolean> {
  * keeping it cooling would only waste supply. Failures are reset because the
  * old count described a different (dead) window of the key's life.
  */
-export async function markHealthy(key: string): Promise<void> {
+export async function markHealthy(key: string, observedAt: number = now()): Promise<void> {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    // The key served, but that answer predates a leak verdict: a revoked
+    // credential cannot be revived by evidence observed before the revocation.
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    return;
+  }
   st.invalid = false;
+  st.retiredAt = 0;
+  st.retiredReason = null;
   st.failures = 0;
   st.cooldownUntil = 0;
   st.retryAfterAt = 0;
   st.lastUsed = now();
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   st.status = "ready";
   local.set(key, st);
   const id = keyId(key);
-  later(() => repo.setEnabled(id, true));
+  persistHealth(st, observedAt);
+  // One guarded statement enables the key, writes `ready` and clears the
+  // retirement clock; a newer retirement on the row refuses the revive, so a
+  // slow healthy verdict cannot resurrect a key another instance just retired.
+  later(() => repo.revive(id, observedAt, "ready"));
   later(() => repo.touchLastSeen(id));
-  later(() => repo.setStatus(id, "ready"));
   // A cleared park must reach Postgres too, or the next cold start revives a
   // deadline that this successful probe already proved obsolete.
   later(() => repo.setCooldown(id, 0));

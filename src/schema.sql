@@ -39,6 +39,15 @@ alter table keys add column if not exists retry_after_at timestamptz;
 alter table keys add column if not exists model_refusals jsonb;
 alter table keys add column if not exists plan_validated_at timestamptz;
 alter table keys add column if not exists last_checked_at timestamptz;
+-- Retirement clock. `retired_at` is when the upstream verdict that killed this
+-- credential was OBSERVED, not when the row was written: the pool compares it
+-- against the observation instant of every later verdict, so a quota or
+-- healthy answer issued BEFORE the retirement can never clear it, regardless
+-- of which statement reaches Postgres last. `retired_reason` names the verdict
+-- that stands. A row retired before this column existed carries NULL and is
+-- treated as infinitely old.
+alter table keys add column if not exists retired_at timestamptz;
+alter table keys add column if not exists retired_reason text;
 alter table keys alter column plan set default 'unknown';
 
 create table if not exists usage_events (
