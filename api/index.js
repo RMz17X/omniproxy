@@ -8640,14 +8640,15 @@ var toIdentity = (r) => ({
   planEvidence: toJson(r.plan_evidence),
   quota: toJson(r.quota_state),
   retryAfterAt: toEpoch(r.retry_after_at),
-  lastCheckedAt: toEpoch(r.last_checked_at)
+  lastCheckedAt: toEpoch(r.last_checked_at),
+  modelRefusals: toJson(r.model_refusals) ?? {}
 });
 async function loadKeys() {
   if (!dbEnabled()) return [];
   const res = await sql(
     `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
-            plan_validated_at, last_checked_at
+            plan_validated_at, last_checked_at, model_refusals
        from keys
       order by id`
   );
@@ -8692,6 +8693,13 @@ async function setQuotaState(id, quota) {
   await sql(`update keys set quota_state = $2::jsonb where id = $1`, [
     id,
     quota === null ? null : JSON.stringify(quota)
+  ]);
+}
+async function setModelRefusals(id, refusals) {
+  if (!dbEnabled()) return;
+  await sql(`update keys set model_refusals = $2::jsonb where id = $1`, [
+    id,
+    JSON.stringify(refusals)
   ]);
 }
 async function setRetryAfter(id, at) {
@@ -8788,7 +8796,8 @@ var blank = (key) => ({
   planEvidence: null,
   quota: null,
   retryAfterAt: 0,
-  lastCheckedAt: 0
+  lastCheckedAt: 0,
+  modelRefusals: {}
 });
 function later(fn) {
   if (!dbEnabled()) return;
@@ -8819,6 +8828,9 @@ function persistHealth(st) {
   later(() => setCooldown(id, st.cooldownUntil));
   if (st.retryAfterAt > 0) later(() => setRetryAfter(id, st.retryAfterAt));
   if (st.quota) later(() => setQuotaState(id, st.quota));
+  if (Object.keys(st.modelRefusals).length > 0) {
+    later(() => setModelRefusals(id, st.modelRefusals));
+  }
   if (st.lastCheckedAt > 0) later(() => setLastCheckedAt(id, st.lastCheckedAt));
 }
 function seed(key) {
@@ -8850,7 +8862,9 @@ async function hydrate() {
       hit.planEvidence = row.planEvidence;
     }
     if (row.quota) hit.quota = row.quota;
-    if (row.retryAfterAt > 0) hit.retryAfterAt = row.retryAfterAt;
+    for (const [m, until] of Object.entries(row.modelRefusals)) {
+      if (until > (hit.modelRefusals[m] ?? 0)) hit.modelRefusals[m] = until;
+    }
     if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
     if (!row.enabled || row.status === "dead") {
       hit.invalid = true;
@@ -8915,17 +8929,41 @@ async function rawKeyById(id) {
   const hit = [...local.values()].find((s) => keyId(s.key) === id);
   return hit ? hit.key : null;
 }
-function selectable(s, t) {
+function selectable(s, t, model) {
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
+  if (model && (s.modelRefusals[model] ?? 0) > t) return false;
   if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
   return s.cooldownUntil <= t && s.retryAfterAt <= t;
 }
-async function pick(exclude = /* @__PURE__ */ new Set()) {
+async function pick(exclude = /* @__PURE__ */ new Set(), model) {
   const t = now();
-  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t));
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model));
   if (ready.length === 0) return null;
   ready.sort((a2, b2) => a2.failures - b2.failures || a2.lastUsed - b2.lastUsed);
   return ready[0];
+}
+function modelBlock(exclude, model) {
+  const t = now();
+  const refused = [];
+  const parked = [];
+  let untried = false;
+  for (const s of local.values()) {
+    if (s.invalid || s.status === "dead" || s.status === "unverified") continue;
+    if ((s.modelRefusals[model] ?? 0) > t) {
+      refused.push(s.key);
+      continue;
+    }
+    if (exclude.has(s.key)) continue;
+    if (s.status === "quota_exhausted") {
+      parked.push(s.key);
+      continue;
+    }
+    untried = true;
+  }
+  if (untried) return { kind: "none", keys: [] };
+  if (refused.length > 0) return { kind: "model_refusal", keys: refused };
+  if (parked.length > 0) return { kind: "quota", keys: parked };
+  return { kind: "blocked", keys: [] };
 }
 async function markUsed(key) {
   const st = local.get(key);
@@ -8963,6 +9001,23 @@ async function markQuotaExhausted(key, quota) {
   local.set(key, st);
   persistHealth(st);
   later(() => setEnabled(keyId(key), true));
+}
+async function markModelRefused(key, model, quota) {
+  const st = local.get(key) ?? blank(key);
+  const until = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
+  st.modelRefusals[model] = until > 0 ? until : endOfUtcDay();
+  st.lastCheckedAt = now();
+  st.invalid = false;
+  if (quota) {
+    st.quota = quota;
+    st.planEvidence = tierFromQuota(quota);
+  }
+  local.set(key, st);
+  persistHealth(st);
+}
+function endOfUtcDay() {
+  const d = new Date(now());
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
 }
 function tierFromQuota(quota) {
   return {
@@ -12493,7 +12548,9 @@ function parseQuotaDetail(body, headers) {
   const limit = asString(meta.quota_limit);
   const limitValue = asString(meta.quota_limit_value);
   const consumer = asString(meta.consumer);
-  if (!quotaId && !quotaMetric && !metric && !limit && !consumer) return null;
+  const dimensions = asObject(violations[0]?.quotaDimensions);
+  const model = asString(dimensions?.model) ?? asString(meta.model);
+  if (!quotaId && !quotaMetric && !metric && !limit && !consumer && !model) return null;
   const fromBody = retryDelayOf(details);
   const retryAfterMs = fromBody ?? retryAfterHeaderMs(headers) ?? 0;
   return {
@@ -12502,6 +12559,7 @@ function parseQuotaDetail(body, headers) {
     quotaMetric,
     limit,
     limitValue,
+    model,
     window: windowOf(quotaId, limit),
     location: asString(meta.quota_location),
     consumer,
@@ -12510,6 +12568,11 @@ function parseQuotaDetail(body, headers) {
     retryAfterMs,
     freeTier: isFreeQuotaId(quotaId) || isFreeQuotaMetric(quotaMetric)
   };
+}
+function isModelScopedQuota(quota) {
+  if (quota.model === null) return false;
+  if (quota.consumer !== null || quota.limitValue !== null) return false;
+  return quota.freeTier || /-FreeTier$/i.test(quota.quotaId ?? "");
 }
 function tierEvidenceFrom(body) {
   const details = detailsOf(errorOf(parseBody2(body)));
@@ -12623,11 +12686,34 @@ async function execute(url, init, path, signal, opts) {
   const tried = /* @__PURE__ */ new Set();
   const deadline2 = Date.now() + cfg.maxWaitMs;
   const quotaRefused = /* @__PURE__ */ new Set();
+  const modelRefusedKeys = /* @__PURE__ */ new Set();
   let attempts = 0;
   let rotated = false;
   if (signal?.aborted) return aborted();
   for (; ; ) {
-    let st = await pick(tried);
+    let st = await pick(tried, opts?.model);
+    if (!st && opts?.model) {
+      const block = modelBlock(tried, opts.model);
+      if (block.kind === "model_refusal") {
+        counters.poolExhausted++;
+        log("warn", "model.quota_refused_all", {
+          path,
+          keys: block.keys,
+          model: opts.model
+        });
+        return {
+          response: jsonError(
+            429,
+            "model_zero_quota",
+            "This model has no quota left on any key in the pool."
+          ),
+          key: "",
+          attempts,
+          rotated,
+          modelRefused: true
+        };
+      }
+    }
     while (!st) {
       const snap = await snapshot();
       if (snap.total === 0) {
@@ -12642,8 +12728,21 @@ async function execute(url, init, path, signal, opts) {
       const wait = Math.max(120, Math.min(snap.soonestReadyMs || 500, 2e3));
       if (Date.now() + wait > deadline2 || signal?.aborted) {
         counters.poolExhausted++;
+        if (modelRefusedKeys.size > 0) {
+          log("warn", "model.quota_refused_all", { path, keys: [...modelRefusedKeys], model: opts?.model ?? "" });
+          return {
+            response: jsonError(
+              429,
+              "model_zero_quota",
+              "This model has no quota left on any key in the pool."
+            ),
+            key: "",
+            attempts,
+            rotated,
+            modelRefused: true
+          };
+        }
         if (quotaRefused.size > 0) {
-          log("warn", "model.zero_quota", { path, keys: [...quotaRefused] });
           return {
             response: jsonError(
               429,
@@ -12676,7 +12775,7 @@ async function execute(url, init, path, signal, opts) {
         };
       }
       await sleep(wait);
-      st = await pick(tried);
+      st = await pick(tried, opts?.model);
     }
     if (attempts > 0) {
       rotated = true;
@@ -12750,6 +12849,28 @@ async function execute(url, init, path, signal, opts) {
     if (status === 429) {
       counters.upstream429++;
       const body = await safeText(res);
+      const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
+      const scopeModel = opts?.model ?? quota?.model ?? "";
+      if (quota !== null && scopeModel !== "" && isModelScopedQuota(quota)) {
+        await markModelRefused(st.key, scopeModel, quota);
+        modelRefusedKeys.add(st.key);
+        log("warn", "model.quota_refused", {
+          path,
+          key: st.key,
+          model: scopeModel,
+          retryAfterMs: quota.retryAfterMs
+        });
+        if (attempts >= cfg.maxAttempts) {
+          return {
+            response: rebuild(res, body),
+            key: st.key,
+            attempts,
+            rotated,
+            modelRefused: true
+          };
+        }
+        continue;
+      }
       if (isZeroQuota(body)) {
         quotaRefused.add(st.key);
         if (!opts?.deferQuotaRetire) {
@@ -12782,7 +12903,28 @@ async function execute(url, init, path, signal, opts) {
         const claimed = await markInvalid(st.key);
         log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
       } else if (isQuotaText(body)) {
-        counters.upstream429++;
+        const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
+        const scopeModel = opts?.model ?? quota?.model ?? "";
+        if (quota !== null && scopeModel !== "" && isModelScopedQuota(quota)) {
+          await markModelRefused(st.key, scopeModel, quota);
+          modelRefusedKeys.add(st.key);
+          log("warn", "model.quota_refused", {
+            path,
+            key: st.key,
+            model: scopeModel,
+            retryAfterMs: quota.retryAfterMs
+          });
+          if (attempts >= cfg.maxAttempts) {
+            return {
+              response: rebuild(res, body),
+              key: st.key,
+              attempts,
+              rotated,
+              modelRefused: true
+            };
+          }
+          continue;
+        }
         if (isZeroQuota(body)) {
           quotaRefused.add(st.key);
           if (!opts?.deferQuotaRetire) {
@@ -12908,7 +13050,7 @@ async function executeWithFallback(models2, build, signal) {
     }
     const timeoutMs = index === 0 ? cfg.upstreamTimeoutMs : Math.max(1e3, Math.min(cfg.fallbackTimeoutMs, chainDeadline - Date.now()));
     const { url, init, path } = build(model);
-    const result = await execute(url, init, path, signal, { timeoutMs, deferQuotaRetire: true });
+    const result = await execute(url, init, path, signal, { timeoutMs, deferQuotaRetire: true, model });
     last = result;
     lastModel = model;
     if (result.quotaRefused) {
