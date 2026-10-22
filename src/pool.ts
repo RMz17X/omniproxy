@@ -212,6 +212,10 @@ function persistHealth(st: KeyState, observedAt: number = now()): void {
   // probes of a key whose upstream named no reset is measured against it, so
   // without this the key is due again on the first tick after a cold start.
   if (st.lastCheckedAt > 0) later(() => repo.setLastCheckedAt(id, st.lastCheckedAt));
+  // The same reasoning applies to the LRU stamp `pick()` orders by. It lived
+  // only in memory, so every cold start reset it and the pool's load-spreading
+  // restarted from the first key in the map.
+  if (st.lastUsed > 0) later(() => repo.setLastUsed(id, st.lastUsed));
 }
 
 /* ---------- cold start ---------- */
@@ -269,6 +273,7 @@ export async function hydrate(): Promise<number> {
       if (until > (hit.modelRefusals[m] ?? 0)) hit.modelRefusals[m] = until;
     }
     if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
+    if (row.lastUsed > 0) hit.lastUsed = row.lastUsed;
     hit.retiredAt = row.retiredAt;
     hit.retiredReason = row.retiredReason;
     if (!row.enabled || row.status === "dead") {

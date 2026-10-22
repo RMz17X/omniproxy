@@ -39,6 +39,7 @@ alter table keys add column if not exists retry_after_at timestamptz;
 alter table keys add column if not exists model_refusals jsonb;
 alter table keys add column if not exists plan_validated_at timestamptz;
 alter table keys add column if not exists last_checked_at timestamptz;
+alter table keys add column if not exists last_used timestamptz;
 -- Retirement clock. `retired_at` is when the upstream verdict that killed this
 -- credential was OBSERVED, not when the row was written: the pool compares it
 -- against the observation instant of every later verdict, so a quota or

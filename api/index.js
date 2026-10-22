@@ -8641,6 +8641,7 @@ var toIdentity = (r) => ({
   quota: toJson(r.quota_state),
   retryAfterAt: toEpoch(r.retry_after_at),
   lastCheckedAt: toEpoch(r.last_checked_at),
+  lastUsed: toEpoch(r.last_used),
   modelRefusals: toJson(r.model_refusals) ?? {},
   retiredAt: toEpoch(r.retired_at),
   retiredReason: r.retired_reason
@@ -8650,7 +8651,7 @@ async function loadKeys() {
   const res = await sql(
     `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
-            plan_validated_at, last_checked_at, model_refusals,
+            plan_validated_at, last_checked_at, last_used, model_refusals,
             retired_at, retired_reason
        from keys
       order by id`
@@ -8742,6 +8743,11 @@ async function setLastCheckedAt(id, at) {
   if (!dbEnabled()) return;
   const stamp = at > 0 ? new Date(at).toISOString() : null;
   await sql(`update keys set last_checked_at = $2 where id = $1`, [id, stamp]);
+}
+async function setLastUsed(id, at) {
+  if (!dbEnabled()) return;
+  const stamp = at > 0 ? new Date(at).toISOString() : null;
+  await sql(`update keys set last_used = $2 where id = $1`, [id, stamp]);
 }
 async function setValidatedPlan(id, plan, evidence) {
   if (!dbEnabled()) return;
@@ -8868,6 +8874,7 @@ function persistHealth(st, observedAt = now()) {
     later(() => setModelRefusals(id, st.modelRefusals));
   }
   if (st.lastCheckedAt > 0) later(() => setLastCheckedAt(id, st.lastCheckedAt));
+  if (st.lastUsed > 0) later(() => setLastUsed(id, st.lastUsed));
 }
 function seed(key) {
   if (!local.has(key)) local.set(key, blank(key));
@@ -8902,6 +8909,7 @@ async function hydrate() {
       if (until > (hit.modelRefusals[m] ?? 0)) hit.modelRefusals[m] = until;
     }
     if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
+    if (row.lastUsed > 0) hit.lastUsed = row.lastUsed;
     hit.retiredAt = row.retiredAt;
     hit.retiredReason = row.retiredReason;
     if (!row.enabled || row.status === "dead") {

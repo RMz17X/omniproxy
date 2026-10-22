@@ -35,6 +35,14 @@ export type KeyIdentity = {
   retryAfterAt: number;
   lastCheckedAt: number;
   /**
+   * epoch ms of the last time this key served a request. Durable because
+   * `pick()` orders candidates by it: a field nothing writes is erased on
+   * every cold start, and serverless scales to zero, so the LRU that spreads
+   * load across the pool would reset and the first keys in the map would be
+   * re-fired until their in-memory stamp caught up.
+   */
+  lastUsed: number;
+  /**
    * model -> epoch ms until which the key has no allowance for it. Durable
    * because a free-tier daily window outlives the process: a cold start that
    * forgot the refusal would re-fire the same key at the same model.
@@ -65,6 +73,7 @@ type KeyRow = {
   retry_after_at: string | Date | null;
   plan_validated_at: string | Date | null;
   last_checked_at: string | Date | null;
+  last_used: string | Date | null;
   model_refusals: unknown;
   retired_at: string | Date | null;
   retired_reason: string | null;
@@ -119,6 +128,7 @@ const toIdentity = (r: KeyRow): KeyIdentity => ({
   quota: toJson<QuotaDetail>(r.quota_state),
   retryAfterAt: toEpoch(r.retry_after_at),
   lastCheckedAt: toEpoch(r.last_checked_at),
+  lastUsed: toEpoch(r.last_used),
   modelRefusals: toJson<Record<string, number>>(r.model_refusals) ?? {},
   retiredAt: toEpoch(r.retired_at),
   retiredReason: r.retired_reason,
@@ -130,7 +140,7 @@ export async function loadKeys(): Promise<KeyIdentity[]> {
   const res = await sql<KeyRow>(
     `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
-            plan_validated_at, last_checked_at, model_refusals,
+            plan_validated_at, last_checked_at, last_used, model_refusals,
             retired_at, retired_reason
        from keys
       order by id`,
@@ -285,6 +295,12 @@ export async function setLastCheckedAt(id: string, at: number): Promise<void> {
   if (!dbEnabled()) return;
   const stamp = at > 0 ? new Date(at).toISOString() : null;
   await sql(`update keys set last_checked_at = $2 where id = $1`, [id, stamp]);
+}
+
+export async function setLastUsed(id: string, at: number): Promise<void> {
+  if (!dbEnabled()) return;
+  const stamp = at > 0 ? new Date(at).toISOString() : null;
+  await sql(`update keys set last_used = $2 where id = $1`, [id, stamp]);
 }
 
 /** Record an upstream-validated plan, its evidence, and the observation time. */
