@@ -150,7 +150,7 @@ test("a leaked key is retired, not parked as quota_exhausted", async () => {
   expect(await pick()).toBeNull();
 });
 
-test("a genuine zero-quota 429 stays parked, enabled, and is never retired", async () => {
+test("a zero-quota project is dead: no window can clear it, but a 200 still revives", async () => {
   await setPool(["AIzaPROBEZEROQUOTA1"]);
   const r = await probeKey("AIzaPROBEZEROQUOTA1");
   expect(r.status).toBe("zero_quota");
@@ -158,11 +158,14 @@ test("a genuine zero-quota 429 stays parked, enabled, and is never retired", asy
 
   const res = await adminPost("/pengatur/keys/test", { key: "AIzaPROBEZEROQUOTA1" });
   const body = (await res.json()) as { applied: string };
-  expect(body.applied).toBe("quota_exhausted");
+  expect(body.applied).toBe("retired");
 
   const view = await find("AIzaPROBEZEROQUOTA1");
-  expect(view?.status).toBe("quota_exhausted");
-  expect(view?.invalid).toBe(false);
+  // quota_limit_value 0 never advertises a reset, so parking the row as
+  // `quota_exhausted` left a permanent state no recheck could clear. The row
+  // is dead now, and it is gone from the rotation.
+  expect(view?.status).toBe("dead");
+  expect(view?.invalid).toBe(true);
 });
 
 test("only a 403 leak body is evidence; 400, 404, 429 and transport errors are not", async () => {

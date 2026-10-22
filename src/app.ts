@@ -617,8 +617,13 @@ async function applyProbe(raw: string, probe: ProbeResult): Promise<string> {
       await mark429(raw, Math.max(cfg.cooldownMs, probe.retryAfterMs), probe.quota ?? null);
       return "cooling";
     case "zero_quota":
-      await markQuotaExhausted(raw, probe.quota ?? null);
-      return "quota_exhausted";
+      /* A project with no allocation is not a temporary state: Google answers
+         quota_limit_value 0 with no reset time, and it never advertises one.
+         Treating it as `quota_exhausted` left 221 rows parked in the pool that
+         no recheck could ever clear, so they are dead now. The credential
+         itself stays valid, and a later 200 still revives the row. */
+      await markInvalid(raw, Date.now(), "zero_quota");
+      return "retired";
     case "invalid":
       await markInvalid(raw);
       return "retired";
@@ -658,11 +663,12 @@ app.post("/pengatur/keys/test-all", async (c) => {
      in the same pass. Keeping it only inflates the pool snapshot and the
      keys list; quota_exhausted rows are left alone because a 200 revives them. */
   const purged = await purgeDead();
+  const dropped = forgetDead();
   await auditRecordNow("keys.test-all", {
     actor: actorFrom(c.req.header("user-agent")),
-    detail: { tested: results.length, purged: purged.removed, purgedBy: purged.byReason },
+    detail: { tested: results.length, purged: purged.removed, droppedFromPool: dropped, purgedBy: purged.byReason },
   });
-  return c.json({ ok: true, tested: results.length, results, purged, pool: await snapshot() });
+  return c.json({ ok: true, tested: results.length, results, purged, droppedFromPool: dropped, pool: await snapshot() });
 });
 
 /**

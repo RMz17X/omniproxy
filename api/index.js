@@ -9079,29 +9079,6 @@ async function mark429(key, cooldownMs, quota, observedAt = now()) {
   persistHealth(st, observedAt);
   later(() => revive(keyId(key), observedAt, "cooling"));
 }
-async function markQuotaExhausted(key, quota, observedAt = now()) {
-  const st = local.get(key) ?? blank(key);
-  if (outranked(st, observedAt)) {
-    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
-    local.set(key, st);
-    persistHealth(st, observedAt);
-    log("warn", "key.quota_after_retirement", { key: maskKey(key) });
-    return;
-  }
-  st.failures += 1;
-  st.status = "quota_exhausted";
-  st.quota = quota;
-  st.retryAfterAt = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
-  st.cooldownUntil = st.retryAfterAt;
-  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
-  st.invalid = false;
-  st.retiredAt = 0;
-  st.retiredReason = null;
-  if (quota) st.planEvidence = tierFromQuota(quota);
-  local.set(key, st);
-  persistHealth(st, observedAt);
-  later(() => revive(keyId(key), observedAt, "quota_exhausted"));
-}
 async function markModelRefused(key, model, quota, observedAt = now()) {
   const st = local.get(key) ?? blank(key);
   const until = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
@@ -18283,8 +18260,8 @@ async function applyProbe(raw2, probe) {
       await mark429(raw2, Math.max(cfg.cooldownMs, probe.retryAfterMs), probe.quota ?? null);
       return "cooling";
     case "zero_quota":
-      await markQuotaExhausted(raw2, probe.quota ?? null);
-      return "quota_exhausted";
+      await markInvalid(raw2, Date.now(), "zero_quota");
+      return "retired";
     case "invalid":
       await markInvalid(raw2);
       return "retired";
@@ -18317,11 +18294,12 @@ app.post("/pengatur/keys/test-all", async (c) => {
   };
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
   const purged = await purgeDead();
+  const dropped2 = forgetDead();
   await recordNow("keys.test-all", {
     actor: actorFrom(c.req.header("user-agent")),
-    detail: { tested: results.length, purged: purged.removed, purgedBy: purged.byReason }
+    detail: { tested: results.length, purged: purged.removed, droppedFromPool: dropped2, purgedBy: purged.byReason }
   });
-  return c.json({ ok: true, tested: results.length, results, purged, pool: await snapshot() });
+  return c.json({ ok: true, tested: results.length, results, purged, droppedFromPool: dropped2, pool: await snapshot() });
 });
 app.post("/pengatur/keys/purge-dead", async (c) => {
   const purged = await purgeDead();
