@@ -11,8 +11,8 @@ import { setPool } from "./harness.ts";
 
 import app from "../src/app.ts";
 import { cfg } from "../src/config.ts";
-import { listKeys, mark429, maskKey, snapshot } from "../src/pool.ts";
-import { probeKey } from "../src/probe.ts";
+import { listKeys, mark429, maskKey, pick, snapshot } from "../src/pool.ts";
+import { probeKey, probeLeak } from "../src/probe.ts";
 
 beforeAll(ensureMock);
 
@@ -128,4 +128,69 @@ test("test-all skips dead keys and reports the pool", async () => {
   const statuses = body.results.map((r) => r.probe.status).sort();
   expect(statuses).toEqual(["ok", "rate_limited"]);
   expect((await snapshot()).ready).toBe(1);
+});
+
+/* ---------- the leak probe: retiring a revoked credential ---------- */
+
+test("a leaked key is retired, not parked as quota_exhausted", async () => {
+  // Upstream answers a revoked key exactly like a live project with no
+  // allocation on generateContent; only cachedContents names the revocation.
+  await setPool(["AIzaPROBELEAKED1"]);
+  const r = await probeKey("AIzaPROBELEAKED1");
+  expect(r.status).toBe("invalid");
+  expect(r.quota ?? null).toBeNull();
+
+  const res = await adminPost("/pengatur/keys/test", { key: "AIzaPROBELEAKED1" });
+  const body = (await res.json()) as { applied: string };
+  expect(body.applied).toBe("retired");
+
+  const view = await find("AIzaPROBELEAKED1");
+  expect(view?.status).toBe("dead");
+  expect(view?.invalid).toBe(true);
+  expect(await pick()).toBeNull();
+});
+
+test("a genuine zero-quota 429 stays parked, enabled, and is never retired", async () => {
+  await setPool(["AIzaPROBEZEROQUOTA1"]);
+  const r = await probeKey("AIzaPROBEZEROQUOTA1");
+  expect(r.status).toBe("zero_quota");
+  expect(r.quota?.limitValue).toBe("0");
+
+  const res = await adminPost("/pengatur/keys/test", { key: "AIzaPROBEZEROQUOTA1" });
+  const body = (await res.json()) as { applied: string };
+  expect(body.applied).toBe("quota_exhausted");
+
+  const view = await find("AIzaPROBEZEROQUOTA1");
+  expect(view?.status).toBe("quota_exhausted");
+  expect(view?.invalid).toBe(false);
+});
+
+test("only a 403 leak body is evidence; 400, 404, 429 and transport errors are not", async () => {
+  // A live key fails the cachedContents body validation (no content.role), so
+  // it answers 400 and creates nothing.
+  expect(await probeLeak("AIzaPROBEGOOD1")).toBe(false);
+  // Out of quota on that surface too.
+  expect(await probeLeak("AIzaPROBEZEROQUOTA1")).toBe(false);
+  // A dead endpoint says nothing about the credential.
+  expect(await probeLeak("AIzaPROBEBOOM1")).toBe(false);
+  expect(await probeLeak("AIzaPROBELEAKED1")).toBe(true);
+});
+
+test("a leaking key that is due for recheck is retired by the route", async () => {
+  await setPool(["AIzaPROBELEAKED2"]);
+
+  const res = await app.fetch(
+    new Request("http://geminesx.test/internal/keys/recheck", {
+      method: "POST",
+      headers: { authorization: "Bearer test-admin-token" },
+    }),
+  );
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { checked: number; pool: { dead: number } };
+  expect(body.checked).toBe(1);
+  expect(body.pool.dead).toBe(1);
+
+  const view = await find("AIzaPROBELEAKED2");
+  expect(view?.status).toBe("dead");
+  expect(view?.invalid).toBe(true);
 });

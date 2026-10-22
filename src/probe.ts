@@ -121,7 +121,71 @@ function reconcile(first: ProbeResult, second: ProbeResult): ProbeResult {
   return first;
 }
 
+/**
+ * Ask the one endpoint that reports a revoked credential.
+ *
+ * generateContent answers a leaked key with exactly the 429 project shape a
+ * live project without an allocation sends (`quota_limit_value: "0"`), so the
+ * serving path can never tell the two apart. Measured on 2026-10-22 against
+ * live upstream, `cachedContents` is the only paid-only surface that
+ * discriminates: a healthy key answers 400 "Cached content is required to
+ * have content.role set", a revoked one answers 403 "Your API key was
+ * reported as leaked". `batches` and `veo` 404 for both classes, and
+ * `tunedModels` 400s for both, so none of them carries a signal.
+ *
+ * The body deliberately OMITS `content.role`: that missing field is what makes
+ * a live key fail validation inside the handler, so the request returns 400
+ * and creates no cached content object. Adding a role would make every healthy
+ * probe leave a real cache object behind.
+ *
+ * Only a 403 whose body names the leak is evidence. A 400 proves the key
+ * authenticated but says nothing about revocation; a 404, a 429, a transport
+ * failure or a timeout is inconclusive. None of them may retire a key.
+ */
+export async function probeLeak(rawKey: string, timeoutMs = TIMEOUT_MS): Promise<boolean> {
+  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/cachedContents`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+      body: JSON.stringify({
+        model: `models/${cfg.defaultModel}`,
+        contents: [{ parts: [{ text: "cache probe" }] }],
+      }),
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    // A transport failure says nothing about the credential.
+    return false;
+  }
+  if (res.status !== 403) return false;
+  const body = await res.text().catch(() => "");
+  return /reported as leaked/i.test(body);
+}
+
+/**
+ * A probe of the credential itself, independent of any model.
+ *
+ * Only a quota refusal can hide a revoked key: every other verdict already
+ * names what the key is. So the extra call is spent on parked keys only, and
+ * the recheck volume of a healthy pool does not move.
+ */
 export async function probeKey(rawKey: string, model?: string): Promise<ProbeResult> {
+  const result = await probeModels(rawKey, model);
+  if (result.status !== "zero_quota") return result;
+  if (!(await probeLeak(rawKey))) return result;
+  return {
+    ...result,
+    status: "invalid",
+    message: "upstream reported the API key as leaked",
+    quota: null,
+    tierEvidence: null,
+  };
+}
+
+async function probeModels(rawKey: string, model?: string): Promise<ProbeResult> {
   const chain = probeChain(model);
   let candidate: string | null = chain[0] ?? null;
   let refused: ProbeResult | null = null;

@@ -94,7 +94,38 @@ const server = Bun.serve({
         ],
       },
     };
+
+    // ---- the paid-only endpoint that names a revoked credential ----
+    // generateContent answers a leaked key with the same zero-quota shape a
+    // live project without an allocation sends, so the leak is invisible
+    // there. cachedContents is the only endpoint that says it outright.
+    if (url.pathname.endsWith("/v1beta/cachedContents")) {
+      if (key.toLowerCase().includes("leaked")) {
+        return q(403, {
+          error: {
+            code: 403,
+            status: "PERMISSION_DENIED",
+            message: "Your API key was reported as leaked. Please use another API key.",
+          },
+        });
+      }
+      // A key that is merely out of quota is out of quota here too: the probe
+      // must not read this as a credential answer.
+      if (key.toLowerCase().includes("zeroquota")) return q(429, zeroQuotaBody);
+      // A live key is rejected before any cached content object is created.
+      return q(400, {
+        error: {
+          code: 400,
+          status: "INVALID_ARGUMENT",
+          message: "Cached content is required to have content.role set.",
+        },
+      });
+    }
     if (key.toLowerCase().includes("zeroquota")) {
+      return q(429, zeroQuotaBody);
+    }
+    // A revoked key's serving endpoint looks exactly like an exhausted project.
+    if (key.toLowerCase().includes("leaked")) {
       return q(429, zeroQuotaBody);
     }
     if (key.toLowerCase().includes("halfquota") && model.includes("3.5-flash")) {
