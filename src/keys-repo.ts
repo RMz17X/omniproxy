@@ -12,7 +12,7 @@
  */
 
 import { sql, dbEnabled } from "./db.ts";
-import type { KeyStatus, KeyTier } from "./pool.ts";
+import type { KeyStatus, KeyTier, RetirementReason } from "./pool.ts";
 import type { QuotaDetail, TierEvidence } from "./verdict.ts";
 
 export type KeyIdentity = {
@@ -40,6 +40,14 @@ export type KeyIdentity = {
    * forgot the refusal would re-fire the same key at the same model.
    */
   modelRefusals: Record<string, number>;
+  /**
+   * Observation instant (epoch ms) of the retirement on record; 0 when the
+   * credential is not retired. Compared against a verdict's own `observedAt`
+   * so the strongest evidence wins instead of the last writer.
+   */
+  retiredAt: number;
+  /** verdict that put the credential out: `invalid`, `leaked`, `zero_quota` */
+  retiredReason: string | null;
 };
 
 type KeyRow = {
@@ -58,6 +66,8 @@ type KeyRow = {
   plan_validated_at: string | Date | null;
   last_checked_at: string | Date | null;
   model_refusals: unknown;
+  retired_at: string | Date | null;
+  retired_reason: string | null;
 };
 
 const isTier = (v: string): v is KeyTier => v === "free" || v === "paid" || v === "pro";
@@ -110,6 +120,8 @@ const toIdentity = (r: KeyRow): KeyIdentity => ({
   retryAfterAt: toEpoch(r.retry_after_at),
   lastCheckedAt: toEpoch(r.last_checked_at),
   modelRefusals: toJson<Record<string, number>>(r.model_refusals) ?? {},
+  retiredAt: toEpoch(r.retired_at),
+  retiredReason: r.retired_reason,
 });
 
 /** Rows ordered by id. Empty when the database is disabled. */
@@ -118,7 +130,8 @@ export async function loadKeys(): Promise<KeyIdentity[]> {
   const res = await sql<KeyRow>(
     `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
-            plan_validated_at, last_checked_at, model_refusals
+            plan_validated_at, last_checked_at, model_refusals,
+            retired_at, retired_reason
        from keys
       order by id`,
   );
@@ -174,9 +187,69 @@ export async function setPlan(id: string, plan: KeyTier): Promise<void> {
   await sql(`update keys set plan = $2 where id = $1`, [id, plan]);
 }
 
-export async function setStatus(id: string, status: KeyStatus): Promise<void> {
+/**
+ * Durable retirement. The verdict that killed the credential is the source of
+ * truth, so the write carries its observation instant instead of the wall
+ * clock: a slower statement can never shorten a newer retirement, and a
+ * retirement at or after `observedAt` keeps its instant and its reason.
+ */
+export async function retire(
+  id: string,
+  observedAt: number,
+  reason: RetirementReason,
+): Promise<void> {
   if (!dbEnabled()) return;
-  await sql(`update keys set status = $2 where id = $1`, [id, status]);
+  const at = new Date(observedAt).toISOString();
+  await sql(
+    `update keys
+        set enabled = false,
+            status = 'dead',
+            retired_at = case when retired_at is null or retired_at <= $2::timestamptz
+                              then $2::timestamptz else retired_at end,
+            retired_reason = case when retired_at is null or retired_at <= $2::timestamptz
+                                  then $3 else retired_reason end
+      where id = $1`,
+    [id, at, reason],
+  );
+}
+
+/**
+ * Clear a retirement and set the observed status, but only when the verdict
+ * carrying it is strictly newer than the retirement on record. A row retired
+ * before `retired_at` existed carries NULL and counts as infinitely old, so
+ * the legacy 429 rows are still revivable.
+ */
+export async function revive(
+  id: string,
+  observedAt: number,
+  status: KeyStatus,
+): Promise<void> {
+  if (!dbEnabled()) return;
+  await sql(
+    `update keys
+        set enabled = true,
+            status = $3,
+            retired_at = null,
+            retired_reason = null
+      where id = $1
+        and (retired_at is null or retired_at <= $2::timestamptz)`,
+    [id, new Date(observedAt).toISOString(), status],
+  );
+}
+
+/** Status write guarded the same way: never overwrite a newer retirement. */
+export async function setStatus(
+  id: string,
+  status: KeyStatus,
+  observedAt: number,
+): Promise<void> {
+  if (!dbEnabled()) return;
+  await sql(
+    `update keys set status = $2
+      where id = $1
+        and (retired_at is null or retired_at <= $3::timestamptz)`,
+    [id, status, new Date(observedAt).toISOString()],
+  );
 }
 
 /** Store or clear the structured quota shape behind the last 429. */

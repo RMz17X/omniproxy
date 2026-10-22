@@ -327,17 +327,18 @@ test("a quota exhausted key is re-enabled, so a cold start does not re-kill it",
   expect((await held(key))?.status).toBe("quota_exhausted");
   expect((await held(key))?.invalid).toBe(false);
 
-  // Give the fire-and-forget persistence a turn, then read what was written.
-  await new Promise((r) => setTimeout(r, 50));
-  const enableWrites = calls.filter((c) => /update keys set enabled/i.test(c.query));
+  // Persistence is fire-and-forget: draining the microtask queue runs every
+  // queued statement, no wall clock involved.
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  const enableWrites = calls.filter((c) =>
+    c.query.replace(/\s+/g, " ").toLowerCase().includes("set enabled = true"),
+  );
   expect(enableWrites.length).toBeGreaterThan(0);
-  // The last enable write must turn the key back on: the durable "retired"
-  // flag is what `hydrate()` reads back as invalid on a cold start.
-  expect(enableWrites[enableWrites.length - 1].params[1]).toBe(true);
-  expect(enableWrites[enableWrites.length - 1].params[0]).toBe(keyId(key));
-
-  const statusWrites = calls.filter((c) => /update keys set status/i.test(c.query));
-  expect(statusWrites.some((c) => c.params[1] === "quota_exhausted")).toBe(true);
+  // The last enable write must clear the durable "retired" flag, which is what
+  // `hydrate()` reads back as invalid on a cold start.
+  const revive = enableWrites[enableWrites.length - 1];
+  expect(revive.params[0]).toBe(keyId(key));
+  expect(revive.query).toContain("retired_at = null");
 
   setSqlRunner(null);
   await removeKey(key);
