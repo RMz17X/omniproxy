@@ -143,6 +143,12 @@ const server = Bun.serve({
       }
       return q(429, freeQuotaBody);
     }
+    if (key.toLowerCase().includes("modelquota") && model.includes("3.5-flash")) {
+      // Allowance spent for ONE model only. The body names the model and
+      // blames no project, so the key must stay in rotation for every other
+      // model instead of taking a pool-wide cooldown.
+      return q(429, freeQuotaBody);
+    }
     if (
       key.toLowerCase().includes("paidquota") &&
       (model.includes("flash-image") || model.includes("preview-image-generation"))

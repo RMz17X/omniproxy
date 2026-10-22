@@ -33,6 +33,10 @@ alter table keys add column if not exists status text not null default 'unknown'
 alter table keys add column if not exists plan_evidence jsonb;
 alter table keys add column if not exists quota_state jsonb;
 alter table keys add column if not exists retry_after_at timestamptz;
+-- per-model free-tier refusals: {model: epoch_ms_deadline}. A key out of
+-- allowance for one model stays usable for the rest, so this cannot live in
+-- `cooldown_until` (pool-wide) or `quota_state` (a verdict about the project).
+alter table keys add column if not exists model_refusals jsonb;
 alter table keys add column if not exists plan_validated_at timestamptz;
 alter table keys add column if not exists last_checked_at timestamptz;
 alter table keys alter column plan set default 'unknown';

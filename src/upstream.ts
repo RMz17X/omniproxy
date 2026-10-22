@@ -18,12 +18,14 @@ import { counters } from "./metrics.ts";
 import {
   mark429,
   markInvalid,
+  markModelRefused,
   markSoftError,
   markUsed,
+  modelBlock,
   pick,
   snapshot,
 } from "./pool.ts";
-import { retryDelayMs } from "./verdict.ts";
+import { isModelScopedQuota, parseQuotaDetail, retryDelayMs } from "./verdict.ts";
 
 export type ExecResult = {
   response: Response;
@@ -174,12 +176,14 @@ export async function execute(
   init: RequestInit & { method: string },
   path: string,
   signal?: AbortSignal,
-  opts?: { timeoutMs?: number; deferQuotaRetire?: boolean },
+  opts?: { timeoutMs?: number; deferQuotaRetire?: boolean; model?: string },
 ): Promise<ExecResult> {
   const tried = new Set<string>();
   const deadline = Date.now() + cfg.maxWaitMs;
-  /** keys that answered zero-quota on this model */
+  /** keys that answered zero-quota on this model (project-shaped refusal) */
   const quotaRefused = new Set<string>();
+  /** keys that answered "no allowance for this model", scoped to the model */
+  const modelRefusedKeys = new Set<string>();
   let attempts = 0;
   let rotated = false;
 
@@ -187,8 +191,36 @@ export async function execute(
   if (signal?.aborted) return aborted();
 
   for (;;) {
-    let st = await pick(tried);
+    let st = await pick(tried, opts?.model);
 
+    // A live per-model refusal has no bounded reset to wait for (the deadline
+    // is that model's next daily reset), so report a model verdict and let the
+    // chain advance instead of sleeping out `maxWaitMs` on every request.
+    // Project-quota parks deliberately fall through to the wait below: their
+    // refusal must reach the caller's per-model tally so a key is retired only
+    // once the whole chain agrees.
+    if (!st && opts?.model) {
+      const block = modelBlock(tried, opts.model);
+      if (block.kind === "model_refusal") {
+        counters.poolExhausted++;
+        log("warn", "model.quota_refused_all", {
+          path,
+          keys: block.keys,
+          model: opts.model,
+        });
+        return {
+          response: jsonError(
+            429,
+            "model_zero_quota",
+            "This model has no quota left on any key in the pool.",
+          ),
+          key: "",
+          attempts,
+          rotated,
+          modelRefused: true,
+        };
+      }
+    }
     // Pool exhausted for this instant — wait for the soonest cooldown to lapse.
     while (!st) {
       const snap = await snapshot();
@@ -208,8 +240,21 @@ export async function execute(
         // verdict about the model, not about the keys, so it is reported as
         // such: the caller can move to the next model instead of telling the
         // client the pool is exhausted.
+        if (modelRefusedKeys.size > 0) {
+          log("warn", "model.quota_refused_all", { path, keys: [...modelRefusedKeys], model: opts?.model ?? "" });
+          return {
+            response: jsonError(
+              429,
+              "model_zero_quota",
+              "This model has no quota left on any key in the pool.",
+            ),
+            key: "",
+            attempts,
+            rotated,
+            modelRefused: true,
+          };
+        }
         if (quotaRefused.size > 0) {
-          log("warn", "model.zero_quota", { path, keys: [...quotaRefused] });
           return {
             response: jsonError(
               429,
@@ -242,7 +287,7 @@ export async function execute(
         };
       }
       await sleep(wait);
-      st = await pick(tried);
+      st = await pick(tried, opts?.model);
     }
 
     if (attempts > 0) {
@@ -327,6 +372,32 @@ export async function execute(
     if (status === 429) {
       counters.upstream429++;
       const body = await safeText(res);
+      const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
+      const scopeModel = opts?.model ?? quota?.model ?? "";
+      // A per-model allowance refusal says nothing about the credential: the
+      // key is still good for every other model, so no cooldown, no failure
+      // count, no retirement. The chain moves to the next model and this key
+      // stays in rotation for it.
+      if (quota !== null && scopeModel !== "" && isModelScopedQuota(quota)) {
+        await markModelRefused(st.key, scopeModel, quota);
+        modelRefusedKeys.add(st.key);
+        log("warn", "model.quota_refused", {
+          path,
+          key: st.key,
+          model: scopeModel,
+          retryAfterMs: quota.retryAfterMs,
+        });
+        if (attempts >= cfg.maxAttempts) {
+          return {
+            response: rebuild(res, body),
+            key: st.key,
+            attempts,
+            rotated,
+            modelRefused: true,
+          };
+        }
+        continue;
+      }
       if (isZeroQuota(body)) {
         quotaRefused.add(st.key);
         // With a model chain, "no quota for this model" is not yet a verdict
@@ -365,7 +436,30 @@ export async function execute(
         const claimed = await markInvalid(st.key);
         log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
       } else if (isQuotaText(body)) {
-        counters.upstream429++;
+        const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
+        const scopeModel = opts?.model ?? quota?.model ?? "";
+        // Same split as the 429 branch: a per-model allowance refusal leaves
+        // the credential untouched, so only the model is parked.
+        if (quota !== null && scopeModel !== "" && isModelScopedQuota(quota)) {
+          await markModelRefused(st.key, scopeModel, quota);
+          modelRefusedKeys.add(st.key);
+          log("warn", "model.quota_refused", {
+            path,
+            key: st.key,
+            model: scopeModel,
+            retryAfterMs: quota.retryAfterMs,
+          });
+          if (attempts >= cfg.maxAttempts) {
+            return {
+              response: rebuild(res, body),
+              key: st.key,
+              attempts,
+              rotated,
+              modelRefused: true,
+            };
+          }
+          continue;
+        }
         if (isZeroQuota(body)) {
           quotaRefused.add(st.key);
           if (!opts?.deferQuotaRetire) {
@@ -560,7 +654,7 @@ export async function executeWithFallback(
         ? cfg.upstreamTimeoutMs
         : Math.max(1_000, Math.min(cfg.fallbackTimeoutMs, chainDeadline - Date.now()));
     const { url, init, path } = build(model);
-    const result = await execute(url, init, path, signal, { timeoutMs, deferQuotaRetire: true });
+    const result = await execute(url, init, path, signal, { timeoutMs, deferQuotaRetire: true, model });
     last = result;
     lastModel = model;
 
