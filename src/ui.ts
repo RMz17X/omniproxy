@@ -2541,7 +2541,12 @@ export const CLIENT_JS = `
       opts = opts || {};
       var filter = opts.filter ? document.getElementById(opts.filter) : null;
       var refresh = opts.refresh ? document.getElementById(opts.refresh) : null;
-      document.addEventListener("keydown", function (event) {
+      /* A modal <dialog> makes the rest of the document inert, so a keydown
+         that starts inside it can stop reaching a document-level bubble
+         listener - which is why Escape appeared dead while every dialog was
+         open. Capture on the window sees the event first, whatever the target
+         and whatever the modal state. */
+      window.addEventListener("keydown", function (event) {
         var target = event.target;
         var typing = target && (
           target.tagName === "INPUT" ||
@@ -2558,12 +2563,15 @@ export const CLIENT_JS = `
         if (event.key === "Escape") {
           var palette = document.getElementById("palette");
           if (palette && palette.open) { GX.palette.close(); return; }
-          /* A modal dialog (the help sheet) already closes on Escape natively,
-             but this handler returned unconditionally and the document-level
-             keydown listener ran before the dialog's own default, so the sheet
-             stayed open. Let any open modal handle it first. */
+          /* The help sheet is a modal <dialog>, and relying on the browser's
+             own Escape handling did not work: the keydown lands inside the
+             dialog, this document-level listener sees it first and returned
+             without closing anything. Close the open modal explicitly. */
           var openModal = document.querySelector("dialog[open]");
-          if (openModal && typeof openModal.close === "function") return;
+          if (openModal && openModal.id !== "palette" && typeof openModal.close === "function") {
+            openModal.close();
+            return;
+          }
           if (opts.onEscape) opts.onEscape();
           return;
         }
