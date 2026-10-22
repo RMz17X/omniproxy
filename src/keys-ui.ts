@@ -246,6 +246,11 @@ const KEYS_SCRIPT = `
   }
 
   var COPY_ICON = ${JSON.stringify(icon("copy", "icon", 12))};
+  /* The row actions. icon() is a module function and does not exist in the
+     browser, so the markup is baked in here the same way COPY_ICON is. */
+  var CHECK_ICON = ${JSON.stringify(icon("check", "icon", 16))};
+  var PULSE_ICON = ${JSON.stringify(icon("pulse", "icon", 16))};
+  var TRASH_ICON = ${JSON.stringify(icon("trash", "icon", 16))};
 
   var STATUS_LABEL = {
     ready: "Ready",
@@ -448,14 +453,14 @@ const KEYS_SCRIPT = `
         id: "selectAll",
         "aria-label": "Select every key on this page"
       }))),
-      GX.el("th", { text: "Id" }),
-      GX.el("th", { text: "Key" }),
-      GX.el("th", { text: "Plan" }),
-      GX.el("th", { text: "Status" }),
-      GX.el("th", { class: "num", text: "Fails" }),
-      GX.el("th", { class: "num", text: "Cooldown" }),
-      GX.el("th", { text: "Last used" }),
-      GX.el("th", { class: "num", text: "" })
+      GX.el("th", { text: "Id", "data-l": "id" }),
+      GX.el("th", { text: "Key", "data-l": "key" }),
+      GX.el("th", { text: "Plan", "data-l": "plan" }),
+      GX.el("th", { text: "Status", "data-l": "status" }),
+      GX.el("th", { class: "num", text: "Fails", "data-l": "fails" }),
+      GX.el("th", { class: "num", text: "Cooldown", "data-l": "cooldown" }),
+      GX.el("th", { text: "Last used", "data-l": "last used" }),
+      GX.el("th", { class: "num", text: "", "data-l": "actions" }),
     ]));
   }
 
@@ -573,11 +578,34 @@ const KEYS_SCRIPT = `
       GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
       var actions = GX.el("td", { class: "actions" });
-      var valBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Validate" });
+      /* Three text buttons needed 186px, and a column squeezed below that
+         wrapped them into a stack that spilled out of its row and over the row
+         beneath. Icons carry the same three actions in 106px, which is what the
+         column has, and the copy button beside the key is already an icon with
+         a title, so the language matches. */
+      var valBtn = GX.el("button", {
+        class: "btn btn-ghost btn-sm icon-btn",
+        type: "button",
+        title: "Validate the plan behind this key",
+        "aria-label": "Validate the plan behind this key",
+        html: CHECK_ICON
+      });
       valBtn.addEventListener("click", function () { validatePlan(k, valBtn); });
-      var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
+      var testBtn = GX.el("button", {
+        class: "btn btn-ghost btn-sm icon-btn",
+        type: "button",
+        title: "Probe this key against upstream",
+        "aria-label": "Probe this key against upstream",
+        html: PULSE_ICON
+      });
       testBtn.addEventListener("click", function () { testKey(k, testBtn); });
-      var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
+      var delBtn = GX.el("button", {
+        class: "btn btn-danger btn-sm icon-btn",
+        type: "button",
+        title: "Remove this key from the pool",
+        "aria-label": "Remove this key from the pool",
+        html: TRASH_ICON
+      });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
       actions.appendChild(valBtn);
       actions.appendChild(testBtn);

@@ -9973,6 +9973,41 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .table tbody tr { height: 1px; }
 .table tbody td { height: inherit; }
 
+/* The pool table is nine columns wide, and the shrink-to-fit rule above does
+   not grow a row whose cell content has wrapped. Three text action buttons
+   needed 186px in a column that had 111px, so they stacked and spilled over
+   the row beneath. Never let a cell of controls wrap; the actions are icons
+   now, and this is the guarantee that they stay on one line. */
+.table td.actions { flex-wrap: nowrap; white-space: nowrap; height: auto; }
+.table td.actions > * { flex: none; }
+
+/* 20px of padding either side of every cell is 29% of a nine-column table's
+   width. The pool table spends it on the columns that need it. */
+#keysBody .table th, #keysBody .table td { padding-inline: 12px; }
+
+/* Scrolling right through nine columns loses the row you were acting on. The
+   pick column stays put, so a selection made at the left is still visible at
+   the right where the actions live. */
+#keysBody .table th:first-child, #keysBody .table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+#keysBody .table th:first-child { z-index: 3; }
+#keysBody .table tbody tr:hover td:first-child { background: var(--surface-2); }
+
+/* Below this width the secondary columns go rather than squeezing the ones an
+   operator reads first into ellipsis. */
+@media (max-width: 1180px) {
+  #keysBody .table th[data-l="fails"], #keysBody .table td[data-l="fails"],
+  #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] { display: none; }
+}
+@media (max-width: 980px) {
+  #keysBody .table th[data-l="cooldown"], #keysBody .table td[data-l="cooldown"],
+  #keysBody .table th[data-l="plan"], #keysBody .table td[data-l="plan"] { display: none; }
+}
+
 /* Inline links. A table cell is often nothing but a link, so the link owns
    the cell's height and gives a full-width row of tap surface on touch. */
 .link {
@@ -15861,6 +15896,11 @@ var KEYS_SCRIPT = `
   }
 
   var COPY_ICON = ${JSON.stringify(icon("copy", "icon", 12))};
+  /* The row actions. icon() is a module function and does not exist in the
+     browser, so the markup is baked in here the same way COPY_ICON is. */
+  var CHECK_ICON = ${JSON.stringify(icon("check", "icon", 16))};
+  var PULSE_ICON = ${JSON.stringify(icon("pulse", "icon", 16))};
+  var TRASH_ICON = ${JSON.stringify(icon("trash", "icon", 16))};
 
   var STATUS_LABEL = {
     ready: "Ready",
@@ -16063,14 +16103,14 @@ var KEYS_SCRIPT = `
         id: "selectAll",
         "aria-label": "Select every key on this page"
       }))),
-      GX.el("th", { text: "Id" }),
-      GX.el("th", { text: "Key" }),
-      GX.el("th", { text: "Plan" }),
-      GX.el("th", { text: "Status" }),
-      GX.el("th", { class: "num", text: "Fails" }),
-      GX.el("th", { class: "num", text: "Cooldown" }),
-      GX.el("th", { text: "Last used" }),
-      GX.el("th", { class: "num", text: "" })
+      GX.el("th", { text: "Id", "data-l": "id" }),
+      GX.el("th", { text: "Key", "data-l": "key" }),
+      GX.el("th", { text: "Plan", "data-l": "plan" }),
+      GX.el("th", { text: "Status", "data-l": "status" }),
+      GX.el("th", { class: "num", text: "Fails", "data-l": "fails" }),
+      GX.el("th", { class: "num", text: "Cooldown", "data-l": "cooldown" }),
+      GX.el("th", { text: "Last used", "data-l": "last used" }),
+      GX.el("th", { class: "num", text: "", "data-l": "actions" }),
     ]));
   }
 
@@ -16188,11 +16228,34 @@ var KEYS_SCRIPT = `
       GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
       var actions = GX.el("td", { class: "actions" });
-      var valBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Validate" });
+      /* Three text buttons needed 186px, and a column squeezed below that
+         wrapped them into a stack that spilled out of its row and over the row
+         beneath. Icons carry the same three actions in 106px, which is what the
+         column has, and the copy button beside the key is already an icon with
+         a title, so the language matches. */
+      var valBtn = GX.el("button", {
+        class: "btn btn-ghost btn-sm icon-btn",
+        type: "button",
+        title: "Validate the plan behind this key",
+        "aria-label": "Validate the plan behind this key",
+        html: CHECK_ICON
+      });
       valBtn.addEventListener("click", function () { validatePlan(k, valBtn); });
-      var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
+      var testBtn = GX.el("button", {
+        class: "btn btn-ghost btn-sm icon-btn",
+        type: "button",
+        title: "Probe this key against upstream",
+        "aria-label": "Probe this key against upstream",
+        html: PULSE_ICON
+      });
       testBtn.addEventListener("click", function () { testKey(k, testBtn); });
-      var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
+      var delBtn = GX.el("button", {
+        class: "btn btn-danger btn-sm icon-btn",
+        type: "button",
+        title: "Remove this key from the pool",
+        "aria-label": "Remove this key from the pool",
+        html: TRASH_ICON
+      });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
       actions.appendChild(valBtn);
       actions.appendChild(testBtn);

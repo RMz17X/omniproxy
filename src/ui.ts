@@ -772,6 +772,41 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .table tbody tr { height: 1px; }
 .table tbody td { height: inherit; }
 
+/* The pool table is nine columns wide, and the shrink-to-fit rule above does
+   not grow a row whose cell content has wrapped. Three text action buttons
+   needed 186px in a column that had 111px, so they stacked and spilled over
+   the row beneath. Never let a cell of controls wrap; the actions are icons
+   now, and this is the guarantee that they stay on one line. */
+.table td.actions { flex-wrap: nowrap; white-space: nowrap; height: auto; }
+.table td.actions > * { flex: none; }
+
+/* 20px of padding either side of every cell is 29% of a nine-column table's
+   width. The pool table spends it on the columns that need it. */
+#keysBody .table th, #keysBody .table td { padding-inline: 12px; }
+
+/* Scrolling right through nine columns loses the row you were acting on. The
+   pick column stays put, so a selection made at the left is still visible at
+   the right where the actions live. */
+#keysBody .table th:first-child, #keysBody .table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+#keysBody .table th:first-child { z-index: 3; }
+#keysBody .table tbody tr:hover td:first-child { background: var(--surface-2); }
+
+/* Below this width the secondary columns go rather than squeezing the ones an
+   operator reads first into ellipsis. */
+@media (max-width: 1180px) {
+  #keysBody .table th[data-l="fails"], #keysBody .table td[data-l="fails"],
+  #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] { display: none; }
+}
+@media (max-width: 980px) {
+  #keysBody .table th[data-l="cooldown"], #keysBody .table td[data-l="cooldown"],
+  #keysBody .table th[data-l="plan"], #keysBody .table td[data-l="plan"] { display: none; }
+}
+
 /* Inline links. A table cell is often nothing but a link, so the link owns
    the cell's height and gives a full-width row of tap surface on touch. */
 .link {
