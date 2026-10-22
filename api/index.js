@@ -3118,6 +3118,22 @@ var cfg = {
     "gemini-3.1-flash-lite"
   ]),
   /**
+   * Tier probe chain. A single generateContent call against a quota-gated
+   * model answers 429 for both key classes, and the 429 shape is the only
+   * place Google discloses the tier. Measured 2026-10-22: `gemini-2.5-flash-image`
+   * answers 429 for free and paid keys; `gemini-2.0-flash-preview-image-generation`
+   * answers 404 for free keys and 429 for paid ones. The default model is the
+   * last resort so a probe never ends without an answer.
+   */
+  tierProbeModels: list(process.env.TIER_PROBE_MODELS, [
+    "gemini-2.5-flash-image",
+    "gemini-2.0-flash-preview-image-generation"
+  ]),
+  /** keys per recheck batch on /internal/keys/recheck */
+  recheckBatchSize: num(process.env.RECHECK_BATCH_SIZE, 25),
+  /** a key rejected as invalid is not re-probed more often than this */
+  invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
+  /**
    * Models the upstream has retired, filtered out of the /v1/models catalog.
    *
    * Verified on 2026-10-22 against production: `gemini-2.5-flash`,
@@ -8578,11 +8594,32 @@ function sqlLater(query, params = []) {
 
 // src/keys-repo.ts
 var isTier = (v2) => v2 === "free" || v2 === "paid" || v2 === "pro";
+var STATUSES = [
+  "unknown",
+  "ready",
+  "cooling",
+  "quota_exhausted",
+  "dead",
+  "unverified"
+];
+var isStatus = (v2) => STATUSES.includes(v2);
 var toEpoch = (v2) => {
   if (!v2) return 0;
   const t = v2 instanceof Date ? v2.getTime() : Date.parse(v2);
   return Number.isFinite(t) ? t : 0;
 };
+function toJson(v2) {
+  if (v2 === null || v2 === void 0) return null;
+  if (typeof v2 === "string") {
+    try {
+      return JSON.parse(v2);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof v2 === "object") return v2;
+  return null;
+}
 var toIdentity = (r) => ({
   id: r.id,
   masked: r.masked,
@@ -8591,21 +8628,29 @@ var toIdentity = (r) => ({
   label: r.label,
   owner: r.owner,
   failCount: Number(r.fail_count) || 0,
-  cooldownUntil: toEpoch(r.cooldown_until)
+  cooldownUntil: toEpoch(r.cooldown_until),
+  status: r.status !== null && isStatus(r.status) ? r.status : "unknown",
+  planValidated: toEpoch(r.plan_validated_at) > 0,
+  planEvidence: toJson(r.plan_evidence),
+  quota: toJson(r.quota_state),
+  retryAfterAt: toEpoch(r.retry_after_at),
+  lastCheckedAt: toEpoch(r.last_checked_at)
 });
 async function loadKeys() {
   if (!dbEnabled()) return [];
   const res = await sql(
-    `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until
+    `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
+            status, plan_evidence, quota_state, retry_after_at,
+            plan_validated_at, last_checked_at
        from keys
       order by id`
   );
   return res.ok ? res.rows.map(toIdentity) : [];
 }
+var deadline = (at) => at > Date.now() ? new Date(at).toISOString() : null;
 async function setCooldown(id, until) {
   if (!dbEnabled()) return;
-  const deadline = until > Date.now() ? new Date(until).toISOString() : null;
-  await sql(`update keys set cooldown_until = $2 where id = $1`, [id, deadline]);
+  await sql(`update keys set cooldown_until = $2 where id = $1`, [id, deadline(until)]);
 }
 async function upsertKey(identity) {
   if (!dbEnabled()) return;
@@ -8631,6 +8676,32 @@ async function setEnabled(id, enabled) {
 async function setPlan(id, plan) {
   if (!dbEnabled()) return;
   await sql(`update keys set plan = $2 where id = $1`, [id, plan]);
+}
+async function setStatus(id, status) {
+  if (!dbEnabled()) return;
+  await sql(`update keys set status = $2 where id = $1`, [id, status]);
+}
+async function setQuotaState(id, quota) {
+  if (!dbEnabled()) return;
+  await sql(`update keys set quota_state = $2::jsonb where id = $1`, [
+    id,
+    quota === null ? null : JSON.stringify(quota)
+  ]);
+}
+async function setRetryAfter(id, at) {
+  if (!dbEnabled()) return;
+  await sql(`update keys set retry_after_at = $2 where id = $1`, [id, deadline(at)]);
+}
+async function setValidatedPlan(id, plan, evidence) {
+  if (!dbEnabled()) return;
+  await sql(
+    `update keys
+        set plan = $2,
+            plan_evidence = $3::jsonb,
+            plan_validated_at = now()
+      where id = $1`,
+    [id, plan, JSON.stringify(evidence)]
+  );
 }
 async function touchLastSeen(id) {
   if (!dbEnabled()) return;
@@ -8698,7 +8769,15 @@ var blank = (key) => ({
   invalid: false,
   invalidations: 0,
   cooldownUntil: 0,
-  lastUsed: 0
+  lastUsed: 0,
+  // A fresh key carries no disqualifying verdict yet: it serves until an
+  // upstream answer says otherwise. `unverified` is set explicitly on admission.
+  status: "ready",
+  planValidated: false,
+  planEvidence: null,
+  quota: null,
+  retryAfterAt: 0,
+  lastCheckedAt: 0
 });
 function later(fn) {
   if (!dbEnabled()) return;
@@ -8718,13 +8797,17 @@ function persistIdentity(st) {
 }
 function persistHealth(st) {
   const id = keyId(st.key);
-  if (st.invalid) {
+  if (st.invalid || st.status === "dead") {
     later(() => setEnabled(id, false));
+    later(() => setStatus(id, "dead"));
     return;
   }
   later(() => touchLastSeen(id));
   if (st.failures > 0) later(() => bumpFailCount(id));
+  later(() => setStatus(id, st.status));
   later(() => setCooldown(id, st.cooldownUntil));
+  if (st.retryAfterAt > 0) later(() => setRetryAfter(id, st.retryAfterAt));
+  if (st.quota) later(() => setQuotaState(id, st.quota));
 }
 function seed(key) {
   if (!local.has(key)) local.set(key, blank(key));
@@ -8750,11 +8833,20 @@ async function hydrate() {
     if (!hit) continue;
     hit.tier = row.plan;
     hit.failures = Math.max(hit.failures, row.failCount);
-    if (!row.enabled) {
+    if (row.planValidated) {
+      hit.planValidated = true;
+      hit.planEvidence = row.planEvidence;
+    }
+    if (row.quota) hit.quota = row.quota;
+    if (row.retryAfterAt > 0) hit.retryAfterAt = row.retryAfterAt;
+    if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
+    if (!row.enabled || row.status === "dead") {
       hit.invalid = true;
+      hit.status = "dead";
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
-    } else if (row.cooldownUntil > now()) {
-      hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
+    } else {
+      hit.status = row.status;
+      if (row.cooldownUntil > now()) hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
   log("info", "pool.hydrated", {
@@ -8811,10 +8903,14 @@ async function rawKeyById(id) {
   const hit = [...local.values()].find((s) => keyId(s.key) === id);
   return hit ? hit.key : null;
 }
+function selectable(s, t) {
+  if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
+  if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
+  return s.cooldownUntil <= t && s.retryAfterAt <= t;
+}
 async function pick(exclude = /* @__PURE__ */ new Set()) {
-  const all = [...local.values()].filter((s) => !s.invalid && !exclude.has(s.key));
   const t = now();
-  const ready = all.filter((s) => s.cooldownUntil <= t);
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t));
   if (ready.length === 0) return null;
   ready.sort((a2, b2) => a2.failures - b2.failures || a2.lastUsed - b2.lastUsed);
   return ready[0];
@@ -8825,15 +8921,62 @@ async function markUsed(key) {
   st.lastUsed = now();
   persistHealth(st);
 }
-async function mark429(key, cooldownMs) {
+async function mark429(key, cooldownMs, quota) {
   const st = local.get(key) ?? blank(key);
   st.failures += 1;
   st.invalidations += 1;
   st.cooldownUntil = now() + cooldownMs;
+  st.retryAfterAt = st.cooldownUntil;
   st.invalid = false;
+  st.status = "cooling";
+  st.lastCheckedAt = now();
+  if (quota !== void 0) st.quota = quota;
+  if (quota?.freeTier || quota?.quotaId || quota?.consumer) {
+    st.planEvidence = quota ? tierFromQuota(quota) : st.planEvidence;
+  }
   counters.cooldowns++;
   local.set(key, st);
   persistHealth(st);
+}
+async function markQuotaExhausted(key, quota) {
+  const st = local.get(key) ?? blank(key);
+  st.failures += 1;
+  st.status = "quota_exhausted";
+  st.quota = quota;
+  st.retryAfterAt = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
+  st.cooldownUntil = st.retryAfterAt;
+  st.lastCheckedAt = now();
+  st.invalid = false;
+  if (quota) st.planEvidence = tierFromQuota(quota);
+  local.set(key, st);
+  persistHealth(st);
+}
+function tierFromQuota(quota) {
+  return {
+    tier: quota.freeTier ? "free" : "paid",
+    source: quota.freeTier ? "violations" : "consumer",
+    quotaId: quota.quotaId,
+    quotaMetric: quota.quotaMetric,
+    consumer: quota.consumer,
+    observedAt: Date.now()
+  };
+}
+async function markUnverified(key) {
+  const st = local.get(key) ?? blank(key);
+  st.status = "unverified";
+  st.lastCheckedAt = now();
+  local.set(key, st);
+  persistHealth(st);
+}
+async function markValidatedPlan(key, evidence) {
+  const st = local.get(key) ?? blank(key);
+  if (!evidence || evidence.tier === "unknown") return;
+  st.tier = evidence.tier;
+  st.planValidated = true;
+  st.planEvidence = evidence;
+  local.set(key, st);
+  const id = keyId(key);
+  later(() => setValidatedPlan(id, evidence.tier, evidence));
 }
 async function markSoftError(key, cooldownMs) {
   const st = local.get(key) ?? blank(key);
@@ -8845,9 +8988,11 @@ async function markSoftError(key, cooldownMs) {
 async function markInvalid(key) {
   const st = local.get(key) ?? blank(key);
   st.invalid = true;
+  st.status = "dead";
   st.invalidations += 1;
   st.failures = 999;
   st.cooldownUntil = Number.MAX_SAFE_INTEGER;
+  st.lastCheckedAt = now();
   counters.invalidated++;
   local.set(key, st);
   persistHealth(st);
@@ -8858,26 +9003,37 @@ async function markHealthy(key) {
   st.invalid = false;
   st.failures = 0;
   st.cooldownUntil = 0;
+  st.retryAfterAt = 0;
   st.lastUsed = now();
+  st.lastCheckedAt = now();
+  st.status = "ready";
   local.set(key, st);
   const id = keyId(key);
   later(() => setEnabled(id, true));
   later(() => touchLastSeen(id));
+  later(() => setStatus(id, "ready"));
   later(() => setCooldown(id, 0));
 }
+var planOf = (s) => s.status === "cooling" || s.status === "quota_exhausted" ? "unspecified" : s.tier;
 async function listKeys() {
   const t = now();
   return [...local.values()].map((s) => ({
     id: keyId(s.key),
     key: maskKey(s.key),
     tier: s.tier,
+    plan: planOf(s),
+    planValidated: s.planValidated,
+    planEvidence: s.planEvidence,
+    quota: s.quota,
     failures: s.failures,
     invalidations: s.invalidations,
     cooldownLeftMs: Math.max(0, s.cooldownUntil - t),
     lastUsed: s.lastUsed,
+    lastCheckedAt: s.lastCheckedAt,
     invalid: s.invalid,
-    status: s.invalid ? "dead" : s.cooldownUntil > t ? "cooling" : "ready",
-    cooldownUntil: s.cooldownUntil
+    status: s.status,
+    cooldownUntil: s.cooldownUntil,
+    nextAccessAt: Math.max(s.cooldownUntil, s.retryAfterAt)
   })).sort((a2, b2) => a2.id.localeCompare(b2.id));
 }
 function tierCounts(list3) {
@@ -8890,11 +9046,17 @@ async function snapshot() {
   const t = now();
   let ready = 0;
   let cooling = 0;
+  let quotaExhausted = 0;
   let dead = 0;
+  let unverified = 0;
   let soonest = Infinity;
   for (const s of all) {
-    if (s.invalid) dead++;
-    else if (s.cooldownUntil > t) {
+    if (s.invalid || s.status === "dead") dead++;
+    else if (s.status === "unverified") unverified++;
+    else if (s.status === "quota_exhausted" && s.retryAfterAt > t) {
+      quotaExhausted++;
+      soonest = Math.min(soonest, s.retryAfterAt - t);
+    } else if (s.cooldownUntil > t) {
       cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);
     } else ready++;
@@ -8903,7 +9065,9 @@ async function snapshot() {
     total: all.length,
     ready,
     cooling,
+    quota_exhausted: quotaExhausted,
     dead,
+    unverified,
     soonestReadyMs: Number.isFinite(soonest) ? soonest : 0,
     storage: storageMode,
     degraded: counters.dbDegraded > 0
@@ -12229,9 +12393,160 @@ function catalogFor(id) {
   return BY_ID.get(id.replace(/^models\//, "")) ?? null;
 }
 
+// src/verdict.ts
+var asObject = (v2) => typeof v2 === "object" && v2 !== null && !Array.isArray(v2) ? v2 : null;
+var asString = (v2) => typeof v2 === "string" && v2.length > 0 ? v2 : null;
+function parseBody2(body) {
+  if (!body) return null;
+  try {
+    const parsed = JSON.parse(body);
+    return asObject(parsed);
+  } catch {
+    return null;
+  }
+}
+function errorOf(root) {
+  if (!root) return null;
+  return asObject(root.error) ?? root;
+}
+function detailsOf(err2) {
+  const raw2 = err2?.details;
+  if (!Array.isArray(raw2)) return [];
+  return raw2.map(asObject).filter((d) => d !== null);
+}
+function detailOfType(details, name) {
+  for (const d of details) {
+    const type = asString(d["@type"]);
+    if (type && type.endsWith(name)) return d;
+  }
+  return null;
+}
+function violationsOf(details) {
+  const failure = detailOfType(details, "google.rpc.QuotaFailure");
+  const raw2 = failure?.violations;
+  if (!Array.isArray(raw2)) return [];
+  return raw2.map(asObject).filter((v2) => v2 !== null);
+}
+function metadataOf(details) {
+  const info = detailOfType(details, "google.rpc.ErrorInfo");
+  return asObject(info?.metadata) ?? {};
+}
+function retryDelayOf(details) {
+  const info = detailOfType(details, "google.rpc.RetryInfo");
+  const raw2 = asString(info?.retryDelay);
+  if (!raw2) return null;
+  const m = /^(\d+(?:\.\d+)?)s$/.exec(raw2.trim());
+  if (!m) return null;
+  const secs = Number(m[1]);
+  if (!Number.isFinite(secs) || secs < 0) return null;
+  return Math.round(secs * 1e3);
+}
+function retryDelayMs(body) {
+  return retryDelayOf(detailsOf(errorOf(parseBody2(body))));
+}
+function retryAfterHeaderMs(headers) {
+  if (!headers) return null;
+  let raw2;
+  for (const [name, value] of Object.entries(headers)) {
+    if (name.toLowerCase() === "retry-after") raw2 = value;
+  }
+  if (!raw2) return null;
+  const secs = Number(raw2);
+  if (Number.isFinite(secs) && secs > 0) return Math.round(secs * 1e3);
+  const at = Date.parse(raw2);
+  if (Number.isFinite(at)) return Math.max(0, at - Date.now());
+  return null;
+}
+function projectOf(consumer) {
+  if (!consumer) return null;
+  const m = /(?:projects\/|project_number:)(\d+)/.exec(consumer);
+  return m ? m[1] : null;
+}
+function windowOf(quotaId, limit) {
+  const text = `${quotaId ?? ""} ${limit ?? ""}`;
+  if (/per_?day|PerDay|FreeTier/i.test(text)) return "per_day_per_project_per_model";
+  if (/per_?minute|PerMinute/i.test(text)) return "per_minute_per_project_per_region";
+  return null;
+}
+var isFreeQuotaId = (v2) => v2 !== null && /FreeTier/i.test(v2);
+var isFreeQuotaMetric = (v2) => v2 !== null && /_free_tier_requests/i.test(v2);
+function parseQuotaDetail(body, headers) {
+  const details = detailsOf(errorOf(parseBody2(body)));
+  const violations = violationsOf(details);
+  const meta = metadataOf(details);
+  const quotaId = asString(violations[0]?.quotaId);
+  const quotaMetric = asString(violations[0]?.quotaMetric);
+  const metric = asString(meta.quota_metric);
+  const limit = asString(meta.quota_limit);
+  const limitValue = asString(meta.quota_limit_value);
+  const consumer = asString(meta.consumer);
+  if (!quotaId && !quotaMetric && !metric && !limit && !consumer) return null;
+  const fromBody = retryDelayOf(details);
+  const retryAfterMs = fromBody ?? retryAfterHeaderMs(headers) ?? 0;
+  return {
+    metric,
+    quotaId,
+    quotaMetric,
+    limit,
+    limitValue,
+    window: windowOf(quotaId, limit),
+    location: asString(meta.quota_location),
+    consumer,
+    project: projectOf(consumer),
+    resetAt: retryAfterMs > 0 ? Date.now() + retryAfterMs : null,
+    retryAfterMs,
+    freeTier: isFreeQuotaId(quotaId) || isFreeQuotaMetric(quotaMetric)
+  };
+}
+function tierEvidenceFrom(body) {
+  const details = detailsOf(errorOf(parseBody2(body)));
+  const violations = violationsOf(details);
+  const meta = metadataOf(details);
+  const quotaId = asString(violations[0]?.quotaId);
+  const quotaMetric = asString(violations[0]?.quotaMetric);
+  const consumer = asString(meta.consumer);
+  const observedAt = Date.now();
+  if (isFreeQuotaId(quotaId) || isFreeQuotaMetric(quotaMetric)) {
+    return { tier: "free", source: "violations", quotaId, quotaMetric, consumer, observedAt };
+  }
+  if (consumer) {
+    return { tier: "paid", source: "consumer", quotaId, quotaMetric, consumer, observedAt };
+  }
+  return null;
+}
+var MODEL_UNAVAILABLE = /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported|experiencing high demand|currently unavailable/i;
+var INVALID_KEY = /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i;
+function classifyResponse(status, body, headers) {
+  const none = { quota: null, tierEvidence: null };
+  if (status === 0) return { verdict: "network_error", ...none };
+  if (status >= 200 && status < 300) return { verdict: "ok", ...none };
+  if (status === 401) return { verdict: "invalid", ...none };
+  if (status === 403) {
+    return INVALID_KEY.test(body) ? { verdict: "invalid", ...none } : { verdict: "unexpected", ...none };
+  }
+  if (status === 429) {
+    const quota = parseQuotaDetail(body, headers);
+    const evidence = tierEvidenceFrom(body);
+    if (!quota || quota.freeTier) {
+      return { verdict: "rate_limited", quota, tierEvidence: evidence };
+    }
+    const verdict = quota.limitValue === "0" ? "quota_exhausted" : "rate_limited";
+    return { verdict, quota, tierEvidence: evidence };
+  }
+  if (status === 404) return { verdict: "unexpected", ...none };
+  if (status === 400 && MODEL_UNAVAILABLE.test(body)) return { verdict: "unexpected", ...none };
+  if (status === 400) {
+    return INVALID_KEY.test(body) ? { verdict: "invalid", ...none } : { verdict: "unexpected", ...none };
+  }
+  if (status >= 500) return { verdict: "server_error", ...none };
+  return { verdict: "unexpected", ...none };
+}
+
 // src/upstream.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function parseRetryAfter(res, body) {
+  const structured = retryDelayMs(body);
+  if (structured !== null) return structured;
   const h2 = res.headers.get("retry-after");
   if (h2) {
     const secs = Number(h2);
@@ -12293,7 +12608,7 @@ function attemptSignal(client2, timeoutMs) {
 }
 async function execute(url, init, path, signal, opts) {
   const tried = /* @__PURE__ */ new Set();
-  const deadline = Date.now() + cfg.maxWaitMs;
+  const deadline2 = Date.now() + cfg.maxWaitMs;
   const quotaRefused = /* @__PURE__ */ new Set();
   let attempts = 0;
   let rotated = false;
@@ -12312,7 +12627,7 @@ async function execute(url, init, path, signal, opts) {
         };
       }
       const wait = Math.max(120, Math.min(snap.soonestReadyMs || 500, 2e3));
-      if (Date.now() + wait > deadline || signal?.aborted) {
+      if (Date.now() + wait > deadline2 || signal?.aborted) {
         counters.poolExhausted++;
         if (quotaRefused.size > 0) {
           log("warn", "model.zero_quota", { path, keys: [...quotaRefused] });
@@ -12909,80 +13224,73 @@ async function probeOnce(rawKey, model) {
   }
   const latencyMs = Date.now() - started;
   const body = await res.text().catch(() => "");
-  const status = res.status;
-  if (status >= 200 && status < 300) {
-    return { status: "ok", httpStatus: status, latencyMs, retryAfterMs: 0, message: "serving" };
-  }
-  if (status === 429) {
-    if (isZeroQuota(body)) {
-      return {
-        status: "zero_quota",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body) || "project quota is 0"
-      };
-    }
-    return {
-      status: "rate_limited",
-      httpStatus: status,
-      latencyMs,
-      retryAfterMs: parseRetryAfter(res, body) ?? cfg.cooldownMs,
-      message: messageOf(body) || "rate limited"
-    };
-  }
-  if (status === 401 || status === 403 || status === 400) {
-    if (isInvalidKeyText(body) || /reported as leaked/i.test(body) || status === 401) {
-      return {
-        status: "invalid",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body) || "key rejected"
-      };
-    }
-    if (isZeroQuota(body)) {
-      return {
-        status: "zero_quota",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body) || "project quota is 0"
-      };
-    }
-    if (status === 400 && /API key not valid|API_KEY_INVALID/i.test(body)) {
-      return {
-        status: "invalid",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body)
-      };
-    }
-    return {
-      status: "unexpected",
-      httpStatus: status,
-      latencyMs,
-      retryAfterMs: 0,
-      message: messageOf(body) || `HTTP ${status}`
-    };
-  }
-  if (status >= 500) {
-    return {
-      status: "server_error",
-      httpStatus: status,
-      latencyMs,
-      retryAfterMs: 0,
-      message: messageOf(body) || `HTTP ${status}`
-    };
-  }
+  const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
+  const serving = res.status >= 200 && res.status < 300;
   return {
-    status: "unexpected",
-    httpStatus: status,
+    status: PROBE_STATUS[classified.verdict],
+    httpStatus: res.status,
     latencyMs,
-    retryAfterMs: 0,
-    message: messageOf(body) || `HTTP ${status}`
+    retryAfterMs: res.status === 429 ? parseRetryAfter(res, body) ?? cfg.cooldownMs : 0,
+    message: serving ? "serving" : messageOf(body) || `HTTP ${res.status}`,
+    quota: classified.quota,
+    tierEvidence: classified.tierEvidence
   };
+}
+var PROBE_STATUS = {
+  ok: "ok",
+  rate_limited: "rate_limited",
+  quota_exhausted: "zero_quota",
+  invalid: "invalid",
+  server_error: "server_error",
+  network_error: "network_error",
+  unexpected: "unexpected"
+};
+async function probeTier(rawKey, timeoutMs = TIMEOUT_MS2) {
+  const models2 = cfg.tierProbeModels.filter(Boolean);
+  let last = {
+    verdict: "unexpected",
+    tierEvidence: null,
+    quota: null,
+    httpStatus: 0,
+    message: "no tier probe model configured"
+  };
+  for (const model of models2) {
+    const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "ping" }] }],
+          generationConfig: { maxOutputTokens: MAX_TOKENS, temperature: 0 }
+        }),
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+    } catch (err2) {
+      last = {
+        verdict: "network_error",
+        tierEvidence: null,
+        quota: null,
+        httpStatus: 0,
+        message: err2 instanceof Error ? err2.message : String(err2)
+      };
+      continue;
+    }
+    const body = await res.text().catch(() => "");
+    const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
+    last = {
+      verdict: classified.verdict,
+      tierEvidence: classified.tierEvidence,
+      quota: classified.quota,
+      httpStatus: res.status,
+      message: messageOf(body) || `HTTP ${res.status}`
+    };
+    if (res.status === 404 || isModelUnavailable(body)) continue;
+    return last;
+  }
+  return last;
 }
 
 // src/app.ts
@@ -15272,7 +15580,9 @@ ${authGate()}
             <option value="">all</option>
             <option value="ready">ready</option>
             <option value="cooling">cooling</option>
+            <option value="quota">quota exhausted</option>
             <option value="dead">dead</option>
+            <option value="unverified">unverified</option>
           </select>
         </div>
         <div class="grow">
@@ -15292,8 +15602,7 @@ ${authGate()}
     <div id="bulkBar" class="panel-body u-rule-top" hidden>
       <div class="toolbar">
         <b id="selCount" class="u-tnum">0 selected</b>
-        <select id="bulkTier" aria-label="Billing plan for the selected keys" class="select u-auto"></select>
-        <button id="bulkApply" class="btn btn-sm" type="button">Apply plan</button>
+        <button id="bulkApply" class="btn btn-sm" type="button">Validate plan</button>
         <button id="bulkRemove" class="btn btn-sm btn-danger" type="button">Remove selected</button>
         <span class="spacer"></span>
         <button id="bulkClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
@@ -15349,7 +15658,6 @@ var KEYS_SCRIPT = `
     auto: document.getElementById("auto"),
     selectAllBtn: document.getElementById("selectAllBtn"),
     bulkBar: document.getElementById("bulkBar"),
-    bulkTier: document.getElementById("bulkTier"),
     bulkApply: document.getElementById("bulkApply"),
     bulkRemove: document.getElementById("bulkRemove"),
     bulkClear: document.getElementById("bulkClear"),
@@ -15379,6 +15687,134 @@ var KEYS_SCRIPT = `
     return value;
   }
 
+  var COPY_ICON = ${JSON.stringify(icon("copy", "icon", 12))};
+
+  var STATUS_LABEL = {
+    ready: "Ready",
+    cooling: "Cooling",
+    quota: "Quota exhausted",
+    dead: "Dead",
+    unverified: "Unverified"
+  };
+  var STATUS_TONE = { ready: "ok", cooling: "accent", quota: "warn", dead: "bad", unverified: "neutral" };
+
+  /* The status word on a row is not a fixed vocabulary yet, so the page reads
+     the row instead of trusting one string. A quota answer must never fall
+     into the dead column. */
+  function statusKind(k) {
+    var status = String((k && k.status) || "").toLowerCase();
+    var quota = k && k.quota ? k.quota : null;
+    if (status.indexOf("cool") >= 0 || status.indexOf("wait") >= 0) return "cooling";
+    if (status.indexOf("quota") >= 0 || status.indexOf("exhaust") >= 0 ||
+        status.indexOf("429") >= 0 || status.indexOf("rate") >= 0 ||
+        status.indexOf("limit") >= 0) return "quota";
+    if (status.indexOf("dead") >= 0 || status.indexOf("invalid") >= 0 ||
+        status.indexOf("revoked") >= 0 || status.indexOf("denied") >= 0 ||
+        status.indexOf("reject") >= 0) return "dead";
+    if (status.indexOf("ready") >= 0 || status.indexOf("active") >= 0 || status === "ok") return "ready";
+    if (!status) return quota ? "quota" : "unverified";
+    if (status.indexOf("unverified") >= 0 || status.indexOf("unknown") >= 0) return "unverified";
+    if (quota && quota.resetAt && Number(quota.resetAt) > Date.now()) return "quota";
+    if (k && k.nextAccessAt && Number(k.nextAccessAt) > Date.now()) return "cooling";
+    return "unverified";
+  }
+
+  /* Browser locale on purpose: the operator reads the clock on this machine. */
+  function whenText(ms) {
+    if (ms === null || ms === undefined || ms === "") return "";
+    var n = Number(ms);
+    if (!n || isNaN(n)) return "";
+    var date = new Date(n);
+    if (isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+  }
+
+  function quotaText(q) {
+    if (!q) return "";
+    var parts = [];
+    if (q.metric) parts.push(q.metric);
+    var cap = "";
+    if (q.limitValue) cap = q.limitValue + (q.window ? "/" + q.window : "");
+    else if (q.window) cap = q.window;
+    if (cap) parts.push(cap);
+    if (q.consumer) parts.push("consumer " + q.consumer);
+    var reset = whenText(q.resetAt);
+    if (reset) parts.push("resets " + reset);
+    else if (q.retryAfterMs) parts.push("retry in " + GX.fmt.left(q.retryAfterMs));
+    else if (q.freeTier) parts.push("free tier");
+    return parts.join(" \xB7 ");
+  }
+
+  function statusDetail(k, kind) {
+    if (kind === "cooling") {
+      var until = whenText(k.nextAccessAt) || whenText(k.quota && k.quota.resetAt);
+      return until ? "until " + until : "waiting out the window";
+    }
+    if (kind === "quota") return quotaText(k.quota) || "upstream quota is spent";
+    if (kind === "dead") return k.reason || k.lastError || k.error || "rejected upstream";
+    if (kind === "unverified") return "not probed yet";
+    return "";
+  }
+
+  /* The plan is what the upstream answer said, never what an operator picked. */
+  function rowPlan(k) {
+    var kind = statusKind(k);
+    var value = k.plan || k.tier || "";
+    var out = { text: "Unspecified", marker: "" };
+    if (k.planValidated === false) { out.marker = "not yet validated"; return out; }
+    if (kind === "cooling" || kind === "quota") {
+      out.marker = "held back while the key cannot serve";
+      return out;
+    }
+    if (value) out.text = tierLabel(value);
+    else out.marker = "not yet validated";
+    return out;
+  }
+
+  /* Raw keys leave the server only through this one call, and only when the
+     operator asks for it or the row is dead. */
+  var rawCache = {};
+  function fetchRaw(id) {
+    if (rawCache[id]) return Promise.resolve(rawCache[id]);
+    var headers = {};
+    var token = GX.token();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch("/pengatur/keys/" + encodeURIComponent(id) + "/raw", { headers: headers, cache: "no-store" })
+      .then(function (res) {
+        return res.text().then(function (text) {
+          if (!res.ok) {
+            var line = text ? text.split("\\n")[0].slice(0, 160) : "";
+            throw new Error(line || "Request failed (" + res.status + ")");
+          }
+          var value = text;
+          try {
+            var parsed = JSON.parse(text);
+            if (typeof parsed === "string") value = parsed;
+            else if (parsed && typeof parsed === "object") value = parsed.key || parsed.raw || parsed.value || text;
+          } catch (e) {}
+          value = String(value === null || value === undefined ? "" : value).trim();
+          if (!value) throw new Error("The server returned an empty key.");
+          rawCache[id] = value;
+          return value;
+        });
+      });
+  }
+
+  function copyKey(k, btn) {
+    btn.disabled = true;
+    fetchRaw(k.id)
+      .then(function (value) { GX.copy(value, "Raw key"); })
+      .catch(function (err) { GX.notice("Could not read the raw key: " + err.message, "err"); })
+      .then(function () { btn.disabled = false; });
+  }
+
+  /* The list masks the credential; a dead row is allowed to show it plainly. */
+  function isMasked(value) {
+    var text = String(value || "");
+    return text.indexOf("\u2022") >= 0 || text.indexOf("*") >= 0 || text.indexOf("\u2026") >= 0 ||
+      text.slice(-3) === "...";
+  }
+
   function writeUrl() {
     GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
   }
@@ -15395,9 +15831,10 @@ var KEYS_SCRIPT = `
   function visibleKeys() {
     var query = state.query;
     return state.keys.filter(function (k) {
-      if (state.status && k.status !== state.status) return false;
+      if (state.status && statusKind(k) !== state.status) return false;
       if (!query) return true;
-      return (k.key + " " + k.id + " " + k.status + " " + (k.tier || "unknown")).toLowerCase().indexOf(query) >= 0;
+      var plan = k.plan || k.tier || "unknown";
+      return (k.key + " " + k.id + " " + k.status + " " + plan).toLowerCase().indexOf(query) >= 0;
     });
   }
 
@@ -15420,6 +15857,24 @@ var KEYS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
     el.kpis.appendChild(GX.kpi("Storage", pool.storage, pool.degraded ? "degraded, serving from memory" : "key identities and ledger"));
+  }
+
+  function tableHead() {
+    return GX.el("thead", null, GX.el("tr", null, [
+      GX.el("th", { class: "num" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
+        type: "checkbox",
+        id: "selectAll",
+        "aria-label": "Select every key on this page"
+      }))),
+      GX.el("th", { text: "Id" }),
+      GX.el("th", { text: "Key" }),
+      GX.el("th", { text: "Plan" }),
+      GX.el("th", { text: "Status" }),
+      GX.el("th", { class: "num", text: "Fails" }),
+      GX.el("th", { class: "num", text: "Cooldown" }),
+      GX.el("th", { text: "Last used" }),
+      GX.el("th", { class: "num", text: "" })
+    ]));
   }
 
   function drawTable() {
@@ -15446,22 +15901,7 @@ var KEYS_SCRIPT = `
     var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
 
     var table = GX.el("table", { class: "table" });
-    var head = GX.el("thead", null, GX.el("tr", null, [
-      GX.el("th", { class: "num" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
-        type: "checkbox",
-        id: "selectAll",
-        "aria-label": "Select every key on this page"
-      }))),
-      GX.el("th", { text: "Id" }),
-      GX.el("th", { text: "Key" }),
-      GX.el("th", { text: "Plan" }),
-      GX.el("th", { text: "Status" }),
-      GX.el("th", { class: "num", text: "Fails" }),
-      GX.el("th", { class: "num", text: "Cooldown" }),
-      GX.el("th", { text: "Last used" }),
-      GX.el("th", { class: "num", text: "" })
-    ]));
-    table.appendChild(head);
+    table.appendChild(tableHead());
 
     var body = GX.el("tbody");
     slice.forEach(function (k) {
@@ -15487,34 +15927,53 @@ var KEYS_SCRIPT = `
       }));
       tr.appendChild(idCell);
 
-      var keyCell = GX.el("td", { class: "key", "data-l": "key" });
-      keyCell.textContent = k.key;
+      var kind = statusKind(k);
+      var keyCell = GX.el("td", { class: "key mono", "data-l": "key" });
+      var keyText = GX.el("span", { class: "key-text", text: k.key });
+      keyCell.appendChild(keyText);
+      var copyBtn = GX.el("button", {
+        class: "btn btn-ghost btn-sm icon-btn",
+        type: "button",
+        title: "Copy the raw key",
+        "aria-label": "Copy the raw key for " + k.key,
+        html: COPY_ICON
+      });
+      copyBtn.addEventListener("click", function () { copyKey(k, copyBtn); });
+      /* A dead key is the one row where the raw value is the useful fact, and
+         the list may already carry it. */
+      if (kind === "dead" && isMasked(k.key)) {
+        fetchRaw(k.id).then(function (value) {
+          keyText.textContent = value;
+          keyText.className = "key-text raw";
+        }).catch(function () {});
+      }
       tr.appendChild(keyCell);
 
-      var tierCell = GX.el("td", { "data-l": "plan" });
-      var select = GX.el("select", { class: "tier", "aria-label": "Billing plan for " + k.key });
-      TIERS.forEach(function (t) {
-        var option = GX.el("option", { value: t.value, text: t.label });
-        if ((k.tier || "unknown") === t.value) option.selected = true;
-        select.appendChild(option);
-      });
-      select.addEventListener("change", function () { setTier([k.id], select.value, select); });
-      tierCell.appendChild(select);
-      tr.appendChild(tierCell);
+      var planCell = GX.el("td", { "data-l": "plan" });
+      var plan = rowPlan(k);
+      planCell.appendChild(GX.el("span", { class: "plan-text", text: plan.text }));
+      if (plan.marker) planCell.appendChild(GX.el("div", { class: "hint", text: plan.marker }));
+      tr.appendChild(planCell);
 
       var statusCell = GX.el("td", { "data-l": "status" });
-      statusCell.appendChild(GX.tag(k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
+      statusCell.appendChild(GX.tag(STATUS_LABEL[kind], STATUS_TONE[kind]));
+      var detail = statusDetail(k, kind);
+      if (detail) statusCell.appendChild(GX.el("div", { class: "hint", text: detail }));
       tr.appendChild(statusCell);
 
-      GX.cell(tr, k.failures, "num", "fails");
-      GX.cell(tr, GX.fmt.left(k.cooldownLeftMs), "num", "cooldown");
+      GX.cell(tr, k.failCount !== undefined ? k.failCount : k.failures, "num", "fails");
+      var coolMs = k.nextAccessAt ? Number(k.nextAccessAt) - Date.now() : k.cooldownLeftMs;
+      GX.cell(tr, GX.fmt.left(coolMs), "num", "cooldown");
       GX.cell(tr, GX.fmt.age(k.lastUsed), "", "last used");
 
       var actions = GX.el("td", { class: "actions" });
+      var valBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Validate" });
+      valBtn.addEventListener("click", function () { validatePlan(k, valBtn); });
       var testBtn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
       testBtn.addEventListener("click", function () { testKey(k, testBtn); });
       var delBtn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Remove" });
       delBtn.addEventListener("click", function () { removeKey(k, delBtn); });
+      actions.appendChild(valBtn);
       actions.appendChild(testBtn);
       actions.appendChild(delBtn);
       tr.appendChild(actions);
@@ -15574,18 +16033,53 @@ var KEYS_SCRIPT = `
     el.keyPager.appendChild(box);
   }
 
-  function setTier(ids, tier, control) {
+  /* The plan is what the upstream answer proves, so a bulk action asks the
+     upstream rather than declaring a tier. There is no operator dropdown. */
+  function validateSelectedPlans(control) {
+    var ids = selectedIds();
     if (!ids.length) { GX.notice("Select at least one key.", "err"); return; }
-    if (control) control.disabled = true;
-    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
+    GX.busy(control, "Validating");
+    GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: ids } })
       .then(function (data) {
-        GX.notice("Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        var list = (data && (data.results || data.keys)) || [];
+        var ok = 0, failed = 0;
+        list.forEach(function (row) { if (row && row.error) failed += 1; else ok += 1; });
+        if (!list.length) ok = data && data.updated ? data.updated : 0;
+        GX.notice(
+          "Validated " + ok + " key(s)" + (failed ? ", " + failed + " could not be read." : "."),
+          failed ? "warn" : "ok"
+        );
         return reload();
       })
-      .catch(function (err) {
-        GX.notice("Plan update failed: " + err.message, "err");
+      .catch(function (err) { GX.notice("Plan validation failed: " + err.message, "err"); })
+      .then(function () { GX.idle(control); });
+  }
+
+  function pickValidation(data, id) {
+    data = data || {};
+    var list = data.results || data.keys || null;
+    if (list && list.length) {
+      for (var i = 0; i < list.length; i++) if (list[i] && list[i].id === id) return list[i];
+      if (list.length === 1 && list[0]) return list[0];
+    }
+    return data;
+  }
+
+  function validatePlan(k, btn) {
+    GX.busy(btn, "Validating");
+    GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: [k.id] } })
+      .then(function (data) {
+        var row = pickValidation(data, k.id);
+        if (row.error) { GX.notice(k.key + ": " + row.error, "err"); return; }
+        var tier = row.plan || row.tier || "";
+        if (tier) {
+          GX.notice(k.key + ": plan is " + tierLabel(tier) + ".", "ok");
+          return;
+        }
+        GX.notice(k.key + ": " + (row.message || "the upstream answer did not name a plan."), "warn");
       })
-      .then(function () { if (control) control.disabled = false; });
+      .catch(function (err) { GX.notice("Plan validation failed: " + err.message, "err"); })
+      .then(function () { GX.idle(btn); return reload(); });
   }
 
   function testKey(k, btn) {
@@ -15593,7 +16087,10 @@ var KEYS_SCRIPT = `
     btn.textContent = "Testing";
     GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
-        GX.notice(k.key + ": " + data.probe.status + " (" + data.applied + ")", data.probe.status === "ok" ? "ok" : "");
+        data = data || {};
+        var kind = statusKind({ status: data.status || data.verdict, quota: data.quota });
+        var tone = data.error || kind === "dead" ? "err" : kind === "ready" ? "ok" : "warn";
+        GX.toast(testSummary(k, data), tone);
         return reload();
       })
       .catch(function (err) {
@@ -15603,6 +16100,28 @@ var KEYS_SCRIPT = `
         btn.disabled = false;
         btn.textContent = "Test";
       });
+  }
+
+  /* What the upstream actually answered, not what the console wishes it said. */
+  function testSummary(k, data) {
+    var parts = [];
+    if (data.httpStatus) parts.push("HTTP " + data.httpStatus);
+    if (data.verdict || data.status) parts.push(data.verdict || data.status);
+    var quota = quotaText(data.quota);
+    if (quota) parts.push(quota);
+    var next = whenText(data.nextAccessAt);
+    if (next) parts.push("next access " + next);
+    else if (data.retryAfterMs) parts.push("retry in " + GX.fmt.left(data.retryAfterMs));
+    var evidence = data.tierEvidence || null;
+    if (evidence && evidence.tier) {
+      parts.push("plan " + tierLabel(evidence.tier) + (evidence.source ? " via " + evidence.source : ""));
+    } else if (data.plan) {
+      parts.push("plan " + tierLabel(data.plan));
+    }
+    if (data.message) parts.push(data.message);
+    if (data.error) parts.push("error: " + data.error);
+    if (!parts.length) parts.push("no answer from upstream");
+    return k.key + ": " + parts.join(" \xB7 ");
   }
 
   function testAll() {
@@ -15710,6 +16229,27 @@ var KEYS_SCRIPT = `
       .then(function () { GX.idle(el.addSubmit); });
   }
 
+  /* A failed list keeps the header on screen: the operator still sees which
+     columns exist, and the retry sits inside the table. */
+  function drawListError(err) {
+    el.keysBody.textContent = "";
+    var table = GX.el("table", { class: "table" });
+    table.appendChild(tableHead());
+    var body = GX.el("tbody");
+    var row = GX.el("tr");
+    var td = GX.el("td", { colspan: "9" });
+    var box = GX.state("error", "Could not load the pool", err && err.message ? err.message : "The list request failed.");
+    var retry = GX.el("button", { class: "btn btn-sm", type: "button", text: "Try again" });
+    retry.addEventListener("click", function () { refresh(); });
+    box.appendChild(GX.el("div", { class: "u-mt-3" }, [retry]));
+    td.appendChild(box);
+    row.appendChild(td);
+    body.appendChild(row);
+    table.appendChild(body);
+    el.keysBody.appendChild(table);
+    el.listMeta.textContent = "could not load";
+  }
+
   function refresh() {
     return GX.api("/pengatur/keys/list")
       .then(function (data) {
@@ -15719,12 +16259,6 @@ var KEYS_SCRIPT = `
         renderKpis(pool);
         el.poolMeta.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
         GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
-        var keep = el.bulkTier.value;
-        el.bulkTier.textContent = "";
-        state.knownTiers.forEach(function (t) {
-          el.bulkTier.appendChild(GX.el("option", { value: t, text: tierLabel(t) }));
-        });
-        if (keep) el.bulkTier.value = keep;
         drawTable();
         el.console.hidden = false;
       })
@@ -15733,6 +16267,8 @@ var KEYS_SCRIPT = `
           GX.lock(err.message + " Re-enter the token.");
           throw err;
         }
+        drawListError(err);
+        el.console.hidden = false;
         GX.notice("Refresh failed: " + err.message, "err");
       });
   }
@@ -15770,7 +16306,7 @@ var KEYS_SCRIPT = `
     visibleKeys().forEach(function (k) { state.selected[k.id] = !all; });
     drawTable();
   });
-  el.bulkApply.addEventListener("click", function () { setTier(selectedIds(), el.bulkTier.value, el.bulkApply); });
+  el.bulkApply.addEventListener("click", function () { validateSelectedPlans(el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);
   el.bulkClear.addEventListener("click", function () {
     state.selected = {};
@@ -16826,30 +17362,59 @@ app.post("/pengatur/keys/test", async (c) => {
   }
   const model = typeof body.model === "string" && body.model ? body.model : void 0;
   const result = await probeKey(raw2, model);
-  const held = id ? Boolean(await rawKeyById(id)) : false;
-  let applied = "none";
-  if (held) {
-    if (result.status === "ok") {
-      await markHealthy(raw2);
-      applied = "revived";
-    } else if (result.status === "rate_limited") {
-      await mark429(raw2, Math.max(cfg.cooldownMs, result.retryAfterMs));
-      applied = "cooling";
-    } else if (result.status === "zero_quota" || result.status === "invalid") {
-      await markInvalid(raw2);
-      applied = "retired";
-    } else if (result.status === "server_error") {
-      await mark429(raw2, cfg.serverErrCooldownMs);
-      applied = "cooling";
-    }
-  }
+  const held = Boolean(await rawKeyById(id));
+  const applied = held ? await applyProbe(raw2, result) : "none";
+  if (held && result.tierEvidence) await markValidatedPlan(raw2, result.tierEvidence);
+  const view = held ? (await listKeys()).find((k) => k.id === id) : void 0;
   await recordNow("keys.test", {
     actor: actorFrom(c.req.header("user-agent")),
     target: id,
-    detail: { model: model ?? "default", status: result.status, applied }
+    detail: {
+      model: model ?? "default",
+      verdict: result.status,
+      tier: result.tierEvidence?.tier ?? "unknown",
+      applied
+    }
   });
-  return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
+  return c.json({
+    ok: true,
+    id,
+    applied,
+    probe: { status: result.status, httpStatus: result.httpStatus, retryAfterMs: result.retryAfterMs },
+    verdict: result.status,
+    httpStatus: result.httpStatus,
+    message: result.message,
+    quota: result.quota ?? null,
+    tierEvidence: result.tierEvidence ?? null,
+    planValidated: view?.planValidated ?? false,
+    plan: view?.plan ?? "unspecified",
+    nextAccessAt: view?.nextAccessAt ?? 0,
+    pool: await snapshot()
+  });
 });
+async function applyProbe(raw2, probe) {
+  switch (probe.status) {
+    case "ok":
+      await markHealthy(raw2);
+      return "revived";
+    case "rate_limited":
+      await mark429(raw2, Math.max(cfg.cooldownMs, probe.retryAfterMs), probe.quota ?? null);
+      return "cooling";
+    case "zero_quota":
+      await markQuotaExhausted(raw2, probe.quota ?? null);
+      return "quota_exhausted";
+    case "invalid":
+      await markInvalid(raw2);
+      return "retired";
+    case "server_error":
+    case "network_error":
+      await markSoftError(raw2, cfg.serverErrCooldownMs);
+      return "cooling";
+    default:
+      await markUnverified(raw2);
+      return "unverified";
+  }
+}
 app.post("/pengatur/keys/test-all", async (c) => {
   const keys = await listKeys();
   const target = keys.filter((k) => k.status !== "dead");
@@ -16864,20 +17429,7 @@ app.post("/pengatur/keys/test-all", async (c) => {
       const raw2 = await rawKeyById(k.id);
       if (!raw2) continue;
       const probe = await probeKey(raw2);
-      let applied = "none";
-      if (probe.status === "ok") {
-        await markHealthy(raw2);
-        applied = "revived";
-      } else if (probe.status === "rate_limited") {
-        await mark429(raw2, Math.max(cfg.cooldownMs, probe.retryAfterMs));
-        applied = "cooling";
-      } else if (probe.status === "zero_quota" || probe.status === "invalid") {
-        await markInvalid(raw2);
-        applied = "retired";
-      } else if (probe.status === "server_error") {
-        await mark429(raw2, cfg.serverErrCooldownMs);
-        applied = "cooling";
-      }
+      const applied = await applyProbe(raw2, probe);
       results.push({ id: k.id, key: k.key, probe, applied });
     }
   };
@@ -16887,6 +17439,62 @@ app.post("/pengatur/keys/test-all", async (c) => {
     detail: { tested: results.length }
   });
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
+});
+app.post("/pengatur/keys/validate-plan", async (c) => {
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  let ids = [];
+  if (body.all) ids = (await listKeys()).map((k) => k.id);
+  else if (Array.isArray(body.ids)) ids = body.ids.filter((x2) => typeof x2 === "string" && x2);
+  if (!ids.length) return c.json({ error: { message: "`ids` or `all` is required." } }, 400);
+  const results = new Array(ids.length);
+  let cursor = 0;
+  const worker = async () => {
+    for (; ; ) {
+      const i = cursor++;
+      if (i >= ids.length) return;
+      const id = ids[i];
+      const raw2 = await rawKeyById(id);
+      if (!raw2) {
+        results[i] = { id, tier: "unknown", planValidated: false, error: "No key with that id." };
+        continue;
+      }
+      const t = await probeTier(raw2);
+      const evidence = t.tierEvidence && t.tierEvidence.tier !== "unknown" ? t.tierEvidence : null;
+      if (evidence) await markValidatedPlan(raw2, evidence);
+      results[i] = {
+        id,
+        tier: evidence?.tier ?? "unknown",
+        planValidated: Boolean(evidence),
+        verdict: t.verdict,
+        httpStatus: t.httpStatus,
+        error: evidence ? null : t.message
+      };
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, ids.length) }, worker));
+  const validated = results.filter((r) => r.planValidated).length;
+  await recordNow("keys.validate-plan", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { requested: ids.length, validated }
+  });
+  return c.json({ ok: true, validated, results, pool: await snapshot() });
+});
+app.get("/pengatur/keys/:id/raw", async (c) => {
+  const id = c.req.param("id");
+  const raw2 = await rawKeyById(id);
+  if (!raw2) return c.json({ error: { message: "No key with that id." } }, 404);
+  await recordNow("keys.raw", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: id,
+    detail: { action: "reveal" }
+  });
+  return c.json({ ok: true, id, raw: raw2 });
 });
 app.all("/internal/rollup", async (c) => {
   const presented = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() || c.req.header("x-rollup-token") || "";
@@ -16919,6 +17527,58 @@ app.all("/internal/rollup", async (c) => {
     );
   }
   return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
+});
+app.post("/internal/keys/recheck", async (c) => {
+  const presented = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() || c.req.header("x-rollup-token") || "";
+  const accepted = [cfg.adminToken, cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
+  if (accepted.length === 0) {
+    return c.json(
+      { error: { message: "Recheck disabled: no internal token is configured." } },
+      403
+    );
+  }
+  if (!accepted.includes(presented)) {
+    return c.json({ error: { message: "Unauthorized." } }, 401);
+  }
+  const at = Date.now();
+  const floor = cfg.invalidRecheckFloorMinutes * 6e4;
+  const due = (k) => {
+    if (k.status === "dead") return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
+    if (k.status === "quota_exhausted" || k.status === "cooling") return k.nextAccessAt <= at;
+    if (k.status === "unverified") return true;
+    if (!k.planValidated) return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
+    return false;
+  };
+  const candidates = (await listKeys()).filter(due).slice(0, cfg.recheckBatchSize);
+  let checked = 0;
+  let revived = 0;
+  let stillQuota = 0;
+  let failed = 0;
+  for (const k of candidates) {
+    const raw2 = await rawKeyById(k.id);
+    if (!raw2) continue;
+    checked++;
+    const result = await probeKey(raw2);
+    const applied = await applyProbe(raw2, result);
+    if (applied === "revived") revived++;
+    else if (applied === "quota_exhausted") stillQuota++;
+    else if (applied !== "cooling") failed++;
+    if (result.tierEvidence) await markValidatedPlan(raw2, result.tierEvidence);
+  }
+  await recordNow("keys.recheck", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: "pool",
+    detail: { due: candidates.length, checked, revived, stillQuota, failed }
+  });
+  return c.json({
+    ok: true,
+    due: candidates.length,
+    checked,
+    revived,
+    stillQuota,
+    failed,
+    pool: await snapshot()
+  });
 });
 app.notFound(
   (c) => c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
