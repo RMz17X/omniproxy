@@ -2558,6 +2558,12 @@ export const CLIENT_JS = `
         if (event.key === "Escape") {
           var palette = document.getElementById("palette");
           if (palette && palette.open) { GX.palette.close(); return; }
+          /* A modal dialog (the help sheet) already closes on Escape natively,
+             but this handler returned unconditionally and the document-level
+             keydown listener ran before the dialog's own default, so the sheet
+             stayed open. Let any open modal handle it first. */
+          var openModal = document.querySelector("dialog[open]");
+          if (openModal && typeof openModal.close === "function") return;
           if (opts.onEscape) opts.onEscape();
           return;
         }

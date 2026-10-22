@@ -408,7 +408,7 @@ const KEYS_SCRIPT = `
     /* keySize and hideDead were the two view facts that never reached the URL,
        so a shared link reproduced a different view than the one that was
        copied. */
-    if (params.size && el.perPage) { el.perPage.value = params.size; state.size = Number(params.size) || 25; }
+    if (params.size && el.keySize) { el.keySize.value = params.size; state.size = Number(params.size) || 25; }
     if (params.hide === "0" && el.keyHideDead) { el.keyHideDead.checked = false; state.hideDead = false; }
   }
 
@@ -460,6 +460,23 @@ const KEYS_SCRIPT = `
     var ids = selectedIds();
     el.bulkBar.hidden = ids.length === 0;
     el.selCount.textContent = ids.length + (ids.length === 1 ? " key selected" : " keys selected");
+
+    /* Two specified visual states had no producer: a selected row never got
+       aria-selected, and the thead box never went indeterminate on a partial
+       selection. Both are derived state, so they are repainted wherever the
+       selection changes rather than only on a full table rebuild. */
+    var visible = visibleKeys().slice((state.page - 1) * state.size, state.page * state.size);
+    var picked = 0;
+    Array.prototype.forEach.call(el.keysBody.querySelectorAll("tbody tr[data-key-id]"), function (tr) {
+      var on = Boolean(state.selected[tr.getAttribute("data-key-id")]);
+      if (on) { tr.setAttribute("aria-selected", "true"); picked++; }
+      else tr.removeAttribute("aria-selected");
+    });
+    var all = document.getElementById("selectAll");
+    if (all) {
+      all.indeterminate = picked > 0 && picked < visible.length;
+      all.checked = visible.length > 0 && picked === visible.length;
+    }
   }
 
   function renderKpis(pool) {
@@ -686,14 +703,9 @@ const KEYS_SCRIPT = `
     }
 
     var all = document.getElementById("selectAll");
-    if (all) {
-      var picked = slice.filter(function (k) { return state.selected[k.id]; }).length;
-      /* .check input:indeterminate styles the partial-selection state, and
-         nothing ever set .indeterminate, so the rule was dead. This is also
-         the honest signal for "some of this page is selected". */
-      all.indeterminate = picked > 0 && picked < slice.length;
-      all.checked = picked === slice.length && slice.length > 0;
-    }
+    /* paintBulk derives indeterminate and aria-selected from the same state;
+       calling it here keeps the header box correct right after a rebuild. */
+    paintBulk();
     all.addEventListener("change", function () {
       slice.forEach(function (k) { state.selected[k.id] = all.checked; });
       drawTable();
@@ -1074,6 +1086,9 @@ const KEYS_SCRIPT = `
   el.keySize.addEventListener("change", function () {
     state.size = Number(el.keySize.value) || 25;
     state.page = 1;
+    /* Per-page was the one view fact whose change handler never wrote the URL,
+       so a shared link dropped back to 25 rows. */
+    writeUrl();
     drawTable();
   });
 
@@ -1194,6 +1209,21 @@ const DETAIL_SCRIPT = `
   "use strict";
 
   var keyId = location.pathname.split("/").filter(Boolean).pop();
+
+  /* The plan vocabulary. TIERS and tierLabel live in the list page's script,
+     and this is a separate IIFE that shares no scope with it, so the same
+     table is baked in here. */
+  var TIERS = [
+    { value: "unknown", label: "Unspecified" },
+    { value: "free", label: "Free tier" },
+    { value: "paid", label: "Pay as you go" },
+    { value: "pro", label: "AI Pro / Ultra" }
+  ];
+
+  function tierLabel(value) {
+    for (var i = 0; i < TIERS.length; i++) if (TIERS[i].value === value) return TIERS[i].label;
+    return value;
+  }
 
   var el = {
     console: document.getElementById("console"),
@@ -1414,7 +1444,7 @@ const DETAIL_SCRIPT = `
       .then(function (d) {
         var r = (d.results || [])[0];
         GX.notice(r && r.tier
-          ? "Plan " + r.tier + (r.planValidated ? " verified." : " could not be verified.")
+          ? "Plan " + tierLabel(r.tier) + (r.planValidated ? " verified." : " could not be verified.")
           : "Plan validated.", "ok");
         return refresh();
       })
