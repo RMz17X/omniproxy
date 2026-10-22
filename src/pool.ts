@@ -158,6 +158,10 @@ function persistHealth(st: KeyState): void {
   later(() => repo.setCooldown(id, st.cooldownUntil));
   if (st.retryAfterAt > 0) later(() => repo.setRetryAfter(id, st.retryAfterAt));
   if (st.quota) later(() => repo.setQuotaState(id, st.quota));
+  // The last probe time is durable state: the recheck floor between two
+  // probes of a key whose upstream named no reset is measured against it, so
+  // without this the key is due again on the first tick after a cold start.
+  if (st.lastCheckedAt > 0) later(() => repo.setLastCheckedAt(id, st.lastCheckedAt));
 }
 
 /* ---------- cold start ---------- */
