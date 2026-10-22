@@ -24,6 +24,11 @@ export const TEST_KEYS: readonly string[] = [
   "AIzaVERDICTPOOLQUOTA1",
   "AIzaVERDICTPOOLDEAD9",
   "AIzaVERDICTPOOLNEW01",
+  "AIzaPROBELEAKED1",
+  "AIzaPROBELEAKED2",
+  "AIzaPROBEZEROQUOTA1",
+  "AIzaPROBEGOOD1",
+  "AIzaPROBEBOOM1",
 ] as const;
 
 /**
