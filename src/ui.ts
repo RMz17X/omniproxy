@@ -669,9 +669,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    scanning. The full message stays in the title attribute. */
 .table td[data-l="test"] { white-space: nowrap; }
 .table td[data-l="test"] .mono { font-size: 11.5px; }
-/* The model cell is the tallest thing in a row: a mono id that will not wrap
-   plus a description that will. Keep the description to one line with an
-   ellipsis so every row in the table is the same height. */
+/* A key id is 12 hex characters. Without this it wrapped to one character per
+   line and made its row 264px tall, four times a normal row. */
+.table td[data-l="id"] { white-space: nowrap; }
+.table td[data-l="id"] .mono { font-size: 12px; }
 .table td .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table tbody tr { height: 1px; }
 .table tbody td { height: inherit; }

@@ -171,16 +171,15 @@ const MODELS_SCRIPT = `
     });
   }
 
-  function renderKpis() {
+  function renderKpis(shown) {
     el.kpis.textContent = "";
-    /* Catalog facts only. Every number here describes the unfiltered list
-       Google returns; the filtered count lives in the panel meta so the two
-       never compete. A "Your plan" card used to restate the segmented control
-       130px below and reflowed the strip when the value wrapped. */
+    /* The strip answers two different questions and says which is which: how
+       big the catalog is, and how many rows are on screen right now. Reading
+       "Catalog 63" beside a 4-row table used to look like a broken filter. */
+    el.kpis.appendChild(GX.kpi("Showing", GX.fmt.num(shown), shown === state.models.length ? "the whole catalog" : "match the filters below"));
     el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "models Google returns"));
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
-    el.kpis.appendChild(GX.kpi("Unlisted", GX.fmt.num(state.models.filter(function (m) { return m.free === null; }).length), "Google publishes no tier"));
     el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
   }
 
@@ -211,9 +210,10 @@ const MODELS_SCRIPT = `
     if (state.page < 1) state.page = 1;
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
-    renderKpis();
-    /* The only filtered count on the page, and it says so. The KPI strip above
-       carries catalog facts only, so no two numbers answer the same question. */
+    renderKpis(rows.length);
+    /* The only filtered count in the panel head, and it says so. The KPI strip
+       above carries catalog facts plus a "Showing" figure, so no two numbers
+       answer the same question. */
     el.listMeta.textContent = rows.length + (rows.length === 1 ? " model matches" : " models match") +
       " the filters" + (state.models.length !== rows.length ? " (of " + state.models.length + ")" : "");
 

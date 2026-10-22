@@ -106,7 +106,10 @@ const KEYS_BODY = `
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="keyFilter">Filter</label>
-          <input id="keyFilter" type="search" spellcheck="false" placeholder="masked key, id or plan">
+          <div class="search">
+            ${icon("search", "icon", 14)}
+            <input id="keyFilter" class="input" type="search" spellcheck="false" placeholder="masked key, id or plan">
+          </div>
         </div>
         <div class="grow">
           <label class="field" for="keyStatus">Status</label>
@@ -368,8 +371,21 @@ const KEYS_SCRIPT = `
     return state.keys.filter(function (k) {
       if (state.status && statusKind(k) !== state.status) return false;
       if (!query) return true;
-      var plan = k.plan || k.tier || "unknown";
-      return (k.key + " " + k.id + " " + k.status + " " + plan).toLowerCase().indexOf(query) >= 0;
+      /* Match what the operator can actually see. The stored plan is a code
+         ("paid") while the table renders its label ("Pay as you go"), so a
+         filter that only saw the code answered 0 rows for a term copied
+         straight off the screen. */
+      var planCode = k.plan || k.tier || "unknown";
+      var haystack = [
+        k.key,
+        k.id,
+        k.status,
+        planCode,
+        tierLabel(planCode),
+        rowPlan(k).text,
+        k.label || ""
+      ].join(" ").toLowerCase();
+      return haystack.indexOf(query) >= 0;
     });
   }
 
@@ -414,7 +430,11 @@ const KEYS_SCRIPT = `
 
   function drawTable() {
     var filtered = visibleKeys();
-    el.listMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
+    /* "shown" claimed every matching key while the pager renders one page.
+       Say how many match, and let the pager state the visible range. */
+    el.listMeta.textContent = state.keys.length + " in pool, " + filtered.length +
+      (filtered.length === 1 ? " matches" : " match") +
+      (state.status || state.query ? " these filters" : "");
 
     if (!filtered.length) {
       el.keysBody.textContent = "";

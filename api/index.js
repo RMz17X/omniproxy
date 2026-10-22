@@ -9870,9 +9870,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    scanning. The full message stays in the title attribute. */
 .table td[data-l="test"] { white-space: nowrap; }
 .table td[data-l="test"] .mono { font-size: 11.5px; }
-/* The model cell is the tallest thing in a row: a mono id that will not wrap
-   plus a description that will. Keep the description to one line with an
-   ellipsis so every row in the table is the same height. */
+/* A key id is 12 hex characters. Without this it wrapped to one character per
+   line and made its row 264px tall, four times a normal row. */
+.table td[data-l="id"] { white-space: nowrap; }
+.table td[data-l="id"] .mono { font-size: 12px; }
 .table td .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table tbody tr { height: 1px; }
 .table tbody td { height: inherit; }
@@ -11998,16 +11999,15 @@ var MODELS_SCRIPT = `
     });
   }
 
-  function renderKpis() {
+  function renderKpis(shown) {
     el.kpis.textContent = "";
-    /* Catalog facts only. Every number here describes the unfiltered list
-       Google returns; the filtered count lives in the panel meta so the two
-       never compete. A "Your plan" card used to restate the segmented control
-       130px below and reflowed the strip when the value wrapped. */
+    /* The strip answers two different questions and says which is which: how
+       big the catalog is, and how many rows are on screen right now. Reading
+       "Catalog 63" beside a 4-row table used to look like a broken filter. */
+    el.kpis.appendChild(GX.kpi("Showing", GX.fmt.num(shown), shown === state.models.length ? "the whole catalog" : "match the filters below"));
     el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "models Google returns"));
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
-    el.kpis.appendChild(GX.kpi("Unlisted", GX.fmt.num(state.models.filter(function (m) { return m.free === null; }).length), "Google publishes no tier"));
     el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
   }
 
@@ -12038,9 +12038,10 @@ var MODELS_SCRIPT = `
     if (state.page < 1) state.page = 1;
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
-    renderKpis();
-    /* The only filtered count on the page, and it says so. The KPI strip above
-       carries catalog facts only, so no two numbers answer the same question. */
+    renderKpis(rows.length);
+    /* The only filtered count in the panel head, and it says so. The KPI strip
+       above carries catalog facts plus a "Showing" figure, so no two numbers
+       answer the same question. */
     el.listMeta.textContent = rows.length + (rows.length === 1 ? " model matches" : " models match") +
       " the filters" + (state.models.length !== rows.length ? " (of " + state.models.length + ")" : "");
 
@@ -15626,7 +15627,10 @@ var KEYS_BODY = `
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="keyFilter">Filter</label>
-          <input id="keyFilter" type="search" spellcheck="false" placeholder="masked key, id or plan">
+          <div class="search">
+            ${icon("search", "icon", 14)}
+            <input id="keyFilter" class="input" type="search" spellcheck="false" placeholder="masked key, id or plan">
+          </div>
         </div>
         <div class="grow">
           <label class="field" for="keyStatus">Status</label>
@@ -15887,8 +15891,21 @@ var KEYS_SCRIPT = `
     return state.keys.filter(function (k) {
       if (state.status && statusKind(k) !== state.status) return false;
       if (!query) return true;
-      var plan = k.plan || k.tier || "unknown";
-      return (k.key + " " + k.id + " " + k.status + " " + plan).toLowerCase().indexOf(query) >= 0;
+      /* Match what the operator can actually see. The stored plan is a code
+         ("paid") while the table renders its label ("Pay as you go"), so a
+         filter that only saw the code answered 0 rows for a term copied
+         straight off the screen. */
+      var planCode = k.plan || k.tier || "unknown";
+      var haystack = [
+        k.key,
+        k.id,
+        k.status,
+        planCode,
+        tierLabel(planCode),
+        rowPlan(k).text,
+        k.label || ""
+      ].join(" ").toLowerCase();
+      return haystack.indexOf(query) >= 0;
     });
   }
 
@@ -15933,7 +15950,11 @@ var KEYS_SCRIPT = `
 
   function drawTable() {
     var filtered = visibleKeys();
-    el.listMeta.textContent = state.keys.length + " in pool, " + filtered.length + " shown";
+    /* "shown" claimed every matching key while the pager renders one page.
+       Say how many match, and let the pager state the visible range. */
+    el.listMeta.textContent = state.keys.length + " in pool, " + filtered.length +
+      (filtered.length === 1 ? " matches" : " match") +
+      (state.status || state.query ? " these filters" : "");
 
     if (!filtered.length) {
       el.keysBody.textContent = "";
