@@ -566,6 +566,10 @@ select:not(.select), td select {
 select:not(.select):hover, td select:hover { border-color: var(--text-3); }
 select:not(.select):focus-visible, td select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+/* The select-all box sits in a th, not a td, so it matched only the sizing
+   rule and rendered in the UA default blue while every row checkbox used
+   --accent. Two blues on one table. */
+th input[type=checkbox],
 td input[type=checkbox] {
   width: 18px;
   height: 18px;
@@ -714,6 +718,14 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    horizontal scroll; with one, the value ellipsizes and the button stays put.
    The full credential is always in the cell's title and in the copy button. */
 .table td[data-l="key"] { width: 250px; max-width: 250px; white-space: nowrap; }
+@media (max-width: 720px) {
+  /* Stacked rows are full-width cards; the desktop caps otherwise win on
+     specificity and leave three rows narrower than the other six, with
+     space-between pushing their values to a different right edge. */
+  .table td[data-l="key"], .table td[data-l="status"], .table td[data-l="plan"] {
+    width: auto; max-width: none;
+  }
+}
 /* A status detail can be a 100-character upstream error. Nowrap without a
    column width let that one cell define the table at 859px; the full text
    stays in the hint's title. */
@@ -823,6 +835,13 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    so the height is stated rather than inferred, and the last row keeps its
    border so the arithmetic holds there too. */
 #keysBody .table tbody tr { height: 65px; }
+/* The fold below turns each row into stacked blocks. A fixed height there made
+   every one of the nine cells inherit 65px, so a single key occupied ~585px of a
+   phone screen instead of ~234px. */
+@media (max-width: 720px) {
+  #keysBody .table tbody tr,
+  #keysBody .table tbody tr td { height: auto; }
+}
 #keysBody .table tbody tr:last-child td { border-bottom: 1px solid var(--line); }
 
 /* Inline links. A table cell is often nothing but a link, so the link owns
@@ -1625,8 +1644,14 @@ export function toastMount(): string {
 }
 
 /** Kept for callers that still mount an inline notice node. */
+/**
+ * Deprecated no-op. `consolePage()` mounts `#toasts` itself, so a page that also
+ * injected this produced the SAME id a second time: two elements, one id, two
+ * live regions, and `GX.toast` only ever populated the first. Kept as a function
+ * so the existing `${noticeBand()}` call sites need no edit.
+ */
 export function noticeBand(): string {
-  return toastMount();
+  return "";
 }
 
 /**

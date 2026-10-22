@@ -208,6 +208,7 @@ const KEYS_SCRIPT = `
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
     keyStatus: document.getElementById("keyStatus"),
+    keyPlan: document.getElementById("keyPlan"),
     keyHideDead: document.getElementById("keyHideDead"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
@@ -231,7 +232,7 @@ const KEYS_SCRIPT = `
     addMsg: document.getElementById("addMsg")
   };
 
-  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", hideDead: true, selected: {}, timer: null };
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", plan: "", hideDead: true, selected: {}, timer: null };
 
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
@@ -383,7 +384,7 @@ const KEYS_SCRIPT = `
   }
 
   function writeUrl() {
-    GX.url.write({ q: state.query, status: state.status, page: state.page > 1 ? state.page : "" });
+    GX.url.write({ q: state.query, status: state.status, plan: state.plan, page: state.page > 1 ? state.page : "" });
   }
 
   function readUrl() {
@@ -393,6 +394,7 @@ const KEYS_SCRIPT = `
     state.page = Number(params.page) || 1;
     if (el.keyFilter) el.keyFilter.value = params.q || "";
     if (el.keyStatus) el.keyStatus.value = params.status || "";
+    if (el.keyPlan) el.keyPlan.value = params.plan || "";
   }
 
   function visibleKeys() {
@@ -406,6 +408,14 @@ const KEYS_SCRIPT = `
       var kind = statusKind(k);
       if (state.status && kind !== state.status) return false;
       if (state.hideDead && !state.status && kind === "dead") return false;
+      /* Plan was rendered with four options and wired to nothing, so the
+         operator could filter by a plan that did nothing and then act on the
+         whole pool. Match both the stored code and the label the row shows,
+         the same way the search box does. */
+      if (state.plan) {
+        var planCode = k.plan || k.tier || "unknown";
+        if (planCode !== state.plan && tierLabel(planCode) !== state.plan) return false;
+      }
       if (!query) return true;
       /* Match what the operator can actually see. The stored plan is a code
          ("paid") while the table renders its label ("Pay as you go"), so a
@@ -453,14 +463,17 @@ const KEYS_SCRIPT = `
         id: "selectAll",
         "aria-label": "Select every key on this page"
       }))),
-      GX.el("th", { text: "Id", "data-l": "id" }),
-      GX.el("th", { text: "Key", "data-l": "key" }),
-      GX.el("th", { text: "Plan", "data-l": "plan" }),
-      GX.el("th", { text: "Status", "data-l": "status" }),
-      GX.el("th", { class: "num", text: "Fails", "data-l": "fails" }),
-      GX.el("th", { class: "num", text: "Cooldown", "data-l": "cooldown" }),
-      GX.el("th", { text: "Last used", "data-l": "last used" }),
-      GX.el("th", { class: "num", text: "", "data-l": "actions" }),
+      /* A screen reader announced this table as an unnamed "table" with 9
+         columns of unknown purpose: no caption, and th without scope. scope=col
+         names what each column is; the caption is on the table element below. */
+      GX.el("th", { text: "Id", "data-l": "id", scope: "col" }),
+      GX.el("th", { text: "Key", "data-l": "key", scope: "col" }),
+      GX.el("th", { text: "Plan", "data-l": "plan", scope: "col" }),
+      GX.el("th", { text: "Status", "data-l": "status", scope: "col" }),
+      GX.el("th", { class: "num", text: "Fails", "data-l": "fails", scope: "col" }),
+      GX.el("th", { class: "num", text: "Cooldown", "data-l": "cooldown", scope: "col" }),
+      GX.el("th", { text: "Last used", "data-l": "last used", scope: "col" }),
+      GX.el("th", { class: "num", text: "", "data-l": "actions", scope: "col" }),
     ]));
   }
 
@@ -499,7 +512,9 @@ const KEYS_SCRIPT = `
     if (state.page < 1) state.page = 1;
     var slice = filtered.slice((state.page - 1) * state.size, state.page * state.size);
 
-    var table = GX.el("table", { class: "table" });
+    /* An unnamed table with 9 columns. The caption states what the columns are
+       and what the row is, which is what a screen reader had to infer. */
+    var table = GX.el("table", { class: "table", "aria-label": "API keys: id, full key, plan, status, consecutive failures, cooldown, last used" });
     table.appendChild(tableHead());
 
     var body = GX.el("tbody");
@@ -718,7 +733,10 @@ const KEYS_SCRIPT = `
 
   function testKey(k, btn) {
     btn.disabled = true;
-    btn.textContent = "Testing";
+    /* The button's whole content is an icon. Writing "Testing" into it and
+       then "Test" back left the word behind next to two glyphs in a column
+       measured at 172px; GX.busy saves and restores the content instead. */
+    GX.busy(btn);
     GX.api("/pengatur/keys/test", { method: "POST", body: { id: k.id } })
       .then(function (data) {
         data = data || {};
@@ -732,7 +750,7 @@ const KEYS_SCRIPT = `
       })
       .then(function () {
         btn.disabled = false;
-        btn.textContent = "Test";
+        GX.idle(btn);
       });
   }
 
@@ -766,7 +784,10 @@ const KEYS_SCRIPT = `
         return reload();
       })
       .catch(function (err) {
-        GX.say(el.bulkMsg, "Test all failed: " + err.message, "err");
+        /* #bulkMsg lives inside #bulkBar, which is hidden until something is
+           selected - and Test all is the one action that runs with nothing
+           selected, so the failure was written where nobody could read it. */
+        GX.notice("Test all failed: " + err.message, "err");
       })
       .then(function () { GX.idle(el.testAllBtn); });
   }
@@ -953,6 +974,12 @@ const KEYS_SCRIPT = `
   }, 140));
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
+    state.page = 1;
+    writeUrl();
+    drawTable();
+  });
+  el.keyPlan.addEventListener("change", function () {
+    state.plan = el.keyPlan.value;
     state.page = 1;
     writeUrl();
     drawTable();
@@ -1259,9 +1286,13 @@ const DETAIL_SCRIPT = `
           GX.lock("No key with that id.");
           throw err;
         }
+        /* The error used to land in #dailyBars, inside #dailyPanel, which
+           carries hidden in the markup and is only unhidden by renderDaily() -
+           a path that never runs here. The operator got a blank page after
+           the header. #keyPath is above the console and always visible. */
         el.console.hidden = false;
-        el.dailyBars.textContent = "";
-        el.dailyBars.appendChild(GX.state("error", "Could not load this key", err.message));
+        el.keyPath.textContent = "";
+        el.keyPath.appendChild(GX.state("error", "Could not load this key", err.message));
       });
   }
 
