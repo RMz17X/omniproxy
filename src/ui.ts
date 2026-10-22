@@ -718,19 +718,17 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    horizontal scroll; with one, the value ellipsizes and the button stays put.
    The full credential is always in the cell's title and in the copy button. */
 .table td[data-l="key"] { width: 250px; max-width: 250px; white-space: nowrap; }
+.table td[data-l="status"] { width: 230px; max-width: 230px; }
+.table td[data-l="plan"] { width: 170px; max-width: 170px; }
+/* Stacked rows are full-width cards; the desktop caps above otherwise win on
+   order (same specificity, later rule wins) and leave three rows narrower than
+   the other six, with space-between pushing their values to a different edge.
+   This must sit AFTER the base widths to take effect. */
 @media (max-width: 720px) {
-  /* Stacked rows are full-width cards; the desktop caps otherwise win on
-     specificity and leave three rows narrower than the other six, with
-     space-between pushing their values to a different right edge. */
   .table td[data-l="key"], .table td[data-l="status"], .table td[data-l="plan"] {
     width: auto; max-width: none;
   }
 }
-/* A status detail can be a 100-character upstream error. Nowrap without a
-   column width let that one cell define the table at 859px; the full text
-   stays in the hint's title. */
-.table td[data-l="status"] { width: 230px; max-width: 230px; }
-.table td[data-l="plan"] { width: 170px; max-width: 170px; }
 /* The plan marker sentence is the longest text in the row. Without nowrap it
    wrapped to four lines when the column was squeezed, which took the row from
    65px to 101px; the full text stays in the hint's title. */

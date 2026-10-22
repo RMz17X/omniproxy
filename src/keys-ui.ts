@@ -458,7 +458,7 @@ const KEYS_SCRIPT = `
 
   function tableHead() {
     return GX.el("thead", null, GX.el("tr", null, [
-      GX.el("th", { class: "num" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
+      GX.el("th", { class: "num", scope: "col" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
         type: "checkbox",
         id: "selectAll",
         "aria-label": "Select every key on this page"
@@ -560,11 +560,17 @@ const KEYS_SCRIPT = `
          ever hands out the masked form, so the real value is fetched here and
          cached; the cell keeps the masked text until it arrives so the table
          paints immediately. */
-      fetchRaw(k.id).then(function (value) {
-        keyText.textContent = keyDisplay(value);
+      if (rawCache[k.id]) {
+        keyText.textContent = keyDisplay(rawCache[k.id]);
         keyText.className = "key-text raw";
-        keyText.title = value;
-      }).catch(function () {});
+        keyText.title = rawCache[k.id];
+      } else {
+        fetchRaw(k.id).then(function (value) {
+          keyText.textContent = keyDisplay(value);
+          keyText.className = "key-text raw";
+          keyText.title = value;
+        }).catch(function () {});
+      }
       tr.appendChild(keyCell);
 
       var planCell = GX.el("td", { "data-l": "plan" });
@@ -906,9 +912,15 @@ const KEYS_SCRIPT = `
   }
 
   function refresh() {
-    return GX.api("/pengatur/keys/list")
+    /* One request, one audit row. Asking per row cost 25 keys.raw audit
+       writes on every render, and a 15s auto-refresh turned that into ~100
+       rows a minute of page-view noise in the trail. */
+    return GX.api("/pengatur/keys/list?reveal=1")
       .then(function (data) {
         state.keys = data.keys || [];
+        if (data.raw) {
+          Object.keys(data.raw).forEach(function (id) { rawCache[id] = data.raw[id]; });
+        }
         state.knownTiers = data.knownTiers || [];
         var pool = data.pool || {};
         renderKpis(pool);

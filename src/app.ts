@@ -305,6 +305,24 @@ app.get("/pengatur/keys/list", async (c) => {
     const identity = byId.get(k.id);
     return { ...k, enabled: identity ? identity.enabled : true, label: identity?.label ?? null };
   });
+  /* The console shows every key in full, so it used to call GET /raw once per
+     row - 25 requests per render, each writing its own `keys.raw` audit row.
+     Measured on the live ledger: 1,320 `keys.raw` rows out of 2,077 total, 63%
+     of the trail, all of it page-view noise. `reveal=1` returns the whole page
+     in one response and writes ONE audit row for the reveal. */
+  if (c.req.query("reveal") === "1") {
+    const rawById: Record<string, string> = {};
+    for (const k of merged) {
+      const raw = await rawKeyById(k.id);
+      if (raw) rawById[k.id] = raw;
+    }
+    await auditRecordNow("keys.reveal", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: "pool",
+      detail: { action: "reveal-page", revealed: Object.keys(rawById).length, requested: merged.length },
+    });
+    return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS, raw: rawById });
+  }
   return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
 });
 
