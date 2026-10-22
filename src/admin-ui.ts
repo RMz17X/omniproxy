@@ -11,10 +11,9 @@
  * so the browser never holds a raw credential.
  */
 
-import { authGate, confirmDialog, consolePage, icon, noticeBand } from "./ui.ts";
+import { confirmDialog, consolePage, icon, noticeBand } from "./ui.ts";
 
 const OVERVIEW_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -173,7 +172,6 @@ const OVERVIEW_SCRIPT = `
       el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
     }
     el.healthMeta.textContent = pool.degraded ? "degraded, serving from memory" : pool.storage + " storage";
-    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
 
     var note = document.getElementById("storageNote");
     if (note) {

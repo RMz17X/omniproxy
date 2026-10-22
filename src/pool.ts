@@ -790,7 +790,8 @@ export type PoolSnapshot = {
   dead: number;
   unverified: number;
   soonestReadyMs: number;
-  storage: "memory" | "postgres";
+  /** "hosted" when Postgres backs the pool, "memory" when it does not. */
+  storage: "memory" | "hosted";
   degraded: boolean;
 };
 
@@ -825,7 +826,10 @@ export async function snapshot(): Promise<PoolSnapshot> {
     dead,
     unverified,
     soonestReadyMs: Number.isFinite(soonest) ? soonest : 0,
-    storage: storageMode,
-    degraded: counters.dbDegraded > 0,
+      /* One vocabulary for the rail footer: "hosted" when the pool is backed by
+         Postgres, "memory" when it is not. pool.ts used to emit "postgres",
+         which disagreed with settings.data on the same page. */
+      storage: dbEnabled() ? "hosted" : "memory",
+      degraded: counters.dbDegraded > 0,
   };
 }

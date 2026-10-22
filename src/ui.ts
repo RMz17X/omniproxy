@@ -1008,6 +1008,8 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 /* gate ------------------------------------------------------------------- */
 
 .gate-wrap { display: grid; place-items: center; min-height: 62dvh; }
+.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-6) var(--inset); }
+.login-page .gate-wrap { min-height: 0; }
 .gate { width: min(440px, 100%); }
 .gate-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--text); color: var(--bg); margin-bottom: var(--sp-4); }
 .gate h1 { font-size: 22px; letter-spacing: -0.03em; }
@@ -1362,6 +1364,7 @@ export function consolePage(o: PageOptions): string {
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n' +
     '<link rel="apple-touch-icon" href="/favicon.svg">\n' +
     '<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("geminesx.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n' +
+    "<script>" + AUTH_GUARD_JS + "</script>\n" +
     "<style>" +
     BASE_CSS +
     "</style>\n</head>\n<body data-gate=\"locked\">\n" +
@@ -1467,6 +1470,97 @@ export function toastMount(): string {
 export function noticeBand(): string {
   return toastMount();
 }
+
+/**
+ * Runs in <head> on every console page, before any markup is painted. A page
+ * with no token in localStorage is not a console page at all: bounce to the
+ * login route and carry the intended destination so sign-in lands there.
+ */
+const AUTH_GUARD_JS = `
+(function () {
+  "use strict";
+  try {
+    if (!localStorage.getItem("geminesx.admin.token")) {
+      var here = location.pathname + location.search;
+      location.replace("/pengatur/login?next=" + encodeURIComponent(here));
+    }
+  } catch (e) {}
+})();
+`;
+
+/**
+ * Standalone login page, served at GET /pengatur/login.
+ *
+ * Deliberately NOT built with consolePage(): the console shell renders the
+ * section rail and the storage footer, and neither may exist in the document
+ * before the admin token is accepted. This page carries only the gate form
+ * and the shared stylesheet, so a pre-auth response leaks nothing about the
+ * deployment.
+ */
+export function loginPage(): string {
+  return (
+    '<!doctype html>\n<html lang="en">\n<head>\n' +
+    '<meta charset="utf-8">\n' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
+    '<meta name="robots" content="noindex, nofollow">\n' +
+    '<meta name="color-scheme" content="light dark">\n' +
+    "<title>Sign in · GeminesX</title>\n" +
+    '<link rel="icon" href="/favicon.ico" sizes="32x32">\n' +
+    '<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n' +
+    "<style>" + BASE_CSS + "</style>\n</head>\n<body>\n" +
+    '<main class="login-page">\n' +
+    authGate() +
+    "</main>\n" +
+    "<script>" + LOGIN_JS + "</script>\n</body>\n</html>"
+  );
+}
+
+const LOGIN_JS = `
+(function () {
+  "use strict";
+  var form = document.getElementById("gateForm");
+  var input = document.getElementById("token");
+  var button = document.getElementById("connect");
+  var msg = document.getElementById("gateMsg");
+  var STORE = "geminesx.admin.token";
+
+  function next() {
+    var n = new URLSearchParams(location.search).get("next");
+    if (!n || n.charAt(0) !== "/" || n.charAt(1) === "/") return "/pengatur";
+    return n;
+  }
+  function say(text, tone) {
+    if (!msg) return;
+    msg.textContent = text;
+    msg.className = "hint u-mt-3" + (tone ? " u-" + tone : "");
+  }
+
+  /* Already holding a valid token? Skip the form entirely. */
+  try { if (localStorage.getItem(STORE)) { location.replace(next()); return; } } catch (e) {}
+
+  if (!form) return;
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var value = input ? input.value.trim() : "";
+    if (!value) { say("Paste the token first.", "bad"); return; }
+    button.disabled = true;
+    button.textContent = "Checking";
+    fetch("/pengatur/keys/list", { headers: { Authorization: "Bearer " + value } })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? "rejected" : "unreachable");
+        try { localStorage.setItem(STORE, value); } catch (e) {}
+        location.replace(next());
+      })
+      .catch(function (err) {
+        button.disabled = false;
+        button.textContent = "Connect";
+        say(err.message === "rejected" ? "That token was rejected."
+          : "Could not reach the deployment: " + err.message, "bad");
+      });
+  });
+  if (input) input.focus();
+})();
+`;
 
 /**
  * The admin token gate. Every console page opens with the same panel so the
@@ -1672,61 +1766,24 @@ export const CLIENT_JS = `
       });
     },
 
-    /* The gate. On load it hides the page and shows the token panel unless a
-       token is already stored; after a successful connect it reveals the page
-       and hands control to the caller. */
+    /* Entry point for every console page. Authentication is settled by the
+       head guard: a page without a token never renders here. All that is left
+       is to reveal the shell, run the page's first fetch, and send the
+       operator back to /pengatur/login if the stored token is rejected. */
     gate: function (opts) {
       opts = opts || {};
-      var gate = document.getElementById("gate");
+      document.body.setAttribute("data-gate", "open");
       var main = document.getElementById("main");
-      var form = document.getElementById("gateForm");
-      var input = document.getElementById("token");
-      var button = document.getElementById("connect");
-      var msg = document.getElementById("gateMsg");
-      var page = opts.page ? document.getElementById(opts.page) : null;
-
-      function reveal() {
-        if (gate) gate.hidden = true;
-        if (page) page.hidden = false;
-        document.body.setAttribute("data-gate", "open");
-        if (main) main.focus();
-      }
-      function showGate(reason) {
-        if (gate) gate.hidden = false;
-        if (page) page.hidden = true;
-        document.body.setAttribute("data-gate", "locked");
-        if (msg && reason) { msg.textContent = reason; msg.className = "hint u-mt-3 u-bad"; }
-        if (input) { input.value = ""; input.focus(); }
-      }
-
-      GX._showGate = showGate;
-
-      if (!form) return;
-      form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        var value = input ? input.value.trim() : "";
-        if (!value) { if (msg) { msg.textContent = "Paste the token first."; msg.className = "hint u-mt-3 u-bad"; } return; }
-        GX.setToken(value);
-        GX.busy(button, "Checking");
-        GX.api("/pengatur/keys/list").then(function () {
-          if (msg) { msg.textContent = ""; msg.className = "hint u-mt-3"; }
-          reveal();
-          if (opts.onSuccess) opts.onSuccess();
-        }).catch(function (err) {
-          GX.clearToken();
-          showGate(err.status === 401 || err.status === 403 ? "That token was rejected." : "Could not reach the deployment: " + err.message);
-        }).then(function () { GX.idle(button); });
-      });
-
-      if (!GX.token()) { showGate(""); return; }
-      reveal();
+      if (main) main.focus();
+      /* The rail footer names the storage backend. Every page fills it here so
+         the value only ever exists after the token has been accepted. */
+      GX.api("/pengatur/settings/data").then(function (d) {
+        if (d && d.storage) GX.storage(d.storage.mode, d.storage.mode === "memory" ? "warn" : "");
+      }).catch(function () {});
       var result = opts.onSuccess ? opts.onSuccess() : null;
       if (result && result.catch) {
         result.catch(function (err) {
-          if (err && (err.status === 401 || err.status === 403)) {
-            GX.clearToken();
-            showGate("That token was rejected. Paste the current one.");
-          }
+          if (err && (err.status === 401 || err.status === 403)) GX.lock();
         });
       }
     },
@@ -1734,8 +1791,7 @@ export const CLIENT_JS = `
     /* Force the gate back open, e.g. after a 401 on a refresh. */
     lock: function (reason) {
       GX.clearToken();
-      if (GX._showGate) GX._showGate(reason || "Session expired. Paste the token again.");
-      GX.toast(reason || "Session expired. Paste the token again.", "err");
+      location.replace("/pengatur/login?next=" + encodeURIComponent(location.pathname));
     },
 
     el: function (tag, attrs, kids) {
@@ -2373,3 +2429,6 @@ export const CLIENT_JS = `
   else wireChrome();
 })();
 `;
+
+/** Rendered once at module load; the login route serves this string. */
+export const LOGIN_HTML = loginPage();

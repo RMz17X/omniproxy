@@ -9,10 +9,9 @@
  * trail is a story told in time, so it reads as a feed and not as a grid.
  */
 
-import { authGate, consolePage, icon, noticeBand } from "./ui.ts";
+import { consolePage, icon, noticeBand } from "./ui.ts";
 
 const AUDIT_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">

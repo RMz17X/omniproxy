@@ -15,7 +15,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, storageMode, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
+import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
@@ -45,6 +45,7 @@ import { loadKeys } from "./keys-repo.ts";
 import { SETTINGS_HTML } from "./settings-ui.ts";
 import { settingsView } from "./settings.ts";
 import { AUDIT_HTML } from "./audit-ui.ts";
+import { LOGIN_HTML } from "./ui.ts";
 import { dbEnabled, sql } from "./db.ts";
 
 const app = new Hono();
@@ -98,6 +99,7 @@ app.use("/v1/*", async (c, next) => {
 /** Shells carry no data; their client scripts fetch `/data` with the token. */
 const SHELL_PATHS = [
   "/pengatur",
+  "/pengatur/login",
   "/pengatur/models",
   "/pengatur/usage",
   "/pengatur/stats",
@@ -161,7 +163,7 @@ app.get("/pengatur/status", async (c) => {
   return c.json({
     ok: true,
     service: "geminesx",
-    storage: storageMode,
+    storage: snap.storage,
     pool: snap,
     defaults: {
       model: cfg.defaultModel,
@@ -219,6 +221,9 @@ app.get("/favicon.ico", (c) => {
 // Both shells are public by design: they hold no data and ask for the admin
 // token themselves. Everything they render comes from /pengatur/* endpoints.
 app.get("/pengatur", (c) => c.html(ADMIN_HTML));
+
+/** Sign-in page. Public; the only console route without a section rail. */
+app.get("/pengatur/login", (c) => c.html(LOGIN_HTML));
 
 /** Model inventory console. The shell is public; its data endpoints are not. */
 app.get("/pengatur/models", (c) => c.html(MODELS_HTML));

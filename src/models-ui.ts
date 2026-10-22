@@ -9,10 +9,9 @@
  * performs an actual generateContent call against the selected model.
  */
 
-import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
+import { consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 const MODELS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">

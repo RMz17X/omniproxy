@@ -9212,7 +9212,10 @@ async function snapshot() {
     dead,
     unverified,
     soonestReadyMs: Number.isFinite(soonest) ? soonest : 0,
-    storage: storageMode,
+    /* One vocabulary for the rail footer: "hosted" when the pool is backed by
+       Postgres, "memory" when it is not. pool.ts used to emit "postgres",
+       which disagreed with settings.data on the same page. */
+    storage: dbEnabled() ? "hosted" : "memory",
     degraded: counters.dbDegraded > 0
   };
 }
@@ -10206,6 +10209,8 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 /* gate ------------------------------------------------------------------- */
 
 .gate-wrap { display: grid; place-items: center; min-height: 62dvh; }
+.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-6) var(--inset); }
+.login-page .gate-wrap { min-height: 0; }
 .gate { width: min(440px, 100%); }
 .gate-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--text); color: var(--bg); margin-bottom: var(--sp-4); }
 .gate h1 { font-size: 22px; letter-spacing: -0.03em; }
@@ -10424,7 +10429,7 @@ function navRail(active, actions = "") {
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
   const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>GeminesX</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("geminesx.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("geminesx.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
   return '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div><div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden><div class="rail-brand" style="padding:0 8px"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>GeminesX</b><span>Console</span></span></div><nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "drawer") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerDensity" aria-label="Switch density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' + icon("help", "icon", 15) + "</button></div></div></div>";
@@ -10455,6 +10460,66 @@ function toastMount() {
 function noticeBand() {
   return toastMount();
 }
+var AUTH_GUARD_JS = `
+(function () {
+  "use strict";
+  try {
+    if (!localStorage.getItem("geminesx.admin.token")) {
+      var here = location.pathname + location.search;
+      location.replace("/pengatur/login?next=" + encodeURIComponent(here));
+    }
+  } catch (e) {}
+})();
+`;
+function loginPage() {
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>Sign in \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
+}
+var LOGIN_JS = `
+(function () {
+  "use strict";
+  var form = document.getElementById("gateForm");
+  var input = document.getElementById("token");
+  var button = document.getElementById("connect");
+  var msg = document.getElementById("gateMsg");
+  var STORE = "geminesx.admin.token";
+
+  function next() {
+    var n = new URLSearchParams(location.search).get("next");
+    if (!n || n.charAt(0) !== "/" || n.charAt(1) === "/") return "/pengatur";
+    return n;
+  }
+  function say(text, tone) {
+    if (!msg) return;
+    msg.textContent = text;
+    msg.className = "hint u-mt-3" + (tone ? " u-" + tone : "");
+  }
+
+  /* Already holding a valid token? Skip the form entirely. */
+  try { if (localStorage.getItem(STORE)) { location.replace(next()); return; } } catch (e) {}
+
+  if (!form) return;
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var value = input ? input.value.trim() : "";
+    if (!value) { say("Paste the token first.", "bad"); return; }
+    button.disabled = true;
+    button.textContent = "Checking";
+    fetch("/pengatur/keys/list", { headers: { Authorization: "Bearer " + value } })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? "rejected" : "unreachable");
+        try { localStorage.setItem(STORE, value); } catch (e) {}
+        location.replace(next());
+      })
+      .catch(function (err) {
+        button.disabled = false;
+        button.textContent = "Connect";
+        say(err.message === "rejected" ? "That token was rejected."
+          : "Could not reach the deployment: " + err.message, "bad");
+      });
+  });
+  if (input) input.focus();
+})();
+`;
 function authGate() {
   return '<section class="gate-wrap" id="gate"><div class="panel gate"><div class="card-body"><span class="gate-mark">' + icon("lock", "icon", 20) + '</span><h1>Admin token</h1><p class="lede">This console reads the pool, the ledger and the settings of this deployment. The token stays in this browser.</p><form id="gateForm" autocomplete="off" class="u-mt-5"><label class="field" for="token">Deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint u-mt-3">Sent only to this deployment, as a bearer token over HTTPS.</p></form><div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div></div></div></section>';
 }
@@ -10567,61 +10632,24 @@ var CLIENT_JS = `
       });
     },
 
-    /* The gate. On load it hides the page and shows the token panel unless a
-       token is already stored; after a successful connect it reveals the page
-       and hands control to the caller. */
+    /* Entry point for every console page. Authentication is settled by the
+       head guard: a page without a token never renders here. All that is left
+       is to reveal the shell, run the page's first fetch, and send the
+       operator back to /pengatur/login if the stored token is rejected. */
     gate: function (opts) {
       opts = opts || {};
-      var gate = document.getElementById("gate");
+      document.body.setAttribute("data-gate", "open");
       var main = document.getElementById("main");
-      var form = document.getElementById("gateForm");
-      var input = document.getElementById("token");
-      var button = document.getElementById("connect");
-      var msg = document.getElementById("gateMsg");
-      var page = opts.page ? document.getElementById(opts.page) : null;
-
-      function reveal() {
-        if (gate) gate.hidden = true;
-        if (page) page.hidden = false;
-        document.body.setAttribute("data-gate", "open");
-        if (main) main.focus();
-      }
-      function showGate(reason) {
-        if (gate) gate.hidden = false;
-        if (page) page.hidden = true;
-        document.body.setAttribute("data-gate", "locked");
-        if (msg && reason) { msg.textContent = reason; msg.className = "hint u-mt-3 u-bad"; }
-        if (input) { input.value = ""; input.focus(); }
-      }
-
-      GX._showGate = showGate;
-
-      if (!form) return;
-      form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        var value = input ? input.value.trim() : "";
-        if (!value) { if (msg) { msg.textContent = "Paste the token first."; msg.className = "hint u-mt-3 u-bad"; } return; }
-        GX.setToken(value);
-        GX.busy(button, "Checking");
-        GX.api("/pengatur/keys/list").then(function () {
-          if (msg) { msg.textContent = ""; msg.className = "hint u-mt-3"; }
-          reveal();
-          if (opts.onSuccess) opts.onSuccess();
-        }).catch(function (err) {
-          GX.clearToken();
-          showGate(err.status === 401 || err.status === 403 ? "That token was rejected." : "Could not reach the deployment: " + err.message);
-        }).then(function () { GX.idle(button); });
-      });
-
-      if (!GX.token()) { showGate(""); return; }
-      reveal();
+      if (main) main.focus();
+      /* The rail footer names the storage backend. Every page fills it here so
+         the value only ever exists after the token has been accepted. */
+      GX.api("/pengatur/settings/data").then(function (d) {
+        if (d && d.storage) GX.storage(d.storage.mode, d.storage.mode === "memory" ? "warn" : "");
+      }).catch(function () {});
       var result = opts.onSuccess ? opts.onSuccess() : null;
       if (result && result.catch) {
         result.catch(function (err) {
-          if (err && (err.status === 401 || err.status === 403)) {
-            GX.clearToken();
-            showGate("That token was rejected. Paste the current one.");
-          }
+          if (err && (err.status === 401 || err.status === 403)) GX.lock();
         });
       }
     },
@@ -10629,8 +10657,7 @@ var CLIENT_JS = `
     /* Force the gate back open, e.g. after a 401 on a refresh. */
     lock: function (reason) {
       GX.clearToken();
-      if (GX._showGate) GX._showGate(reason || "Session expired. Paste the token again.");
-      GX.toast(reason || "Session expired. Paste the token again.", "err");
+      location.replace("/pengatur/login?next=" + encodeURIComponent(location.pathname));
     },
 
     el: function (tag, attrs, kids) {
@@ -11268,10 +11295,10 @@ var CLIENT_JS = `
   else wireChrome();
 })();
 `;
+var LOGIN_HTML = loginPage();
 
 // src/admin-ui.ts
 var OVERVIEW_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -11429,7 +11456,6 @@ var OVERVIEW_SCRIPT = `
       el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
     }
     el.healthMeta.textContent = pool.degraded ? "degraded, serving from memory" : pool.storage + " storage";
-    GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
 
     var note = document.getElementById("storageNote");
     if (note) {
@@ -11793,7 +11819,6 @@ function buildFaviconIco(deflate) {
 
 // src/models-ui.ts
 var MODELS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -14526,7 +14551,6 @@ async function list2(filter = {}) {
 
 // src/stats-ui.ts
 var STATS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -15107,7 +15131,6 @@ async function statsSnapshot(range, now2 = Date.now()) {
 
 // src/usage-ui.ts
 var USAGE_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -15540,7 +15563,6 @@ var USAGE_HTML = consolePage({
 
 // src/keys-ui.ts
 var KEYS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -16257,7 +16279,6 @@ var KEYS_SCRIPT = `
         var pool = data.pool || {};
         renderKpis(pool);
         el.poolMeta.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
-        GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
         drawTable();
         el.console.hidden = false;
       })
@@ -16353,7 +16374,6 @@ var KEYS_SCRIPT = `
 })();
 `;
 var DETAIL_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -16572,7 +16592,6 @@ var KEY_DETAIL_HTML = consolePage({
 
 // src/settings-ui.ts
 var SETTINGS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -16700,7 +16719,6 @@ var SETTINGS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Storage", d.storage ? d.storage.mode : "-", d.storage && d.storage.regionHostSuffix ? d.storage.regionHostSuffix : "no database configured"));
 
     el.sStorage.textContent = d.storage ? d.storage.mode + " storage" : "-";
-    GX.storage(d.storage ? d.storage.mode : "-", d.storage && d.storage.mode === "memory" ? "warn" : "");
     el.note.textContent = d.note || "";
   }
 
@@ -16821,7 +16839,6 @@ function settingsView() {
 
 // src/audit-ui.ts
 var AUDIT_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -17045,6 +17062,7 @@ app.use("/v1/*", async (c, next) => {
 });
 var SHELL_PATHS = [
   "/pengatur",
+  "/pengatur/login",
   "/pengatur/models",
   "/pengatur/usage",
   "/pengatur/stats",
@@ -17085,7 +17103,7 @@ app.get("/pengatur/status", async (c) => {
   return c.json({
     ok: true,
     service: "geminesx",
-    storage: storageMode,
+    storage: snap.storage,
     pool: snap,
     defaults: {
       model: cfg.defaultModel,
@@ -17117,6 +17135,7 @@ app.get("/favicon.ico", (c) => {
   return c.body(icoCache);
 });
 app.get("/pengatur", (c) => c.html(ADMIN_HTML));
+app.get("/pengatur/login", (c) => c.html(LOGIN_HTML));
 app.get("/pengatur/models", (c) => c.html(MODELS_HTML));
 app.get("/pengatur/stats", (c) => c.html(STATS_HTML));
 app.get("/pengatur/stats/data", async (c) => {

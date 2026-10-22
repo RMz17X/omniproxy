@@ -12,7 +12,7 @@
  * browser.
  */
 
-import { authGate, confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
+import { confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
 
 /* ---------- response shapes ----------
  * The server half of this console lands on a parallel branch, so the fields
@@ -76,7 +76,6 @@ export type KeyTestResponse = {
 /* ---------- list ---------- */
 
 const KEYS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -794,7 +793,6 @@ const KEYS_SCRIPT = `
         var pool = data.pool || {};
         renderKpis(pool);
         el.poolMeta.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
-        GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
         drawTable();
         el.console.hidden = false;
       })
@@ -893,7 +891,6 @@ const KEYS_SCRIPT = `
 /* ---------- detail ---------- */
 
 const DETAIL_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">

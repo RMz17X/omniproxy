@@ -10,10 +10,9 @@
  * because a report that scrolls sideways is a report nobody reads.
  */
 
-import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
+import { consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 const USAGE_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">

@@ -10,10 +10,9 @@
  * the environment table and the caveat line.
  */
 
-import { authGate, consolePage, icon, noticeBand } from "./ui.ts";
+import { consolePage, icon, noticeBand } from "./ui.ts";
 
 const SETTINGS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
@@ -142,7 +141,6 @@ const SETTINGS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Storage", d.storage ? d.storage.mode : "-", d.storage && d.storage.regionHostSuffix ? d.storage.regionHostSuffix : "no database configured"));
 
     el.sStorage.textContent = d.storage ? d.storage.mode + " storage" : "-";
-    GX.storage(d.storage ? d.storage.mode : "-", d.storage && d.storage.mode === "memory" ? "warn" : "");
     el.note.textContent = d.note || "";
   }
 

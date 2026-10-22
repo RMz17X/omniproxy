@@ -9,10 +9,9 @@
  * the heatmap with its legend and peak line, then the breakdowns.
  */
 
-import { authGate, consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
+import { consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
 
 const STATS_BODY = `
-${authGate()}
 
 <div id="console" hidden>
   <header class="page-head">
