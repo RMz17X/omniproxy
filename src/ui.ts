@@ -20,8 +20,6 @@
  * - every colour comes from a custom property, never from a literal
  */
 
-import { storageMode } from "./pool.ts";
-
 export const BASE_CSS = `
 :root {
   color-scheme: light;
@@ -231,6 +229,11 @@ code, kbd, samp { font-family: var(--mono); font-size: 0.92em; }
   color: var(--rail-text);
   border-right: 1px solid var(--rail-line);
 }
+/* Before the admin token is accepted the shell renders only the gate. The
+   rail carries the section nav AND the storage backend name, so it must not
+   exist in the document until reveal() runs. */
+body[data-gate="locked"] .rail { display: none; }
+body[data-gate="locked"] .app { display: none; }
 
 .rail-brand {
   display: flex;
@@ -1288,8 +1291,7 @@ export function navRail(active: string, actions = ""): string {
     '<div class="rail-foot">' +
     '<div class="rail-state" title="Where the pool and the ledger live">' +
     icon("lock", "icon", 13) +
-    "<span>store</span><b>" +
-    escapeHtml(safeStorage()) +
+    "<span>store</span><b id=\"railStore\">" +
     "</b></div>" +
     '<div class="rail-tools">' +
     '<button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' +
@@ -1307,10 +1309,6 @@ export function navRail(active: string, actions = ""): string {
     "</div>" +
     "</aside>"
   );
-}
-
-function safeStorage(): string {
-  return storageMode;
 }
 
 /* ---------- the page ---------- */
@@ -1366,7 +1364,7 @@ export function consolePage(o: PageOptions): string {
     '<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("geminesx.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n' +
     "<style>" +
     BASE_CSS +
-    "</style>\n</head>\n<body>\n" +
+    "</style>\n</head>\n<body data-gate=\"locked\">\n" +
     '<a class="skip" href="#main">Skip to content</a>\n' +
     '<div class="shell">\n' +
     navRail(o.active) +
@@ -1690,11 +1688,13 @@ export const CLIENT_JS = `
       function reveal() {
         if (gate) gate.hidden = true;
         if (page) page.hidden = false;
+        document.body.setAttribute("data-gate", "open");
         if (main) main.focus();
       }
       function showGate(reason) {
         if (gate) gate.hidden = false;
         if (page) page.hidden = true;
+        document.body.setAttribute("data-gate", "locked");
         if (msg && reason) { msg.textContent = reason; msg.className = "hint u-mt-3 u-bad"; }
         if (input) { input.value = ""; input.focus(); }
       }
@@ -1950,10 +1950,11 @@ export const CLIENT_JS = `
       }
     },
 
-    /* The rail states where the pool lives. The shell renders it server side;
-       this keeps it true after a reload that changed the storage mode. */
+    /* The rail states where the pool lives. The value is only written here,
+       after the admin token is accepted, so the pre-auth HTML carries no
+       storage-backend name. */
     storage: function (text, tone) {
-      var node = document.querySelector(".rail-state b");
+      var node = document.getElementById("railStore");
       if (!node) return;
       node.textContent = text || "-";
       var row = node.parentNode;
