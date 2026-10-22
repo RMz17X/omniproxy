@@ -673,6 +673,60 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    line and made its row 264px tall, four times a normal row. */
 .table td[data-l="id"] { white-space: nowrap; }
 .table td[data-l="id"] .mono { font-size: 12px; }
+/* The credential itself, on the detail page. The value is the whole key in
+   mono with a copy button beside it; it is never wrapped or truncated here. */
+.credential {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.credential-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--accent-wash);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm, 6px);
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.credential-value:empty::before { content: "…"; color: var(--text-3); }
+
+/* A definition list reads as a record, not as a dashboard. Three columns keep
+   seven facts near 90px; two columns ran to 215px and lost to the KPI strip it
+   replaced, because a label plus a value like "quota_exhausted" will not share
+   a 156px column. */
+.defs { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: var(--sp-5); gap: 0; }
+.def { display: flex; align-items: baseline; gap: var(--sp-3); padding: 7px 0; border-top: 1px solid var(--line); min-width: 0; }
+.def:first-child { border-top: 0; padding-top: 0; }
+.def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
+.def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
+@media (max-width: 900px) { .defs { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .defs { grid-template-columns: 1fr; } }
+
+/* The key column carries a 39-character mono value and a copy button. Without a
+   width the cell demanded its full natural size and pushed the table into
+   horizontal scroll; with one, the value ellipsizes and the button stays put.
+   The full credential is always in the cell's title and in the copy button. */
+.table td[data-l="key"] { width: 250px; max-width: 250px; white-space: nowrap; }
+/* A status detail can be a 100-character upstream error. Nowrap without a
+   column width let that one cell define the table at 859px; the full text
+   stays in the hint's title. */
+.table td[data-l="status"] { width: 230px; max-width: 230px; }
+.table td[data-l="plan"] { width: 170px; max-width: 170px; }
+.table td .key-text {
+  display: inline-block;
+  max-width: 212px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 /* Row height must be a property of the table, not of the data in a row. A
    status cell with a detail line made its row 116px while its neighbours sat
    at 65px, which is what made the pool table feel unreadable. One line with an
@@ -952,11 +1006,6 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-left: auto; }
 .sep { border-top: 1px solid var(--line); }
 .scroll-y { max-height: 420px; overflow-y: auto; }
-.defs { display: grid; gap: 0; }
-.def { display: flex; align-items: baseline; gap: var(--sp-3); padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
-.def:first-child { border-top: 0; padding-top: 0; }
-.def dt { flex: 0 0 42%; min-width: 0; font-size: 12.5px; color: var(--text-3); overflow-wrap: anywhere; }
-.def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
 .heat-legend { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-3); }
 .heat-legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
 .heat-scroll { overflow-x: auto; }

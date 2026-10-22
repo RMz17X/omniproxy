@@ -9874,6 +9874,60 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    line and made its row 264px tall, four times a normal row. */
 .table td[data-l="id"] { white-space: nowrap; }
 .table td[data-l="id"] .mono { font-size: 12px; }
+/* The credential itself, on the detail page. The value is the whole key in
+   mono with a copy button beside it; it is never wrapped or truncated here. */
+.credential {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.credential-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--accent-wash);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm, 6px);
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.credential-value:empty::before { content: "\u2026"; color: var(--text-3); }
+
+/* A definition list reads as a record, not as a dashboard. Three columns keep
+   seven facts near 90px; two columns ran to 215px and lost to the KPI strip it
+   replaced, because a label plus a value like "quota_exhausted" will not share
+   a 156px column. */
+.defs { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: var(--sp-5); gap: 0; }
+.def { display: flex; align-items: baseline; gap: var(--sp-3); padding: 7px 0; border-top: 1px solid var(--line); min-width: 0; }
+.def:first-child { border-top: 0; padding-top: 0; }
+.def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
+.def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
+@media (max-width: 900px) { .defs { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .defs { grid-template-columns: 1fr; } }
+
+/* The key column carries a 39-character mono value and a copy button. Without a
+   width the cell demanded its full natural size and pushed the table into
+   horizontal scroll; with one, the value ellipsizes and the button stays put.
+   The full credential is always in the cell's title and in the copy button. */
+.table td[data-l="key"] { width: 250px; max-width: 250px; white-space: nowrap; }
+/* A status detail can be a 100-character upstream error. Nowrap without a
+   column width let that one cell define the table at 859px; the full text
+   stays in the hint's title. */
+.table td[data-l="status"] { width: 230px; max-width: 230px; }
+.table td[data-l="plan"] { width: 170px; max-width: 170px; }
+.table td .key-text {
+  display: inline-block;
+  max-width: 212px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 /* Row height must be a property of the table, not of the data in a row. A
    status cell with a detail line made its row 116px while its neighbours sat
    at 65px, which is what made the pool table feel unreadable. One line with an
@@ -10153,11 +10207,6 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-left: auto; }
 .sep { border-top: 1px solid var(--line); }
 .scroll-y { max-height: 420px; overflow-y: auto; }
-.defs { display: grid; gap: 0; }
-.def { display: flex; align-items: baseline; gap: var(--sp-3); padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
-.def:first-child { border-top: 0; padding-top: 0; }
-.def dt { flex: 0 0 42%; min-width: 0; font-size: 12.5px; color: var(--text-3); overflow-wrap: anywhere; }
-.def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
 .heat-legend { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text-3); }
 .heat-legend i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
 .heat-scroll { overflow-x: auto; }
@@ -15871,11 +15920,15 @@ var KEYS_SCRIPT = `
       .then(function () { btn.disabled = false; });
   }
 
-  /* The list masks the credential; a dead row is allowed to show it plainly. */
-  function isMasked(value) {
+  /* ErNor: never hide the key. A Google key is 39 characters and is shown in
+     full. Anything longer is trimmed by at most three characters, which is the
+     only case where the visible text is not the whole credential; the full
+     value always stays in the cell's title and in the copy button. */
+  var KEY_FULL_MAX = 42;
+  function keyDisplay(value) {
     var text = String(value || "");
-    return text.indexOf("\u2022") >= 0 || text.indexOf("*") >= 0 || text.indexOf("\u2026") >= 0 ||
-      text.slice(-3) === "...";
+    if (text.length <= KEY_FULL_MAX) return text;
+    return text.slice(0, text.length - 3) + "\u2026";
   }
 
   function writeUrl() {
@@ -16015,18 +16068,22 @@ var KEYS_SCRIPT = `
         class: "btn btn-ghost btn-sm icon-btn",
         type: "button",
         title: "Copy the raw key",
-        "aria-label": "Copy the raw key for " + k.key,
+        "aria-label": "Copy the raw key",
         html: COPY_ICON
       });
       copyBtn.addEventListener("click", function () { copyKey(k, copyBtn); });
-      /* A dead key is the one row where the raw value is the useful fact, and
-         the list may already carry it. */
-      if (kind === "dead" && isMasked(k.key)) {
-        fetchRaw(k.id).then(function (value) {
-          keyText.textContent = value;
-          keyText.className = "key-text raw";
-        }).catch(function () {});
-      }
+      /* The button used to be built, wired, and then dropped on the floor: it
+         was never appended, so no row ever had a copy control. */
+      keyCell.appendChild(copyBtn);
+      /* Every row shows its key, not just the dead ones. The list API only
+         ever hands out the masked form, so the real value is fetched here and
+         cached; the cell keeps the masked text until it arrives so the table
+         paints immediately. */
+      fetchRaw(k.id).then(function (value) {
+        keyText.textContent = keyDisplay(value);
+        keyText.className = "key-text raw";
+        keyText.title = value;
+      }).catch(function () {});
       tr.appendChild(keyCell);
 
       var planCell = GX.el("td", { "data-l": "plan" });
@@ -16446,7 +16503,7 @@ var DETAIL_BODY = `
   <header class="page-head">
     <div class="page-head-main">
       <span class="eyebrow">Govern \xB7 Key</span>
-      <h1 class="page-title" id="keyTitle">Key</h1>
+      <h1 class="page-title">Key detail</h1>
       <p class="page-lede" id="keyPath">-</p>
     </div>
     <div class="page-head-side">
@@ -16456,35 +16513,55 @@ var DETAIL_BODY = `
 
   ${noticeBand()}
 
-  <div class="figures" id="summary"></div>
-
-  <div class="grid grid-2 u-mt-6">
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Daily requests</h2>
-        <span class="meta" id="dailyNote"></span>
+  <section class="panel">
+    <div class="panel-head">
+      <h2>API key</h2>
+      <span class="meta" id="keyMaskNote">revealed on demand</span>
+    </div>
+    <div class="panel-body">
+      <div class="credential">
+        <code class="credential-value" id="keyRaw">\u2026</code>
+        <button class="btn btn-sm" id="keyCopy" type="button">${icon("copy")}Copy</button>
       </div>
-      <div class="panel-body">
-        <div id="dailyBars" class="bars"></div>
-      </div>
-      <div class="table-wrap">
-        <table class="table" id="dailyTable">
-          <thead><tr><th>Day</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Cost</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Cooldown timeline</h2>
-        <span class="meta" id="cooldownNote"></span>
-      </div>
-      <div id="eventsFeed" class="feed"></div>
-    </section>
-  </div>
+      <p class="hint u-mt-3" id="keyMaskedNote">Masked form: -</p>
+    </div>
+  </section>
 
   <section class="panel u-mt-4">
+    <div class="panel-head">
+      <h2>State</h2>
+      <span class="meta" id="stateNote"></span>
+    </div>
+    <div class="panel-body">
+      <dl class="defs" id="summary"></dl>
+    </div>
+  </section>
+
+  <section class="panel u-mt-4" id="eventsPanel">
+    <div class="panel-head">
+      <h2>Cooldown timeline</h2>
+      <span class="meta" id="cooldownNote"></span>
+    </div>
+    <div id="eventsFeed" class="feed"></div>
+  </section>
+
+  <section class="panel u-mt-4" id="dailyPanel" hidden>
+    <div class="panel-head">
+      <h2>Daily requests</h2>
+      <span class="meta" id="dailyNote"></span>
+    </div>
+    <div class="panel-body">
+      <div id="dailyBars" class="bars"></div>
+    </div>
+    <div class="table-wrap">
+      <table class="table" id="dailyTable">
+        <thead><tr><th>Day</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Cost</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel u-mt-4" id="recentPanel" hidden>
     <div class="panel-head">
       <h2>Recent requests</h2>
       <span class="meta" id="recentNote"></span>
@@ -16494,9 +16571,10 @@ var DETAIL_BODY = `
         <thead><tr><th>When</th><th>Route</th><th>Model</th><th>Status</th><th class="num">ms</th><th class="num">Tokens</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div id="recentEmpty"></div>
     </div>
   </section>
+
+  <p class="hint u-mt-4" id="noHistory"></p>
 </div>
 `;
 var DETAIL_SCRIPT = `
@@ -16507,32 +16585,77 @@ var DETAIL_SCRIPT = `
 
   var el = {
     console: document.getElementById("console"),
-    keyTitle: document.getElementById("keyTitle"),
     keyPath: document.getElementById("keyPath"),
+    keyRaw: document.getElementById("keyRaw"),
+    keyCopy: document.getElementById("keyCopy"),
+    keyMaskNote: document.getElementById("keyMaskNote"),
+    keyMaskedNote: document.getElementById("keyMaskedNote"),
     summary: document.getElementById("summary"),
+    stateNote: document.getElementById("stateNote"),
     dailyNote: document.getElementById("dailyNote"),
     dailyBars: document.getElementById("dailyBars"),
     dailyTable: document.getElementById("dailyTable"),
+    dailyPanel: document.getElementById("dailyPanel"),
     cooldownNote: document.getElementById("cooldownNote"),
     eventsFeed: document.getElementById("eventsFeed"),
     recentNote: document.getElementById("recentNote"),
     recentTable: document.getElementById("recentTable"),
-    recentEmpty: document.getElementById("recentEmpty")
+    recentPanel: document.getElementById("recentPanel"),
+    eventsPanel: document.getElementById("eventsPanel"),
+    noHistory: document.getElementById("noHistory")
   };
 
-  function stat(label, value, tone) {
-    return GX.kpi(label, value === null || value === undefined ? "-" : String(value), null, tone);
+  /* The detail page shows the credential itself. Nothing is trimmed here: a
+     single key has the room, and the operator is already looking at one row. */
+  function renderCredential(k) {
+    el.keyMaskedNote.textContent = "Masked form: " + k.masked;
+    el.keyCopy.disabled = true;
+    fetch("/pengatur/keys/" + encodeURIComponent(k.id) + "/raw", {
+      headers: { Authorization: "Bearer " + (GX.token() || "") },
+      cache: "no-store"
+    })
+      .then(function (res) {
+        return res.json().then(function (d) {
+          if (!res.ok || !d || !d.raw) throw new Error((d && d.error && d.error.message) || "Request failed (" + res.status + ")");
+          return d.raw;
+        });
+      })
+      .then(function (raw) {
+        el.keyRaw.textContent = raw;
+        el.keyRaw.title = raw;
+        el.keyMaskNote.textContent = "revealed on demand";
+        el.keyCopy.disabled = false;
+        el.keyCopy.onclick = function () { GX.copy(raw, "Raw key"); };
+      })
+      .catch(function (err) {
+        el.keyRaw.textContent = k.masked;
+        el.keyMaskNote.textContent = "could not be revealed";
+        el.keyMaskedNote.textContent = "The raw value could not be read: " + err.message;
+        el.keyCopy.disabled = true;
+      });
   }
 
+  /* Seven KPI cards used to wrap into a 200px strip above the fold. A
+     definition list carries the same facts in half the height and reads as a
+     record rather than as a dashboard. */
   function renderSummary(k) {
     el.summary.textContent = "";
-    el.summary.appendChild(stat("Plan", k.plan, k.plan === "free" ? "ok" : ""));
-    el.summary.appendChild(stat("State", k.status, k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"));
-    el.summary.appendChild(stat("Enabled", k.enabled === false ? "no" : "yes", k.enabled === false ? "warn" : "ok"));
-    el.summary.appendChild(stat("Failures", k.failures, k.failures ? "warn" : ""));
-    el.summary.appendChild(stat("Invalidations", k.invalidations, k.invalidations ? "bad" : ""));
-    el.summary.appendChild(stat("Last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never"));
-    el.summary.appendChild(stat("Cooldown left", GX.fmt.left(k.cooldownLeftMs), k.cooldownLeftMs ? "warn" : ""));
+    var rows = [
+      ["Plan", k.plan || "-", k.plan === "free" ? "ok" : ""],
+      ["State", k.status || "-", k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"],
+      ["Enabled", k.enabled === false ? "no" : "yes", k.enabled === false ? "warn" : "ok"],
+      ["Failures", k.failures, k.failures ? "warn" : ""],
+      ["Invalidations", k.invalidations, k.invalidations ? "bad" : ""],
+      ["Last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never", ""],
+      ["Cooldown left", GX.fmt.left(k.cooldownLeftMs), k.cooldownLeftMs ? "warn" : ""]
+    ];
+    rows.forEach(function (r) {
+      el.summary.appendChild(GX.el("div", { class: "def" }, [
+        GX.el("dt", { text: r[0] }),
+        GX.el("dd", { text: r[1] === null || r[1] === undefined ? "-" : String(r[1]) })
+      ]));
+    });
+    el.stateNote.textContent = k.enabled === false ? "disabled by an operator" : "";
   }
 
   function renderDaily(daily) {
@@ -16540,11 +16663,10 @@ var DETAIL_SCRIPT = `
     el.dailyBars.textContent = "";
     el.dailyTable.querySelector("tbody").textContent = "";
     el.dailyTable.hidden = !daily.length;
-
-    if (!daily.length) {
-      el.dailyBars.appendChild(GX.state("empty", "No daily history", "The rollup keeps one bucket per day for this key."));
-      return;
-    }
+    /* A panel with nothing in it is dead space; the one-line note below the
+       fold already says the rollup is empty. */
+    el.dailyPanel.hidden = !daily.length;
+    if (!daily.length) return;
 
     var max = 0;
     daily.forEach(function (d) { max = Math.max(max, Number(d.requests) || 0); });
@@ -16574,10 +16696,8 @@ var DETAIL_SCRIPT = `
   function renderEvents(events) {
     el.eventsFeed.textContent = "";
     el.cooldownNote.textContent = events.length ? events.length + " events" : "";
-    if (!events.length) {
-      el.eventsFeed.appendChild(GX.state("empty", "No failures recorded", "Every request this key served succeeded."));
-      return;
-    }
+    el.eventsPanel.hidden = !events.length;
+    if (!events.length) return;
     events.forEach(function (e) {
       el.eventsFeed.appendChild(GX.el("div", { class: "feed-item" }, [
         GX.el("span", { class: "act", text: String(e.status) }),
@@ -16590,13 +16710,10 @@ var DETAIL_SCRIPT = `
   function renderRecent(recent) {
     var body = el.recentTable.querySelector("tbody");
     body.textContent = "";
-    el.recentEmpty.textContent = "";
     el.recentTable.hidden = !recent.length;
+    el.recentPanel.hidden = !recent.length;
     el.recentNote.textContent = recent.length ? recent.length + " rows" : "";
-    if (!recent.length) {
-      el.recentEmpty.appendChild(GX.state("empty", "No request in the ring", "The live ring keeps the last requests that passed through the gateway."));
-      return;
-    }
+    if (!recent.length) return;
     recent.forEach(function (r) {
       var tr = GX.el("tr");
       GX.cell(tr, GX.fmt.clock(r.ts), "mono", "when");
@@ -16613,12 +16730,21 @@ var DETAIL_SCRIPT = `
 
   function render(d) {
     var k = d.key;
-    el.keyTitle.textContent = k.masked;
     el.keyPath.textContent = "id " + k.id;
+    renderCredential(k);
     renderSummary(k);
     renderDaily(d.daily || []);
     renderEvents(d.events || []);
     renderRecent(d.recent || []);
+    /* Three panels that hold no data are three panels of dead space. Say so in
+       one line instead. */
+    var empty = [];
+    if (!(d.daily || []).length) empty.push("daily rollup");
+    if (!(d.recent || []).length) empty.push("request ring");
+    if (!(d.events || []).length) empty.push("cooldown events");
+    el.noHistory.textContent = empty.length
+      ? "No " + empty.join(", ") + " recorded for this key yet."
+      : "";
     el.console.hidden = false;
   }
 
