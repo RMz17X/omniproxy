@@ -9817,6 +9817,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .tag-mono { font-family: var(--mono); font-size: 11px; letter-spacing: -0.01em; }
 
 .chip { display: inline-flex; align-items: baseline; gap: 8px; }
+.chip + .chip { margin-left: var(--sp-4); padding-left: var(--sp-4); border-left: 1px solid var(--line); }
 .chip-k { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
 .chip-v { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
 
@@ -11270,7 +11271,6 @@ ${authGate()}
 <div id="console" hidden>
   <header class="page-head">
     <div class="page-head-main">
-      <span class="eyebrow">Deployment</span>
       <h1 class="page-title">Overview</h1>
       <p class="page-lede">Whether the pool can serve right now, what is blocking it, and what the traffic is doing.</p>
     </div>
@@ -11415,7 +11415,7 @@ var OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Ready now", String(pool.ready), pool.total ? "of " + pool.total + " in the pool" : "the pool is empty", pool.ready ? "ok" : "bad"));
     el.facts.appendChild(GX.stat("Cooling", String(pool.cooling), pool.cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", pool.cooling ? "warn" : ""));
     el.facts.appendChild(GX.stat("Dead", String(pool.dead), pool.dead ? "revoked or out of quota" : "none retired", pool.dead ? "bad" : ""));
-    el.facts.appendChild(GX.stat("Plans declared", declared + " of " + pool.total, "pricing stays unknown for the rest"));
+    el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
     el.chips.textContent = "";
     if (stats) {

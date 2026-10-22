@@ -621,6 +621,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .tag-mono { font-family: var(--mono); font-size: 11px; letter-spacing: -0.01em; }
 
 .chip { display: inline-flex; align-items: baseline; gap: 8px; }
+.chip + .chip { margin-left: var(--sp-4); padding-left: var(--sp-4); border-left: 1px solid var(--line); }
 .chip-k { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
 .chip-v { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
 

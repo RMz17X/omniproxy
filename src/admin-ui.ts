@@ -19,7 +19,6 @@ ${authGate()}
 <div id="console" hidden>
   <header class="page-head">
     <div class="page-head-main">
-      <span class="eyebrow">Deployment</span>
       <h1 class="page-title">Overview</h1>
       <p class="page-lede">Whether the pool can serve right now, what is blocking it, and what the traffic is doing.</p>
     </div>
@@ -165,7 +164,7 @@ const OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Ready now", String(pool.ready), pool.total ? "of " + pool.total + " in the pool" : "the pool is empty", pool.ready ? "ok" : "bad"));
     el.facts.appendChild(GX.stat("Cooling", String(pool.cooling), pool.cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", pool.cooling ? "warn" : ""));
     el.facts.appendChild(GX.stat("Dead", String(pool.dead), pool.dead ? "revoked or out of quota" : "none retired", pool.dead ? "bad" : ""));
-    el.facts.appendChild(GX.stat("Plans declared", declared + " of " + pool.total, "pricing stays unknown for the rest"));
+    el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
     el.chips.textContent = "";
     if (stats) {
