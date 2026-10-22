@@ -17572,6 +17572,7 @@ app.post("/internal/keys/recheck", async (c) => {
   let revived = 0;
   let stillQuota = 0;
   let failed = 0;
+  let plansValidated = 0;
   for (const k of candidates) {
     const raw2 = await rawKeyById(k.id);
     if (!raw2) continue;
@@ -17582,11 +17583,18 @@ app.post("/internal/keys/recheck", async (c) => {
     else if (applied === "quota_exhausted") stillQuota++;
     else if (applied !== "cooling") failed++;
     if (result.tierEvidence) await markValidatedPlan(raw2, result.tierEvidence);
+    if (!k.planValidated) {
+      const tier = await probeTier(raw2);
+      if (tier.tierEvidence && tier.tierEvidence.tier !== "unknown") {
+        await markValidatedPlan(raw2, tier.tierEvidence);
+        plansValidated++;
+      }
+    }
   }
   await recordNow("keys.recheck", {
     actor: actorFrom(c.req.header("user-agent")),
     target: "pool",
-    detail: { due: candidates.length, checked, revived, stillQuota, failed }
+    detail: { due: candidates.length, checked, revived, stillQuota, failed, plansValidated }
   });
   return c.json({
     ok: true,
@@ -17594,6 +17602,7 @@ app.post("/internal/keys/recheck", async (c) => {
     checked,
     revived,
     stillQuota,
+    plansValidated,
     failed,
     pool: await snapshot()
   });
