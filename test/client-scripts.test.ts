@@ -66,3 +66,55 @@ describe("shipped client scripts", () => {
 function LOGIN_JS_HAS_FORM(html: string): boolean {
   return html.includes('id="gateForm"') && html.includes('id="token"');
 }
+
+describe("duration formatting", () => {
+  /** Pull one named function out of the GX literal so it can be run directly.
+      The client runtime touches the DOM on load, so it cannot be evaluated
+      whole; this is the only way to exercise a pure helper inside it. */
+  function grab(source: string, head: string): string {
+    const at = source.indexOf(head);
+    expect(at, `${head} is present`).toBeGreaterThan(-1);
+    const open = source.indexOf("{", at);
+    let depth = 0;
+    for (let i = open; i < source.length; i++) {
+      if (source[i] === "{") depth++;
+      else if (source[i] === "}") {
+        depth--;
+        if (depth === 0) return source.slice(open, i + 1);
+      }
+    }
+    throw new Error(`unbalanced braces after ${head}`);
+  }
+
+  const left = new Function(`return function (ms) ${grab(CLIENT_JS, "left: function")};`)() as (
+    ms: number | null | undefined,
+  ) => string;
+
+  test("a key parked for good reads as permanent, not as 285,619 years", () => {
+    // pool.ts parks a dead or invalidated key at Number.MAX_SAFE_INTEGER, and
+    // the view reports cooldownLeftMs as that deadline minus now. The old
+    // formatter divided it into years and printed the nonsense.
+    expect(left(Number.MAX_SAFE_INTEGER)).toBe("permanent");
+    expect(left(Number.MAX_SAFE_INTEGER - Date.now())).toBe("permanent");
+    expect(left(9e15)).toBe("permanent");
+    expect(left(1e14 + 1)).toBe("permanent");
+  });
+
+  test("real cooldowns are still formatted as durations", () => {
+    expect(left(0)).toBe("now");
+    expect(left(-5)).toBe("now");
+    expect(left(45_000)).toBe("45s");
+    expect(left(90_000)).toBe("1m 30s");
+    expect(left(3 * 3_600_000)).toBe("3h 0m");
+    expect(left(2 * 86_400_000)).toBe("2d 0h");
+    expect(left(400 * 86_400_000)).toBe("1y");
+  });
+
+  test("absent or broken input never reaches the year branch", () => {
+    expect(left(null)).toBe("-");
+    expect(left(undefined)).toBe("-");
+    expect(left(NaN)).toBe("-");
+    expect(left(Infinity)).toBe("-");
+    expect(left(-Infinity)).toBe("-");
+  });
+});

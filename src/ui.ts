@@ -2020,7 +2020,12 @@ export const CLIENT_JS = `
       left: function (ms) {
         if (ms === null || ms === undefined) return "-";
         var v = Number(ms);
+        if (!isFinite(v)) return "-";
         if (v <= 0) return "now";
+        /* A key parked for good carries Number.MAX_SAFE_INTEGER as its
+           deadline, which is 285,619 years rather than a duration. Anything
+           past a few millennia is that sentinel and not a wait. */
+        if (v > 1e14) return "permanent";
         var s = Math.ceil(v / 1000);
         if (s < 60) return s + "s";
         var m = Math.floor(s / 60);
