@@ -507,13 +507,21 @@ const KEYS_SCRIPT = `
       var planCell = GX.el("td", { "data-l": "plan" });
       var plan = rowPlan(k);
       planCell.appendChild(GX.el("span", { class: "plan-text", text: plan.text }));
-      if (plan.marker) planCell.appendChild(GX.el("div", { class: "hint", text: plan.marker }));
+      if (plan.marker) {
+        var planHint = GX.el("div", { class: "hint", text: plan.marker });
+        planHint.title = plan.marker;
+        planCell.appendChild(planHint);
+      }
       tr.appendChild(planCell);
 
       var statusCell = GX.el("td", { "data-l": "status" });
       statusCell.appendChild(GX.tag(STATUS_LABEL[kind], STATUS_TONE[kind]));
       var detail = statusDetail(k, kind);
-      if (detail) statusCell.appendChild(GX.el("div", { class: "hint", text: detail }));
+      if (detail) {
+        var statusHint = GX.el("div", { class: "hint", text: detail });
+        statusHint.title = detail;
+        statusCell.appendChild(statusHint);
+      }
       tr.appendChild(statusCell);
 
       GX.cell(tr, k.failCount !== undefined ? k.failCount : k.failures, "num", "fails");

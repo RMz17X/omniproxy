@@ -9874,6 +9874,11 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    line and made its row 264px tall, four times a normal row. */
 .table td[data-l="id"] { white-space: nowrap; }
 .table td[data-l="id"] .mono { font-size: 12px; }
+/* Row height must be a property of the table, not of the data in a row. A
+   status cell with a detail line made its row 116px while its neighbours sat
+   at 65px, which is what made the pool table feel unreadable. One line with an
+   ellipsis; the full text stays in the title attribute. */
+.table td .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table td .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table tbody tr { height: 1px; }
 .table tbody td { height: inherit; }
@@ -16027,13 +16032,21 @@ var KEYS_SCRIPT = `
       var planCell = GX.el("td", { "data-l": "plan" });
       var plan = rowPlan(k);
       planCell.appendChild(GX.el("span", { class: "plan-text", text: plan.text }));
-      if (plan.marker) planCell.appendChild(GX.el("div", { class: "hint", text: plan.marker }));
+      if (plan.marker) {
+        var planHint = GX.el("div", { class: "hint", text: plan.marker });
+        planHint.title = plan.marker;
+        planCell.appendChild(planHint);
+      }
       tr.appendChild(planCell);
 
       var statusCell = GX.el("td", { "data-l": "status" });
       statusCell.appendChild(GX.tag(STATUS_LABEL[kind], STATUS_TONE[kind]));
       var detail = statusDetail(k, kind);
-      if (detail) statusCell.appendChild(GX.el("div", { class: "hint", text: detail }));
+      if (detail) {
+        var statusHint = GX.el("div", { class: "hint", text: detail });
+        statusHint.title = detail;
+        statusCell.appendChild(statusHint);
+      }
       tr.appendChild(statusCell);
 
       GX.cell(tr, k.failCount !== undefined ? k.failCount : k.failures, "num", "fails");

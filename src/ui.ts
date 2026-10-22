@@ -673,6 +673,11 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    line and made its row 264px tall, four times a normal row. */
 .table td[data-l="id"] { white-space: nowrap; }
 .table td[data-l="id"] .mono { font-size: 12px; }
+/* Row height must be a property of the table, not of the data in a row. A
+   status cell with a detail line made its row 116px while its neighbours sat
+   at 65px, which is what made the pool table feel unreadable. One line with an
+   ellipsis; the full text stays in the title attribute. */
+.table td .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table td .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table tbody tr { height: 1px; }
 .table tbody td { height: inherit; }
