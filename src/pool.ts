@@ -20,6 +20,7 @@ import { counters } from "./metrics.ts";
 import { dbEnabled } from "./db.ts";
 import * as repo from "./keys-repo.ts";
 import { loadMaterial, materialEnabled, saveMaterial, deleteMaterial } from "./key-material.ts";
+import type { QuotaDetail, TierEvidence } from "./verdict.ts";
 
 /** Where durable key metadata lives. */
 export const storageMode: "memory" | "postgres" = dbEnabled() ? "postgres" : "memory";
@@ -34,6 +35,25 @@ export type KeyTier = "unknown" | "free" | "paid" | "pro";
 
 export const KEY_TIERS: KeyTier[] = ["unknown", "free", "paid", "pro"];
 
+/**
+ * Where a key stands right now.
+ *
+ *   unknown          seeded, never observed
+ *   ready            served, or nothing has contradicted it
+ *   cooling          a transient limit with a reset in the future
+ *   quota_exhausted  the project holds no allowance for the metric; the key
+ *                    stays enabled because only the owner can change it
+ *   dead             upstream rejected the credential itself
+ *   unverified       admitted but not yet proven to serve
+ */
+export type KeyStatus =
+  | "unknown"
+  | "ready"
+  | "cooling"
+  | "quota_exhausted"
+  | "dead"
+  | "unverified";
+
 export type KeyState = {
   key: string;
   tier: KeyTier;
@@ -44,6 +64,14 @@ export type KeyState = {
   invalidations: number;
   cooldownUntil: number;
   lastUsed: number;
+  status: KeyStatus;
+  /** the stored tier came from an upstream answer, not an operator guess */
+  planValidated: boolean;
+  planEvidence: TierEvidence | null;
+  quota: QuotaDetail | null;
+  /** epoch ms when a quota/park deadline passes; 0 when none is known */
+  retryAfterAt: number;
+  lastCheckedAt: number;
 };
 
 /* ---------- memory mirror ---------- */
@@ -79,6 +107,14 @@ const blank = (key: string): KeyState => ({
   invalidations: 0,
   cooldownUntil: 0,
   lastUsed: 0,
+  // A fresh key carries no disqualifying verdict yet: it serves until an
+  // upstream answer says otherwise. `unverified` is set explicitly on admission.
+  status: "ready",
+  planValidated: false,
+  planEvidence: null,
+  quota: null,
+  retryAfterAt: 0,
+  lastCheckedAt: 0,
 });
 
 /* ---------- persistence (fire-and-forget) ---------- */
@@ -108,16 +144,20 @@ function persistIdentity(st: KeyState): void {
 
 function persistHealth(st: KeyState): void {
   const id = keyId(st.key);
-  if (st.invalid) {
+  if (st.invalid || st.status === "dead") {
     later(() => repo.setEnabled(id, false));
+    later(() => repo.setStatus(id, "dead"));
     return;
   }
   later(() => repo.touchLastSeen(id));
   if (st.failures > 0) later(() => repo.bumpFailCount(id));
-  // Serverless scales to zero; a 429 park held only in memory is erased on the
-  // next cold start and the key gets re-fired immediately. Persist the deadline
-  // (or its clearing) so `hydrate()` can restore the park.
+  later(() => repo.setStatus(id, st.status));
+  // Serverless scales to zero; a park held only in memory is erased on the
+  // next cold start and the key gets re-fired immediately. Persist the
+  // deadline (or its clearing) so `hydrate()` can restore the park.
   later(() => repo.setCooldown(id, st.cooldownUntil));
+  if (st.retryAfterAt > 0) later(() => repo.setRetryAfter(id, st.retryAfterAt));
+  if (st.quota) later(() => repo.setQuotaState(id, st.quota));
 }
 
 /* ---------- cold start ---------- */
@@ -166,13 +206,22 @@ export async function hydrate(): Promise<number> {
     if (!hit) continue;
     hit.tier = row.plan;
     hit.failures = Math.max(hit.failures, row.failCount);
-    if (!row.enabled) {
+    if (row.planValidated) {
+      hit.planValidated = true;
+      hit.planEvidence = row.planEvidence;
+    }
+    if (row.quota) hit.quota = row.quota;
+    if (row.retryAfterAt > 0) hit.retryAfterAt = row.retryAfterAt;
+    if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
+    if (!row.enabled || row.status === "dead") {
       hit.invalid = true;
+      hit.status = "dead";
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
-    } else if (row.cooldownUntil > now()) {
-      // Restore a persisted park. `max` keeps a live in-memory deadline that is
-      // already further out (the same instance served the 429).
-      hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
+    } else {
+      // A persisted park outlives the process; `max` keeps a live in-memory
+      // deadline that is already further out (the same instance served it).
+      hit.status = row.status;
+      if (row.cooldownUntil > now()) hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
   log("info", "pool.hydrated", {
@@ -260,10 +309,21 @@ export async function rawKeyById(id: string): Promise<string | null> {
  * a request has lastUsed=now and loses every LRU comparison until its rate
  * window elapses, at which point it becomes the freshest candidate.
  */
+/**
+ * A key may serve when nothing currently disqualifies it: not dead, not still
+ * unproven, and past every known deadline.
+ */
+function selectable(s: KeyState, t: number): boolean {
+  if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
+  // An exhausted project has no window that a cooldown could wait out: it
+  // re-enters rotation only when a reset is known and has passed.
+  if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
+  return s.cooldownUntil <= t && s.retryAfterAt <= t;
+}
+
 export async function pick(exclude: Set<string> = new Set()): Promise<KeyState | null> {
-  const all = [...local.values()].filter((s) => !s.invalid && !exclude.has(s.key));
   const t = now();
-  const ready = all.filter((s) => s.cooldownUntil <= t);
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t));
   if (ready.length === 0) return null;
   ready.sort((a, b) => a.failures - b.failures || a.lastUsed - b.lastUsed);
   return ready[0];
@@ -281,15 +341,77 @@ export async function markUsed(key: string): Promise<void> {
  * also clears a previous retirement: if the upstream answered with a quota
  * verdict for this key, the key is alive and only owes the pool a cooldown.
  */
-export async function mark429(key: string, cooldownMs: number): Promise<void> {
+export async function mark429(key: string, cooldownMs: number, quota?: QuotaDetail | null): Promise<void> {
   const st = local.get(key) ?? blank(key);
   st.failures += 1;
   st.invalidations += 1;
   st.cooldownUntil = now() + cooldownMs;
+  st.retryAfterAt = st.cooldownUntil;
   st.invalid = false;
+  st.status = "cooling";
+  st.lastCheckedAt = now();
+  if (quota !== undefined) st.quota = quota;
+  if (quota?.freeTier || quota?.quotaId || quota?.consumer) {
+    st.planEvidence = quota ? tierFromQuota(quota) : st.planEvidence;
+  }
   counters.cooldowns++;
   local.set(key, st);
   persistHealth(st);
+}
+
+/**
+ * The project holds no allowance for this metric: no window will ever help.
+ * The key is *not* retired — the credential is valid and the operator may fix
+ * the project — so it stays enabled and waits for its reset to be rechecked.
+ */
+export async function markQuotaExhausted(key: string, quota: QuotaDetail | null): Promise<void> {
+  const st = local.get(key) ?? blank(key);
+  st.failures += 1;
+  st.status = "quota_exhausted";
+  st.quota = quota;
+  st.retryAfterAt = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
+  st.cooldownUntil = st.retryAfterAt;
+  st.lastCheckedAt = now();
+  st.invalid = false;
+  if (quota) st.planEvidence = tierFromQuota(quota);
+  local.set(key, st);
+  persistHealth(st);
+}
+
+/** A plan declared by upstream evidence rather than by the operator. */
+function tierFromQuota(quota: QuotaDetail): TierEvidence {
+  return {
+    tier: quota.freeTier ? "free" : "paid",
+    source: quota.freeTier ? "violations" : "consumer",
+    quotaId: quota.quotaId,
+    quotaMetric: quota.quotaMetric,
+    consumer: quota.consumer,
+    observedAt: Date.now(),
+  };
+}
+
+/** Admitted but not yet proven: withheld from selection until a probe passes. */
+export async function markUnverified(key: string): Promise<void> {
+  const st = local.get(key) ?? blank(key);
+  st.status = "unverified";
+  st.lastCheckedAt = now();
+  local.set(key, st);
+  persistHealth(st);
+}
+
+/** Store an upstream-validated plan. A bare 200 validates nothing. */
+export async function markValidatedPlan(
+  key: string,
+  evidence: TierEvidence | null,
+): Promise<void> {
+  const st = local.get(key) ?? blank(key);
+  if (!evidence || evidence.tier === "unknown") return;
+  st.tier = evidence.tier;
+  st.planValidated = true;
+  st.planEvidence = evidence;
+  local.set(key, st);
+  const id = keyId(key);
+  later(() => repo.setValidatedPlan(id, evidence.tier as KeyTier, evidence));
 }
 
 /** 5xx / transport hiccup: park briefly, never retire. */
@@ -305,9 +427,11 @@ export async function markSoftError(key: string, cooldownMs: number): Promise<vo
 export async function markInvalid(key: string): Promise<boolean> {
   const st = local.get(key) ?? blank(key);
   st.invalid = true;
+  st.status = "dead";
   st.invalidations += 1;
   st.failures = 999;
   st.cooldownUntil = Number.MAX_SAFE_INTEGER;
+  st.lastCheckedAt = now();
   counters.invalidated++;
   local.set(key, st);
   persistHealth(st);
@@ -324,11 +448,15 @@ export async function markHealthy(key: string): Promise<void> {
   st.invalid = false;
   st.failures = 0;
   st.cooldownUntil = 0;
+  st.retryAfterAt = 0;
   st.lastUsed = now();
+  st.lastCheckedAt = now();
+  st.status = "ready";
   local.set(key, st);
   const id = keyId(key);
   later(() => repo.setEnabled(id, true));
   later(() => repo.touchLastSeen(id));
+  later(() => repo.setStatus(id, "ready"));
   // A cleared park must reach Postgres too, or the next cold start revives a
   // deadline that this successful probe already proved obsolete.
   later(() => repo.setCooldown(id, 0));
@@ -340,19 +468,34 @@ export async function deadKeys(): Promise<string[]> {
 
 /* ---------- read side ---------- */
 
+/** Admin-facing projection of one key: masked value plus mutable state. */
 export type KeyView = {
   id: string;
   key: string;
   tier: KeyTier;
+  /**
+   * What the console may display as the plan. `unspecified` while the key is
+   * parked or out of quota: the last validated tier describes the project at
+   * the time of the probe, not a live entitlement.
+   */
+  plan: KeyTier | "unspecified";
+  planValidated: boolean;
+  planEvidence: TierEvidence | null;
+  quota: QuotaDetail | null;
   failures: number;
   invalidations: number;
   cooldownLeftMs: number;
   lastUsed: number;
+  lastCheckedAt: number;
   invalid: boolean;
-  status: "ready" | "cooling" | "dead";
+  status: KeyStatus;
   /** epoch ms when the key becomes selectable again, 0 when it already is */
   cooldownUntil: number;
+  nextAccessAt: number;
 };
+
+const planOf = (s: KeyState): KeyTier | "unspecified" =>
+  s.status === "cooling" || s.status === "quota_exhausted" ? "unspecified" : s.tier;
 
 /** Admin view: masked key plus the id used for mutation. */
 export async function listKeys(): Promise<KeyView[]> {
@@ -362,13 +505,19 @@ export async function listKeys(): Promise<KeyView[]> {
       id: keyId(s.key),
       key: maskKey(s.key),
       tier: s.tier,
+      plan: planOf(s),
+      planValidated: s.planValidated,
+      planEvidence: s.planEvidence,
+      quota: s.quota,
       failures: s.failures,
       invalidations: s.invalidations,
       cooldownLeftMs: Math.max(0, s.cooldownUntil - t),
       lastUsed: s.lastUsed,
+      lastCheckedAt: s.lastCheckedAt,
       invalid: s.invalid,
-      status: s.invalid ? ("dead" as const) : s.cooldownUntil > t ? ("cooling" as const) : ("ready" as const),
+      status: s.status,
       cooldownUntil: s.cooldownUntil,
+      nextAccessAt: Math.max(s.cooldownUntil, s.retryAfterAt),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -403,7 +552,9 @@ export type PoolSnapshot = {
   total: number;
   ready: number;
   cooling: number;
+  quota_exhausted: number;
   dead: number;
+  unverified: number;
   soonestReadyMs: number;
   storage: "memory" | "postgres";
   degraded: boolean;
@@ -414,11 +565,17 @@ export async function snapshot(): Promise<PoolSnapshot> {
   const t = now();
   let ready = 0;
   let cooling = 0;
+  let quotaExhausted = 0;
   let dead = 0;
+  let unverified = 0;
   let soonest = Infinity;
   for (const s of all) {
-    if (s.invalid) dead++;
-    else if (s.cooldownUntil > t) {
+    if (s.invalid || s.status === "dead") dead++;
+    else if (s.status === "unverified") unverified++;
+    else if (s.status === "quota_exhausted" && s.retryAfterAt > t) {
+      quotaExhausted++;
+      soonest = Math.min(soonest, s.retryAfterAt - t);
+    } else if (s.cooldownUntil > t) {
       cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);
     } else ready++;
@@ -427,7 +584,9 @@ export async function snapshot(): Promise<PoolSnapshot> {
     total: all.length,
     ready,
     cooling,
+    quota_exhausted: quotaExhausted,
     dead,
+    unverified,
     soonestReadyMs: Number.isFinite(soonest) ? soonest : 0,
     storage: storageMode,
     degraded: counters.dbDegraded > 0,

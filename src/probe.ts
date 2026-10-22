@@ -9,7 +9,13 @@
  */
 
 import { cfg } from "./config.ts";
-import { isInvalidKeyText, isModelUnavailable, isZeroQuota, parseRetryAfter } from "./upstream.ts";
+import { isModelUnavailable, parseRetryAfter } from "./upstream.ts";
+import {
+  classifyResponse,
+  type KeyVerdict,
+  type QuotaDetail,
+  type TierEvidence,
+} from "./verdict.ts";
 
 export type ProbeStatus =
   | "ok"
@@ -27,6 +33,10 @@ export type ProbeResult = {
   /** upstream-requested wait, 0 when the response carried no hint */
   retryAfterMs: number;
   message: string;
+  /** structured quota shape, present only when the answer was a 429 */
+  quota?: QuotaDetail | null;
+  /** plan evidence, present only when the answer was a 429 */
+  tierEvidence?: TierEvidence | null;
 };
 
 const TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 8000);
@@ -157,6 +167,7 @@ export async function probeKey(rawKey: string, model?: string): Promise<ProbeRes
   );
 }
 
+/** One probe call, classified by the single verdict taxonomy. */
 async function probeOnce(rawKey: string, model: string): Promise<ProbeResult> {
   const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
   const started = Date.now();
@@ -186,84 +197,94 @@ async function probeOnce(rawKey: string, model: string): Promise<ProbeResult> {
 
   const latencyMs = Date.now() - started;
   const body = await res.text().catch(() => "");
-  const status = res.status;
-
-  if (status >= 200 && status < 300) {
-    return { status: "ok", httpStatus: status, latencyMs, retryAfterMs: 0, message: "serving" };
-  }
-
-  if (status === 429) {
-    // A zero-quota project never resets: park it forever instead of cooling.
-    if (isZeroQuota(body)) {
-      return {
-        status: "zero_quota",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body) || "project quota is 0",
-      };
-    }
-    return {
-      status: "rate_limited",
-      httpStatus: status,
-      latencyMs,
-      retryAfterMs: parseRetryAfter(res, body) ?? cfg.cooldownMs,
-      message: messageOf(body) || "rate limited",
-    };
-  }
-
-  if (status === 401 || status === 403 || status === 400) {
-    if (isInvalidKeyText(body) || /reported as leaked/i.test(body) || status === 401) {
-      return {
-        status: "invalid",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body) || "key rejected",
-      };
-    }
-    if (isZeroQuota(body)) {
-      return {
-        status: "zero_quota",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body) || "project quota is 0",
-      };
-    }
-    if (status === 400 && /API key not valid|API_KEY_INVALID/i.test(body)) {
-      return {
-        status: "invalid",
-        httpStatus: status,
-        latencyMs,
-        retryAfterMs: 0,
-        message: messageOf(body),
-      };
-    }
-    return {
-      status: "unexpected",
-      httpStatus: status,
-      latencyMs,
-      retryAfterMs: 0,
-      message: messageOf(body) || `HTTP ${status}`,
-    };
-  }
-
-  if (status >= 500) {
-    return {
-      status: "server_error",
-      httpStatus: status,
-      latencyMs,
-      retryAfterMs: 0,
-      message: messageOf(body) || `HTTP ${status}`,
-    };
-  }
+  const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
+  const serving = res.status >= 200 && res.status < 300;
 
   return {
-    status: "unexpected",
-    httpStatus: status,
+    status: PROBE_STATUS[classified.verdict],
+    httpStatus: res.status,
     latencyMs,
-    retryAfterMs: 0,
-    message: messageOf(body) || `HTTP ${status}`,
+    retryAfterMs: res.status === 429 ? (parseRetryAfter(res, body) ?? cfg.cooldownMs) : 0,
+    message: serving ? "serving" : messageOf(body) || `HTTP ${res.status}`,
+    quota: classified.quota,
+    tierEvidence: classified.tierEvidence,
   };
+}
+
+/** Verdict -> probe status. `quota_exhausted` is the historical `zero_quota`. */
+const PROBE_STATUS: Record<KeyVerdict, ProbeStatus> = {
+  ok: "ok",
+  rate_limited: "rate_limited",
+  quota_exhausted: "zero_quota",
+  invalid: "invalid",
+  server_error: "server_error",
+  network_error: "network_error",
+  unexpected: "unexpected",
+};
+
+export type TierProbeResult = {
+  verdict: KeyVerdict;
+  tierEvidence: TierEvidence | null;
+  quota: QuotaDetail | null;
+  httpStatus: number;
+  message: string;
+};
+
+/**
+ * Ask upstream which plan the key is on, using models the serving path never
+ * uses. Only a 429 body carries tier evidence, so a 2xx answers `ok` with a
+ * null evidence and the caller must leave the stored plan untouched.
+ *
+ * The model list is walked only when the answer blames the model (404, or a
+ * model-unavailable 400): that says nothing about the credential.
+ */
+export async function probeTier(rawKey: string, timeoutMs = TIMEOUT_MS): Promise<TierProbeResult> {
+  const models = cfg.tierProbeModels.filter(Boolean);
+  let last: TierProbeResult = {
+    verdict: "unexpected",
+    tierEvidence: null,
+    quota: null,
+    httpStatus: 0,
+    message: "no tier probe model configured",
+  };
+
+  for (const model of models) {
+    const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "ping" }] }],
+          generationConfig: { maxOutputTokens: MAX_TOKENS, temperature: 0 },
+        }),
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      last = {
+        verdict: "network_error",
+        tierEvidence: null,
+        quota: null,
+        httpStatus: 0,
+        message: err instanceof Error ? err.message : String(err),
+      };
+      continue;
+    }
+
+    const body = await res.text().catch(() => "");
+    const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
+    last = {
+      verdict: classified.verdict,
+      tierEvidence: classified.tierEvidence,
+      quota: classified.quota,
+      httpStatus: res.status,
+      message: messageOf(body) || `HTTP ${res.status}`,
+    };
+    if (res.status === 404 || isModelUnavailable(body)) continue;
+    return last;
+  }
+
+  return last;
 }

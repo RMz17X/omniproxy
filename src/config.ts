@@ -94,6 +94,22 @@ export const cfg = {
     "gemini-3.1-flash-lite",
   ]),
   /**
+   * Tier probe chain. A single generateContent call against a quota-gated
+   * model answers 429 for both key classes, and the 429 shape is the only
+   * place Google discloses the tier. Measured 2026-10-22: `gemini-2.5-flash-image`
+   * answers 429 for free and paid keys; `gemini-2.0-flash-preview-image-generation`
+   * answers 404 for free keys and 429 for paid ones. The default model is the
+   * last resort so a probe never ends without an answer.
+   */
+  tierProbeModels: list(process.env.TIER_PROBE_MODELS, [
+    "gemini-2.5-flash-image",
+    "gemini-2.0-flash-preview-image-generation",
+  ]),
+  /** keys per recheck batch on /internal/keys/recheck */
+  recheckBatchSize: num(process.env.RECHECK_BATCH_SIZE, 25),
+  /** a key rejected as invalid is not re-probed more often than this */
+  invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
+  /**
    * Models the upstream has retired, filtered out of the /v1/models catalog.
    *
    * Verified on 2026-10-22 against production: `gemini-2.5-flash`,

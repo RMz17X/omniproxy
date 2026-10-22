@@ -9,7 +9,7 @@ create table if not exists keys (
   masked       text not null,
   label        text,
   owner        text,
-  plan         text not null default 'free',
+  plan         text not null default 'unknown',
   tags         text[] not null default '{}',
   enabled      boolean not null default true,
   note         text,
@@ -22,6 +22,20 @@ create table if not exists keys (
 -- in process memory is lost on every cold start and the key is re-fired
 -- immediately. NULL means "ready"; a future timestamp means "parked until".
 alter table keys add column if not exists cooldown_until timestamptz;
+
+-- Verdict / plan state. `status` is the last classified probe verdict, kept so
+-- a cold start does not re-fire a key the upstream already refused. `plan` is
+-- the last *validated* tier (only a 429 body proves it); `plan_evidence` keeps
+-- the shape that proved it. `quota_state` is the structured 429 body, so the
+-- console can show a reset time without re-probing. `retry_after_at` is the
+-- upstream's own deadline, distinct from the local cooldown park.
+alter table keys add column if not exists status text not null default 'unknown';
+alter table keys add column if not exists plan_evidence jsonb;
+alter table keys add column if not exists quota_state jsonb;
+alter table keys add column if not exists retry_after_at timestamptz;
+alter table keys add column if not exists plan_validated_at timestamptz;
+alter table keys add column if not exists last_checked_at timestamptz;
+alter table keys alter column plan set default 'unknown';
 
 create table if not exists usage_events (
   ts                timestamptz not null default now(),

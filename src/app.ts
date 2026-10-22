@@ -15,12 +15,12 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, storageMode, tierCounts, type KeyTier } from "./pool.ts";
+import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, rawKeyById, removeKey, removeKeyById, setTierById, snapshot, storageMode, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
 import { listLiveModels, pricingMeta, testModel } from "./models.ts";
-import { probeKey } from "./probe.ts";
+import { probeKey, probeTier, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { chatCompletions, embeddings, models } from "./openai.ts";
@@ -540,32 +540,73 @@ app.post("/pengatur/keys/test", async (c) => {
   const result = await probeKey(raw, model);
 
   // Fold the verdict into pool state only for keys the pool actually holds.
-  const held = id ? Boolean(await rawKeyById(id)) : false;
-  let applied = "none";
-  if (held) {
-    if (result.status === "ok") {
-      await markHealthy(raw);
-      applied = "revived";
-    } else if (result.status === "rate_limited") {
-      await mark429(raw, Math.max(cfg.cooldownMs, result.retryAfterMs));
-      applied = "cooling";
-    } else if (result.status === "zero_quota" || result.status === "invalid") {
-      await markInvalid(raw);
-      applied = "retired";
-    } else if (result.status === "server_error") {
-      await mark429(raw, cfg.serverErrCooldownMs);
-      applied = "cooling";
-    }
-  }
+  const held = Boolean(await rawKeyById(id));
+  const applied = held ? await applyProbe(raw, result) : "none";
+  // Plan evidence rides on the 429 body only; a 2xx proves the credential but
+  // says nothing about the plan, so the stored tier is left alone.
+  if (held && result.tierEvidence) await markValidatedPlan(raw, result.tierEvidence);
+
+  const view = held ? (await listKeys()).find((k) => k.id === id) : undefined;
 
   await auditRecordNow("keys.test", {
     actor: actorFrom(c.req.header("user-agent")),
     target: id,
-    detail: { model: model ?? "default", status: result.status, applied },
+    detail: {
+      model: model ?? "default",
+      verdict: result.status,
+      tier: result.tierEvidence?.tier ?? "unknown",
+      applied,
+    },
   });
 
-  return c.json({ ok: true, id, applied, probe: result, pool: await snapshot() });
+  return c.json({
+    ok: true,
+    id,
+    applied,
+    probe: { status: result.status, httpStatus: result.httpStatus, retryAfterMs: result.retryAfterMs },
+    verdict: result.status,
+    httpStatus: result.httpStatus,
+    message: result.message,
+    quota: result.quota ?? null,
+    tierEvidence: result.tierEvidence ?? null,
+    planValidated: view?.planValidated ?? false,
+    plan: view?.plan ?? "unspecified",
+    nextAccessAt: view?.nextAccessAt ?? 0,
+    pool: await snapshot(),
+  });
 });
+
+/**
+ * Fold a probe verdict back into pool state.
+ *
+ * Only `ok` revives; only `invalid` retires. A quota verdict parks the key
+ * without disabling it — the allowance is the project owner's to change, so
+ * the key stays enrolled and becomes selectable again at `retryAfterAt`.
+ * Returns the label the admin routes report as `applied`.
+ */
+async function applyProbe(raw: string, probe: ProbeResult): Promise<string> {
+  switch (probe.status) {
+    case "ok":
+      await markHealthy(raw);
+      return "revived";
+    case "rate_limited":
+      await mark429(raw, Math.max(cfg.cooldownMs, probe.retryAfterMs), probe.quota ?? null);
+      return "cooling";
+    case "zero_quota":
+      await markQuotaExhausted(raw, probe.quota ?? null);
+      return "quota_exhausted";
+    case "invalid":
+      await markInvalid(raw);
+      return "retired";
+    case "server_error":
+    case "network_error":
+      await markSoftError(raw, cfg.serverErrCooldownMs);
+      return "cooling";
+    default:
+      await markUnverified(raw);
+      return "unverified";
+  }
+}
 
 /** Bounded-concurrency probe of the whole pool; the console's "test all". */
 app.post("/pengatur/keys/test-all", async (c) => {
@@ -583,20 +624,7 @@ app.post("/pengatur/keys/test-all", async (c) => {
       const raw = await rawKeyById(k.id);
       if (!raw) continue;
       const probe = await probeKey(raw);
-      let applied = "none";
-      if (probe.status === "ok") {
-        await markHealthy(raw);
-        applied = "revived";
-      } else if (probe.status === "rate_limited") {
-        await mark429(raw, Math.max(cfg.cooldownMs, probe.retryAfterMs));
-        applied = "cooling";
-      } else if (probe.status === "zero_quota" || probe.status === "invalid") {
-        await markInvalid(raw);
-        applied = "retired";
-      } else if (probe.status === "server_error") {
-        await mark429(raw, cfg.serverErrCooldownMs);
-        applied = "cooling";
-      }
+      const applied = await applyProbe(raw, probe);
       results.push({ id: k.id, key: k.key, probe, applied });
     }
   };
@@ -607,6 +635,88 @@ app.post("/pengatur/keys/test-all", async (c) => {
     detail: { tested: results.length },
   });
   return c.json({ ok: true, tested: results.length, results, pool: await snapshot() });
+});
+
+/**
+ * Declare the plan from upstream evidence rather than from the operator.
+ *
+ * Body: { ids?: string[] } | { all: true }
+ *
+ * A 200 validates nothing: only a 429 body names the quota that refused the
+ * key, so a key whose tier models serve keeps its stored plan and stays
+ * `planValidated: false`.
+ */
+app.post("/pengatur/keys/validate-plan", async (c) => {
+  let body: { ids?: string[]; all?: boolean };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+
+  let ids: string[] = [];
+  if (body.all) ids = (await listKeys()).map((k) => k.id);
+  else if (Array.isArray(body.ids)) ids = body.ids.filter((x) => typeof x === "string" && x);
+  if (!ids.length) return c.json({ error: { message: "`ids` or `all` is required." } }, 400);
+
+  const results: {
+    id: string;
+    tier: string;
+    planValidated: boolean;
+    verdict?: string;
+    httpStatus?: number;
+    error: string | null;
+  }[] = new Array(ids.length);
+  let cursor = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= ids.length) return;
+      const id = ids[i];
+      const raw = await rawKeyById(id);
+      if (!raw) {
+        results[i] = { id, tier: "unknown", planValidated: false, error: "No key with that id." };
+        continue;
+      }
+      const t = await probeTier(raw);
+      const evidence = t.tierEvidence && t.tierEvidence.tier !== "unknown" ? t.tierEvidence : null;
+      if (evidence) await markValidatedPlan(raw, evidence);
+      results[i] = {
+        id,
+        tier: evidence?.tier ?? "unknown",
+        planValidated: Boolean(evidence),
+        verdict: t.verdict,
+        httpStatus: t.httpStatus,
+        error: evidence ? null : t.message,
+      };
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, ids.length) }, worker));
+
+  const validated = results.filter((r) => r.planValidated).length;
+  await auditRecordNow("keys.validate-plan", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { requested: ids.length, validated },
+  });
+  return c.json({ ok: true, validated, results, pool: await snapshot() });
+});
+
+/**
+ * Reveal one raw key. Listings never carry raw material; this route exists so
+ * an operator can copy a key they own. The path does not match any public
+ * shell, so the `/pengatur/*` gate demands the admin token for it.
+ */
+app.get("/pengatur/keys/:id/raw", async (c) => {
+  const id = c.req.param("id");
+  const raw = await rawKeyById(id);
+  if (!raw) return c.json({ error: { message: "No key with that id." } }, 404);
+  await auditRecordNow("keys.raw", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: id,
+    detail: { action: "reveal" },
+  });
+  return c.json({ ok: true, id, raw });
 });
 
 /* ---------- cron ---------- */
@@ -658,6 +768,72 @@ app.all("/internal/rollup", async (c) => {
     );
   }
   return c.json({ day: rolled.day, buckets: rolled.buckets, pruned: pruned.pruned });
+});
+
+/**
+ * Re-examine keys that have come due: a reset that has passed, a key admitted
+ * without proof, or a key whose plan was never validated.
+ *
+ * Cadence is external on purpose: the Vercel Hobby plan allows only the daily
+ * rollup cron, so an operator or an out-of-band scheduler drives this route.
+ */
+app.post("/internal/keys/recheck", async (c) => {
+  const presented =
+    (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() ||
+    c.req.header("x-rollup-token") ||
+    "";
+  const accepted = [cfg.adminToken, cfg.rollupToken, cfg.cronSecret].filter((t) => t.length > 0);
+  if (accepted.length === 0) {
+    return c.json(
+      { error: { message: "Recheck disabled: no internal token is configured." } },
+      403,
+    );
+  }
+  if (!accepted.includes(presented)) {
+    return c.json({ error: { message: "Unauthorized." } }, 401);
+  }
+
+  const at = Date.now();
+  const floor = cfg.invalidRecheckFloorMinutes * 60_000;
+  const due = (k: KeyView): boolean => {
+    if (k.status === "dead") return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
+    if (k.status === "quota_exhausted" || k.status === "cooling") return k.nextAccessAt <= at;
+    if (k.status === "unverified") return true;
+    if (!k.planValidated) return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
+    return false;
+  };
+  const candidates = (await listKeys()).filter(due).slice(0, cfg.recheckBatchSize);
+
+  let checked = 0;
+  let revived = 0;
+  let stillQuota = 0;
+  let failed = 0;
+  for (const k of candidates) {
+    const raw = await rawKeyById(k.id);
+    if (!raw) continue;
+    checked++;
+    const result = await probeKey(raw);
+    const applied = await applyProbe(raw, result);
+    if (applied === "revived") revived++;
+    else if (applied === "quota_exhausted") stillQuota++;
+    else if (applied !== "cooling") failed++;
+    if (result.tierEvidence) await markValidatedPlan(raw, result.tierEvidence);
+  }
+
+  await auditRecordNow("keys.recheck", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: "pool",
+    detail: { due: candidates.length, checked, revived, stillQuota, failed },
+  });
+  return c.json({
+    ok: true,
+    due: candidates.length,
+    checked,
+    revived,
+    stillQuota,
+    failed,
+    pool: await snapshot(),
+  });
 });
 
 app.notFound((c) =>
