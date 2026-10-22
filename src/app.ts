@@ -818,6 +818,7 @@ app.post("/internal/keys/recheck", async (c) => {
   let revived = 0;
   let stillQuota = 0;
   let failed = 0;
+  let plansValidated = 0;
   for (const k of candidates) {
     const raw = await rawKeyById(k.id);
     if (!raw) continue;
@@ -828,12 +829,23 @@ app.post("/internal/keys/recheck", async (c) => {
     else if (applied === "quota_exhausted") stillQuota++;
     else if (applied !== "cooling") failed++;
     if (result.tierEvidence) await markValidatedPlan(raw, result.tierEvidence);
+    // A key whose plan was never validated needs the tier probe: a healthy
+    // key answers 200, and a 200 carries no tier marker at all. The tier
+    // probe asks a quota-gated model on purpose, so its verdict is about the
+    // plan and never about the credential.
+    if (!k.planValidated) {
+      const tier = await probeTier(raw);
+      if (tier.tierEvidence && tier.tierEvidence.tier !== "unknown") {
+        await markValidatedPlan(raw, tier.tierEvidence);
+        plansValidated++;
+      }
+    }
   }
 
   await auditRecordNow("keys.recheck", {
     actor: actorFrom(c.req.header("user-agent")),
     target: "pool",
-    detail: { due: candidates.length, checked, revived, stillQuota, failed },
+    detail: { due: candidates.length, checked, revived, stillQuota, failed, plansValidated },
   });
   return c.json({
     ok: true,
@@ -841,6 +853,7 @@ app.post("/internal/keys/recheck", async (c) => {
     checked,
     revived,
     stillQuota,
+    plansValidated,
     failed,
     pool: await snapshot(),
   });
