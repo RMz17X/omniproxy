@@ -9283,7 +9283,9 @@ var BASE_CSS = `
   --tap-sm: 30px;
 
   --rail: 236px;
-  --page-max: 1240px;
+  /* Wide tables need the width. At 1920px a 1240px cap left 214px of dead
+     margin on each side while a 7-column table was begging for it. */
+  --page-max: 1560px;
 }
 
 :root[data-theme="dark"] {
@@ -9355,7 +9357,8 @@ var BASE_CSS = `
   --sp-6: 18px;
   --sp-7: 24px;
   --inset: 14px;
-  --page-max: 1440px;
+  /* Comfortable is the wider default now, so compact must not cap tighter. */
+  --page-max: 1560px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -9862,6 +9865,17 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .table .id-cell { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
 .table tbody tr[aria-selected="true"] { background: var(--accent-wash); }
 .table .actions-cell { text-align: right; white-space: nowrap; }
+/* A probe result must never change the row's height: "zero quota 429" wrapping
+   to three lines made rows oscillate between 69px and 90px and broke vertical
+   scanning. The full message stays in the title attribute. */
+.table td[data-l="test"] { white-space: nowrap; }
+.table td[data-l="test"] .mono { font-size: 11.5px; }
+/* The model cell is the tallest thing in a row: a mono id that will not wrap
+   plus a description that will. Keep the description to one line with an
+   ellipsis so every row in the table is the same height. */
+.table td .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table tbody tr { height: 1px; }
+.table tbody td { height: inherit; }
 
 /* Inline links. A table cell is often nothing but a link, so the link owns
    the cell's height and gives a full-width row of tap surface on touch. */
@@ -10927,11 +10941,18 @@ var CLIENT_JS = `
       }
     },
 
-    /* an inline message, next to the control that produced it */
+    /* An inline message, next to the control that produced it.
+       Preserve the node's own classes: callers mount this on a .notice
+       container and replacing className would silently delete the container's
+       padding, border and background. Only the tone class changes. */
     say: function (node, text, kind) {
       if (!node) return;
       node.textContent = text || "";
-      node.className = "hint" + (kind === "ok" ? " u-ok" : kind === "err" ? " u-bad" : kind === "warn" ? " u-warn" : "");
+      var tones = ["u-ok", "u-bad", "u-warn"];
+      for (var i = 0; i < tones.length; i++) node.classList.remove(tones[i]);
+      if (kind === "ok") node.classList.add("u-ok");
+      else if (kind === "err") node.classList.add("u-bad");
+      else if (kind === "warn") node.classList.add("u-warn");
     },
 
     confirm: function (opts) {
@@ -11847,7 +11868,10 @@ var MODELS_BODY = `
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="q">Search</label>
-          <input id="q" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
+          <div class="search">
+            ${icon("search", "icon", 14)}
+            <input id="q" class="input" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
+          </div>
         </div>
         <div class="grow">
           <label class="field" for="kind">Capability</label>
@@ -11976,11 +12000,15 @@ var MODELS_SCRIPT = `
 
   function renderKpis() {
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Models", GX.fmt.num(state.models.length), "returned by Google"));
+    /* Catalog facts only. Every number here describes the unfiltered list
+       Google returns; the filtered count lives in the panel meta so the two
+       never compete. A "Your plan" card used to restate the segmented control
+       130px below and reflowed the strip when the value wrapped. */
+    el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "models Google returns"));
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
+    el.kpis.appendChild(GX.kpi("Unlisted", GX.fmt.num(state.models.filter(function (m) { return m.free === null; }).length), "Google publishes no tier"));
     el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
-    el.kpis.appendChild(GX.kpi("Your plan", TIER_LABELS[state.tier], "changes which models are listed"));
   }
 
   function badgeFor(m) {
@@ -12011,7 +12039,10 @@ var MODELS_SCRIPT = `
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
     renderKpis();
-    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model" : " models");
+    /* The only filtered count on the page, and it says so. The KPI strip above
+       carries catalog facts only, so no two numbers answer the same question. */
+    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model matches" : " models match") +
+      " the filters" + (state.models.length !== rows.length ? " (of " + state.models.length + ")" : "");
 
     if (!rows.length) {
       el.body.textContent = "";
@@ -12046,7 +12077,9 @@ var MODELS_SCRIPT = `
       var bits = [m.displayName];
       if (m.kind && m.kind !== "text") bits.push(m.kind);
       if (m.methods && m.methods.length) bits.push(m.methods.join("/"));
-      idCell.appendChild(GX.el("div", { class: "sub", text: bits.join(" \xB7 ") }));
+      var sub = GX.el("div", { class: "sub", text: bits.join(" \xB7 ") });
+      sub.title = bits.join(" \xB7 ");
+      idCell.appendChild(sub);
       tr.appendChild(idCell);
 
       var tierCell = GX.el("td", { "data-l": "tier" });

@@ -82,7 +82,9 @@ export const BASE_CSS = `
   --tap-sm: 30px;
 
   --rail: 236px;
-  --page-max: 1240px;
+  /* Wide tables need the width. At 1920px a 1240px cap left 214px of dead
+     margin on each side while a 7-column table was begging for it. */
+  --page-max: 1560px;
 }
 
 :root[data-theme="dark"] {
@@ -154,7 +156,8 @@ export const BASE_CSS = `
   --sp-6: 18px;
   --sp-7: 24px;
   --inset: 14px;
-  --page-max: 1440px;
+  /* Comfortable is the wider default now, so compact must not cap tighter. */
+  --page-max: 1560px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -661,6 +664,17 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .table .id-cell { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
 .table tbody tr[aria-selected="true"] { background: var(--accent-wash); }
 .table .actions-cell { text-align: right; white-space: nowrap; }
+/* A probe result must never change the row's height: "zero quota 429" wrapping
+   to three lines made rows oscillate between 69px and 90px and broke vertical
+   scanning. The full message stays in the title attribute. */
+.table td[data-l="test"] { white-space: nowrap; }
+.table td[data-l="test"] .mono { font-size: 11.5px; }
+/* The model cell is the tallest thing in a row: a mono id that will not wrap
+   plus a description that will. Keep the description to one line with an
+   ellipsis so every row in the table is the same height. */
+.table td .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table tbody tr { height: 1px; }
+.table tbody td { height: inherit; }
 
 /* Inline links. A table cell is often nothing but a link, so the link owns
    the cell's height and gives a full-width row of tap surface on touch. */
@@ -2061,11 +2075,18 @@ export const CLIENT_JS = `
       }
     },
 
-    /* an inline message, next to the control that produced it */
+    /* An inline message, next to the control that produced it.
+       Preserve the node's own classes: callers mount this on a .notice
+       container and replacing className would silently delete the container's
+       padding, border and background. Only the tone class changes. */
     say: function (node, text, kind) {
       if (!node) return;
       node.textContent = text || "";
-      node.className = "hint" + (kind === "ok" ? " u-ok" : kind === "err" ? " u-bad" : kind === "warn" ? " u-warn" : "");
+      var tones = ["u-ok", "u-bad", "u-warn"];
+      for (var i = 0; i < tones.length; i++) node.classList.remove(tones[i]);
+      if (kind === "ok") node.classList.add("u-ok");
+      else if (kind === "err") node.classList.add("u-bad");
+      else if (kind === "warn") node.classList.add("u-warn");
     },
 
     confirm: function (opts) {

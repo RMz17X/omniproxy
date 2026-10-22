@@ -40,7 +40,10 @@ const MODELS_BODY = `
       <div class="toolbar">
         <div class="grow">
           <label class="field" for="q">Search</label>
-          <input id="q" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
+          <div class="search">
+            ${icon("search", "icon", 14)}
+            <input id="q" class="input" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
+          </div>
         </div>
         <div class="grow">
           <label class="field" for="kind">Capability</label>
@@ -170,11 +173,15 @@ const MODELS_SCRIPT = `
 
   function renderKpis() {
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Models", GX.fmt.num(state.models.length), "returned by Google"));
+    /* Catalog facts only. Every number here describes the unfiltered list
+       Google returns; the filtered count lives in the panel meta so the two
+       never compete. A "Your plan" card used to restate the segmented control
+       130px below and reflowed the strip when the value wrapped. */
+    el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "models Google returns"));
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
+    el.kpis.appendChild(GX.kpi("Unlisted", GX.fmt.num(state.models.filter(function (m) { return m.free === null; }).length), "Google publishes no tier"));
     el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
-    el.kpis.appendChild(GX.kpi("Your plan", TIER_LABELS[state.tier], "changes which models are listed"));
   }
 
   function badgeFor(m) {
@@ -205,7 +212,10 @@ const MODELS_SCRIPT = `
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
     renderKpis();
-    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model" : " models");
+    /* The only filtered count on the page, and it says so. The KPI strip above
+       carries catalog facts only, so no two numbers answer the same question. */
+    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model matches" : " models match") +
+      " the filters" + (state.models.length !== rows.length ? " (of " + state.models.length + ")" : "");
 
     if (!rows.length) {
       el.body.textContent = "";
@@ -240,7 +250,9 @@ const MODELS_SCRIPT = `
       var bits = [m.displayName];
       if (m.kind && m.kind !== "text") bits.push(m.kind);
       if (m.methods && m.methods.length) bits.push(m.methods.join("/"));
-      idCell.appendChild(GX.el("div", { class: "sub", text: bits.join(" · ") }));
+      var sub = GX.el("div", { class: "sub", text: bits.join(" · ") });
+      sub.title = bits.join(" · ");
+      idCell.appendChild(sub);
       tr.appendChild(idCell);
 
       var tierCell = GX.el("td", { "data-l": "tier" });
