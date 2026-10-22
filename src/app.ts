@@ -818,6 +818,7 @@ app.post("/internal/keys/recheck", async (c) => {
   let revived = 0;
   let stillQuota = 0;
   let failed = 0;
+  let retired = 0;
   let plansValidated = 0;
   for (const k of candidates) {
     const raw = await rawKeyById(k.id);
@@ -827,6 +828,7 @@ app.post("/internal/keys/recheck", async (c) => {
     const applied = await applyProbe(raw, result);
     if (applied === "revived") revived++;
     else if (applied === "quota_exhausted") stillQuota++;
+    else if (applied === "retired") retired++;
     else if (applied !== "cooling") failed++;
     if (result.tierEvidence) await markValidatedPlan(raw, result.tierEvidence);
     // A key whose plan was never validated needs the tier probe: a healthy
@@ -845,7 +847,7 @@ app.post("/internal/keys/recheck", async (c) => {
   await auditRecordNow("keys.recheck", {
     actor: actorFrom(c.req.header("user-agent")),
     target: "pool",
-    detail: { due: candidates.length, checked, revived, stillQuota, failed, plansValidated },
+    detail: { due: candidates.length, checked, revived, stillQuota, retired, failed, plansValidated },
   });
   return c.json({
     ok: true,
@@ -853,6 +855,7 @@ app.post("/internal/keys/recheck", async (c) => {
     checked,
     revived,
     stillQuota,
+    retired,
     plansValidated,
     failed,
     pool: await snapshot(),
