@@ -15,6 +15,13 @@
  * model only":
  *   key containing "zeroquota" -> 429 zero-quota on every model
  *   key containing "halfquota" -> 429 zero-quota on 3.5-flash only, 200 elsewhere
+ * Plan classification needs the two real 429 shapes plus a model that only a
+ * paid project can reach:
+ *   key containing "freequota" -> 429 QuotaFailure (no limit value) on every
+ *                                model except the older image preview, which
+ *                                is 404 for a free project
+ *   key containing "paidquota" -> 429 ErrorInfo (limit value present) on the
+ *                                image models, 200 elsewhere
  */
 const server = Bun.serve({
   // Port 0: the OS assigns a free one, so a mock left behind by an earlier
@@ -92,6 +99,55 @@ const server = Bun.serve({
     }
     if (key.toLowerCase().includes("halfquota") && model.includes("3.5-flash")) {
       // Out of quota on one model only: the other models still serve it.
+      return q(429, zeroQuotaBody);
+    }
+    // ---- plan shapes ----
+    // Free tier: `QuotaFailure.violations[]` names the free-tier quota and
+    // carries NO limit value. The daily window resets, so the key is parked.
+    const freeQuotaBody = {
+      error: {
+        code: 429,
+        message:
+          "You exceeded your current quota, please check your plan and billing details.",
+        status: "RESOURCE_EXHAUSTED",
+        details: [
+          {
+            "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+            violations: [
+              {
+                quotaMetric:
+                  "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+                quotaDimensions: { model, location: "global" },
+              },
+            ],
+          },
+          {
+            "@type": "type.googleapis.com/google.rpc.RetryInfo",
+            retryDelay: "30659s",
+          },
+        ],
+      },
+    };
+    if (key.toLowerCase().includes("freequota")) {
+      // The older image preview model is not served to a free project at all,
+      // which is what lets a caller prove the free tier by elimination.
+      if (model.includes("2.0-flash-preview-image-generation")) {
+        return q(404, {
+          error: {
+            code: 404,
+            status: "NOT_FOUND",
+            message: `models/${model} is not found for API version v1beta.`,
+          },
+        });
+      }
+      return q(429, freeQuotaBody);
+    }
+    if (
+      key.toLowerCase().includes("paidquota") &&
+      (model.includes("flash-image") || model.includes("preview-image-generation"))
+    ) {
+      // A paid project serves both image models and is rate limited on them.
       return q(429, zeroQuotaBody);
     }
 

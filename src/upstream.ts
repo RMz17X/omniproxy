@@ -23,6 +23,7 @@ import {
   pick,
   snapshot,
 } from "./pool.ts";
+import { retryDelayMs } from "./verdict.ts";
 
 export type ExecResult = {
   response: Response;
@@ -51,8 +52,14 @@ export type ExecResult = {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-/** Parse Retry-After header or a "reset after 30s" style message. */
+/**
+ * Retry-After header, `google.rpc.RetryInfo.retryDelay`, or a "reset after 30s"
+ * style message — most specific first. A Google 429 normally carries the
+ * structured Duration and no header at all.
+ */
 export function parseRetryAfter(res: Response, body: string): number | null {
+  const structured = retryDelayMs(body);
+  if (structured !== null) return structured;
   const h = res.headers.get("retry-after");
   if (h) {
     const secs = Number(h);
