@@ -137,8 +137,7 @@ ${authGate()}
     <div id="bulkBar" class="panel-body u-rule-top" hidden>
       <div class="toolbar">
         <b id="selCount" class="u-tnum">0 selected</b>
-        <select id="bulkTier" aria-label="Billing plan for the selected keys" class="select u-auto"></select>
-        <button id="bulkApply" class="btn btn-sm" type="button">Apply plan</button>
+        <button id="bulkApply" class="btn btn-sm" type="button">Validate plan</button>
         <button id="bulkRemove" class="btn btn-sm btn-danger" type="button">Remove selected</button>
         <span class="spacer"></span>
         <button id="bulkClear" class="btn btn-ghost btn-sm" type="button">Clear</button>
@@ -195,7 +194,6 @@ const KEYS_SCRIPT = `
     auto: document.getElementById("auto"),
     selectAllBtn: document.getElementById("selectAllBtn"),
     bulkBar: document.getElementById("bulkBar"),
-    bulkTier: document.getElementById("bulkTier"),
     bulkApply: document.getElementById("bulkApply"),
     bulkRemove: document.getElementById("bulkRemove"),
     bulkClear: document.getElementById("bulkClear"),
@@ -571,18 +569,26 @@ const KEYS_SCRIPT = `
     el.keyPager.appendChild(box);
   }
 
-  function setTier(ids, tier, control) {
+  /* The plan is what the upstream answer proves, so a bulk action asks the
+     upstream rather than declaring a tier. There is no operator dropdown. */
+  function validateSelectedPlans(control) {
+    var ids = selectedIds();
     if (!ids.length) { GX.notice("Select at least one key.", "err"); return; }
-    if (control) control.disabled = true;
-    GX.api("/pengatur/keys/tier", { method: "POST", body: { ids: ids, tier: tier } })
+    GX.busy(control, "Validating");
+    GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: ids } })
       .then(function (data) {
-        GX.notice("Plan set to " + tierLabel(tier) + " for " + data.updated + " key(s).", "ok");
+        var list = (data && (data.results || data.keys)) || [];
+        var ok = 0, failed = 0;
+        list.forEach(function (row) { if (row && row.error) failed += 1; else ok += 1; });
+        if (!list.length) ok = data && data.updated ? data.updated : 0;
+        GX.notice(
+          "Validated " + ok + " key(s)" + (failed ? ", " + failed + " could not be read." : "."),
+          failed ? "warn" : "ok"
+        );
         return reload();
       })
-      .catch(function (err) {
-        GX.notice("Plan update failed: " + err.message, "err");
-      })
-      .then(function () { if (control) control.disabled = false; });
+      .catch(function (err) { GX.notice("Plan validation failed: " + err.message, "err"); })
+      .then(function () { GX.idle(control); });
   }
 
   function pickValidation(data, id) {
@@ -789,12 +795,6 @@ const KEYS_SCRIPT = `
         renderKpis(pool);
         el.poolMeta.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
         GX.storage(pool.storage + (pool.degraded ? " degraded" : ""), pool.degraded ? "warn" : "");
-        var keep = el.bulkTier.value;
-        el.bulkTier.textContent = "";
-        state.knownTiers.forEach(function (t) {
-          el.bulkTier.appendChild(GX.el("option", { value: t, text: tierLabel(t) }));
-        });
-        if (keep) el.bulkTier.value = keep;
         drawTable();
         el.console.hidden = false;
       })
@@ -842,7 +842,7 @@ const KEYS_SCRIPT = `
     visibleKeys().forEach(function (k) { state.selected[k.id] = !all; });
     drawTable();
   });
-  el.bulkApply.addEventListener("click", function () { setTier(selectedIds(), el.bulkTier.value, el.bulkApply); });
+  el.bulkApply.addEventListener("click", function () { validateSelectedPlans(el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);
   el.bulkClear.addEventListener("click", function () {
     state.selected = {};
