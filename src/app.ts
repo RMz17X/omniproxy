@@ -795,9 +795,19 @@ app.post("/internal/keys/recheck", async (c) => {
 
   const at = Date.now();
   const floor = cfg.invalidRecheckFloorMinutes * 60_000;
+  const quotaFloor = cfg.quotaRecheckFloorMinutes * 60_000;
   const due = (k: KeyView): boolean => {
     if (k.status === "dead") return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
-    if (k.status === "quota_exhausted" || k.status === "cooling") return k.nextAccessAt <= at;
+    if (k.status === "quota_exhausted") {
+      // A key whose upstream named a reset is due once that reset has passed.
+      // A project that holds no allocation never reports one, so re-probing it
+      // on every tick would waste the upstream AND starve the rest of the
+      // pool: it stays due forever and would take every slot in the batch, so
+      // the dead backlog behind it would never be reached.
+      if (k.nextAccessAt > 0) return k.nextAccessAt <= at;
+      return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= quotaFloor;
+    }
+    if (k.status === "cooling") return k.nextAccessAt <= at;
     if (k.status === "unverified") return true;
     if (!k.planValidated) return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
     return false;

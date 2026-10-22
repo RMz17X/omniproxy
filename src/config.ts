@@ -110,6 +110,12 @@ export const cfg = {
   /** a key rejected as invalid is not re-probed more often than this */
   invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
   /**
+   * A project with no allocation never advertises a reset, so its key would
+   * otherwise be due on every tick and take every slot in the batch. This is
+   * the floor between two such probes.
+   */
+  quotaRecheckFloorMinutes: num(process.env.QUOTA_RECHECK_FLOOR_MINUTES, 60),
+  /**
    * Models the upstream has retired, filtered out of the /v1/models catalog.
    *
    * Verified on 2026-10-22 against production: `gemini-2.5-flash`,
