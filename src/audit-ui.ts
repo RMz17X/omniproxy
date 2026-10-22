@@ -113,9 +113,18 @@ const AUDIT_SCRIPT = `
     return "/pengatur/audit/data?" + q.join("&");
   }
 
+  /* JSON.stringify(r.detail) dumped raw JSON straight into the trail: braces,
+     quoted keys, nulls. Render the fields the way the rest of the feed reads. */
   function detailText(v) {
     if (v === null || v === undefined) return "";
-    try { return JSON.stringify(v); } catch (e) { return String(v); }
+    if (typeof v !== "object") return String(v);
+    var parts = [];
+    Object.keys(v).forEach(function (key) {
+      var value = v[key];
+      if (value === null || value === undefined || value === "") return;
+      parts.push(key + " " + (typeof value === "object" ? JSON.stringify(value) : String(value)));
+    });
+    return parts.join(" · ");
   }
 
   function render(payload) {
@@ -144,9 +153,11 @@ const AUDIT_SCRIPT = `
       var what = r.target || "";
       var detail = detailText(r.detail);
       el.trail.appendChild(GX.el("div", { class: "feed-item" }, [
+        /* The actor landed in a second .what span with no label, so the feed
+           read as two consecutive values. Say who it was. */
         GX.el("span", { class: "act", text: r.action }),
         GX.el("span", { class: "what", text: (what ? what + " · " : "") + detail }),
-        GX.el("span", { class: "what", text: r.actor || "" }),
+        GX.el("span", { class: "what meta", text: r.actor ? "by " + r.actor : "by unknown actor" }),
         GX.el("time", { text: GX.fmt.stamp(r.ts) })
       ]));
     });

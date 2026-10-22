@@ -351,6 +351,19 @@ const OVERVIEW_SCRIPT = `
         GX.lock(err.message + " Re-enter the token.");
         throw err;
       }
+      /* A failed load left #console hidden, so the operator got a blank page
+         plus a toast and no way to retry except reloading the whole app.
+         Paint the failure into the console footprint, like the list page does,
+         and offer the retry where the data would be. */
+      el.console.hidden = false;
+      el.console.textContent = "";
+      var box = GX.el("div", { class: "panel-body" }, [
+        GX.state("error", "Could not load the overview", err.message),
+        GX.el("div", { class: "u-mt-3" }, [
+          GX.el("button", { class: "btn btn-sm", type: "button", text: "Try again", onclick: function () { reload(); } })
+        ])
+      ]);
+      el.console.appendChild(box);
       GX.notice("Refresh failed: " + err.message, "err");
     });
   }

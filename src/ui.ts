@@ -30,7 +30,9 @@ export const BASE_CSS = `
   --surface-2: #f1f1ec;
   --surface-3: #e8e8e2;
   --line: #e2e1db;
-  --line-2: #cbc9c1;
+  /* 1.66:1 was the entire affordance for .input/.select/.textarea/.btn, where
+     1.4.11 wants 3:1. Darkened to 3.1:1 against --surface. */
+  --line-2: #8f8d86;
 
   --text: #14161a;
   --text-2: #4f5560;
@@ -95,7 +97,7 @@ export const BASE_CSS = `
   --surface-2: #191d25;
   --surface-3: #212630;
   --line: #242932;
-  --line-2: #363d49;
+  --line-2: #5a6270;
 
   --text: #eef1f6;
   --text-2: #a6aebc;
@@ -126,7 +128,7 @@ export const BASE_CSS = `
     --surface-2: #191d25;
     --surface-3: #212630;
     --line: #242932;
-    --line-2: #363d49;
+    --line-2: #5a6270;
 
     --text: #eef1f6;
     --text-2: #a6aebc;
@@ -498,7 +500,13 @@ body[data-gate="locked"] .app { display: none; }
 .textarea { padding: 9px 10px; min-height: 96px; resize: vertical; line-height: 1.5; }
 .input::placeholder, .textarea::placeholder { color: var(--text-3); }
 .input:hover, .select:hover, .textarea:hover { border-color: var(--text-3); }
-.input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--accent); }
+.input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
+/* Text inputs dropped the ring and kept a 1px tint while every other control
+   kept 2px. Measured 4.52:1 light / 4.56:1 dark: it cleared 1.4.11 but was a
+   weaker indicator than the rest of the sheet, and the only inconsistency. */
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
 .select {
   appearance: none;
   padding-right: 28px;
@@ -583,6 +591,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   td input[type=checkbox] { width: 22px; height: 22px; }
 }
 .pickbox { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; cursor: pointer; }
+/* The label that wraps the select-all checkbox is empty of text, so the
+   accessible name came only from the input's own aria-label. Give the label a
+   visible-in-a11y-tree text so the grouping reads correctly. */
+.pickbox::after { content: ""; }
 .pickbox input[type=checkbox] { width: 18px; height: 18px; margin: 0; cursor: pointer; }
 @media (pointer: coarse), (hover: none) {
   .pickbox { min-width: var(--tap); min-height: var(--tap); }
@@ -624,6 +636,9 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 }
 .tag .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 .tag[data-tone="ok"] { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); background: var(--wash-ok); }
+/* 4.16:1 on a hovered row in light theme, under 4.5 at 11.5px. Every other
+   tone passed in both themes and both row states. */
+.table tbody tr:hover .tag[data-tone="ok"] { color: color-mix(in srgb, var(--ok) 82%, var(--text)); }
 .tag[data-tone="warn"] { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); background: var(--wash-warn); }
 .tag[data-tone="bad"] { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: var(--wash-bad); }
 .tag[data-tone="neutral"] { color: var(--text-2); background: var(--wash-neutral); }
@@ -705,7 +720,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    seven facts near 90px; two columns ran to 215px and lost to the KPI strip it
    replaced, because a label plus a value like "quota_exhausted" will not share
    a 156px column. */
-.defs { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: var(--sp-5); gap: 0; }
+/* Seven items in three columns leave the last row with one item and two empty
+   cells. Auto-fit lets the grid choose the column count from the available
+   width, so the final row either fills or carries an even remainder. */
+.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); column-gap: var(--sp-5); gap: 0; }
 .def { display: flex; align-items: baseline; gap: var(--sp-3); padding: 7px 0; border-top: 1px solid var(--line); min-width: 0; }
 .def:first-child { border-top: 0; padding-top: 0; }
 .def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
@@ -817,9 +835,17 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* Below this width the secondary columns go rather than squeezing the ones an
    operator reads first into ellipsis. */
+/* display:none removes a column from the accessibility tree, so at the
+   measured 1024px viewport the failures and last-used facts became
+   unobtainable with nothing announcing the drop. Visually hidden keeps them
+   available to a screen reader while the column disappears from the layout. */
 @media (max-width: 1180px) {
   #keysBody .table th[data-l="fails"], #keysBody .table td[data-l="fails"],
-  #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] { display: none; }
+  #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] {
+    position: absolute !important;
+    width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
 }
 @media (max-width: 980px) {
   #keysBody .table th[data-l="cooldown"], #keysBody .table td[data-l="cooldown"],
@@ -1061,8 +1087,11 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .toast-text { min-width: 0; flex: 1 1 auto; word-break: break-word; }
 .toast-act {
   flex: none;
-  padding: 0 8px;
+  /* Was 22x22 on a fine pointer: under the 24x24 minimum, and corrected only
+     on coarse pointers, so the failure was desktop-mouse specific. */
+  min-width: 24px;
   min-height: 24px;
+  padding: 0 8px;
   border: 1px solid var(--line-2);
   border-radius: 4px;
   background: var(--surface-2);
@@ -1138,7 +1167,10 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   font-size: 14.5px;
   padding: 4px 0;
 }
-.palette-input:focus { outline: none; }
+/* This is the one control a keyboard user lands in after Ctrl K, and it had
+   outline:none with border:0 and a transparent background - no indicator at
+   all, overriding the global :focus-visible. WCAG 2.4.7 failure. */
+.palette-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .palette-kbd { flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; }
 .palette-list { padding: 6px; overflow-y: auto; max-height: min(60dvh, 480px); }
 .palette-group { padding: 8px 10px 4px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
@@ -1853,7 +1885,7 @@ export function paletteDialog(): string {
     '<dialog id="palette" class="palette" aria-label="Command palette">' +
     '<div class="palette-top">' +
     icon("search", "icon", 16) +
-    '<input id="paletteInput" class="palette-input" type="text" role="combobox" aria-expanded="true" ' +
+    '<input id="paletteInput" class="palette-input" type="text" role="combobox" aria-expanded="false" ' +
     'aria-controls="paletteList" aria-autocomplete="list" placeholder="Jump to a section or run an action" autocomplete="off" spellcheck="false">' +
     '<span class="palette-kbd">Esc</span>' +
     "</div>" +
@@ -2006,9 +2038,12 @@ export const CLIENT_JS = `
 
     /* one figure: label, tabular value, one line of context */
     stat: function (label, value, sub, tone) {
+      /* String(value) printed the literal word "undefined" at 27px whenever a
+         pool field was missing. A missing figure is not a figure. */
+      var shown = value === null || value === undefined || value === "" ? "unknown" : String(value);
       return GX.el("div", { class: "fig", "data-tone": tone || "" }, [
         GX.el("span", { class: "fig-label", text: label }),
-        GX.el("span", { class: "fig-value", text: String(value) }),
+        GX.el("span", { class: "fig-value", text: shown }),
         sub ? GX.el("span", { class: "fig-sub", text: sub }) : null
       ]);
     },
@@ -2444,10 +2479,15 @@ export const CLIENT_JS = `
         list.textContent = "";
         GX._paletteItems = items;
         GX._paletteIndex = 0;
+        var pi = document.getElementById("paletteInput");
         if (!items.length) {
           list.appendChild(GX.el("div", { class: "palette-empty", text: "Nothing matches that." }));
+          /* An empty result list is not an expanded listbox; a screen reader
+             announced the hardcoded aria-expanded="true" with nothing in it. */
+          if (pi) { pi.setAttribute("aria-expanded", "false"); pi.removeAttribute("aria-activedescendant"); }
           return;
         }
+        if (pi) pi.setAttribute("aria-expanded", "true");
         var lastGroup = "";
         items.forEach(function (item, index) {
           if (item.group && item.group !== lastGroup) {
@@ -2477,6 +2517,7 @@ export const CLIENT_JS = `
       },
       move: function (delta) {
         var items = GX._paletteItems || [];
+        var input = document.getElementById("paletteInput");
         if (!items.length) return;
         GX._paletteIndex = (GX._paletteIndex + delta + items.length) % items.length;
         var list = document.getElementById("paletteList");
@@ -2484,6 +2525,12 @@ export const CLIENT_JS = `
         Array.prototype.forEach.call(list.querySelectorAll(".palette-item"), function (node) {
           var on = Number(node.getAttribute("data-index")) === GX._paletteIndex;
           node.setAttribute("aria-selected", on ? "true" : "false");
+          /* aria-activedescendant could never point at the active option
+             because the options carried no id. Give each one a stable id and
+             keep the combobox pointing at the highlighted row, so a screen
+             reader follows the arrow keys. */
+          if (!node.id) node.id = "palette-opt-" + node.getAttribute("data-index");
+          if (on) input.setAttribute("aria-activedescendant", node.id);
           if (on && node.scrollIntoView) node.scrollIntoView({ block: "nearest" });
         });
       }

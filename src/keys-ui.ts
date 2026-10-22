@@ -108,7 +108,7 @@ const KEYS_BODY = `
 
     <div class="panel-body">
       <div class="toolbar">
-        <button id="selectAllBtn" class="btn btn-sm" type="button">Select all</button>
+        <button id="selectAllBtn" class="btn btn-sm" type="button" title="Select every key matching these filters, across all pages">Select all filtered</button>
         <div class="grow">
           <label class="field" for="keyFilter">Filter</label>
           <div class="search">
@@ -338,8 +338,13 @@ const KEYS_SCRIPT = `
   /* Raw keys leave the server only through this one call, and only when the
      operator asks for it or the row is dead. */
   var rawCache = {};
+  /* Cached forever meant a rotated key kept its pre-rotation value until a
+     full reload. Five minutes is long enough to survive a re-render and short
+     enough that a rotation lands on the next page-load. */
+  var RAW_TTL_MS = 300000;
   function fetchRaw(id) {
-    if (rawCache[id]) return Promise.resolve(rawCache[id]);
+    var hit = rawCache[id];
+    if (hit && Date.now() - hit.at < RAW_TTL_MS) return Promise.resolve(hit.value);
     var headers = {};
     var token = GX.token();
     if (token) headers["Authorization"] = "Bearer " + token;
@@ -358,7 +363,7 @@ const KEYS_SCRIPT = `
           } catch (e) {}
           value = String(value === null || value === undefined ? "" : value).trim();
           if (!value) throw new Error("The server returned an empty key.");
-          rawCache[id] = value;
+          rawCache[id] = { at: Date.now(), value: value };
           return value;
         });
       });
@@ -384,7 +389,12 @@ const KEYS_SCRIPT = `
   }
 
   function writeUrl() {
-    GX.url.write({ q: state.query, status: state.status, plan: state.plan, page: state.page > 1 ? state.page : "" });
+    GX.url.write({
+      q: state.query, status: state.status, plan: state.plan,
+      size: state.size !== 25 ? state.size : "",
+      hide: state.hideDead ? "" : "0",
+      page: state.page > 1 ? state.page : ""
+    });
   }
 
   function readUrl() {
@@ -395,6 +405,11 @@ const KEYS_SCRIPT = `
     if (el.keyFilter) el.keyFilter.value = params.q || "";
     if (el.keyStatus) el.keyStatus.value = params.status || "";
     if (el.keyPlan) el.keyPlan.value = params.plan || "";
+    /* keySize and hideDead were the two view facts that never reached the URL,
+       so a shared link reproduced a different view than the one that was
+       copied. */
+    if (params.size && el.perPage) { el.perPage.value = params.size; state.size = Number(params.size) || 25; }
+    if (params.hide === "0" && el.keyHideDead) { el.keyHideDead.checked = false; state.hideDead = false; }
   }
 
   function visibleKeys() {
@@ -461,7 +476,8 @@ const KEYS_SCRIPT = `
       GX.el("th", { class: "num", scope: "col" }, GX.el("label", { class: "pickbox" }, GX.el("input", {
         type: "checkbox",
         id: "selectAll",
-        "aria-label": "Select every key on this page"
+        "aria-label": "Select every key on this page",
+        "title": "Select the 25 keys on this page. The toolbar Select all covers every filtered key, across all pages."
       }))),
       /* A screen reader announced this table as an unnamed "table" with 9
          columns of unknown purpose: no caption, and th without scope. scope=col
@@ -519,12 +535,16 @@ const KEYS_SCRIPT = `
 
     var body = GX.el("tbody");
     slice.forEach(function (k) {
-      var tr = GX.el("tr");
+      var tr = GX.el("tr", { "data-key-id": k.id });
 
       var pick = GX.el("td", { class: "num pick" });
       var pickLabel = GX.el("label", { class: "pickbox" });
       var box = GX.el("input", { type: "checkbox", "aria-label": "Select key " + k.key });
       box.checked = Boolean(state.selected[k.id]);
+      /* .table tbody tr[aria-selected="true"] was a specified visual state with
+         no producer anywhere, so a selected row never looked selected. Set it
+         from the same state the checkbox reads. */
+      if (state.selected[k.id]) tr.setAttribute("aria-selected", "true");
       box.addEventListener("change", function () {
         state.selected[k.id] = box.checked;
         paintBulk();
@@ -560,10 +580,10 @@ const KEYS_SCRIPT = `
          ever hands out the masked form, so the real value is fetched here and
          cached; the cell keeps the masked text until it arrives so the table
          paints immediately. */
-      if (rawCache[k.id]) {
-        keyText.textContent = keyDisplay(rawCache[k.id]);
+      if (rawCache[k.id] && Date.now() - rawCache[k.id].at < RAW_TTL_MS) {
+        keyText.textContent = keyDisplay(rawCache[k.id].value);
         keyText.className = "key-text raw";
-        keyText.title = rawCache[k.id];
+        keyText.title = rawCache[k.id].value;
       } else {
         fetchRaw(k.id).then(function (value) {
           keyText.textContent = keyDisplay(value);
@@ -637,10 +657,43 @@ const KEYS_SCRIPT = `
     });
 
     table.appendChild(body);
+    /* A 15s auto-refresh used to replace the whole tbody, so focus inside a
+       row (a checkbox, one of the three action buttons) was destroyed every
+       quarter minute while the operator was mid-task. Remember which row and
+       which cell held focus, then put it back on the rebuilt row. */
+    var active = document.activeElement;
+    var focusRow = active && active.closest ? active.closest("tr[data-key-id]") : null;
+    var focusId = focusRow ? focusRow.getAttribute("data-key-id") : null;
+    var focusCell = active && active.closest ? active.closest("td") : null;
+    var focusIndex = focusRow && focusCell
+      ? Array.prototype.indexOf.call(focusRow.children, focusCell) : -1;
+    var focusTag = active ? active.tagName : "";
+
     el.keysBody.textContent = "";
     el.keysBody.appendChild(table);
 
+    if (focusId) {
+      var restored = document.querySelector('tr[data-key-id="' + focusId + '"]');
+      if (restored) {
+        var cell = focusIndex >= 0 ? restored.children[focusIndex] : null;
+        var target = cell ? (cell.querySelector("input, button") || cell) : restored;
+        try { target.focus({ preventScroll: true }); } catch (e) {}
+      }
+    } else if (focusTag === "INPUT" || focusTag === "SELECT") {
+      /* A toolbar control keeps focus across a refresh; the tbody swap never
+         touched it, but re-render can steal it when the control is rebuilt. */
+      try { if (active && active.isConnected) active.focus({ preventScroll: true }); } catch (e) {}
+    }
+
     var all = document.getElementById("selectAll");
+    if (all) {
+      var picked = slice.filter(function (k) { return state.selected[k.id]; }).length;
+      /* .check input:indeterminate styles the partial-selection state, and
+         nothing ever set .indeterminate, so the rule was dead. This is also
+         the honest signal for "some of this page is selected". */
+      all.indeterminate = picked > 0 && picked < slice.length;
+      all.checked = picked === slice.length && slice.length > 0;
+    }
     all.addEventListener("change", function () {
       slice.forEach(function (k) { state.selected[k.id] = all.checked; });
       drawTable();
@@ -919,7 +972,10 @@ const KEYS_SCRIPT = `
       .then(function (data) {
         state.keys = data.keys || [];
         if (data.raw) {
-          Object.keys(data.raw).forEach(function (id) { rawCache[id] = data.raw[id]; });
+          var now = Date.now();
+          Object.keys(data.raw).forEach(function (id) {
+            rawCache[id] = { at: now, value: data.raw[id] };
+          });
         }
         state.knownTiers = data.knownTiers || [];
         var pool = data.pool || {};
@@ -968,9 +1024,22 @@ const KEYS_SCRIPT = `
     if (el.auto.checked) startAuto(); else stopAuto();
   });
   el.selectAllBtn.addEventListener("click", function () {
-    var all = visibleKeys().every(function (k) { return state.selected[k.id]; });
-    visibleKeys().forEach(function (k) { state.selected[k.id] = !all; });
+    var rows = visibleKeys();
+    var all = rows.every(function (k) { return state.selected[k.id]; });
+    rows.forEach(function (k) { state.selected[k.id] = !all; });
+    /* "Select all" on the toolbar and the thead checkbox were two
+       select-everything affordances with different scopes and nothing saying
+       which was which. Name the toolbar one for the scope it actually acts on:
+       every filtered key, across every page, not the visible page. */
+    GX.notice(
+      all
+        ? "Cleared " + rows.length + " selected key" + (rows.length === 1 ? "" : "s") + "."
+        : "Selected all " + rows.length + " key" + (rows.length === 1 ? "" : "s") +
+          " matching these filters, across every page.",
+      all ? "" : "ok"
+    );
     drawTable();
+    paintBulk();
   });
   el.bulkApply.addEventListener("click", function () { validateSelectedPlans(el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);
@@ -1044,7 +1113,12 @@ const DETAIL_BODY = `
       <p class="page-lede" id="keyPath">-</p>
     </div>
     <div class="page-head-side">
-      <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
+      <div class="u-gap-2">
+        <button class="btn btn-sm" id="detailValidate" type="button" title="Validate the plan behind this key" aria-label="Validate the plan behind this key">${icon("check")}Validate plan</button>
+        <button class="btn btn-sm" id="detailTest" type="button" title="Probe this key against upstream" aria-label="Probe this key against upstream">${icon("pulse")}Probe</button>
+        <button class="btn btn-sm btn-danger" id="detailRemove" type="button" title="Remove this key from the pool" aria-label="Remove this key from the pool">${icon("trash")}Remove</button>
+        <a class="btn btn-sm" href="/pengatur/keys">${icon("back")}All keys</a>
+      </div>
     </div>
   </header>
 
@@ -1123,6 +1197,9 @@ const DETAIL_SCRIPT = `
 
   var el = {
     console: document.getElementById("console"),
+    detailValidate: document.getElementById("detailValidate"),
+    detailTest: document.getElementById("detailTest"),
+    detailRemove: document.getElementById("detailRemove"),
     keyPath: document.getElementById("keyPath"),
     keyRaw: document.getElementById("keyRaw"),
     keyCopy: document.getElementById("keyCopy"),
@@ -1179,7 +1256,9 @@ const DETAIL_SCRIPT = `
   function renderSummary(k) {
     el.summary.textContent = "";
     var rows = [
-      ["Plan", k.plan || "-", k.plan === "free" ? "ok" : ""],
+      /* The list shows the plan label ("Pay as you go"); the detail page used
+         to show the raw code ("paid") for the same key. One fact, one word. */
+      ["Plan", tierLabel(k.plan || "") || k.plan || "-", k.plan === "free" ? "ok" : ""],
       ["State", k.status || "-", k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"],
       ["Enabled", k.enabled === false ? "no" : "yes", k.enabled === false ? "warn" : "ok"],
       ["Failures", k.failures, k.failures ? "warn" : ""],
@@ -1307,6 +1386,82 @@ const DETAIL_SCRIPT = `
         el.keyPath.appendChild(GX.state("error", "Could not load this key", err.message));
       });
   }
+
+  /* The detail page is its own IIFE and shares no scope with the list page's
+     script, so its three actions implement the same three endpoints here. The
+     list owns Probe / Validate / Remove; a dead key could only be investigated
+     by going back to the list to find its row. */
+  function post(url, body) {
+    var headers = { "Content-Type": "application/json" };
+    var token = GX.token();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return fetch(url, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(body || {}),
+      cache: "no-store"
+    }).then(function (res) {
+      return res.json().then(function (d) {
+        if (!res.ok) throw new Error((d && d.error && d.error.message) || "Request failed (" + res.status + ")");
+        return d;
+      });
+    });
+  }
+
+  el.detailValidate.addEventListener("click", function () {
+    GX.busy(el.detailValidate);
+    post("/pengatur/keys/validate-plan", { ids: [keyId] })
+      .then(function (d) {
+        var r = (d.results || [])[0];
+        GX.notice(r && r.tier
+          ? "Plan " + r.tier + (r.planValidated ? " verified." : " could not be verified.")
+          : "Plan validated.", "ok");
+        return refresh();
+      })
+      .catch(function (err) { GX.notice("Validate failed: " + err.message, "err"); })
+      .then(function () { GX.idle(el.detailValidate); });
+  });
+
+  el.detailTest.addEventListener("click", function () {
+    GX.busy(el.detailTest);
+    post("/pengatur/keys/test", { id: keyId })
+      .then(function () {
+        GX.notice("Probe finished.", "ok");
+        return refresh();
+      })
+      .catch(function (err) { GX.notice("Probe failed: " + err.message, "err"); })
+      .then(function () { GX.idle(el.detailTest); });
+  });
+
+  el.detailRemove.addEventListener("click", function () {
+    GX.confirm({
+      title: "Remove this key?",
+      message:
+        "Remove key " + keyId + " from the pool. The gateway stops serving with it, " +
+        "and it cannot be restored from this console, because the raw key never " +
+        "reaches the browser.",
+      confirmLabel: "Remove key"
+    }).then(function (ok) {
+      if (!ok) return;
+      GX.busy(el.detailRemove);
+      var headers = { "Content-Type": "application/json" };
+      var token = GX.token();
+      if (token) headers["Authorization"] = "Bearer " + token;
+      return fetch("/pengatur/keys", {
+        method: "DELETE",
+        headers: headers,
+        body: JSON.stringify({ ids: [keyId] }),
+        cache: "no-store"
+      }).then(function (res) {
+        return res.json().then(function (d) {
+          if (!res.ok) throw new Error((d && d.error && d.error.message) || "Request failed (" + res.status + ")");
+          GX.notice("Key removed.", "ok");
+          setTimeout(function () { location.href = "/pengatur/keys"; }, 800);
+        });
+      }).catch(function (err) { GX.notice("Remove failed: " + err.message, "err"); })
+        .then(function () { GX.idle(el.detailRemove); });
+    });
+  });
 
   GX.gate({ onSuccess: refresh });
 })();
