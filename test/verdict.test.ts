@@ -17,6 +17,7 @@ import { beforeAll, expect, test } from "bun:test";
 import "./env.ts";
 
 import { ensureMock } from "./env.ts";
+import { setSqlRunner, type SqlResult } from "../src/db.ts";
 
 import { cfg } from "../src/config.ts";
 import {
@@ -29,14 +30,29 @@ import {
   markInvalid,
   markQuotaExhausted,
   markUnverified,
+  keyId,
   pick,
   removeKey,
   removeKeyById,
+  snapshot,
 } from "../src/pool.ts";
 import { probeKey, probeTier } from "../src/probe.ts";
 import { classifyResponse, parseQuotaDetail, retryDelayMs, tierEvidenceFrom } from "../src/verdict.ts";
 
 /** The real free-tier envelope: a violation, no limit value, a daily window. */
+type Call = { query: string; params: unknown[] };
+
+let calls: Call[] = [];
+
+/** A fake executor that records every statement the pool persists. */
+function install(): void {
+  calls = [];
+  setSqlRunner(async <T>(query: string, params: unknown[]): Promise<SqlResult<T>> => {
+    calls.push({ query, params });
+    return { ok: true, rows: [] };
+  });
+}
+
 const FREE_TIER_429 = JSON.stringify({
   error: {
     code: 429,
@@ -274,6 +290,56 @@ test("an exhausted project keeps the key enrolled but out of rotation", async ()
   expect(view?.planEvidence?.tier).toBe("paid");
   // No reset was advertised, so no future instant makes it selectable.
   expect(await pick()).toBeNull();
+  await removeKey(key);
+});
+
+test("an exhausted project is counted as quota exhausted, never as ready", async () => {
+  const key = "AIzaVERDICTSNAPSHOT1";
+  await removeKey(key);
+  await onlyKey(key);
+  await markQuotaExhausted(key, parseQuotaDetail(project429("0")));
+
+  // The project holds no allocation, so no reset is advertised and
+  // `retryAfterAt` stays 0. The snapshot must not count that as ready: the
+  // key cannot serve, and reporting it as ready is what made the console
+  // claim a rotation that does not exist.
+  const snap = await snapshot();
+  expect(snap.quota_exhausted).toBe(1);
+  expect(snap.ready).toBe(0);
+  expect(snap.total).toBe(1);
+  await removeKey(key);
+});
+
+test("a quota exhausted key is re-enabled, so a cold start does not re-kill it", async () => {
+  const key = "AIzaVERDICTREENABLE1";
+  install();
+  await removeKey(key);
+  await onlyKey(key);
+
+  // A key retired by an earlier verdict carries enabled=false in Postgres.
+  // The upstream then answers with a quota refusal rather than a credential
+  // rejection, which proves the credential is alive, so the durable
+  // retirement flag must be cleared.
+  await markInvalid(key);
+  expect((await held(key))?.status).toBe("dead");
+
+  await markQuotaExhausted(key, parseQuotaDetail(project429("0")));
+  expect((await held(key))?.status).toBe("quota_exhausted");
+  expect((await held(key))?.invalid).toBe(false);
+
+  // Give the fire-and-forget persistence a turn, then read what was written.
+  await new Promise((r) => setTimeout(r, 50));
+  const enableWrites = calls.filter((c) => /update keys set enabled/i.test(c.query));
+  expect(enableWrites.length).toBeGreaterThan(0);
+  // The last enable write must turn the key back on: the durable "retired"
+  // flag is what `hydrate()` reads back as invalid on a cold start.
+  expect(enableWrites[enableWrites.length - 1].params[1]).toBe(true);
+  expect(enableWrites[enableWrites.length - 1].params[0]).toBe(keyId(key));
+
+  const statusWrites = calls.filter((c) => /update keys set status/i.test(c.query));
+  expect(statusWrites.some((c) => c.params[1] === "quota_exhausted")).toBe(true);
+
+  setSqlRunner(null);
   await removeKey(key);
 });
 

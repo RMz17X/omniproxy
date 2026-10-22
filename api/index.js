@@ -8950,6 +8950,7 @@ async function markQuotaExhausted(key, quota) {
   if (quota) st.planEvidence = tierFromQuota(quota);
   local.set(key, st);
   persistHealth(st);
+  later(() => setEnabled(keyId(key), true));
 }
 function tierFromQuota(quota) {
   return {
@@ -9053,9 +9054,9 @@ async function snapshot() {
   for (const s of all) {
     if (s.invalid || s.status === "dead") dead++;
     else if (s.status === "unverified") unverified++;
-    else if (s.status === "quota_exhausted" && s.retryAfterAt > t) {
+    else if (s.status === "quota_exhausted" && !(s.retryAfterAt > 0 && s.retryAfterAt <= t)) {
       quotaExhausted++;
-      soonest = Math.min(soonest, s.retryAfterAt - t);
+      if (s.retryAfterAt > t) soonest = Math.min(soonest, s.retryAfterAt - t);
     } else if (s.cooldownUntil > t) {
       cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);

@@ -376,6 +376,13 @@ export async function markQuotaExhausted(key: string, quota: QuotaDetail | null)
   if (quota) st.planEvidence = tierFromQuota(quota);
   local.set(key, st);
   persistHealth(st);
+  // The credential is alive, so the durable "retired" flag must not survive.
+  // A key that was retired by an earlier verdict (the old 429 handling marked
+  // quota-exhausted projects as dead) was persisted with enabled=false, and
+  // `hydrate()` reads that flag back as invalid. Without this the key would be
+  // re-killed on the next cold start even though the upstream still refuses it
+  // with a quota answer rather than a credential answer.
+  later(() => repo.setEnabled(keyId(key), true));
 }
 
 /** A plan declared by upstream evidence rather than by the operator. */
@@ -572,9 +579,12 @@ export async function snapshot(): Promise<PoolSnapshot> {
   for (const s of all) {
     if (s.invalid || s.status === "dead") dead++;
     else if (s.status === "unverified") unverified++;
-    else if (s.status === "quota_exhausted" && s.retryAfterAt > t) {
+    else if (s.status === "quota_exhausted" && !(s.retryAfterAt > 0 && s.retryAfterAt <= t)) {
+      // A project with no allocation has no reset to wait for: `retryAfterAt`
+      // stays 0, so it must not be counted as ready. It stays out of rotation
+      // until a recheck proves the upstream serves it again.
       quotaExhausted++;
-      soonest = Math.min(soonest, s.retryAfterAt - t);
+      if (s.retryAfterAt > t) soonest = Math.min(soonest, s.retryAfterAt - t);
     } else if (s.cooldownUntil > t) {
       cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);
