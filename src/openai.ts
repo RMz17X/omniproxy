@@ -442,10 +442,15 @@ export async function chatCompletions(req: Request): Promise<Response> {
           const { done, value } = await reader.read();
           if (done) break;
           buf += decoder.decode(value, { stream: true });
-          const frames = buf.split("\n\n");
+          /* Gemini separates SSE frames with CRLF CRLF, not LF LF. Splitting on
+             "\n\n" therefore matched nothing: every frame stayed in buf and was
+             discarded when the stream ended, so a streaming reply delivered
+             only the opening role chunk and the closing stop chunk with no
+             content at all. Match either line ending. */
+          const frames = buf.split(/\r?\n\r?\n/);
           buf = frames.pop() ?? "";
           for (const frame of frames) {
-            const line = frame.split("\n").find((l) => l.startsWith("data:"));
+            const line = frame.split(/\r?\n/).find((l) => l.startsWith("data:"));
             if (!line) continue;
             const raw = line.slice(5).trim();
             if (!raw || raw === "[DONE]") continue;
@@ -507,6 +512,33 @@ export async function chatCompletions(req: Request): Promise<Response> {
               });
             }
           }
+        }
+        /* A stream can close on a frame boundary that left the last frame in
+           buf (no trailing separator, or a truncated tail). Parse it rather
+           than dropping the final token. */
+        if (buf.trim()) {
+          const tailLine = buf.split(/\r?\n/).find((l) => l.startsWith("data:"));
+          const tailRaw = tailLine ? tailLine.slice(5).trim() : "";
+          if (tailRaw && tailRaw !== "[DONE]") {
+            try {
+              const tail = JSON.parse(tailRaw) as GeminiResponse;
+              const tailCand = tail.candidates?.[0];
+              const tailParsed = parseCandidate(tailCand);
+              if (tailCand?.finishReason) finish = mapFinish(tailCand.finishReason);
+              if (tailParsed.text) {
+                send({
+                  id,
+                  object: "chat.completion.chunk",
+                  created,
+                  model,
+                  choices: [{ index: 0, delta: { content: tailParsed.text }, finish_reason: null }],
+                });
+              }
+            } catch {
+              /* a partial JSON tail is not a frame; ignore it */
+            }
+          }
+          buf = "";
         }
         send({
           id,
