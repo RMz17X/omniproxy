@@ -3134,6 +3134,12 @@ var cfg = {
   /** a key rejected as invalid is not re-probed more often than this */
   invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
   /**
+   * A project with no allocation never advertises a reset, so its key would
+   * otherwise be due on every tick and take every slot in the batch. This is
+   * the floor between two such probes.
+   */
+  quotaRecheckFloorMinutes: num(process.env.QUOTA_RECHECK_FLOOR_MINUTES, 60),
+  /**
    * Models the upstream has retired, filtered out of the /v1/models catalog.
    *
    * Verified on 2026-10-22 against production: `gemini-2.5-flash`,
@@ -17543,9 +17549,14 @@ app.post("/internal/keys/recheck", async (c) => {
   }
   const at = Date.now();
   const floor = cfg.invalidRecheckFloorMinutes * 6e4;
+  const quotaFloor = cfg.quotaRecheckFloorMinutes * 6e4;
   const due = (k) => {
     if (k.status === "dead") return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
-    if (k.status === "quota_exhausted" || k.status === "cooling") return k.nextAccessAt <= at;
+    if (k.status === "quota_exhausted") {
+      if (k.nextAccessAt > 0) return k.nextAccessAt <= at;
+      return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= quotaFloor;
+    }
+    if (k.status === "cooling") return k.nextAccessAt <= at;
     if (k.status === "unverified") return true;
     if (!k.planValidated) return k.lastCheckedAt === 0 || at - k.lastCheckedAt >= floor;
     return false;
