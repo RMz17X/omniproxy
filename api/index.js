@@ -8641,14 +8641,17 @@ var toIdentity = (r) => ({
   quota: toJson(r.quota_state),
   retryAfterAt: toEpoch(r.retry_after_at),
   lastCheckedAt: toEpoch(r.last_checked_at),
-  modelRefusals: toJson(r.model_refusals) ?? {}
+  modelRefusals: toJson(r.model_refusals) ?? {},
+  retiredAt: toEpoch(r.retired_at),
+  retiredReason: r.retired_reason
 });
 async function loadKeys() {
   if (!dbEnabled()) return [];
   const res = await sql(
     `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
-            plan_validated_at, last_checked_at, model_refusals
+            plan_validated_at, last_checked_at, model_refusals,
+            retired_at, retired_reason
        from keys
       order by id`
   );
@@ -8676,17 +8679,46 @@ async function upsertKey(identity) {
     ]
   );
 }
-async function setEnabled(id, enabled) {
-  if (!dbEnabled()) return;
-  await sql(`update keys set enabled = $2 where id = $1`, [id, enabled]);
-}
 async function setPlan(id, plan) {
   if (!dbEnabled()) return;
   await sql(`update keys set plan = $2 where id = $1`, [id, plan]);
 }
-async function setStatus(id, status) {
+async function retire(id, observedAt, reason) {
   if (!dbEnabled()) return;
-  await sql(`update keys set status = $2 where id = $1`, [id, status]);
+  const at = new Date(observedAt).toISOString();
+  await sql(
+    `update keys
+        set enabled = false,
+            status = 'dead',
+            retired_at = case when retired_at is null or retired_at <= $2::timestamptz
+                              then $2::timestamptz else retired_at end,
+            retired_reason = case when retired_at is null or retired_at <= $2::timestamptz
+                                  then $3 else retired_reason end
+      where id = $1`,
+    [id, at, reason]
+  );
+}
+async function revive(id, observedAt, status) {
+  if (!dbEnabled()) return;
+  await sql(
+    `update keys
+        set enabled = true,
+            status = $3,
+            retired_at = null,
+            retired_reason = null
+      where id = $1
+        and (retired_at is null or retired_at <= $2::timestamptz)`,
+    [id, new Date(observedAt).toISOString(), status]
+  );
+}
+async function setStatus(id, status, observedAt) {
+  if (!dbEnabled()) return;
+  await sql(
+    `update keys set status = $2
+      where id = $1
+        and (retired_at is null or retired_at <= $3::timestamptz)`,
+    [id, status, new Date(observedAt).toISOString()]
+  );
 }
 async function setQuotaState(id, quota) {
   if (!dbEnabled()) return;
@@ -8787,6 +8819,8 @@ var blank = (key) => ({
   failures: 0,
   invalid: false,
   invalidations: 0,
+  retiredAt: 0,
+  retiredReason: null,
   cooldownUntil: 0,
   lastUsed: 0,
   // A fresh key carries no disqualifying verdict yet: it serves until an
@@ -8809,22 +8843,24 @@ function later(fn) {
     });
   });
 }
+var outranked = (st, observedAt) => st.retiredAt > observedAt;
 function persistIdentity(st) {
   const id = keyId(st.key);
   const masked = maskKey(st.key);
   const plan = st.tier;
   later(() => upsertKey({ id, masked, plan }));
 }
-function persistHealth(st) {
+function persistHealth(st, observedAt = now()) {
   const id = keyId(st.key);
   if (st.invalid || st.status === "dead") {
-    later(() => setEnabled(id, false));
-    later(() => setStatus(id, "dead"));
+    const at = st.retiredAt || observedAt;
+    const reason = st.retiredReason === "leaked" || st.retiredReason === "zero_quota" ? st.retiredReason : "invalid";
+    later(() => retire(id, at, reason));
     return;
   }
   later(() => touchLastSeen(id));
   if (st.failures > 0) later(() => bumpFailCount(id));
-  later(() => setStatus(id, st.status));
+  later(() => setStatus(id, st.status, observedAt));
   later(() => setCooldown(id, st.cooldownUntil));
   if (st.retryAfterAt > 0) later(() => setRetryAfter(id, st.retryAfterAt));
   if (st.quota) later(() => setQuotaState(id, st.quota));
@@ -8866,10 +8902,14 @@ async function hydrate() {
       if (until > (hit.modelRefusals[m] ?? 0)) hit.modelRefusals[m] = until;
     }
     if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
+    hit.retiredAt = row.retiredAt;
+    hit.retiredReason = row.retiredReason;
     if (!row.enabled || row.status === "dead") {
       hit.invalid = true;
       hit.status = "dead";
       hit.cooldownUntil = Number.MAX_SAFE_INTEGER;
+      hit.retiredAt = row.retiredAt || 1;
+      if (!hit.retiredReason) hit.retiredReason = "invalid";
     } else {
       hit.status = row.status;
       if (row.cooldownUntil > now()) hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
@@ -8971,49 +9011,67 @@ async function markUsed(key) {
   st.lastUsed = now();
   persistHealth(st);
 }
-async function mark429(key, cooldownMs, quota) {
+async function mark429(key, cooldownMs, quota, observedAt = now()) {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    return;
+  }
   st.failures += 1;
   st.invalidations += 1;
   st.cooldownUntil = now() + cooldownMs;
   st.retryAfterAt = st.cooldownUntil;
   st.invalid = false;
+  st.retiredAt = 0;
+  st.retiredReason = null;
   st.status = "cooling";
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   if (quota !== void 0) st.quota = quota;
   if (quota?.freeTier || quota?.quotaId || quota?.consumer) {
     st.planEvidence = quota ? tierFromQuota(quota) : st.planEvidence;
   }
   counters.cooldowns++;
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
+  later(() => revive(keyId(key), observedAt, "cooling"));
 }
-async function markQuotaExhausted(key, quota) {
+async function markQuotaExhausted(key, quota, observedAt = now()) {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    log("warn", "key.quota_after_retirement", { key: maskKey(key) });
+    return;
+  }
   st.failures += 1;
   st.status = "quota_exhausted";
   st.quota = quota;
   st.retryAfterAt = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
   st.cooldownUntil = st.retryAfterAt;
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   st.invalid = false;
+  st.retiredAt = 0;
+  st.retiredReason = null;
   if (quota) st.planEvidence = tierFromQuota(quota);
   local.set(key, st);
-  persistHealth(st);
-  later(() => setEnabled(keyId(key), true));
+  persistHealth(st, observedAt);
+  later(() => revive(keyId(key), observedAt, "quota_exhausted"));
 }
-async function markModelRefused(key, model, quota) {
+async function markModelRefused(key, model, quota, observedAt = now()) {
   const st = local.get(key) ?? blank(key);
   const until = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
   st.modelRefusals[model] = until > 0 ? until : endOfUtcDay();
-  st.lastCheckedAt = now();
-  st.invalid = false;
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+  if (!outranked(st, observedAt)) st.invalid = false;
   if (quota) {
     st.quota = quota;
     st.planEvidence = tierFromQuota(quota);
   }
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
 }
 function endOfUtcDay() {
   const d = new Date(now());
@@ -9029,12 +9087,18 @@ function tierFromQuota(quota) {
     observedAt: Date.now()
   };
 }
-async function markUnverified(key) {
+async function markUnverified(key, observedAt = now()) {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    return;
+  }
   st.status = "unverified";
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
 }
 async function markValidatedPlan(key, evidence) {
   const st = local.get(key) ?? blank(key);
@@ -9053,33 +9117,44 @@ async function markSoftError(key, cooldownMs) {
   local.set(key, st);
   persistHealth(st);
 }
-async function markInvalid(key) {
+async function markInvalid(key, observedAt = now(), reason = "invalid") {
   const st = local.get(key) ?? blank(key);
+  const at = Math.max(st.retiredAt, observedAt);
   st.invalid = true;
   st.status = "dead";
+  st.retiredAt = at;
+  if (observedAt >= st.retiredAt || st.retiredReason === null) st.retiredReason = reason;
   st.invalidations += 1;
   st.failures = 999;
   st.cooldownUntil = Number.MAX_SAFE_INTEGER;
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   counters.invalidated++;
   local.set(key, st);
-  persistHealth(st);
+  persistHealth(st, observedAt);
   return true;
 }
-async function markHealthy(key) {
+async function markHealthy(key, observedAt = now()) {
   const st = local.get(key) ?? blank(key);
+  if (outranked(st, observedAt)) {
+    st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
+    local.set(key, st);
+    persistHealth(st, observedAt);
+    return;
+  }
   st.invalid = false;
+  st.retiredAt = 0;
+  st.retiredReason = null;
   st.failures = 0;
   st.cooldownUntil = 0;
   st.retryAfterAt = 0;
   st.lastUsed = now();
-  st.lastCheckedAt = now();
+  st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   st.status = "ready";
   local.set(key, st);
   const id = keyId(key);
-  later(() => setEnabled(id, true));
+  persistHealth(st, observedAt);
+  later(() => revive(id, observedAt, "ready"));
   later(() => touchLastSeen(id));
-  later(() => setStatus(id, "ready"));
   later(() => setCooldown(id, 0));
 }
 var planOf = (s) => s.status === "cooling" || s.status === "quota_exhausted" ? "unspecified" : s.tier;
