@@ -122,7 +122,17 @@ const AUDIT_SCRIPT = `
     Object.keys(v).forEach(function (key) {
       var value = v[key];
       if (value === null || value === undefined || value === "") return;
-      parts.push(key + " " + (typeof value === "object" ? JSON.stringify(value) : String(value)));
+      /* A nested object (an array of ids, a per-model map) still came out as
+         raw JSON in the middle of the sentence. Flatten one level so the feed
+         reads the same whatever the detail shape. */
+      if (Array.isArray(value)) parts.push(key + " " + value.join(", "));
+      else if (typeof value === "object") {
+        Object.keys(value).forEach(function (sub) {
+          var sv = value[sub];
+          if (sv === null || sv === undefined || sv === "") return;
+          parts.push(key + " " + sub + " " + String(sv));
+        });
+      } else parts.push(key + " " + String(value));
     });
     return parts.join(" · ");
   }
@@ -136,7 +146,12 @@ const AUDIT_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "in this view"));
     el.kpis.appendChild(GX.kpi("Kinds", GX.fmt.num(Object.keys(kinds).length), "distinct action names"));
     el.kpis.appendChild(GX.kpi("Window", el.since.value ? "since " + el.since.value.replace("T", " ") : "all time", el.action.value.trim() ? "action " + el.action.value.trim() : "every action"));
-    el.sWindow.textContent = rows.length ? rows.length + " recorded" : "-";
+    /* sWindow in the header and trailMeta in the panel both said "100
+       recorded" / "100 entries" - the same number twice. The header keeps the
+       window (what the filters say); the panel keeps the count. */
+    el.sWindow.textContent = el.since.value
+      ? "since " + el.since.value.replace("T", " ")
+      : (el.action.value.trim() ? "action " + el.action.value.trim() : "all time");
 
     el.trail.textContent = "";
     el.trailMeta.textContent = rows.length ? rows.length + (rows.length === 1 ? " entry" : " entries") : "";
@@ -191,7 +206,10 @@ const AUDIT_SCRIPT = `
   el.limit.addEventListener("change", function () { writeUrl(); reload(); });
   el.since.addEventListener("change", function () { writeUrl(); reload(); });
   el.action.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") reload();
+    /* Enter filtered correctly but never wrote the URL, so a filtered trail
+       could not be shared or restored - the only control on the page that
+       behaved differently from limit and since. */
+    if (event.key === "Enter") { writeUrl(); reload(); }
   });
   el.auto.addEventListener("change", function () {
     if (state.timer) { state.timer(); state.timer = null; }

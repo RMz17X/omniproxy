@@ -842,9 +842,20 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 @media (max-width: 1180px) {
   #keysBody .table th[data-l="fails"], #keysBody .table td[data-l="fails"],
   #keysBody .table th[data-l="last used"], #keysBody .table td[data-l="last used"] {
-    position: absolute !important;
-    width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    /* Stay in flow. The classic visually-hidden pattern uses position:absolute,
+       which removes these cells from the table's scroll container and they
+       escaped #keysBody's overflow-x:auto, pushing the whole document 165px
+       wider than the viewport. Collapsed in-flow cells are still read by a
+       screen reader and stay inside the wrap. */
+    width: 1px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-width: 0 !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    color: transparent !important;
+    overflow: hidden !important;
+    white-space: nowrap !important;
   }
 }
 @media (max-width: 980px) {
@@ -1000,19 +1011,57 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   white-space: nowrap;
 }
 .attn-item:hover .go { text-decoration: underline; }
+/* An audit row is the data the page exists to show. It was one flex line with
+   nowrap + ellipsis on .what, and 99 of 100 rows were clipped - the worst lost
+   275px, which is the entire tail of the detail ("applied quota_exhausted",
+   the model, the counters). The action and the time stay on the first line;
+   the target and detail get their own full-width line and wrap. */
 .feed-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    "act  .    time"
+    "what what what"
+    "who  who  who";
   align-items: baseline;
-  gap: 10px;
-  padding: 9px 0;
+  gap: 2px 10px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   min-width: 0;
 }
 .feed-item:last-child { border-bottom: 0; }
-.feed-item .act { font-family: var(--mono); font-size: 11.5px; color: var(--text); white-space: nowrap; }
-.feed-item .what { color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.feed-item time { margin-left: auto; color: var(--text-3); font-size: 11.5px; font-family: var(--mono); white-space: nowrap; }
+.feed-item .act {
+  grid-area: act;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.feed-item .what {
+  grid-area: what;
+  color: var(--text-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+/* The actor got grid-area:auto and auto-placed itself into the first row
+   beside the action, so the row read as action / actor on one line and the
+   target + detail on the next. It belongs after the detail, in its own row. */
+.feed-item .what.meta {
+  grid-area: who;
+  color: var(--text-3);
+  font-size: 11.5px;
+  margin-top: 3px;
+}
+.feed-item time {
+  grid-area: time;
+  justify-self: end;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
 
 /* dialogs ---------------------------------------------------------------- */
 
@@ -1067,13 +1116,16 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   width: min(400px, calc(100vw - 24px));
   pointer-events: none;
 }
+/* A thick coloured border on one side of a card is the single most
+   recognisable "AI-generated UI" tell, and the toast's 3px left bar was the
+   only thing carrying its tone. Tone now lives in a small leading dot plus a
+   tinted surface, which reads the same at a glance and stops shouting. */
 .toast {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   padding: 11px 12px;
   border: 1px solid var(--line-2);
-  border-left: 3px solid var(--text-3);
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
@@ -1081,9 +1133,21 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   line-height: 1.45;
   pointer-events: auto;
 }
-.toast[data-tone="ok"] { border-left-color: var(--ok); }
-.toast[data-tone="warn"] { border-left-color: var(--warn); }
-.toast[data-tone="err"] { border-left-color: var(--bad); }
+.toast::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--text-3);
+}
+.toast[data-tone="ok"] { background: color-mix(in srgb, var(--ok) 7%, var(--surface)); }
+.toast[data-tone="ok"]::before { background: var(--ok); }
+.toast[data-tone="warn"] { background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.toast[data-tone="warn"]::before { background: var(--warn); }
+.toast[data-tone="err"] { background: color-mix(in srgb, var(--bad) 7%, var(--surface)); }
+.toast[data-tone="err"]::before { background: var(--bad); }
 .toast-text { min-width: 0; flex: 1 1 auto; word-break: break-word; }
 .toast-act {
   flex: none;
