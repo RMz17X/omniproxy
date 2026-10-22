@@ -52,6 +52,12 @@ export type QuotaDetail = {
   resetAt: number | null;
   /** how long to wait, in ms; 0 when unknown */
   retryAfterMs: number;
+  /**
+   * violations[0].quotaDimensions.model — the model a free tier window is
+   * scoped to. A 429 that names it refuses the (key, model) pair, not the key.
+   */
+  model: string | null;
+  /** free tier shape: `-FreeTier` quotaId or `_free_tier_requests` metric */
   freeTier: boolean;
 };
 
@@ -193,8 +199,10 @@ export function parseQuotaDetail(
   const limit = asString(meta.quota_limit);
   const limitValue = asString(meta.quota_limit_value);
   const consumer = asString(meta.consumer);
+  const dimensions = asObject(violations[0]?.quotaDimensions);
+  const model = asString(dimensions?.model) ?? asString(meta.model);
 
-  if (!quotaId && !quotaMetric && !metric && !limit && !consumer) return null;
+  if (!quotaId && !quotaMetric && !metric && !limit && !consumer && !model) return null;
 
   const fromBody = retryDelayOf(details);
   const retryAfterMs = fromBody ?? retryAfterHeaderMs(headers) ?? 0;
@@ -205,6 +213,7 @@ export function parseQuotaDetail(
     quotaMetric,
     limit,
     limitValue,
+    model,
     window: windowOf(quotaId, limit),
     location: asString(meta.quota_location),
     consumer,
@@ -213,6 +222,19 @@ export function parseQuotaDetail(
     retryAfterMs,
     freeTier: isFreeQuotaId(quotaId) || isFreeQuotaMetric(quotaMetric),
   };
+}
+
+/**
+ * A refusal scoped to a model rather than to the credential: the body names
+ * the model and does not blame the consumer project. The free tier shape
+ * (`violations[0].quotaId` ending in `-FreeTier`, `quotaDimensions.model` set,
+ * no `metadata.consumer`) is exactly this. Such a 429 says "no allowance for
+ * this model", so the key stays in the pool for every other model.
+ */
+export function isModelScopedQuota(quota: QuotaDetail): boolean {
+  if (quota.model === null) return false;
+  if (quota.consumer !== null || quota.limitValue !== null) return false;
+  return quota.freeTier || /-FreeTier$/i.test(quota.quotaId ?? "");
 }
 
 /**

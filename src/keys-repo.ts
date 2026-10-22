@@ -34,6 +34,12 @@ export type KeyIdentity = {
   /** epoch ms of the last known quota/park deadline; 0 when none is known */
   retryAfterAt: number;
   lastCheckedAt: number;
+  /**
+   * model -> epoch ms until which the key has no allowance for it. Durable
+   * because a free-tier daily window outlives the process: a cold start that
+   * forgot the refusal would re-fire the same key at the same model.
+   */
+  modelRefusals: Record<string, number>;
 };
 
 type KeyRow = {
@@ -51,6 +57,7 @@ type KeyRow = {
   retry_after_at: string | Date | null;
   plan_validated_at: string | Date | null;
   last_checked_at: string | Date | null;
+  model_refusals: unknown;
 };
 
 const isTier = (v: string): v is KeyTier => v === "free" || v === "paid" || v === "pro";
@@ -102,6 +109,7 @@ const toIdentity = (r: KeyRow): KeyIdentity => ({
   quota: toJson<QuotaDetail>(r.quota_state),
   retryAfterAt: toEpoch(r.retry_after_at),
   lastCheckedAt: toEpoch(r.last_checked_at),
+  modelRefusals: toJson<Record<string, number>>(r.model_refusals) ?? {},
 });
 
 /** Rows ordered by id. Empty when the database is disabled. */
@@ -110,7 +118,7 @@ export async function loadKeys(): Promise<KeyIdentity[]> {
   const res = await sql<KeyRow>(
     `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
-            plan_validated_at, last_checked_at
+            plan_validated_at, last_checked_at, model_refusals
        from keys
       order by id`,
   );
@@ -177,6 +185,21 @@ export async function setQuotaState(id: string, quota: QuotaDetail | null): Prom
   await sql(`update keys set quota_state = $2::jsonb where id = $1`, [
     id,
     quota === null ? null : JSON.stringify(quota),
+  ]);
+}
+
+/**
+ * Persist the per-model refusal deadlines. Written on every quota verdict so a
+ * cold start cannot re-fire a key at a model whose daily window is spent.
+ */
+export async function setModelRefusals(
+  id: string,
+  refusals: Record<string, number>,
+): Promise<void> {
+  if (!dbEnabled()) return;
+  await sql(`update keys set model_refusals = $2::jsonb where id = $1`, [
+    id,
+    JSON.stringify(refusals),
   ]);
 }
 

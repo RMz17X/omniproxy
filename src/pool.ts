@@ -72,6 +72,12 @@ export type KeyState = {
   /** epoch ms when a quota/park deadline passes; 0 when none is known */
   retryAfterAt: number;
   lastCheckedAt: number;
+  /**
+   * model -> epoch ms until which this key has no allowance for that model.
+   * A free-tier window is scoped to one model, so the refusal must not cool
+   * the credential: the key keeps serving every other model meanwhile.
+   */
+  modelRefusals: Record<string, number>;
 };
 
 /* ---------- memory mirror ---------- */
@@ -115,6 +121,7 @@ const blank = (key: string): KeyState => ({
   quota: null,
   retryAfterAt: 0,
   lastCheckedAt: 0,
+  modelRefusals: {},
 });
 
 /* ---------- persistence (fire-and-forget) ---------- */
@@ -158,6 +165,13 @@ function persistHealth(st: KeyState): void {
   later(() => repo.setCooldown(id, st.cooldownUntil));
   if (st.retryAfterAt > 0) later(() => repo.setRetryAfter(id, st.retryAfterAt));
   if (st.quota) later(() => repo.setQuotaState(id, st.quota));
+  // Per-model refusals outlive the process too: the free-tier window is a day,
+  // so a cold start that forgot them would re-fire the same key at the same
+  // model. The map only grows until each deadline passes, so writing it whole
+  // is cheaper than diffing, and it is only written once it is non-empty.
+  if (Object.keys(st.modelRefusals).length > 0) {
+    later(() => repo.setModelRefusals(id, st.modelRefusals));
+  }
   // The last probe time is durable state: the recheck floor between two
   // probes of a key whose upstream named no reset is measured against it, so
   // without this the key is due again on the first tick after a cold start.
@@ -215,7 +229,9 @@ export async function hydrate(): Promise<number> {
       hit.planEvidence = row.planEvidence;
     }
     if (row.quota) hit.quota = row.quota;
-    if (row.retryAfterAt > 0) hit.retryAfterAt = row.retryAfterAt;
+    for (const [m, until] of Object.entries(row.modelRefusals)) {
+      if (until > (hit.modelRefusals[m] ?? 0)) hit.modelRefusals[m] = until;
+    }
     if (row.lastCheckedAt > 0) hit.lastCheckedAt = row.lastCheckedAt;
     if (!row.enabled || row.status === "dead") {
       hit.invalid = true;
@@ -317,20 +333,75 @@ export async function rawKeyById(id: string): Promise<string | null> {
  * A key may serve when nothing currently disqualifies it: not dead, not still
  * unproven, and past every known deadline.
  */
-function selectable(s: KeyState, t: number): boolean {
+function selectable(s: KeyState, t: number, model?: string): boolean {
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
+  // A per-model free-tier refusal disqualifies the pair only: another model
+  // on the same credential is untouched, so the key stays in rotation.
+  if (model && (s.modelRefusals[model] ?? 0) > t) return false;
   // An exhausted project has no window that a cooldown could wait out: it
   // re-enters rotation only when a reset is known and has passed.
   if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
   return s.cooldownUntil <= t && s.retryAfterAt <= t;
 }
 
-export async function pick(exclude: Set<string> = new Set()): Promise<KeyState | null> {
+/**
+ * `model` narrows the candidate set to keys that still hold allowance for it.
+ * Omit it to ask "any key at all", which is what the pool-exhaustion wait uses.
+ */
+export async function pick(
+  exclude: Set<string> = new Set(),
+  model?: string,
+): Promise<KeyState | null> {
   const t = now();
-  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t));
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model));
   if (ready.length === 0) return null;
   ready.sort((a, b) => a.failures - b.failures || a.lastUsed - b.lastUsed);
   return ready[0];
+}
+
+/**
+ * Why `pick` cannot serve `model` right now.
+ *
+ * - `model_refusal`: a live per-model refusal exists on some credential and no
+ *   untried key can serve the model. The deadline is that model's next reset,
+ *   so no bounded wait clears it and the chain must advance.
+ * - `quota`: only parked project-quota keys remain — a verdict about the
+ *   project, not the model — reported with `keys` so the caller's per-model
+ *   tally keeps its evidence.
+ * - `blocked`: nothing untried remains for other reasons (every candidate was
+ *   already attempted in this request); a wait cannot help.
+ * - `none`: an untried candidate exists, or only cooldowns block; wait.
+ *
+ * Refusals count even for keys already tried, because a refusal is a property
+ * of the (key, model) pair, not of one attempt.
+ */
+export type ModelBlock = {
+  kind: "none" | "model_refusal" | "quota" | "blocked";
+  keys: string[];
+};
+
+export function modelBlock(exclude: Set<string>, model: string): ModelBlock {
+  const t = now();
+  const refused: string[] = [];
+  const parked: string[] = [];
+  let untried = false;
+  for (const s of local.values()) {
+    if (s.invalid || s.status === "dead" || s.status === "unverified") continue;
+    if ((s.modelRefusals[model] ?? 0) > t) {
+      refused.push(s.key);
+      continue;
+    }
+    if (exclude.has(s.key)) continue;
+    if (s.status === "quota_exhausted") {
+      parked.push(s.key);
+      continue;
+    }
+    untried = true;
+  }
+  if (untried) return { kind: "none", keys: [] };
+  if (refused.length > 0) return { kind: "model_refusal", keys: refused };
+  if (parked.length > 0) return { kind: "quota", keys: parked };
+  return { kind: "blocked", keys: [] };
 }
 
 export async function markUsed(key: string): Promise<void> {
@@ -387,6 +458,47 @@ export async function markQuotaExhausted(key: string, quota: QuotaDetail | null)
   // re-killed on the next cold start even though the upstream still refuses it
   // with a quota answer rather than a credential answer.
   later(() => repo.setEnabled(keyId(key), true));
+}
+
+/**
+ * A 429 that names a model and blames no project: the credential is fine, its
+ * allowance for *that model* is spent until the body's reset. Nothing
+ * pool-wide may move — no cooldown, no failure count, no status, no
+ * retirement — or a free-tier key would be lost to every other model it can
+ * still serve. Only the tier evidence is recorded, because a free-tier
+ * violation is still the only proof of the plan.
+ */
+export async function markModelRefused(
+  key: string,
+  model: string,
+  quota: QuotaDetail | null,
+): Promise<void> {
+  const st = local.get(key) ?? blank(key);
+  const until = quota?.retryAfterMs ? now() + quota.retryAfterMs : 0;
+  // A refusal with no stated reset is held until the end of the UTC day: the
+  // free tier window is daily, so re-firing sooner only repeats the 429.
+  st.modelRefusals[model] = until > 0 ? until : endOfUtcDay();
+  st.lastCheckedAt = now();
+  st.invalid = false;
+  if (quota) {
+    st.quota = quota;
+    st.planEvidence = tierFromQuota(quota);
+  }
+  local.set(key, st);
+  persistHealth(st);
+}
+
+/** Midnight UTC after the current instant — the free tier's daily reset. */
+function endOfUtcDay(): number {
+  const d = new Date(now());
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+}
+
+/** True when the key holds no live allowance for `model`. */
+export function modelRefused(key: string, model: string): boolean {
+  const st = local.get(key);
+  if (!st) return false;
+  return (st.modelRefusals[model] ?? 0) > now();
 }
 
 /** A plan declared by upstream evidence rather than by the operator. */
