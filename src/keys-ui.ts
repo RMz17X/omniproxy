@@ -109,7 +109,6 @@ const KEYS_BODY = `
 
     <div class="panel-body">
       <div class="toolbar">
-        <button id="selectAllBtn" class="btn btn-sm" type="button" title="Select every key matching these filters, across all pages">Select all filtered</button>
         <div class="filter-grid">
           <div class="filter-cell filter-search">
             <label class="field" for="keyFilter">Filter</label>
@@ -211,7 +210,6 @@ const KEYS_SCRIPT = `
     testAllBtn: document.getElementById("testAllBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     auto: document.getElementById("auto"),
-    selectAllBtn: document.getElementById("selectAllBtn"),
     bulkBar: document.getElementById("bulkBar"),
     bulkApply: document.getElementById("bulkApply"),
     bulkRemove: document.getElementById("bulkRemove"),
@@ -485,7 +483,7 @@ const KEYS_SCRIPT = `
         type: "checkbox",
         id: "selectAll",
         "aria-label": "Select every key on this page",
-        "title": "Select the 25 keys on this page. The toolbar Select all covers every filtered key, across all pages."
+        "title": "Select the keys on this page"
       }))),
       /* A screen reader announced this table as an unnamed "table" with 9
          columns of unknown purpose: no caption, and th without scope. scope=col
@@ -1042,24 +1040,6 @@ const KEYS_SCRIPT = `
   el.testAllBtn.addEventListener("click", testAll);
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
-  });
-  el.selectAllBtn.addEventListener("click", function () {
-    var rows = visibleKeys();
-    var all = rows.every(function (k) { return state.selected[k.id]; });
-    rows.forEach(function (k) { state.selected[k.id] = !all; });
-    /* "Select all" on the toolbar and the thead checkbox were two
-       select-everything affordances with different scopes and nothing saying
-       which was which. Name the toolbar one for the scope it actually acts on:
-       every filtered key, across every page, not the visible page. */
-    GX.notice(
-      all
-        ? "Cleared " + rows.length + " selected key" + (rows.length === 1 ? "" : "s") + "."
-        : "Selected all " + rows.length + " key" + (rows.length === 1 ? "" : "s") +
-          " matching these filters, across every page.",
-      all ? "" : "ok"
-    );
-    drawTable();
-    paintBulk();
   });
   el.bulkApply.addEventListener("click", function () { validateSelectedPlans(el.bulkApply); });
   el.bulkRemove.addEventListener("click", removeSelected);
