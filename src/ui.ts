@@ -521,6 +521,34 @@ body[data-gate="locked"] .app { display: none; }
 
 .toolbar { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .toolbar .grow { flex: 1 1 200px; min-width: 0; }
+/* Filter bar: a grid so every control is the same height on one baseline and
+   the columns do not jump when the row wraps. Search takes the leftover
+   space; the two selects are sized to their content; per-page stays narrow. */
+.filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, max-content) minmax(150px, max-content) minmax(96px, max-content);
+  gap: var(--sp-2) var(--sp-3);
+  align-items: end;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.filter-grid .field { margin-bottom: 4px; }
+.filter-grid .select, .filter-grid .search .input { width: 100%; }
+.filter-grid .filter-cell { display: flex; flex-direction: column; }
+.filter-grid .search { flex: 1 1 auto; display: flex; }
+.filter-grid .search .input { height: 100%; }
+/* The select's intrinsic height + touch tap-target (min-height 44px on
+   pointer:coarse) beats a plain height; pin both the height and the floor. */
+.filter-grid .select, .filter-grid .search .input { height: 40px; min-height: 40px; box-sizing: border-box; }
+.filter-size .select { min-width: 96px; }
+@media (max-width: 900px) {
+  .filter-grid { grid-template-columns: 1fr 1fr; }
+  .filter-search, .filter-size { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .filter-grid { grid-template-columns: 1fr; }
+  .filter-size { grid-column: auto; }
+}
 .row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .grow { flex: 1 1 auto; min-width: 0; }
 .spacer { flex: 1 1 auto; }
@@ -1887,7 +1915,7 @@ export function helpDialog(): string {
     ["429", "The upstream rate limit answered"],
     ["WIB", "The timezone the daily rollup and the heatmap use"],
     ["ring", "1h and 24h read the live ring: the last requests in this process"],
-    ["rollup", "7d and 30d read the daily rollup in Postgres"],
+    ["rollup", "7d and 30d read the daily rollup, one row per day"],
     ["memory", "The pool and the ledger live in this process. A restart empties them"],
     ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
   ];

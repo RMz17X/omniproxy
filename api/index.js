@@ -9741,6 +9741,34 @@ body[data-gate="locked"] .app { display: none; }
 
 .toolbar { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .toolbar .grow { flex: 1 1 200px; min-width: 0; }
+/* Filter bar: a grid so every control is the same height on one baseline and
+   the columns do not jump when the row wraps. Search takes the leftover
+   space; the two selects are sized to their content; per-page stays narrow. */
+.filter-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, max-content) minmax(150px, max-content) minmax(96px, max-content);
+  gap: var(--sp-2) var(--sp-3);
+  align-items: end;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.filter-grid .field { margin-bottom: 4px; }
+.filter-grid .select, .filter-grid .search .input { width: 100%; }
+.filter-grid .filter-cell { display: flex; flex-direction: column; }
+.filter-grid .search { flex: 1 1 auto; display: flex; }
+.filter-grid .search .input { height: 100%; }
+/* The select's intrinsic height + touch tap-target (min-height 44px on
+   pointer:coarse) beats a plain height; pin both the height and the floor. */
+.filter-grid .select, .filter-grid .search .input { height: 40px; min-height: 40px; box-sizing: border-box; }
+.filter-size .select { min-width: 96px; }
+@media (max-width: 900px) {
+  .filter-grid { grid-template-columns: 1fr 1fr; }
+  .filter-search, .filter-size { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .filter-grid { grid-template-columns: 1fr; }
+  .filter-size { grid-column: auto; }
+}
 .row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .grow { flex: 1 1 auto; min-width: 0; }
 .spacer { flex: 1 1 auto; }
@@ -10830,7 +10858,7 @@ function helpDialog() {
     ["429", "The upstream rate limit answered"],
     ["WIB", "The timezone the daily rollup and the heatmap use"],
     ["ring", "1h and 24h read the live ring: the last requests in this process"],
-    ["rollup", "7d and 30d read the daily rollup in Postgres"],
+    ["rollup", "7d and 30d read the daily rollup, one row per day"],
     ["memory", "The pool and the ledger live in this process. A restart empties them"],
     ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"]
   ];
@@ -15976,48 +16004,44 @@ var KEYS_BODY = `
     <div class="panel-body">
       <div class="toolbar">
         <button id="selectAllBtn" class="btn btn-sm" type="button" title="Select every key matching these filters, across all pages">Select all filtered</button>
-        <div class="grow">
-          <label class="field" for="keyFilter">Filter</label>
-          <div class="search">
-            ${icon("search", "icon", 14)}
-            <input id="keyFilter" class="input" type="search" spellcheck="false" placeholder="masked key, id or plan">
+        <div class="filter-grid">
+          <div class="filter-cell filter-search">
+            <label class="field" for="keyFilter">Filter</label>
+            <div class="search">
+              ${icon("search", "icon", 14)}
+              <input id="keyFilter" class="input" type="search" spellcheck="false" placeholder="masked key, id or plan">
+            </div>
           </div>
-        </div>
-        <div class="grow">
-          <label class="field" for="keyStatus">Status</label>
-          <select id="keyStatus" class="select">
-            <option value="">all</option>
-            <option value="ready">ready</option>
-            <option value="cooling">cooling</option>
-            <option value="quota">quota exhausted</option>
-            <option value="dead">dead</option>
-            <option value="unverified">unverified</option>
-          </select>
-        </div>
-        <div class="grow">
-          <label class="field" for="keyPlan">Plan</label>
-          <select id="keyPlan" class="select">
-            <option value="">all</option>
-            <option value="free">Free tier</option>
-            <option value="paid">Pay as you go</option>
-            <option value="pro">AI Pro / Ultra</option>
-            <option value="unknown">Unspecified</option>
-          </select>
-        </div>
-        <div class="check-wrap">
-          <label class="check" for="keyHideDead">
-            <input id="keyHideDead" type="checkbox" checked>
-            <span>Hide dead</span>
-          </label>
-        </div>
-        <div class="grow">
-          <label class="field" for="keySize">Per page</label>
-          <select id="keySize" class="select">
-            <option value="10">10</option>
-            <option value="25" selected>25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
+          <div class="filter-cell">
+            <label class="field" for="keyStatus">Status</label>
+            <select id="keyStatus" class="select">
+              <option value="">all</option>
+              <option value="ready">ready</option>
+              <option value="cooling">cooling</option>
+              <option value="quota">quota exhausted</option>
+              <option value="dead">dead</option>
+              <option value="unverified">unverified</option>
+            </select>
+          </div>
+          <div class="filter-cell">
+            <label class="field" for="keyPlan">Plan</label>
+            <select id="keyPlan" class="select">
+              <option value="">all</option>
+              <option value="free">Free tier</option>
+              <option value="paid">Pay as you go</option>
+              <option value="pro">AI Pro / Ultra</option>
+              <option value="unknown">Unspecified</option>
+            </select>
+          </div>
+          <div class="filter-cell filter-size">
+            <label class="field" for="keySize">Per page</label>
+            <select id="keySize" class="select">
+              <option value="10">10</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>
@@ -16075,7 +16099,6 @@ var KEYS_SCRIPT = `
     keyFilter: document.getElementById("keyFilter"),
     keyStatus: document.getElementById("keyStatus"),
     keyPlan: document.getElementById("keyPlan"),
-    keyHideDead: document.getElementById("keyHideDead"),
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
     testAllBtn: document.getElementById("testAllBtn"),
@@ -16098,7 +16121,7 @@ var KEYS_SCRIPT = `
     addMsg: document.getElementById("addMsg")
   };
 
-  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", plan: "", hideDead: true, selected: {}, timer: null };
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", plan: "", selected: {}, timer: null };
 
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
@@ -16258,7 +16281,6 @@ var KEYS_SCRIPT = `
     GX.url.write({
       q: state.query, status: state.status, plan: state.plan,
       size: state.size !== 25 ? state.size : "",
-      hide: state.hideDead ? "" : "0",
       page: state.page > 1 ? state.page : ""
     });
   }
@@ -16271,24 +16293,20 @@ var KEYS_SCRIPT = `
     if (el.keyFilter) el.keyFilter.value = params.q || "";
     if (el.keyStatus) el.keyStatus.value = params.status || "";
     if (el.keyPlan) el.keyPlan.value = params.plan || "";
-    /* keySize and hideDead were the two view facts that never reached the URL,
-       so a shared link reproduced a different view than the one that was
-       copied. */
     if (params.size && el.keySize) { el.keySize.value = params.size; state.size = Number(params.size) || 25; }
-    if (params.hide === "0" && el.keyHideDead) { el.keyHideDead.checked = false; state.hideDead = false; }
   }
 
   function visibleKeys() {
     var query = state.query;
     /* A dead key is never re-probed (test-all skips it) and can only return
        through a manual Validate, so most of a large pool is dead rows that can
-       never serve again. They stay enrolled for the retiredAt/retiredReason
-       record, but they are hidden by default: 964 of them meant 39 pages of
-       scrolling to reach the 81 ready keys. Asking for status=dead shows them. */
+       never serve again: 964 of them meant 39 pages of scrolling to reach the
+       81 ready keys. They stay out of the default view; asking for
+       status=dead shows them. */
     return state.keys.filter(function (k) {
       var kind = statusKind(k);
       if (state.status && kind !== state.status) return false;
-      if (state.hideDead && !state.status && kind === "dead") return false;
+      if (!state.status && kind === "dead") return false;
       /* Plan was rendered with four options and wired to nothing, so the
          operator could filter by a plan that did nothing and then act on the
          whole pool. Match both the stored code and the label the row shows,
@@ -16385,7 +16403,7 @@ var KEYS_SCRIPT = `
        enrolled, retired, and what actually matches right now. */
     var retired = 0;
     state.keys.forEach(function (k) { if (statusKind(k) === "dead") retired++; });
-    var hiddenNote = state.hideDead && !state.status && retired ? ", " + retired + " dead hidden" : "";
+    var hiddenNote = !state.status && retired ? ", " + retired + " dead hidden" : "";
     el.listMeta.textContent = state.keys.length + " in pool" + hiddenNote + ", " + filtered.length +
       (filtered.length === 1 ? " matches" : " match") +
       (state.status || state.query ? " these filters" : "");
@@ -16396,8 +16414,8 @@ var KEYS_SCRIPT = `
         "empty",
         state.keys.length ? "No key matches this filter" : "Pool is empty",
         state.keys.length
-          ? (state.hideDead && !state.status && retired
-            ? "Every key is dead and dead keys are hidden. Uncheck Hide dead, or pick status dead, to see them."
+          ? (!state.status && retired
+            ? "Every key is dead. Pick status dead in the filter to see them."
             : "Clear the filter box to see the whole pool.")
           : "Add keys with the button above, or set GEMINI_API_KEYS on the deployment."
       ));
@@ -16956,12 +16974,6 @@ var KEYS_SCRIPT = `
   });
   el.keyPlan.addEventListener("change", function () {
     state.plan = el.keyPlan.value;
-    state.page = 1;
-    writeUrl();
-    drawTable();
-  });
-  el.keyHideDead.addEventListener("change", function () {
-    state.hideDead = el.keyHideDead.checked;
     state.page = 1;
     writeUrl();
     drawTable();
