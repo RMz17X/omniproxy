@@ -10141,6 +10141,41 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 .pager { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .pager .meta { font-size: 12px; color: var(--text-3); }
+/* Paginated pager: compact numeric pills, Prev/Next as chevrons, gaps as dots. */
+.pager .pages {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.pager .pages .gap { color: var(--text-3); font-size: 12px; padding: 0 2px; user-select: none; }
+.pager .pages .pagebtn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+.pager .pages .pagebtn:hover:not(:disabled) { border-color: var(--text-3); color: var(--text); }
+.pager .pages .pagebtn:disabled { opacity: 0.35; cursor: default; }
+.pager .pages .pagebtn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 640;
+}
+.pager .pages .pagebtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* states ----------------------------------------------------------------- */
 
@@ -16601,37 +16636,39 @@ var KEYS_SCRIPT = `
     el.keyPager.textContent = "";
     if (!total) return;
     el.keyPager.appendChild(GX.el("span", {
+      class: "meta",
       text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
         Math.min(total, state.page * state.size) + " of " + total
     }));
 
-    var box = GX.el("div", { class: "pages" });
-    function mk(label, page, disabled, active) {
+    var box = GX.el("div", { class: "pages", role: "navigation", "aria-label": "Key pages" });
+    function mk(label, page, disabled, active, label2) {
       var b = GX.el("button", {
-        class: active ? "active" : "",
+        class: "pagebtn" + (active ? " active" : ""),
         type: "button",
         text: label,
+        "aria-label": label2,
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
       b.addEventListener("click", function () { state.page = page; writeUrl(); drawTable(); });
       return b;
     }
-    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
+    box.appendChild(mk("\u2039", state.page - 1, state.page === 1, false, "Previous page"));
     var win = 5;
     var from = Math.max(1, state.page - Math.floor(win / 2));
     var to = Math.min(pages, from + win - 1);
     from = Math.max(1, to - win + 1);
     if (from > 1) {
       box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
+      if (from > 2) box.appendChild(GX.el("span", { class: "gap", text: "\u2026", "aria-hidden": "true" }));
     }
     for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
     if (to < pages) {
-      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
+      if (to < pages - 1) box.appendChild(GX.el("span", { class: "gap", text: "\u2026", "aria-hidden": "true" }));
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
     }
-    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
+    box.appendChild(mk("\u203A", state.page + 1, state.page === pages, false, "Next page"));
     el.keyPager.appendChild(box);
   }
 

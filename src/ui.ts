@@ -921,6 +921,41 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 .pager { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .pager .meta { font-size: 12px; color: var(--text-3); }
+/* Paginated pager: compact numeric pills, Prev/Next as chevrons, gaps as dots. */
+.pager .pages {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.pager .pages .gap { color: var(--text-3); font-size: 12px; padding: 0 2px; user-select: none; }
+.pager .pages .pagebtn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+.pager .pages .pagebtn:hover:not(:disabled) { border-color: var(--text-3); color: var(--text); }
+.pager .pages .pagebtn:disabled { opacity: 0.35; cursor: default; }
+.pager .pages .pagebtn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 640;
+}
+.pager .pages .pagebtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* states ----------------------------------------------------------------- */
 

@@ -708,37 +708,39 @@ const KEYS_SCRIPT = `
     el.keyPager.textContent = "";
     if (!total) return;
     el.keyPager.appendChild(GX.el("span", {
+      class: "meta",
       text: "showing " + ((state.page - 1) * state.size + 1) + "-" +
         Math.min(total, state.page * state.size) + " of " + total
     }));
 
-    var box = GX.el("div", { class: "pages" });
-    function mk(label, page, disabled, active) {
+    var box = GX.el("div", { class: "pages", role: "navigation", "aria-label": "Key pages" });
+    function mk(label, page, disabled, active, label2) {
       var b = GX.el("button", {
-        class: active ? "active" : "",
+        class: "pagebtn" + (active ? " active" : ""),
         type: "button",
         text: label,
+        "aria-label": label2,
         disabled: disabled ? true : null
       });
       if (active) b.setAttribute("aria-current", "page");
       b.addEventListener("click", function () { state.page = page; writeUrl(); drawTable(); });
       return b;
     }
-    box.appendChild(mk("Prev", state.page - 1, state.page === 1, false));
+    box.appendChild(mk("‹", state.page - 1, state.page === 1, false, "Previous page"));
     var win = 5;
     var from = Math.max(1, state.page - Math.floor(win / 2));
     var to = Math.min(pages, from + win - 1);
     from = Math.max(1, to - win + 1);
     if (from > 1) {
       box.appendChild(mk("1", 1, false, state.page === 1));
-      if (from > 2) box.appendChild(GX.el("span", { text: "..." }));
+      if (from > 2) box.appendChild(GX.el("span", { class: "gap", text: "…", "aria-hidden": "true" }));
     }
     for (var p = from; p <= to; p++) box.appendChild(mk(String(p), p, false, p === state.page));
     if (to < pages) {
-      if (to < pages - 1) box.appendChild(GX.el("span", { text: "..." }));
+      if (to < pages - 1) box.appendChild(GX.el("span", { class: "gap", text: "…", "aria-hidden": "true" }));
       box.appendChild(mk(String(pages), pages, false, state.page === pages));
     }
-    box.appendChild(mk("Next", state.page + 1, state.page === pages, false));
+    box.appendChild(mk("›", state.page + 1, state.page === pages, false, "Next page"));
     el.keyPager.appendChild(box);
   }
 
