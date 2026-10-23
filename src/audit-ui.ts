@@ -36,22 +36,24 @@ const AUDIT_BODY = `
     </div>
     <div class="panel-body">
       <div class="toolbar">
-        <div class="grow">
-          <label class="field" for="action">Action prefix</label>
-          <input id="action" type="search" spellcheck="false" placeholder="keys." autocomplete="off">
-        </div>
-        <div class="grow">
-          <label class="field" for="since">Since</label>
-          <input id="since" type="datetime-local">
-        </div>
-        <div class="grow">
-          <label class="field" for="limit">Limit</label>
-          <select id="limit" class="select">
-            <option value="50">50</option>
-            <option value="100" selected>100</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
-          </select>
+        <div class="filter-grid">
+          <div class="filter-cell">
+            <label class="field" for="action">Action prefix</label>
+            <input id="action" type="search" spellcheck="false" placeholder="keys." autocomplete="off">
+          </div>
+          <div class="filter-cell">
+            <label class="field" for="since">Since</label>
+            <input id="since" type="datetime-local">
+          </div>
+          <div class="filter-cell">
+            <label class="field" for="limit">Limit</label>
+            <select id="limit" class="select">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </div>
         </div>
       </div>
       <div id="msg" class="notice u-mt-3" role="status" aria-live="polite"></div>
