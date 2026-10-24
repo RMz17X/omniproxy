@@ -9802,7 +9802,7 @@ body[data-gate="locked"] .app { display: none; }
    space; the two selects are sized to their content; per-page stays narrow. */
 .filter-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(150px, max-content) minmax(150px, max-content) minmax(96px, max-content);
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, max-content) minmax(120px, max-content) minmax(120px, max-content) minmax(96px, max-content);
   gap: var(--sp-2) var(--sp-3);
   align-items: end;
   flex: 1 1 auto;
@@ -10040,6 +10040,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    horizontal scroll; with one, the value ellipsizes and the button stays put.
    The full credential is always in the cell's title and in the copy button. */
 .table td[data-l="key"] { width: 250px; max-width: 250px; white-space: nowrap; }
+.table td[data-l="provider"] { width: 110px; max-width: 110px; white-space: nowrap; }
 .table td[data-l="status"] { width: 230px; max-width: 230px; }
 .table td[data-l="plan"] { width: 170px; max-width: 170px; }
 /* Stacked rows are full-width cards; the desktop caps above otherwise win on
@@ -10047,7 +10048,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    the other six, with space-between pushing their values to a different edge.
    This must sit AFTER the base widths to take effect. */
 @media (max-width: 720px) {
-  .table td[data-l="key"], .table td[data-l="status"], .table td[data-l="plan"] {
+  .table td[data-l="key"], .table td[data-l="provider"], .table td[data-l="status"], .table td[data-l="plan"] {
     width: auto; max-width: none;
   }
 }
@@ -10058,6 +10059,16 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table td .provider-text {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.table .provider-cell {
   white-space: nowrap;
 }
 .table td .key-text {
@@ -11900,6 +11911,12 @@ var OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
     el.chips.textContent = "";
+    var byProvider = pool.byProvider || pool.providers || {};
+    Object.keys(byProvider).sort().forEach(function (prov) {
+      var p = byProvider[prov];
+      if (!p) return;
+      el.chips.appendChild(GX.chip(prov, p.ready + "/" + p.total + " ready"));
+    });
     if (stats) {
       el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
       el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
@@ -12928,6 +12945,78 @@ function classifyResponse(status, body, headers) {
   if (status >= 500) return { verdict: "server_error", ...none };
   return { verdict: "unexpected", ...none };
 }
+function classifyElevenLabsResponse(status, body, headers) {
+  const none = { quota: null, tierEvidence: null };
+  if (status === 0) return { verdict: "network_error", ...none };
+  if (status >= 200 && status < 300) {
+    let tier = "unknown";
+    let limit = null;
+    let count = null;
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed?.subscription?.tier) {
+        tier = String(parsed.subscription.tier);
+      }
+      if (parsed?.subscription?.character_limit !== void 0) {
+        limit = String(parsed.subscription.character_limit);
+      }
+      if (parsed?.subscription?.character_count !== void 0) {
+        count = String(parsed.subscription.character_count);
+      }
+    } catch {
+    }
+    const evidence = {
+      tier,
+      source: "subscription",
+      quotaId: count !== null ? `chars_${count}` : null,
+      quotaMetric: "characters",
+      consumer: limit,
+      observedAt: Date.now()
+    };
+    return { verdict: "ok", quota: null, tierEvidence: evidence };
+  }
+  if (status === 401 || status === 403) {
+    return { verdict: "invalid", ...none };
+  }
+  if (status === 429) {
+    let retryAfterMs = 0;
+    if (headers) {
+      for (const [name, val] of Object.entries(headers)) {
+        if (name.toLowerCase() === "retry-after") {
+          const secs = Number(val);
+          if (Number.isFinite(secs) && secs > 0) retryAfterMs = secs * 1e3;
+        }
+      }
+    }
+    try {
+      const parsed = JSON.parse(body);
+      const resetUnix = parsed?.detail?.next_character_count_reset_unix ?? parsed?.next_character_count_reset_unix;
+      if (typeof resetUnix === "number" && resetUnix > 0) {
+        const diffMs = resetUnix * 1e3 - Date.now();
+        if (diffMs > 0) retryAfterMs = Math.max(retryAfterMs, diffMs);
+      }
+    } catch {
+    }
+    const quota = {
+      metric: "characters",
+      quotaId: "elevenlabs_quota",
+      quotaMetric: "characters",
+      limit: null,
+      limitValue: null,
+      window: null,
+      location: null,
+      consumer: null,
+      project: null,
+      resetAt: retryAfterMs > 0 ? Date.now() + retryAfterMs : null,
+      retryAfterMs,
+      model: null,
+      freeTier: false
+    };
+    return { verdict: "rate_limited", quota, tierEvidence: null };
+  }
+  if (status >= 500) return { verdict: "server_error", ...none };
+  return { verdict: "unexpected", ...none };
+}
 
 // src/upstream.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -13594,207 +13683,6 @@ function pricingMeta() {
   return { asOf: PRICING_AS_OF, entries: CATALOG.length };
 }
 
-// src/probe.ts
-var TIMEOUT_MS2 = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
-var MAX_TOKENS = 64;
-function messageOf(body) {
-  try {
-    const parsed = JSON.parse(body);
-    const msg = parsed.error?.message ?? parsed.error?.status ?? "";
-    if (msg) return msg.slice(0, 220);
-  } catch {
-  }
-  return body.replace(/\s+/g, " ").trim().slice(0, 220);
-}
-function probeChain(model) {
-  return [model ?? cfg.defaultModel, ...cfg.probeModels].filter(
-    (m, i, all) => Boolean(m) && all.indexOf(m) === i
-  );
-}
-function isModelLevelFailure(res) {
-  if (res.httpStatus !== 400 && res.httpStatus !== 404 && res.httpStatus !== 503) return false;
-  return isModelUnavailable(res.message);
-}
-function nextCandidate(chain, current) {
-  const at = chain.indexOf(current);
-  if (at < 0) return null;
-  return chain[at + 1] ?? null;
-}
-function reconcile(first, second) {
-  if (second.status === "ok") return second;
-  if (first.status === "invalid" || second.status === "invalid") {
-    return first.status === "invalid" ? first : second;
-  }
-  if (first.status === "rate_limited" || second.status === "rate_limited") {
-    return first.status === "rate_limited" ? first : second;
-  }
-  if (first.status === "zero_quota" || second.status === "zero_quota") {
-    return first.status === "zero_quota" ? first : second;
-  }
-  return first;
-}
-async function probeLeak(rawKey, timeoutMs = TIMEOUT_MS2) {
-  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/cachedContents`;
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
-      body: JSON.stringify({
-        model: `models/${cfg.defaultModel}`,
-        contents: [{ parts: [{ text: "cache probe" }] }]
-      }),
-      redirect: "manual",
-      signal: AbortSignal.timeout(timeoutMs)
-    });
-  } catch {
-    return false;
-  }
-  if (res.status !== 403) return false;
-  const body = await res.text().catch(() => "");
-  return /reported as leaked/i.test(body);
-}
-async function probeKey(rawKey, model) {
-  const result = await probeModels(rawKey, model);
-  if (result.status !== "zero_quota") return result;
-  if (!await probeLeak(rawKey)) return result;
-  return {
-    ...result,
-    status: "invalid",
-    message: "upstream reported the API key as leaked",
-    quota: null,
-    tierEvidence: null
-  };
-}
-async function probeModels(rawKey, model) {
-  const chain = probeChain(model);
-  let candidate = chain[0] ?? null;
-  let refused = null;
-  while (candidate) {
-    const res = await probeOnce(rawKey, candidate);
-    if (res.status === "ok") return res;
-    if (isModelLevelFailure(res)) {
-      refused = res;
-      candidate = nextCandidate(chain, candidate);
-      continue;
-    }
-    if (res.status === "rate_limited" || res.status === "server_error" || res.status === "network_error") {
-      return res;
-    }
-    const next = nextCandidate(chain, candidate);
-    if (!next) return res;
-    const other = await probeOnce(rawKey, next);
-    if (other.status === "ok") return other;
-    if (isModelLevelFailure(other)) return res;
-    return reconcile(res, other);
-  }
-  return refused ?? {
-    status: "unexpected",
-    httpStatus: 0,
-    latencyMs: 0,
-    retryAfterMs: 0,
-    message: "no probe model was accepted"
-  };
-}
-async function probeOnce(rawKey, model) {
-  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
-  const started = Date.now();
-  const signal = AbortSignal.timeout(TIMEOUT_MS2);
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: "ping" }] }],
-        generationConfig: { maxOutputTokens: MAX_TOKENS, temperature: 0 }
-      }),
-      redirect: "manual",
-      signal
-    });
-  } catch (err2) {
-    return {
-      status: "network_error",
-      httpStatus: 0,
-      latencyMs: Date.now() - started,
-      retryAfterMs: 0,
-      message: err2 instanceof Error ? err2.message : String(err2)
-    };
-  }
-  const latencyMs = Date.now() - started;
-  const body = await res.text().catch(() => "");
-  const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
-  const serving = res.status >= 200 && res.status < 300;
-  return {
-    status: PROBE_STATUS[classified.verdict],
-    httpStatus: res.status,
-    latencyMs,
-    retryAfterMs: res.status === 429 ? parseRetryAfter(res, body) ?? cfg.cooldownMs : 0,
-    message: serving ? "serving" : messageOf(body) || `HTTP ${res.status}`,
-    quota: classified.quota,
-    tierEvidence: classified.tierEvidence
-  };
-}
-var PROBE_STATUS = {
-  ok: "ok",
-  rate_limited: "rate_limited",
-  quota_exhausted: "zero_quota",
-  invalid: "invalid",
-  server_error: "server_error",
-  network_error: "network_error",
-  unexpected: "unexpected"
-};
-async function probeTier(rawKey, timeoutMs = TIMEOUT_MS2) {
-  const models2 = cfg.tierProbeModels.filter(Boolean);
-  let last = {
-    verdict: "unexpected",
-    tierEvidence: null,
-    quota: null,
-    httpStatus: 0,
-    message: "no tier probe model configured"
-  };
-  for (const model of models2) {
-    const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
-    let res;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "ping" }] }],
-          generationConfig: { maxOutputTokens: MAX_TOKENS, temperature: 0 }
-        }),
-        redirect: "manual",
-        signal: AbortSignal.timeout(timeoutMs)
-      });
-    } catch (err2) {
-      last = {
-        verdict: "network_error",
-        tierEvidence: null,
-        quota: null,
-        httpStatus: 0,
-        message: err2 instanceof Error ? err2.message : String(err2)
-      };
-      continue;
-    }
-    const body = await res.text().catch(() => "");
-    const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
-    last = {
-      verdict: classified.verdict,
-      tierEvidence: classified.tierEvidence,
-      quota: classified.quota,
-      httpStatus: res.status,
-      message: messageOf(body) || `HTTP ${res.status}`
-    };
-    if (res.status === 404 || isModelUnavailable(body)) continue;
-    return last;
-  }
-  return last;
-}
-
-// src/app.ts
-import { deflateSync } from "node:zlib";
-
 // src/ledger.ts
 import { createHash as createHash2 } from "node:crypto";
 var KEY_SHAPED2 = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/;
@@ -14161,6 +14049,322 @@ function toCsv(list3) {
   for (const r of list3) lines.push(cols.map((c) => esc(r[c])).join(","));
   return lines.join("\n") + "\n";
 }
+
+// src/tts.ts
+var ELEVENLABS_KEY_REGEX = /^sk_[a-fA-F0-9]{40,64}$/;
+function isValidElevenLabsKey(key) {
+  return ELEVENLABS_KEY_REGEX.test((key ?? "").trim());
+}
+var TIMEOUT_MS2 = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
+async function probeElevenLabs(rawKey, timeoutMs = TIMEOUT_MS2) {
+  const started = Date.now();
+  const k = rawKey.trim();
+  if (!isValidElevenLabsKey(k)) {
+    return {
+      status: "invalid",
+      httpStatus: 400,
+      latencyMs: 0,
+      retryAfterMs: 0,
+      message: "Invalid ElevenLabs API key format (must be sk_ followed by 40-64 hex chars)",
+      quota: null,
+      tierEvidence: null
+    };
+  }
+  const url = "https://api.elevenlabs.io/v1/user";
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "xi-api-key": k,
+        accept: "application/json"
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch (err2) {
+    return {
+      status: "network_error",
+      httpStatus: 0,
+      latencyMs: Date.now() - started,
+      retryAfterMs: 0,
+      message: err2 instanceof Error ? err2.message : String(err2),
+      quota: null,
+      tierEvidence: null
+    };
+  }
+  const latencyMs = Date.now() - started;
+  const body = await res.text().catch(() => "");
+  const headers = Object.fromEntries(res.headers.entries());
+  const classified = classifyElevenLabsResponse(res.status, body, headers);
+  return {
+    status: classified.verdict === "invalid" ? "invalid" : classified.verdict === "rate_limited" ? "rate_limited" : classified.verdict === "ok" ? "ok" : classified.verdict === "server_error" ? "server_error" : "unexpected",
+    httpStatus: res.status,
+    latencyMs,
+    retryAfterMs: classified.quota?.retryAfterMs ?? 0,
+    message: res.status === 200 ? "serving" : body.slice(0, 220) || `HTTP ${res.status}`,
+    quota: classified.quota,
+    tierEvidence: classified.tierEvidence
+  };
+}
+async function serveElevenLabs(req, key) {
+  let rawKey = key ? await rawKeyById(key) || key : void 0;
+  if (!rawKey) {
+    const st = await pick(/* @__PURE__ */ new Set(), void 0, "elevenlabs");
+    if (st) {
+      rawKey = await rawKeyById(st.key) || st.key;
+    }
+  }
+  if (!rawKey) {
+    return new Response(JSON.stringify({ error: { message: "No available ElevenLabs API keys in pool." } }), {
+      status: 503,
+      headers: { "content-type": "application/json" }
+    });
+  }
+  const hasBody = req.method !== "GET" && req.method !== "HEAD";
+  const bodyText = hasBody ? await req.text() : "";
+  let voiceId = "21m00Tcm4TlvDq8ikWAM";
+  try {
+    const parsed = JSON.parse(bodyText);
+    if (typeof parsed.voice_id === "string" && parsed.voice_id) voiceId = parsed.voice_id;
+    else if (typeof parsed.voice === "string" && parsed.voice) voiceId = parsed.voice;
+  } catch {
+  }
+  const url = new URL(req.url);
+  const pathVoiceMatch = /\/text-to-speech\/([^/?]+)/.exec(url.pathname);
+  if (pathVoiceMatch?.[1]) voiceId = pathVoiceMatch[1];
+  else if (url.searchParams.get("voice_id")) voiceId = url.searchParams.get("voice_id");
+  else if (url.searchParams.get("voice")) voiceId = url.searchParams.get("voice");
+  const upstreamUrl = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}${url.search}`;
+  const res = await fetch(upstreamUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "xi-api-key": rawKey
+    },
+    body: bodyText,
+    signal: req.signal
+  });
+  noteUsage(req, {
+    model: "elevenlabs",
+    keyRaw: rawKey,
+    attempts: 1,
+    rotated: false,
+    errorCode: res.ok ? null : `http_${res.status}`
+  });
+  const respHeaders = new Headers(res.headers);
+  respHeaders.delete("content-encoding");
+  respHeaders.delete("content-length");
+  respHeaders.delete("transfer-encoding");
+  return new Response(res.body, {
+    status: res.status,
+    headers: respHeaders
+  });
+}
+
+// src/probe.ts
+var TIMEOUT_MS3 = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
+var MAX_TOKENS = 64;
+function messageOf(body) {
+  try {
+    const parsed = JSON.parse(body);
+    const msg = parsed.error?.message ?? parsed.error?.status ?? "";
+    if (msg) return msg.slice(0, 220);
+  } catch {
+  }
+  return body.replace(/\s+/g, " ").trim().slice(0, 220);
+}
+function probeChain(model) {
+  return [model ?? cfg.defaultModel, ...cfg.probeModels].filter(
+    (m, i, all) => Boolean(m) && all.indexOf(m) === i
+  );
+}
+function isModelLevelFailure(res) {
+  if (res.httpStatus !== 400 && res.httpStatus !== 404 && res.httpStatus !== 503) return false;
+  return isModelUnavailable(res.message);
+}
+function nextCandidate(chain, current) {
+  const at = chain.indexOf(current);
+  if (at < 0) return null;
+  return chain[at + 1] ?? null;
+}
+function reconcile(first, second) {
+  if (second.status === "ok") return second;
+  if (first.status === "invalid" || second.status === "invalid") {
+    return first.status === "invalid" ? first : second;
+  }
+  if (first.status === "rate_limited" || second.status === "rate_limited") {
+    return first.status === "rate_limited" ? first : second;
+  }
+  if (first.status === "zero_quota" || second.status === "zero_quota") {
+    return first.status === "zero_quota" ? first : second;
+  }
+  return first;
+}
+async function probeLeak(rawKey, timeoutMs = TIMEOUT_MS3) {
+  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/cachedContents`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+      body: JSON.stringify({
+        model: `models/${cfg.defaultModel}`,
+        contents: [{ parts: [{ text: "cache probe" }] }]
+      }),
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+  } catch {
+    return false;
+  }
+  if (res.status !== 403) return false;
+  const body = await res.text().catch(() => "");
+  return /reported as leaked/i.test(body);
+}
+async function probeKey(rawKey, model, provider) {
+  if (provider === "elevenlabs" || !provider && isValidElevenLabsKey(rawKey)) {
+    return probeElevenLabs(rawKey);
+  }
+  const result = await probeModels(rawKey, model);
+  if (result.status !== "zero_quota") return result;
+  if (!await probeLeak(rawKey)) return result;
+  return {
+    ...result,
+    status: "invalid",
+    message: "upstream reported the API key as leaked",
+    quota: null,
+    tierEvidence: null
+  };
+}
+async function probeModels(rawKey, model) {
+  const chain = probeChain(model);
+  let candidate = chain[0] ?? null;
+  let refused = null;
+  while (candidate) {
+    const res = await probeOnce(rawKey, candidate);
+    if (res.status === "ok") return res;
+    if (isModelLevelFailure(res)) {
+      refused = res;
+      candidate = nextCandidate(chain, candidate);
+      continue;
+    }
+    if (res.status === "rate_limited" || res.status === "server_error" || res.status === "network_error") {
+      return res;
+    }
+    const next = nextCandidate(chain, candidate);
+    if (!next) return res;
+    const other = await probeOnce(rawKey, next);
+    if (other.status === "ok") return other;
+    if (isModelLevelFailure(other)) return res;
+    return reconcile(res, other);
+  }
+  return refused ?? {
+    status: "unexpected",
+    httpStatus: 0,
+    latencyMs: 0,
+    retryAfterMs: 0,
+    message: "no probe model was accepted"
+  };
+}
+async function probeOnce(rawKey, model) {
+  const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
+  const started = Date.now();
+  const signal = AbortSignal.timeout(TIMEOUT_MS3);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "ping" }] }],
+        generationConfig: { maxOutputTokens: MAX_TOKENS, temperature: 0 }
+      }),
+      redirect: "manual",
+      signal
+    });
+  } catch (err2) {
+    return {
+      status: "network_error",
+      httpStatus: 0,
+      latencyMs: Date.now() - started,
+      retryAfterMs: 0,
+      message: err2 instanceof Error ? err2.message : String(err2)
+    };
+  }
+  const latencyMs = Date.now() - started;
+  const body = await res.text().catch(() => "");
+  const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
+  const serving = res.status >= 200 && res.status < 300;
+  return {
+    status: PROBE_STATUS[classified.verdict],
+    httpStatus: res.status,
+    latencyMs,
+    retryAfterMs: res.status === 429 ? parseRetryAfter(res, body) ?? cfg.cooldownMs : 0,
+    message: serving ? "serving" : messageOf(body) || `HTTP ${res.status}`,
+    quota: classified.quota,
+    tierEvidence: classified.tierEvidence
+  };
+}
+var PROBE_STATUS = {
+  ok: "ok",
+  rate_limited: "rate_limited",
+  quota_exhausted: "zero_quota",
+  invalid: "invalid",
+  server_error: "server_error",
+  network_error: "network_error",
+  unexpected: "unexpected"
+};
+async function probeTier(rawKey, timeoutMs = TIMEOUT_MS3) {
+  const models2 = cfg.tierProbeModels.filter(Boolean);
+  let last = {
+    verdict: "unexpected",
+    tierEvidence: null,
+    quota: null,
+    httpStatus: 0,
+    message: "no tier probe model configured"
+  };
+  for (const model of models2) {
+    const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models/${model}:generateContent`;
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": rawKey },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "ping" }] }],
+          generationConfig: { maxOutputTokens: MAX_TOKENS, temperature: 0 }
+        }),
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+    } catch (err2) {
+      last = {
+        verdict: "network_error",
+        tierEvidence: null,
+        quota: null,
+        httpStatus: 0,
+        message: err2 instanceof Error ? err2.message : String(err2)
+      };
+      continue;
+    }
+    const body = await res.text().catch(() => "");
+    const classified = classifyResponse(res.status, body, Object.fromEntries(res.headers.entries()));
+    last = {
+      verdict: classified.verdict,
+      tierEvidence: classified.tierEvidence,
+      quota: classified.quota,
+      httpStatus: res.status,
+      message: messageOf(body) || `HTTP ${res.status}`
+    };
+    if (res.status === 404 || isModelUnavailable(body)) continue;
+    return last;
+  }
+  return last;
+}
+
+// src/app.ts
+import { deflateSync } from "node:zlib";
 
 // src/gemini.ts
 var up = () => cfg.upstream.replace(/\/$/, "");
@@ -16103,6 +16307,12 @@ var KEYS_BODY = `
             </div>
           </div>
           <div class="filter-cell">
+            <label class="field" for="keyProvider">Provider</label>
+            <select id="keyProvider" class="select">
+              <option value="">all</option>
+            </select>
+          </div>
+          <div class="filter-cell">
             <label class="field" for="keyStatus">Status</label>
             <select id="keyStatus" class="select">
               <option value="">all</option>
@@ -16164,6 +16374,12 @@ ${confirmDialog()}
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
     <div class="panel-body">
+      <div class="u-mb-3">
+        <label class="field" for="newProvider">Provider</label>
+        <select id="newProvider" class="select">
+          <option value="gemini" selected>gemini</option>
+        </select>
+      </div>
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
       <div class="toolbar u-mt-4">
@@ -16187,6 +16403,7 @@ var KEYS_SCRIPT = `
     listMeta: document.getElementById("listMeta"),
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
+    keyProvider: document.getElementById("keyProvider"),
     keyStatus: document.getElementById("keyStatus"),
     keyPlan: document.getElementById("keyPlan"),
     keySize: document.getElementById("keySize"),
@@ -16205,12 +16422,13 @@ var KEYS_SCRIPT = `
     addClose: document.getElementById("addClose"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
+    newProvider: document.getElementById("newProvider"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg")
   };
 
-  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", plan: "", selected: {}, timer: null };
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", provider: "", status: "", plan: "", selected: {}, timer: null };
 
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
@@ -16368,7 +16586,7 @@ var KEYS_SCRIPT = `
 
   function writeUrl() {
     GX.url.write({
-      q: state.query, status: state.status, plan: state.plan,
+      q: state.query, provider: state.provider, status: state.status, plan: state.plan,
       size: state.size !== 25 ? state.size : "",
       page: state.page > 1 ? state.page : ""
     });
@@ -16377,12 +16595,55 @@ var KEYS_SCRIPT = `
   function readUrl() {
     var params = GX.url.read();
     state.query = (params.q || "").toLowerCase();
+    state.provider = params.provider || "";
     state.status = params.status || "";
     state.page = Number(params.page) || 1;
     if (el.keyFilter) el.keyFilter.value = params.q || "";
+    if (el.keyProvider) el.keyProvider.value = state.provider;
     if (el.keyStatus) el.keyStatus.value = params.status || "";
     if (el.keyPlan) el.keyPlan.value = params.plan || "";
     if (params.size && el.keySize) { el.keySize.value = params.size; state.size = Number(params.size) || 25; }
+  }
+
+  function syncProviderOptions(keys) {
+    var providers = {};
+    keys.forEach(function (k) {
+      var p = k.provider || "gemini";
+      providers[p] = true;
+    });
+    if (state.provider) providers[state.provider] = true;
+
+    if (el.keyProvider) {
+      var currentVal = state.provider || el.keyProvider.value;
+      el.keyProvider.textContent = "";
+      var allOpt = document.createElement("option");
+      allOpt.value = "";
+      allOpt.textContent = "all";
+      el.keyProvider.appendChild(allOpt);
+
+      Object.keys(providers).sort().forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        if (p === currentVal) opt.selected = true;
+        el.keyProvider.appendChild(opt);
+      });
+      el.keyProvider.value = currentVal;
+    }
+
+    if (el.newProvider) {
+      var currentNewVal = el.newProvider.value || "gemini";
+      el.newProvider.textContent = "";
+      var known = Object.assign({ gemini: true }, providers);
+      Object.keys(known).sort().forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        if (p === currentNewVal) opt.selected = true;
+        el.newProvider.appendChild(opt);
+      });
+      el.newProvider.value = currentNewVal;
+    }
   }
 
   function visibleKeys() {
@@ -16393,6 +16654,8 @@ var KEYS_SCRIPT = `
        81 ready keys. They stay out of the default view; asking for
        status=dead shows them. */
     return state.keys.filter(function (k) {
+      var prov = k.provider || "gemini";
+      if (state.provider && prov !== state.provider) return false;
       var kind = statusKind(k);
       if (state.status && kind !== state.status) return false;
       if (!state.status && kind === "dead") return false;
@@ -16413,6 +16676,7 @@ var KEYS_SCRIPT = `
       var haystack = [
         k.key,
         k.id,
+        prov,
         k.status,
         planCode,
         tierLabel(planCode),
@@ -16474,6 +16738,7 @@ var KEYS_SCRIPT = `
          names what each column is; the caption is on the table element below. */
       GX.el("th", { text: "Id", "data-l": "id", scope: "col" }),
       GX.el("th", { text: "Key", "data-l": "key", scope: "col" }),
+      GX.el("th", { text: "Provider", "data-l": "provider", scope: "col" }),
       GX.el("th", { text: "Plan", "data-l": "plan", scope: "col" }),
       GX.el("th", { text: "Status", "data-l": "status", scope: "col" }),
       GX.el("th", { class: "num", text: "Fails", "data-l": "fails", scope: "col" }),
@@ -16520,12 +16785,12 @@ var KEYS_SCRIPT = `
 
     /* An unnamed table with 9 columns. The caption states what the columns are
        and what the row is, which is what a screen reader had to infer. */
-    var table = GX.el("table", { class: "table", "aria-label": "API keys: id, full key, plan, status, consecutive failures, cooldown, last used" });
+    var table = GX.el("table", { class: "table", "aria-label": "API keys: id, full key, provider, plan, status, consecutive failures, cooldown, last used" });
     table.appendChild(tableHead());
 
     var body = GX.el("tbody");
     slice.forEach(function (k) {
-      var tr = GX.el("tr", { "data-key-id": k.id });
+      var tr = GX.el("tr", { "data-key-id": k.id, "data-provider": k.provider || "gemini" });
 
       var pick = GX.el("td", { class: "num pick" });
       var pickLabel = GX.el("label", { class: "pickbox" });
@@ -16582,6 +16847,10 @@ var KEYS_SCRIPT = `
         }).catch(function () {});
       }
       tr.appendChild(keyCell);
+
+      var provCell = GX.el("td", { class: "provider-cell", "data-l": "provider" });
+      provCell.appendChild(GX.el("span", { class: "provider-text", text: k.provider || "gemini" }));
+      tr.appendChild(provCell);
 
       var planCell = GX.el("td", { "data-l": "plan" });
       var plan = rowPlan(k);
@@ -16925,10 +17194,11 @@ var KEYS_SCRIPT = `
 
   function addKeys() {
     var raw = el.newKeys.value;
-    var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    var provider = (el.newProvider && el.newProvider.value) ? el.newProvider.value.trim() : "gemini";
+    var keys = raw.split(/[s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
     GX.busy(el.addSubmit, "Adding");
-    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
+    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys, provider: provider } })
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";
@@ -16955,7 +17225,7 @@ var KEYS_SCRIPT = `
     table.appendChild(tableHead());
     var body = GX.el("tbody");
     var row = GX.el("tr");
-    var td = GX.el("td", { colspan: "9" });
+    var td = GX.el("td", { colspan: "10" });
     var box = GX.state("error", "Could not load the pool", err && err.message ? err.message : "The list request failed.");
     var retry = GX.el("button", { class: "btn btn-sm", type: "button", text: "Try again" });
     retry.addEventListener("click", function () { refresh(); });
@@ -16975,6 +17245,7 @@ var KEYS_SCRIPT = `
     return GX.api("/pengatur/keys/list?reveal=1")
       .then(function (data) {
         state.keys = data.keys || [];
+        syncProviderOptions(state.keys);
         if (data.raw) {
           var now = Date.now();
           Object.keys(data.raw).forEach(function (id) {
@@ -17039,6 +17310,14 @@ var KEYS_SCRIPT = `
     writeUrl();
     drawTable();
   }, 140));
+  if (el.keyProvider) {
+    el.keyProvider.addEventListener("change", function () {
+      state.provider = el.keyProvider.value;
+      state.page = 1;
+      writeUrl();
+      drawTable();
+    });
+  }
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
     state.page = 1;
@@ -17064,11 +17343,13 @@ var KEYS_SCRIPT = `
     filter: "keyFilter",
     refresh: "refreshBtn",
     onEscape: function () {
-      if (!state.query && !state.status) return;
+      if (!state.query && !state.status && !state.provider) return;
       state.query = "";
       state.status = "";
+      state.provider = "";
       state.page = 1;
       el.keyFilter.value = "";
+      if (el.keyProvider) el.keyProvider.value = "";
       el.keyStatus.value = "";
       writeUrl();
       drawTable();
@@ -18032,10 +18313,43 @@ app.get("/pengatur/status", async (c) => {
     }
   });
 });
-app.post("/v1/chat/completions", (c) => chatCompletions(c.req.raw));
-app.post("/v1/audio/speech", (c) => speech(c.req.raw));
-app.post("/v1/embeddings", (c) => embeddings(c.req.raw));
-app.get("/v1/models", () => models());
+app.post("/v1/chat/completions", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return c.json(
+      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
+      400
+    );
+  }
+  return chatCompletions(c.req.raw);
+});
+app.post("/v1/audio/speech", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return serveElevenLabs(c.req.raw, st.key);
+  }
+  return speech(c.req.raw);
+});
+app.post("/v1/embeddings", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return c.json(
+      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
+      400
+    );
+  }
+  return embeddings(c.req.raw);
+});
+app.get("/v1/models", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return c.json(
+      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
+      400
+    );
+  }
+  return models();
+});
 app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.url).pathname));
 var icoCache = null;
 app.get("/favicon.svg", (c) => {
@@ -18101,11 +18415,17 @@ app.post("/pengatur/models/test", async (c) => {
 });
 app.get("/pengatur/keys", (c) => c.html(KEYS_HTML));
 app.get("/pengatur/keys/list", async (c) => {
-  const [keys, snap, identities] = await Promise.all([listKeys(), snapshot(), loadKeys()]);
+  const providerFilter = c.req.query("provider");
+  const [keys, snap, identities] = await Promise.all([listKeys(providerFilter), snapshot(), loadKeys()]);
   const byId = new Map(identities.map((k) => [k.id, k]));
   const merged = keys.map((k) => {
     const identity = byId.get(k.id);
-    return { ...k, enabled: identity ? identity.enabled : true, label: identity?.label ?? null };
+    return {
+      ...k,
+      provider: k.provider || identity?.provider || "gemini",
+      enabled: identity ? identity.enabled : true,
+      label: identity?.label ?? null
+    };
   });
   if (c.req.query("reveal") === "1") {
     const rawById = {};
@@ -18169,6 +18489,7 @@ app.get("/pengatur/keys/:id/data", async (c) => {
     key: {
       id: key.id,
       masked: key.key,
+      provider: key.provider || identity?.provider || "gemini",
       plan: key.tier,
       status: key.status,
       enabled: identity ? identity.enabled : true,
@@ -18307,8 +18628,11 @@ app.post("/pengatur/keys/test", async (c) => {
   } else {
     return c.json({ error: { message: "`id` or `key` is required." } }, 400);
   }
+  const allKeys = await listKeys();
+  const matched = allKeys.find((k) => k.id === id);
+  const provider = matched?.provider ?? (typeof body.provider === "string" && body.provider.trim() ? body.provider.trim() : void 0);
   const model = typeof body.model === "string" && body.model ? body.model : void 0;
-  const result = await probeKey(raw2, model);
+  const result = await probeKey(raw2, model, provider);
   const held = Boolean(await rawKeyById(id));
   const applied = held ? await applyProbe(raw2, result) : "none";
   if (held && result.tierEvidence) await markValidatedPlan(raw2, result.tierEvidence);
@@ -18317,6 +18641,7 @@ app.post("/pengatur/keys/test", async (c) => {
     actor: actorFrom(c.req.header("user-agent")),
     target: id,
     detail: {
+      provider: provider ?? view?.provider ?? "gemini",
       model: model ?? "default",
       verdict: result.status,
       tier: result.tierEvidence?.tier ?? "unknown",

@@ -16,6 +16,7 @@ import {
   type QuotaDetail,
   type TierEvidence,
 } from "./verdict.ts";
+import { isValidElevenLabsKey, probeElevenLabs } from "./tts.ts";
 
 export type ProbeStatus =
   | "ok"
@@ -172,7 +173,14 @@ export async function probeLeak(rawKey: string, timeoutMs = TIMEOUT_MS): Promise
  * names what the key is. So the extra call is spent on parked keys only, and
  * the recheck volume of a healthy pool does not move.
  */
-export async function probeKey(rawKey: string, model?: string): Promise<ProbeResult> {
+export async function probeKey(
+  rawKey: string,
+  model?: string,
+  provider?: string,
+): Promise<ProbeResult> {
+  if (provider === "elevenlabs" || (!provider && isValidElevenLabsKey(rawKey))) {
+    return probeElevenLabs(rawKey);
+  }
   const result = await probeModels(rawKey, model);
   if (result.status !== "zero_quota") return result;
   if (!(await probeLeak(rawKey))) return result;

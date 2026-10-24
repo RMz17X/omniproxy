@@ -62,8 +62,8 @@ export type QuotaDetail = {
 };
 
 export type TierEvidence = {
-  tier: "free" | "paid" | "unknown";
-  source: "violations" | "consumer" | "none";
+  tier: string;
+  source: "violations" | "consumer" | "none" | "subscription";
   quotaId: string | null;
   quotaMetric: string | null;
   consumer: string | null;
@@ -319,6 +319,102 @@ export function classifyResponse(
     return INVALID_KEY.test(body)
       ? { verdict: "invalid", ...none }
       : { verdict: "unexpected", ...none };
+  }
+
+  if (status >= 500) return { verdict: "server_error", ...none };
+
+  return { verdict: "unexpected", ...none };
+}
+
+/**
+ * Classify an ElevenLabs response into the existing verdict taxonomy.
+ *
+ * `dead` ONLY for 401/403.
+ * 429 enters quota state with reset time if available.
+ * 200 proves key is alive and captures plan from subscription.tier.
+ */
+export function classifyElevenLabsResponse(
+  status: number,
+  body: string,
+  headers?: Record<string, string>,
+): { verdict: KeyVerdict; quota: QuotaDetail | null; tierEvidence: TierEvidence | null } {
+  const none = { quota: null, tierEvidence: null } as const;
+
+  if (status === 0) return { verdict: "network_error", ...none };
+
+  if (status >= 200 && status < 300) {
+    let tier = "unknown";
+    let limit: string | null = null;
+    let count: string | null = null;
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed?.subscription?.tier) {
+        tier = String(parsed.subscription.tier);
+      }
+      if (parsed?.subscription?.character_limit !== undefined) {
+        limit = String(parsed.subscription.character_limit);
+      }
+      if (parsed?.subscription?.character_count !== undefined) {
+        count = String(parsed.subscription.character_count);
+      }
+    } catch {}
+
+    const evidence: TierEvidence = {
+      tier,
+      source: "subscription",
+      quotaId: count !== null ? `chars_${count}` : null,
+      quotaMetric: "characters",
+      consumer: limit,
+      observedAt: Date.now(),
+    };
+
+    return { verdict: "ok", quota: null, tierEvidence: evidence };
+  }
+
+  // dead HANYA untuk 401/403
+  if (status === 401 || status === 403) {
+    return { verdict: "invalid", ...none };
+  }
+
+  // 429 masuk quota state (bukan mati)
+  if (status === 429) {
+    let retryAfterMs = 0;
+    if (headers) {
+      for (const [name, val] of Object.entries(headers)) {
+        if (name.toLowerCase() === "retry-after") {
+          const secs = Number(val);
+          if (Number.isFinite(secs) && secs > 0) retryAfterMs = secs * 1000;
+        }
+      }
+    }
+    try {
+      const parsed = JSON.parse(body);
+      const resetUnix =
+        parsed?.detail?.next_character_count_reset_unix ??
+        parsed?.next_character_count_reset_unix;
+      if (typeof resetUnix === "number" && resetUnix > 0) {
+        const diffMs = resetUnix * 1000 - Date.now();
+        if (diffMs > 0) retryAfterMs = Math.max(retryAfterMs, diffMs);
+      }
+    } catch {}
+
+    const quota: QuotaDetail = {
+      metric: "characters",
+      quotaId: "elevenlabs_quota",
+      quotaMetric: "characters",
+      limit: null,
+      limitValue: null,
+      window: null,
+      location: null,
+      consumer: null,
+      project: null,
+      resetAt: retryAfterMs > 0 ? Date.now() + retryAfterMs : null,
+      retryAfterMs,
+      model: null,
+      freeTier: false,
+    };
+
+    return { verdict: "rate_limited", quota, tierEvidence: null };
   }
 
   if (status >= 500) return { verdict: "server_error", ...none };

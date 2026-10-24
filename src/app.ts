@@ -15,7 +15,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
+import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
@@ -23,6 +23,7 @@ import { listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey, probeTier, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
 import { geminiPassthrough, speech } from "./gemini.ts";
+import { serveElevenLabs } from "./tts.ts";
 import { chatCompletions, embeddings, models } from "./openai.ts";
 import {
   beginUsage,
@@ -181,10 +182,46 @@ app.get("/pengatur/status", async (c) => {
 
 /* ---------- OpenAI-compatible ---------- */
 
-app.post("/v1/chat/completions", (c) => chatCompletions(c.req.raw));
-app.post("/v1/audio/speech", (c) => speech(c.req.raw));
-app.post("/v1/embeddings", (c) => embeddings(c.req.raw));
-app.get("/v1/models", () => models());
+app.post("/v1/chat/completions", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return c.json(
+      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
+      400,
+    );
+  }
+  return chatCompletions(c.req.raw);
+});
+
+app.post("/v1/audio/speech", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return serveElevenLabs(c.req.raw, st.key);
+  }
+  return speech(c.req.raw);
+});
+
+app.post("/v1/embeddings", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return c.json(
+      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
+      400,
+    );
+  }
+  return embeddings(c.req.raw);
+});
+
+app.get("/v1/models", async (c) => {
+  const st = await pick();
+  if (st?.provider === "elevenlabs") {
+    return c.json(
+      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
+      400,
+    );
+  }
+  return models();
+});
 
 /* ---------- native Gemini passthrough ---------- */
 
@@ -300,11 +337,17 @@ app.get("/pengatur/keys", (c) => c.html(KEYS_HTML));
  * live there; `enabled`/`label` are merged in from the durable identities.
  */
 app.get("/pengatur/keys/list", async (c) => {
-  const [keys, snap, identities] = await Promise.all([listKeys(), snapshot(), loadKeys()]);
+  const providerFilter = c.req.query("provider");
+  const [keys, snap, identities] = await Promise.all([listKeys(providerFilter), snapshot(), loadKeys()]);
   const byId = new Map(identities.map((k) => [k.id, k]));
   const merged = keys.map((k) => {
     const identity = byId.get(k.id);
-    return { ...k, enabled: identity ? identity.enabled : true, label: identity?.label ?? null };
+    return {
+      ...k,
+      provider: k.provider || identity?.provider || "gemini",
+      enabled: identity ? identity.enabled : true,
+      label: identity?.label ?? null,
+    };
   });
   /* The console shows every key in full, so it used to call GET /raw once per
      row - 25 requests per render, each writing its own `keys.raw` audit row.
@@ -395,6 +438,7 @@ app.get("/pengatur/keys/:id/data", async (c) => {
     key: {
       id: key.id,
       masked: key.key,
+      provider: key.provider || identity?.provider || "gemini",
       plan: key.tier,
       status: key.status,
       enabled: identity ? identity.enabled : true,
@@ -545,7 +589,7 @@ app.delete("/pengatur/keys", async (c) => {
  * key, so a recovering key does not have to wait out a stale cooldown.
  */
 app.post("/pengatur/keys/test", async (c) => {
-  let body: { id?: string; key?: string; model?: string };
+  let body: { id?: string; key?: string; model?: string; provider?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -565,8 +609,14 @@ app.post("/pengatur/keys/test", async (c) => {
     return c.json({ error: { message: "`id` or `key` is required." } }, 400);
   }
 
+  const allKeys = await listKeys();
+  const matched = allKeys.find((k) => k.id === id);
+  const provider =
+    matched?.provider ??
+    (typeof body.provider === "string" && body.provider.trim() ? body.provider.trim() : undefined);
+
   const model = typeof body.model === "string" && body.model ? body.model : undefined;
-  const result = await probeKey(raw, model);
+  const result = await probeKey(raw, model, provider);
 
   // Fold the verdict into pool state only for keys the pool actually holds.
   const held = Boolean(await rawKeyById(id));
@@ -581,6 +631,7 @@ app.post("/pengatur/keys/test", async (c) => {
     actor: actorFrom(c.req.header("user-agent")),
     target: id,
     detail: {
+      provider: provider ?? view?.provider ?? "gemini",
       model: model ?? "default",
       verdict: result.status,
       tier: result.tierEvidence?.tier ?? "unknown",
