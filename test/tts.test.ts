@@ -101,7 +101,7 @@ describe("ElevenLabs classification and probe", () => {
 
   test("probeElevenLabs mocks fetch: 200 is ok with tier, 401 is dead, 429 is quota", async () => {
     // 1. Mock 200
-    globalThis.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
       const u = String(url);
       if (!u.includes("elevenlabs.io")) return origFetch(url, init);
       expect(u).toBe("https://api.elevenlabs.io/v1/user");
@@ -118,7 +118,7 @@ describe("ElevenLabs classification and probe", () => {
         }),
         { status: 200, headers: { "content-type": "application/json" } },
       );
-    };
+    }) as any;
 
     const probeOk = await probeElevenLabs(VALID_KEY_40);
     expect(probeOk.status).toBe("ok");
@@ -131,14 +131,14 @@ describe("ElevenLabs classification and probe", () => {
     expect(probeKeyOk.tierEvidence?.tier).toBe("pro");
 
     // 2. Mock 401 (dead)
-    globalThis.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
       const u = String(url);
       if (!u.includes("elevenlabs.io")) return origFetch(url, init);
       return new Response(JSON.stringify({ detail: "Unauthorized" }), {
         status: 401,
         headers: { "content-type": "application/json" },
       });
-    };
+    }) as any;
 
     const probe401 = await probeElevenLabs(VALID_KEY_40);
     expect(probe401.status).toBe("invalid");
@@ -146,7 +146,7 @@ describe("ElevenLabs classification and probe", () => {
     expect(probe401.quota).toBeNull();
 
     // 3. Mock 429 (quota, NOT dead)
-    globalThis.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
       const u = String(url);
       if (!u.includes("elevenlabs.io")) return origFetch(url, init);
       return new Response(
@@ -161,7 +161,7 @@ describe("ElevenLabs classification and probe", () => {
           headers: { "content-type": "application/json", "retry-after": "60" },
         },
       );
-    };
+    }) as any;
 
     const probe429 = await probeElevenLabs(VALID_KEY_40);
     expect(probe429.status).toBe("rate_limited");
@@ -183,7 +183,7 @@ describe("ElevenLabs serve proxy", () => {
     let capturedBody = "";
     let capturedKey = "";
 
-    globalThis.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
       const u = String(url);
       if (!u.includes("elevenlabs.io")) return origFetch(url, init);
       capturedUrl = u;
@@ -195,7 +195,7 @@ describe("ElevenLabs serve proxy", () => {
         status: 200,
         headers: { "content-type": "audio/mpeg" },
       });
-    };
+    }) as any;
 
     const req = new Request("http://localhost/v1/audio/speech?output_format=mp3_44100_128", {
       method: "POST",
@@ -233,14 +233,14 @@ describe("app routing for ElevenLabs vs Gemini", () => {
     await addKey(VALID_KEY_40, "elevenlabs");
 
     let forwardedToEleven = false;
-    globalThis.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
       const u = String(url);
       if (u.includes("elevenlabs.io")) {
         forwardedToEleven = true;
         return new Response(Buffer.from("audio"), { status: 200, headers: { "content-type": "audio/mpeg" } });
       }
       return origFetch(url, init);
-    };
+    }) as any;
 
     const req = new Request("http://localhost/v1/audio/speech", {
       method: "POST",
