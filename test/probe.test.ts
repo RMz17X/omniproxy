@@ -23,7 +23,7 @@ const AUTH = { authorization: "Bearer test-admin-token", "content-type": "applic
 
 const adminPost = (path: string, body?: unknown) =>
   app.fetch(
-    new Request(`http://geminesx.test${path}`, {
+    new Request(`http://omniproxy.test${path}`, {
       method: "POST",
       headers: AUTH,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -183,7 +183,7 @@ test("a leaking key that is due for recheck is retired by the route", async () =
   await setPool(["AIzaPROBELEAKED2"]);
 
   const res = await app.fetch(
-    new Request("http://geminesx.test/internal/keys/recheck", {
+    new Request("http://omniproxy.test/internal/keys/recheck", {
       method: "POST",
       headers: { authorization: "Bearer test-admin-token" },
     }),

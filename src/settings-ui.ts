@@ -167,7 +167,7 @@ const SETTINGS_SCRIPT = `
   el.refresh.addEventListener("click", function () { reload(); });
   el.exportBtn.addEventListener("click", function () {
     GX.busy(el.exportBtn, "Exporting");
-    GX.download("/pengatur/settings/export", "geminesx-config.json")
+    GX.download("/pengatur/settings/export", "omniproxy-config.json")
       .catch(function (err) { GX.say(el.msg, err.message, "err"); })
       .then(function () { GX.idle(el.exportBtn); });
   });

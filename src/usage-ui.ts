@@ -382,7 +382,7 @@ const USAGE_SCRIPT = `
 
   function exportCsv() {
     GX.busy(el.csv, "Exporting");
-    GX.download("/pengatur/usage/export.csv" + filterQuery(), "geminesx-usage.csv")
+    GX.download("/pengatur/usage/export.csv" + filterQuery(), "omniproxy-usage.csv")
       .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });
   }

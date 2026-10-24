@@ -284,8 +284,8 @@ function parseCandidate(cand: GeminiCandidate | undefined): ParsedReply {
 }
 
 const metaHeaders = (attempts: number, rotated: boolean): Record<string, string> => ({
-  "x-geminesx-attempts": String(attempts),
-  "x-geminesx-rotated": rotated ? "1" : "0",
+  "x-omniproxy-attempts": String(attempts),
+  "x-omniproxy-rotated": rotated ? "1" : "0",
 });
 
 export async function chatCompletions(req: Request): Promise<Response> {
@@ -778,9 +778,9 @@ export async function models(): Promise<Response> {
           created: 1700000000,
           owned_by: "google",
         })),
-        geminesx: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() },
+        omniproxy: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() },
       },
-      { headers: { "x-geminesx-models": "fallback" } },
+      { headers: { "x-omniproxy-models": "fallback" } },
     );
   }
 
@@ -805,9 +805,9 @@ export async function models(): Promise<Response> {
             : null,
         };
       }),
-      geminesx: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() },
+      omniproxy: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() },
     },
-    { headers: { "x-geminesx-models": cached ? "live-cached" : "live" } },
+    { headers: { "x-omniproxy-models": cached ? "live-cached" : "live" } },
   );
 }
 

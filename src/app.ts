@@ -1,5 +1,5 @@
 /**
- * geminesx — Hono gateway for a pool of Gemini API keys.
+ * omniproxy — Hono gateway for a pool of Gemini API keys.
  *
  * Routes
  *   GET  /                      health + pool snapshot
@@ -147,7 +147,7 @@ async function liveness(): Promise<{ ok: boolean; status: 200 | 503 }> {
 
 app.get("/", async (c) => {
   const { ok, status } = await liveness();
-  return c.json({ ok, service: "geminesx" }, status);
+  return c.json({ ok, service: "omniproxy" }, status);
 });
 
 app.get("/health", async (c) => {
@@ -164,7 +164,7 @@ app.get("/pengatur/status", async (c) => {
   const snap = await snapshot();
   return c.json({
     ok: true,
-    service: "geminesx",
+    service: "omniproxy",
     storage: snap.storage,
     pool: snap,
     defaults: {
@@ -1022,7 +1022,7 @@ app.notFound((c) =>
 );
 
 app.onError((e, c) => {
-  console.error("[geminesx] unhandled:", e);
+  console.error("[omniproxy] unhandled:", e);
   return c.json({ error: { message: e.message } }, 500);
 });
 
@@ -1062,7 +1062,7 @@ app.get("/pengatur/usage/export.csv", (c) => {
   return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="geminesx-usage-${new Date().toISOString().slice(0, 10)}.csv"`,
+      "content-disposition": `attachment; filename="omniproxy-usage-${new Date().toISOString().slice(0, 10)}.csv"`,
     },
   });
 });
@@ -1089,7 +1089,7 @@ app.get("/pengatur/settings/export", async (c) => {
   return new Response(JSON.stringify(view, null, 2), {
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "content-disposition": `attachment; filename="geminesx-config-${new Date().toISOString().slice(0, 10)}.json"`,
+      "content-disposition": `attachment; filename="omniproxy-config-${new Date().toISOString().slice(0, 10)}.json"`,
     },
   });
 });

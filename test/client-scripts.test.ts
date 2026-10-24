@@ -58,7 +58,7 @@ describe("shipped client scripts", () => {
       }
       // The head guard and the page script both have to survive.
       expect(html, `${name} defines GX`).toContain("var GX = {");
-      expect(html, `${name} has the auth guard`).toContain("geminesx.admin.token");
+      expect(html, `${name} has the auth guard`).toContain("omniproxy.admin.token");
     }
   });
 });

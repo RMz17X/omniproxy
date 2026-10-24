@@ -1,4 +1,4 @@
-# GeminesX
+# OmniProxy
 
 Hono + Bun gateway that fronts a pool of Gemini API keys. Deploys to Vercel
 (Bun runtime) or runs as a plain Bun process. Rotates on quota exhaustion,

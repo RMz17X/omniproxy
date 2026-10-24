@@ -420,7 +420,7 @@ const MODELS_SCRIPT = `
   Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
     button.addEventListener("click", function () {
       state.tier = button.getAttribute("data-tier");
-      try { localStorage.setItem("geminesx.tier", state.tier); } catch (e) {}
+      try { localStorage.setItem("omniproxy.tier", state.tier); } catch (e) {}
       Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (other) {
         other.setAttribute("aria-pressed", other === button ? "true" : "false");
       });
@@ -432,7 +432,7 @@ const MODELS_SCRIPT = `
   });
 
   var savedTier = null;
-  try { savedTier = localStorage.getItem("geminesx.tier"); } catch (e) {}
+  try { savedTier = localStorage.getItem("omniproxy.tier"); } catch (e) {}
   if (savedTier && TIER_LABELS[savedTier]) {
     state.tier = savedTier;
     Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {

@@ -17,7 +17,7 @@ let hydrated: Promise<number> | null = null;
 function ensureHydrated(): Promise<number> {
   if (!hydrated) {
     hydrated = hydrate().then((n) => {
-      console.log(`[geminesx] cold-start hydrated ${n} keys storage=${storageMode}`);
+      console.log(`[omniproxy] cold-start hydrated ${n} keys storage=${storageMode}`);
       return n;
     });
   }

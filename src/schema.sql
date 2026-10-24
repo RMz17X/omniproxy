@@ -1,4 +1,4 @@
--- geminesx storage schema. Idempotent: safe to run on every deploy.
+-- omniproxy storage schema. Idempotent: safe to run on every deploy.
 -- Applied by `bun run db:migrate` (scripts/migrate.ts).
 --
 -- PRIVACY: no column here can hold prompt or completion body text. Usage rows

@@ -1630,7 +1630,7 @@ export function navRail(active: string, actions = ""): string {
     '<span class="rail-mark">' +
     icon("command", "icon", 17) +
     "</span>" +
-    '<span class="rail-name"><b>GeminesX</b><span>Console</span></span>' +
+    '<span class="rail-name"><b>OmniProxy</b><span>Console</span></span>' +
     "</a>" +
     '<nav class="rail-nav" aria-label="Console sections">' +
     navMarkup(active, "nav") +
@@ -1682,7 +1682,7 @@ export function consolePage(o: PageOptions): string {
     '<span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' +
     icon("command", "icon", 12) +
     "</span>" +
-    "<span>GeminesX</span><span aria-hidden=\"true\">/</span><b>" +
+    "<span>OmniProxy</span><span aria-hidden=\"true\">/</span><b>" +
     escapeHtml(section) +
     "</b></div>" +
     '<div class="head-actions">' +
@@ -1704,11 +1704,11 @@ export function consolePage(o: PageOptions): string {
     '<meta name="color-scheme" content="light dark">\n' +
     "<title>" +
     escapeHtml(o.title) +
-    " · GeminesX</title>\n" +
+    " · OmniProxy</title>\n" +
     '<link rel="icon" href="/favicon.ico" sizes="32x32">\n' +
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n' +
     '<link rel="apple-touch-icon" href="/favicon.svg">\n' +
-    '<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("geminesx.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n' +
+    '<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n' +
     "<script>" + AUTH_GUARD_JS + "</script>\n" +
     "<style>" +
     BASE_CSS +
@@ -1742,7 +1742,7 @@ function drawerMarkup(active: string): string {
     '<span class="rail-mark">' +
     icon("command", "icon", 17) +
     "</span>" +
-    '<span class="rail-name"><b>GeminesX</b><span>Console</span></span>' +
+    '<span class="rail-name"><b>OmniProxy</b><span>Console</span></span>' +
     "</div>" +
     '<nav class="rail-nav" aria-label="Console sections">' +
     navMarkup(active, "drawer") +
@@ -1831,7 +1831,7 @@ const AUTH_GUARD_JS = `
 (function () {
   "use strict";
   try {
-    if (!localStorage.getItem("geminesx.admin.token")) {
+    if (!localStorage.getItem("omniproxy.admin.token")) {
       var here = location.pathname + location.search;
       location.replace("/pengatur/login?next=" + encodeURIComponent(here));
     }
@@ -1855,9 +1855,9 @@ export function loginPage(): string {
     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
     '<meta name="robots" content="noindex, nofollow">\n' +
     '<meta name="color-scheme" content="light dark">\n' +
-    "<title>Sign in · GeminesX</title>\n" +
+    "<title>Sign in · OmniProxy</title>\n" +
     '<link rel="icon" href="/favicon.ico" sizes="32x32">\n' +
-    '<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n' +
+    '<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n' +
     "<style>" + BASE_CSS + "</style>\n</head>\n<body>\n" +
     '<main class="login-page">\n' +
     authGate() +
@@ -1873,7 +1873,7 @@ const LOGIN_JS = `
   var input = document.getElementById("token");
   var button = document.getElementById("connect");
   var msg = document.getElementById("gateMsg");
-  var STORE = "geminesx.admin.token";
+  var STORE = "omniproxy.admin.token";
 
   function next() {
     var n = new URLSearchParams(location.search).get("next");
@@ -2043,9 +2043,9 @@ export const CLIENT_JS = `
 (function () {
   "use strict";
 
-  var STORE = "geminesx.admin.token";
-  var THEME = "geminesx.theme";
-  var DENSITY = "geminesx.density";
+  var STORE = "omniproxy.admin.token";
+  var THEME = "omniproxy.theme";
+  var DENSITY = "omniproxy.density";
 
   var ICON = {
     close: ${JSON.stringify(icon("close", "icon", 14))},

@@ -28,7 +28,7 @@ const HALF = "AIzaPOOLHALFQUOTA1";
 
 const chat = (model: string) =>
   app.fetch(
-    new Request("http://geminesx.test/v1/chat/completions", {
+    new Request("http://omniproxy.test/v1/chat/completions", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }] }),
@@ -125,7 +125,7 @@ test("the anonymous routes leak neither the pool nor the defaults", async () => 
   await setPool([GOOD, ZERO]);
 
   for (const path of ["/", "/health"]) {
-    const res = await app.fetch(new Request(`http://geminesx.test${path}`));
+    const res = await app.fetch(new Request(`http://omniproxy.test${path}`));
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.ok).toBe(true);
@@ -139,11 +139,11 @@ test("the anonymous routes leak neither the pool nor the defaults", async () => 
 test("the operator view is admin-gated and carries the full picture", async () => {
   await setPool([GOOD]);
 
-  const anon = await app.fetch(new Request("http://geminesx.test/pengatur/status"));
+  const anon = await app.fetch(new Request("http://omniproxy.test/pengatur/status"));
   expect(anon.status).toBe(401);
 
   const res = await app.fetch(
-    new Request("http://geminesx.test/pengatur/status", { headers: ADMIN }),
+    new Request("http://omniproxy.test/pengatur/status", { headers: ADMIN }),
   );
   expect(res.status).toBe(200);
   const body = (await res.json()) as {

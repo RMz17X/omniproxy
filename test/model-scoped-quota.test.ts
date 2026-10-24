@@ -26,7 +26,7 @@ const FLASH = "gemini-3.5-flash";
 
 const chat = (model: string) =>
   app.fetch(
-    new Request("http://geminesx.test/v1/chat/completions", {
+    new Request("http://omniproxy.test/v1/chat/completions", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ model, messages: [{ role: "user", content: "ping" }] }),

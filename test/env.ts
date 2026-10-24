@@ -46,7 +46,7 @@ process.env.GEMINI_BASE_URL = MOCK_BASE;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __geminesxMockStarted: Promise<void> | undefined;
+  var __omniproxyMockStarted: Promise<void> | undefined;
 }
 
 /**
@@ -84,8 +84,8 @@ async function bootMock(): Promise<string> {
  * imported, so the promise resolves immediately.
  */
 export async function ensureMock(): Promise<void> {
-  if (!globalThis.__geminesxMockStarted) {
-    globalThis.__geminesxMockStarted = Promise.resolve();
+  if (!globalThis.__omniproxyMockStarted) {
+    globalThis.__omniproxyMockStarted = Promise.resolve();
   }
-  return globalThis.__geminesxMockStarted;
+  return globalThis.__omniproxyMockStarted;
 }

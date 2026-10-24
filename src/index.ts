@@ -11,7 +11,7 @@ const seeded = await hydrate();
 const port = Number(process.env.PORT ?? 3000);
 
 console.log(
-  `[geminesx] up on :${port} storage=${storageMode} seed=${seeded} admin=${cfg.adminToken ? "on" : "off"}`,
+  `[omniproxy] up on :${port} storage=${storageMode} seed=${seeded} admin=${cfg.adminToken ? "on" : "off"}`,
 );
 
 export default {

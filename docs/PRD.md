@@ -1,18 +1,18 @@
-# PRD - GeminesX
+# PRD - OmniProxy
 
 Status: draft untuk implementasi
 Basis: fork dari `gemini-key-rotator` (GKR), commit `6a70cce`
-Repo: `origin` github.com/RMz17X/geminesx (private), `backup` gitlab.com/hijilabs/geminesx (private)
+Repo: `origin` github.com/RMz17X/omniproxy (private), `backup` gitlab.com/hijilabs/omniproxy (private)
 Default branch: `master`
-Domain: `geminesx.vercel.app`
+Domain: `omniproxy.vercel.app`
 Region fungsi Vercel: `sin1`
 
 ## 1. Ringkasan
 
-GeminesX adalah gateway OpenAI-compatible plus operator console untuk pool API key
+OmniProxy adalah gateway OpenAI-compatible plus operator console untuk pool API key
 Gemini. Tiga perubahan dibanding induknya:
 
-1. Brand dan prefix konsisten jadi `geminesx` di seluruh permukaan.
+1. Brand dan prefix konsisten jadi `omniproxy` di seluruh permukaan.
 2. Storage pindah dari Upstash Redis (REST) ke Neon Postgres.
 3. Console diperluas: request logs, statistik, identitas per key, TTS studio,
    settings, dan audit admin.
@@ -221,10 +221,10 @@ tangan, cukup regenerate lewat `bun run bundle:api`.
 
 Konsistensi permukaan:
 
-- Header respons: `x-gkr-attempts` jadi `x-geminesx-attempts`.
-- Prefix log: `[gkr]` jadi `[geminesx]`.
-- Nama file CSV: `gkr-usage-<tanggal>.csv` jadi `geminesx-usage-<tanggal>.csv`.
-- Field `service` pada health/metrics jadi `geminesx`.
+- Header respons: `x-gkr-attempts` jadi `x-omniproxy-attempts`.
+- Prefix log: `[gkr]` jadi `[omniproxy]`.
+- Nama file CSV: `gkr-usage-<tanggal>.csv` jadi `omniproxy-usage-<tanggal>.csv`.
+- Field `service` pada health/metrics jadi `omniproxy`.
 
 ## 9. Env
 
@@ -253,7 +253,7 @@ Tetap: `GEMINI_API_KEYS`, `GEMINI_BASE_URL`, `ADMIN_TOKEN`, `CLIENT_TOKEN`,
 - **F3** `ledger.ts` batch writer plus `rollup.ts` plus cron harian.
 - **F4** Console: logs, stats, keys, settings, audit.
 - **F5** TTS studio.
-- **F6** Project Vercel `geminesx`, link, deploy, verifikasi routing.
+- **F6** Project Vercel `omniproxy`, link, deploy, verifikasi routing.
 
 F1 tidak butuh kredensial apa pun.
 

@@ -10844,15 +10844,15 @@ function navMarkup(active, idPrefix) {
   }).join("");
 }
 function navRail(active, actions = "") {
-  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>GeminesX</b><span>Console</span></span></a><nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-state" title="Where the pool and the ledger live">' + icon("lock", "icon", 13) + '<span>store</span><b id="railStore"></b></div><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
+  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Console</span></span></a><nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-state" title="Where the pool and the ledger live">' + icon("lock", "icon", 13) + '<span>store</span><b id="railStore"></b></div><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
 }
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
-  const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>GeminesX</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>' + escapeHtml(o.title) + ' \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("geminesx.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>OmniProxy</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
-  return '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div><div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden><div class="rail-brand" style="padding:0 8px"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>GeminesX</b><span>Console</span></span></div><nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "drawer") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerDensity" aria-label="Switch density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' + icon("help", "icon", 15) + "</button></div></div></div>";
+  return '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div><div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden><div class="rail-brand" style="padding:0 8px"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Console</span></span></div><nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "drawer") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerDensity" aria-label="Switch density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' + icon("help", "icon", 15) + "</button></div></div></div>";
 }
 function escapeHtml(v2) {
   return String(v2 ?? "").replace(/[&<>"']/g, (c) => {
@@ -10884,7 +10884,7 @@ var AUTH_GUARD_JS = `
 (function () {
   "use strict";
   try {
-    if (!localStorage.getItem("geminesx.admin.token")) {
+    if (!localStorage.getItem("omniproxy.admin.token")) {
       var here = location.pathname + location.search;
       location.replace("/pengatur/login?next=" + encodeURIComponent(here));
     }
@@ -10892,7 +10892,7 @@ var AUTH_GUARD_JS = `
 })();
 `;
 function loginPage() {
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>Sign in \xB7 GeminesX</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("geminesx.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
 }
 var LOGIN_JS = `
 (function () {
@@ -10901,7 +10901,7 @@ var LOGIN_JS = `
   var input = document.getElementById("token");
   var button = document.getElementById("connect");
   var msg = document.getElementById("gateMsg");
-  var STORE = "geminesx.admin.token";
+  var STORE = "omniproxy.admin.token";
 
   function next() {
     var n = new URLSearchParams(location.search).get("next");
@@ -10978,9 +10978,9 @@ var CLIENT_JS = `
 (function () {
   "use strict";
 
-  var STORE = "geminesx.admin.token";
-  var THEME = "geminesx.theme";
-  var DENSITY = "geminesx.density";
+  var STORE = "omniproxy.admin.token";
+  var THEME = "omniproxy.theme";
+  var DENSITY = "omniproxy.density";
 
   var ICON = {
     close: ${JSON.stringify(icon("close", "icon", 14))},
@@ -12706,7 +12706,7 @@ var MODELS_SCRIPT = `
   Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
     button.addEventListener("click", function () {
       state.tier = button.getAttribute("data-tier");
-      try { localStorage.setItem("geminesx.tier", state.tier); } catch (e) {}
+      try { localStorage.setItem("omniproxy.tier", state.tier); } catch (e) {}
       Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (other) {
         other.setAttribute("aria-pressed", other === button ? "true" : "false");
       });
@@ -12718,7 +12718,7 @@ var MODELS_SCRIPT = `
   });
 
   var savedTier = null;
-  try { savedTier = localStorage.getItem("geminesx.tier"); } catch (e) {}
+  try { savedTier = localStorage.getItem("omniproxy.tier"); } catch (e) {}
   if (savedTier && TIER_LABELS[savedTier]) {
     state.tier = savedTier;
     Array.prototype.forEach.call(el.tier.querySelectorAll("button"), function (button) {
@@ -14398,8 +14398,8 @@ function withMeta(res, meta) {
   h2.delete("content-encoding");
   h2.delete("content-length");
   h2.delete("transfer-encoding");
-  h2.set("x-geminesx-attempts", String(meta.attempts));
-  h2.set("x-geminesx-rotated", meta.rotated ? "1" : "0");
+  h2.set("x-omniproxy-attempts", String(meta.attempts));
+  h2.set("x-omniproxy-rotated", meta.rotated ? "1" : "0");
   return new Response(res.body, { status: res.status, headers: h2 });
 }
 async function speech(req) {
@@ -14467,7 +14467,7 @@ async function speech(req) {
     return new Response(new Uint8Array(pcm), {
       headers: {
         "content-type": "audio/L16",
-        "x-geminesx-attempts": String(result.attempts)
+        "x-omniproxy-attempts": String(result.attempts)
       }
     });
   }
@@ -14476,9 +14476,9 @@ async function speech(req) {
     headers: {
       "content-type": "audio/wav",
       "content-length": String(wav.byteLength),
-      "x-geminesx-attempts": String(result.attempts),
-      "x-geminesx-rotated": result.rotated ? "1" : "0",
-      "x-geminesx-voice": voice
+      "x-omniproxy-attempts": String(result.attempts),
+      "x-omniproxy-rotated": result.rotated ? "1" : "0",
+      "x-omniproxy-voice": voice
     }
   });
 }
@@ -14659,8 +14659,8 @@ function parseCandidate(cand) {
   return { text, grounding: cand?.groundingMetadata ?? null, toolCalls };
 }
 var metaHeaders = (attempts, rotated) => ({
-  "x-geminesx-attempts": String(attempts),
-  "x-geminesx-rotated": rotated ? "1" : "0"
+  "x-omniproxy-attempts": String(attempts),
+  "x-omniproxy-rotated": rotated ? "1" : "0"
 });
 async function chatCompletions(req) {
   let body;
@@ -15068,9 +15068,9 @@ async function models() {
           created: 17e8,
           owned_by: "google"
         })),
-        geminesx: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() }
+        omniproxy: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() }
       },
-      { headers: { "x-geminesx-models": "fallback" } }
+      { headers: { "x-omniproxy-models": "fallback" } }
     );
   }
   return Response.json(
@@ -15092,9 +15092,9 @@ async function models() {
           pricing: c ? { input_per_1m_usd: c.inUsd, output_per_1m_usd: c.outUsd, as_of: PRICING_AS_OF } : null
         };
       }),
-      geminesx: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() }
+      omniproxy: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() }
     },
-    { headers: { "x-geminesx-models": cached ? "live-cached" : "live" } }
+    { headers: { "x-omniproxy-models": cached ? "live-cached" : "live" } }
   );
 }
 function err(status, type, message) {
@@ -16201,7 +16201,7 @@ var USAGE_SCRIPT = `
 
   function exportCsv() {
     GX.busy(el.csv, "Exporting");
-    GX.download("/pengatur/usage/export.csv" + filterQuery(), "geminesx-usage.csv")
+    GX.download("/pengatur/usage/export.csv" + filterQuery(), "omniproxy-usage.csv")
       .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });
   }
@@ -17911,7 +17911,7 @@ var SETTINGS_SCRIPT = `
   el.refresh.addEventListener("click", function () { reload(); });
   el.exportBtn.addEventListener("click", function () {
     GX.busy(el.exportBtn, "Exporting");
-    GX.download("/pengatur/settings/export", "geminesx-config.json")
+    GX.download("/pengatur/settings/export", "omniproxy-config.json")
       .catch(function (err) { GX.say(el.msg, err.message, "err"); })
       .then(function () { GX.idle(el.exportBtn); });
   });
@@ -18289,7 +18289,7 @@ async function liveness() {
 }
 app.get("/", async (c) => {
   const { ok, status } = await liveness();
-  return c.json({ ok, service: "geminesx" }, status);
+  return c.json({ ok, service: "omniproxy" }, status);
 });
 app.get("/health", async (c) => {
   const { ok, status } = await liveness();
@@ -18299,7 +18299,7 @@ app.get("/pengatur/status", async (c) => {
   const snap = await snapshot();
   return c.json({
     ok: true,
-    service: "geminesx",
+    service: "omniproxy",
     storage: snap.storage,
     pool: snap,
     defaults: {
@@ -18910,7 +18910,7 @@ app.notFound(
   (c) => c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
 );
 app.onError((e, c) => {
-  console.error("[geminesx] unhandled:", e);
+  console.error("[omniproxy] unhandled:", e);
   return c.json({ error: { message: e.message } }, 500);
 });
 app.get("/pengatur/usage", (c) => c.html(USAGE_HTML));
@@ -18941,7 +18941,7 @@ app.get("/pengatur/usage/export.csv", (c) => {
   return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="geminesx-usage-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv"`
+      "content-disposition": `attachment; filename="omniproxy-usage-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv"`
     }
   });
 });
@@ -18957,7 +18957,7 @@ app.get("/pengatur/settings/export", async (c) => {
   return new Response(JSON.stringify(view, null, 2), {
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "content-disposition": `attachment; filename="geminesx-config-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
+      "content-disposition": `attachment; filename="omniproxy-config-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json"`
     }
   });
 });
@@ -18979,7 +18979,7 @@ var hydrated = null;
 function ensureHydrated() {
   if (!hydrated) {
     hydrated = hydrate().then((n) => {
-      console.log(`[geminesx] cold-start hydrated ${n} keys storage=${storageMode}`);
+      console.log(`[omniproxy] cold-start hydrated ${n} keys storage=${storageMode}`);
       return n;
     });
   }

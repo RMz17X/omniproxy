@@ -63,8 +63,8 @@ function withMeta(res: Response, meta: { attempts: number; rotated: boolean }): 
   h.delete("content-encoding");
   h.delete("content-length");
   h.delete("transfer-encoding");
-  h.set("x-geminesx-attempts", String(meta.attempts));
-  h.set("x-geminesx-rotated", meta.rotated ? "1" : "0");
+  h.set("x-omniproxy-attempts", String(meta.attempts));
+  h.set("x-omniproxy-rotated", meta.rotated ? "1" : "0");
   return new Response(res.body, { status: res.status, headers: h });
 }
 
@@ -162,7 +162,7 @@ export async function speech(req: Request): Promise<Response> {
     return new Response(new Uint8Array(pcm), {
       headers: {
         "content-type": "audio/L16",
-        "x-geminesx-attempts": String(result.attempts),
+        "x-omniproxy-attempts": String(result.attempts),
       },
     });
   }
@@ -172,9 +172,9 @@ export async function speech(req: Request): Promise<Response> {
     headers: {
       "content-type": "audio/wav",
       "content-length": String(wav.byteLength),
-      "x-geminesx-attempts": String(result.attempts),
-      "x-geminesx-rotated": result.rotated ? "1" : "0",
-      "x-geminesx-voice": voice,
+      "x-omniproxy-attempts": String(result.attempts),
+      "x-omniproxy-rotated": result.rotated ? "1" : "0",
+      "x-omniproxy-voice": voice,
     },
   });
 }
