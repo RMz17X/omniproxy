@@ -1,6 +1,8 @@
 /**
- * Console statistics: 1h/24h computed from the in-memory ledger ring, 7d/30d
- * computed from `usage_daily` (the rollup table).
+ * Console statistics: 1h/24h computed from raw `usage_events`, 7d/30d
+ * computed from `usage_daily` (the rollup table). The in-memory ring is only
+ * a fallback when DATABASE_URL is unset — on serverless a cold instance has
+ * an empty ring, so the database is the source of truth.
  *
  * Design notes:
  *   - A stats request never mutates anything and never grows the ring: it
@@ -15,6 +17,7 @@
 
 import { allRows, sumRows, type UsageRow, type UsageTotals } from "./ledger.ts";
 import { sql, dbEnabled } from "./db.ts";
+import { cfg } from "./config.ts";
 import { wibDayOf } from "./rollup.ts";
 
 export const STATS_RANGES = ["1h", "24h", "7d", "30d"] as const;
@@ -80,7 +83,7 @@ export type StatsSnapshot = {
   ok: boolean;
   range: StatsRange;
   /** Which store fed the numbers; "none" when there is nothing to read. */
-  source: "ring" | "usage_daily";
+  source: "ring" | "usage_daily" | "usage_events";
   /** Epoch ms bounds of the selected range. */
   since: number;
   until: number;
@@ -396,9 +399,114 @@ async function statsFromDaily(range: StatsRange, now: number): Promise<StatsSnap
   };
 }
 
+/** 1h / 24h from raw `usage_events`, heatmap aggregated from `usage_events`.
+ *
+ * Why not the ring: the ring is process-local memory. On Vercel every request
+ * can land on a cold instance whose ring is empty, so a serverless 24h view
+ * reported "no traffic" while the database held every row. The ring stays as
+ * the fallback for local dev / no-DATABASE_URL, where the same process really
+ * did serve the traffic. */
+async function statsFromEvents(range: StatsRange, now: number): Promise<StatsSnapshot> {
+  if (!dbEnabled()) return statsFromRing(range, now);
+
+  const since = new Date(now - RANGE_MS[range]);
+  const base: Omit<StatsSnapshot, "totals" | "byModel" | "byKey" | "byRoute" | "byProvider" | "byProviderDay"> = {
+    ok: true,
+    range,
+    source: "usage_events",
+    since: since.getTime(),
+    until: now,
+    byStatus: [],
+    heatmap: [],
+    projectedMonthlyUsd: 0,
+  };
+
+  const [agg, heat] = await Promise.all([
+    sql<DailyRow>(
+      `select to_char(ts at time zone 'Asia/Jakarta', 'YYYY-MM-DD') as day,
+              route,
+              coalesce(model, '') as model,
+              coalesce(key_id, '') as key_id,
+              count(*)::int as requests,
+              (count(*) filter (where status >= 400))::int as errors,
+              (count(*) filter (where rotated))::int as rotated,
+              coalesce(sum(prompt_tokens), 0)::bigint as prompt_tokens,
+              coalesce(sum(completion_tokens), 0)::bigint as completion_tokens,
+              coalesce(sum(cost_usd), 0)::numeric as cost_usd,
+              coalesce(percentile_cont(0.5) within group (order by latency_ms), 0)::int as p50_ms,
+              coalesce(percentile_cont(0.95) within group (order by latency_ms), 0)::int as p95_ms
+         from usage_events
+        where ts >= $1
+        group by 1, 2, 3, 4`,
+      [since.toISOString()],
+    ),
+    sql<HeatRow>(
+      `select extract(hour from ts at time zone 'Asia/Jakarta')::int as hour,
+              extract(dow from ts at time zone 'Asia/Jakarta')::int as weekday,
+              count(*)::int as requests
+         from usage_events
+        where ts >= $1
+        group by 1, 2`,
+      [since.toISOString()],
+    ),
+  ]);
+  if (!agg.ok) {
+    return { ...base, ok: false, totals: emptyTotals(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: agg.message };
+  }
+  if (!heat.ok) {
+    return { ...base, ok: false, totals: emptyTotals(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: heat.message };
+  }
+
+  const rows = agg.rows;
+  const requests = rows.reduce((s, r) => s + num(r.requests), 0);
+  const errors = rows.reduce((s, r) => s + num(r.errors), 0);
+  const rotated = rows.reduce((s, r) => s + num(r.rotated), 0);
+  const promptTokens = rows.reduce((s, r) => s + num(r.prompt_tokens), 0);
+  const completionTokens = rows.reduce((s, r) => s + num(r.completion_tokens), 0);
+  const costUsd = Number(rows.reduce((s, r) => s + num(r.cost_usd), 0).toFixed(6));
+
+  // Events keep raw latencies: weight by request count only to combine the
+  // per-bucket percentiles into one figure, same as the daily path.
+  let p50Num = 0;
+  let p95Num = 0;
+  for (const r of rows) {
+    const w = num(r.requests);
+    p50Num += w * num(r.p50_ms);
+    p95Num += w * num(r.p95_ms);
+  }
+  const p50Ms = requests ? Math.round(p50Num / requests) : 0;
+  const p95Ms = requests ? Math.round(p95Num / requests) : 0;
+
+  const observedDays = RANGE_MS[range] / (24 * 60 * 60 * 1000);
+  const projectedMonthlyUsd = Number((((costUsd / observedDays) * 30)).toFixed(6));
+
+  const note = rows.length
+    ? "Status codes are aggregated to ok/error for this range; p50/p95 are requests-weighted bucket means."
+    : `No usage_events rows for this range (events are retained ${cfg.retentionDays} days).`;
+
+  return {
+    ...base,
+    totals: { requests, errors, rotated, promptTokens, completionTokens, totalTokens: promptTokens + completionTokens, costUsd, p50Ms, p95Ms },
+    byModel: dailyBucket(rows, (r) => r.model),
+    byKey: dailyBucket(rows, (r) => r.key_id),
+    byRoute: dailyBucket(rows, (r) => r.route),
+    byProvider: dailyBucket(rows, (r) => providerOf(r.model)),
+    byProviderDay: providerDayFromDaily(rows),
+    byStatus: [
+      { key: "ok", requests: Math.max(0, requests - errors) },
+      { key: "error", requests: errors },
+    ].filter((b) => b.requests > 0),
+    heatmap: heat.rows
+      .map((r) => ({ weekday: num(r.weekday), hour: num(r.hour), requests: num(r.requests) }))
+      .sort((a, b) => a.weekday - b.weekday || a.hour - b.hour),
+    projectedMonthlyUsd,
+    note,
+  };
+}
+
 /** Compute the stats snapshot for one range. Never throws. */
 export async function statsSnapshot(range: StatsRange, now = Date.now()): Promise<StatsSnapshot> {
-  if (range === "1h" || range === "24h") return statsFromRing(range, now);
+  if (range === "1h" || range === "24h") return statsFromEvents(range, now);
   if (!dbEnabled()) {
     return {
       ok: true,

@@ -16140,8 +16140,92 @@ async function statsFromDaily(range, now2) {
     note
   };
 }
+async function statsFromEvents(range, now2) {
+  if (!dbEnabled()) return statsFromRing(range, now2);
+  const since = new Date(now2 - RANGE_MS[range]);
+  const base = {
+    ok: true,
+    range,
+    source: "usage_events",
+    since: since.getTime(),
+    until: now2,
+    byStatus: [],
+    heatmap: [],
+    projectedMonthlyUsd: 0
+  };
+  const [agg, heat] = await Promise.all([
+    sql(
+      `select to_char(ts at time zone 'Asia/Jakarta', 'YYYY-MM-DD') as day,
+              route,
+              coalesce(model, '') as model,
+              coalesce(key_id, '') as key_id,
+              count(*)::int as requests,
+              (count(*) filter (where status >= 400))::int as errors,
+              (count(*) filter (where rotated))::int as rotated,
+              coalesce(sum(prompt_tokens), 0)::bigint as prompt_tokens,
+              coalesce(sum(completion_tokens), 0)::bigint as completion_tokens,
+              coalesce(sum(cost_usd), 0)::numeric as cost_usd,
+              coalesce(percentile_cont(0.5) within group (order by latency_ms), 0)::int as p50_ms,
+              coalesce(percentile_cont(0.95) within group (order by latency_ms), 0)::int as p95_ms
+         from usage_events
+        where ts >= $1
+        group by 1, 2, 3, 4`,
+      [since.toISOString()]
+    ),
+    sql(
+      `select extract(hour from ts at time zone 'Asia/Jakarta')::int as hour,
+              extract(dow from ts at time zone 'Asia/Jakarta')::int as weekday,
+              count(*)::int as requests
+         from usage_events
+        where ts >= $1
+        group by 1, 2`,
+      [since.toISOString()]
+    )
+  ]);
+  if (!agg.ok) {
+    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: agg.message };
+  }
+  if (!heat.ok) {
+    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: heat.message };
+  }
+  const rows = agg.rows;
+  const requests = rows.reduce((s, r) => s + num2(r.requests), 0);
+  const errors = rows.reduce((s, r) => s + num2(r.errors), 0);
+  const rotated = rows.reduce((s, r) => s + num2(r.rotated), 0);
+  const promptTokens = rows.reduce((s, r) => s + num2(r.prompt_tokens), 0);
+  const completionTokens = rows.reduce((s, r) => s + num2(r.completion_tokens), 0);
+  const costUsd = Number(rows.reduce((s, r) => s + num2(r.cost_usd), 0).toFixed(6));
+  let p50Num = 0;
+  let p95Num = 0;
+  for (const r of rows) {
+    const w = num2(r.requests);
+    p50Num += w * num2(r.p50_ms);
+    p95Num += w * num2(r.p95_ms);
+  }
+  const p50Ms = requests ? Math.round(p50Num / requests) : 0;
+  const p95Ms = requests ? Math.round(p95Num / requests) : 0;
+  const observedDays = RANGE_MS[range] / (24 * 60 * 60 * 1e3);
+  const projectedMonthlyUsd = Number((costUsd / observedDays * 30).toFixed(6));
+  const note = rows.length ? "Status codes are aggregated to ok/error for this range; p50/p95 are requests-weighted bucket means." : `No usage_events rows for this range (events are retained ${cfg.retentionDays} days).`;
+  return {
+    ...base,
+    totals: { requests, errors, rotated, promptTokens, completionTokens, totalTokens: promptTokens + completionTokens, costUsd, p50Ms, p95Ms },
+    byModel: dailyBucket(rows, (r) => r.model),
+    byKey: dailyBucket(rows, (r) => r.key_id),
+    byRoute: dailyBucket(rows, (r) => r.route),
+    byProvider: dailyBucket(rows, (r) => providerOf(r.model)),
+    byProviderDay: providerDayFromDaily(rows),
+    byStatus: [
+      { key: "ok", requests: Math.max(0, requests - errors) },
+      { key: "error", requests: errors }
+    ].filter((b2) => b2.requests > 0),
+    heatmap: heat.rows.map((r) => ({ weekday: num2(r.weekday), hour: num2(r.hour), requests: num2(r.requests) })).sort((a2, b2) => a2.weekday - b2.weekday || a2.hour - b2.hour),
+    projectedMonthlyUsd,
+    note
+  };
+}
 async function statsSnapshot(range, now2 = Date.now()) {
-  if (range === "1h" || range === "24h") return statsFromRing(range, now2);
+  if (range === "1h" || range === "24h") return statsFromEvents(range, now2);
   if (!dbEnabled()) {
     return {
       ok: true,
