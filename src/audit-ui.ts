@@ -29,7 +29,7 @@ const AUDIT_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Filters</h2>
       <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
@@ -60,7 +60,7 @@ const AUDIT_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>Trail</h2>
       <span class="meta" id="trailMeta"></span>

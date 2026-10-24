@@ -29,7 +29,7 @@ const USAGE_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Filters</h2>
       <span class="meta">the selection survives a reload</span>
@@ -66,7 +66,7 @@ const USAGE_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>Request log</h2>
       <span class="meta" id="logMeta"></span>
@@ -121,7 +121,7 @@ const USAGE_BODY = `
       </section>
     </div>
 
-    <section class="panel u-mt-4">
+    <section class="panel u-mt-3">
       <div class="panel-head">
         <h2>By day</h2>
         <span class="meta" id="byDayMeta"></span>
@@ -395,7 +395,7 @@ const USAGE_SCRIPT = `
   }
 
   function exportCsv() {
-    GX.busy(el.csv, "Exporting");
+    GX.busy(el.csv, "Exporting…");
     GX.download("/pengatur/usage/export.csv" + filterQuery(), "omniproxy-usage.csv")
       .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });

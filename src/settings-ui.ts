@@ -32,7 +32,7 @@ const SETTINGS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <div class="grid grid-2 u-mt-6">
+  <div class="grid grid-2 u-mt-4">
     <section class="panel">
       <div class="panel-head"><h2>Defaults</h2></div>
       <div class="panel-body"><dl class="defs" id="defaults"></dl></div>
@@ -44,7 +44,7 @@ const SETTINGS_BODY = `
     </section>
   </div>
 
-  <div class="grid grid-2 u-mt-4">
+  <div class="grid grid-2 u-mt-3">
     <section class="panel">
       <div class="panel-head"><h2>Ledger and storage</h2></div>
       <div class="panel-body">
@@ -68,7 +68,7 @@ const SETTINGS_BODY = `
     </section>
   </div>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head"><h2>Caveats</h2></div>
     <div class="panel-body">
       <p class="hint" id="note"></p>
@@ -166,7 +166,7 @@ const SETTINGS_SCRIPT = `
 
   el.refresh.addEventListener("click", function () { reload(); });
   el.exportBtn.addEventListener("click", function () {
-    GX.busy(el.exportBtn, "Exporting");
+    GX.busy(el.exportBtn, "Exporting…");
     GX.download("/pengatur/settings/export", "omniproxy-config.json")
       .catch(function (err) { GX.say(el.msg, err.message, "err"); })
       .then(function () { GX.idle(el.exportBtn); });

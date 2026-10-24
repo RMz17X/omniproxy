@@ -94,7 +94,7 @@ const KEYS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Pool</h2>
       <span class="meta" id="listMeta"></span>
@@ -169,7 +169,7 @@ const KEYS_BODY = `
       <div id="bulkMsg" class="notice u-mt-3" role="status" aria-live="polite"></div>
     </div>
 
-    <div id="keysBody" class="table-wrap">${stateBlock("loading", "Loading the pool")}</div>
+    <div id="keysBody" class="table-wrap">${stateBlock("loading", "Loading the pool…")}</div>
 
     <div class="panel-foot">
       <div id="keyPager" class="pager u-full"></div>
@@ -194,12 +194,12 @@ ${confirmDialog()}
       </div>
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="toolbar u-mt-4">
+      <div class="toolbar u-mt-3">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
       <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
-      <p class="hint u-mt-4">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+      <p class="hint u-mt-3">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
     </div>
   </form>
 </dialog>
@@ -824,7 +824,7 @@ const KEYS_SCRIPT = `
   function validateSelectedPlans(control) {
     var ids = selectedIds();
     if (!ids.length) { GX.notice("Select at least one key.", "err"); return; }
-    GX.busy(control, "Validating");
+    GX.busy(control, "Validating…");
     GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: ids } })
       .then(function (data) {
         var list = (data && (data.results || data.keys)) || [];
@@ -852,7 +852,7 @@ const KEYS_SCRIPT = `
   }
 
   function validatePlan(k, btn) {
-    GX.busy(btn, "Validating");
+    GX.busy(btn, "Validating…");
     GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: [k.id] } })
       .then(function (data) {
         var row = pickValidation(data, k.id);
@@ -914,7 +914,7 @@ const KEYS_SCRIPT = `
   }
 
   function purgeDead() {
-    GX.busy(el.purgeDeadBtn, "Purging");
+    GX.busy(el.purgeDeadBtn, "Purging…");
     GX.api("/pengatur/keys/purge-dead", { method: "POST" })
       .then(function () {
         /* The recheck timer now keeps the live pool healthy; this button only
@@ -931,7 +931,7 @@ const KEYS_SCRIPT = `
   }
 
   function testAll() {
-    GX.busy(el.testAllBtn, "Testing");
+    GX.busy(el.testAllBtn, "Testing…");
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         GX.notice("Tested " + data.tested + " keys.", "ok");
@@ -994,7 +994,7 @@ const KEYS_SCRIPT = `
   }
 
   function removeSelectedNow(ids) {
-    GX.busy(el.bulkRemove, "Removing");
+    GX.busy(el.bulkRemove, "Removing…");
     GX.api("/pengatur/keys", { method: "DELETE", body: { ids: ids } })
       .then(function (data) {
         var removed = (data.removed || []).length;
@@ -1019,7 +1019,7 @@ const KEYS_SCRIPT = `
     var provider = (el.newProvider && el.newProvider.value) ? el.newProvider.value.trim() : "gemini";
     var keys = raw.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
-    GX.busy(el.addSubmit, "Adding");
+    GX.busy(el.addSubmit, "Adding…");
     GX.api("/pengatur/keys", { method: "POST", body: { keys: keys, provider: provider } })
       .then(function (data) {
         el.newKeys.value = "";
@@ -1224,7 +1224,7 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>State</h2>
       <span class="meta" id="stateNote"></span>
@@ -1234,7 +1234,7 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4" id="eventsPanel">
+  <section class="panel u-mt-3" id="eventsPanel">
     <div class="panel-head">
       <h2>Cooldown timeline</h2>
       <span class="meta" id="cooldownNote"></span>
@@ -1242,7 +1242,7 @@ const DETAIL_BODY = `
     <div id="eventsFeed" class="feed"></div>
   </section>
 
-  <section class="panel u-mt-4" id="dailyPanel" hidden>
+  <section class="panel u-mt-3" id="dailyPanel" hidden>
     <div class="panel-head">
       <h2>Daily requests</h2>
       <span class="meta" id="dailyNote"></span>
@@ -1258,7 +1258,7 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4" id="recentPanel" hidden>
+  <section class="panel u-mt-3" id="recentPanel" hidden>
     <div class="panel-head">
       <h2>Recent requests</h2>
       <span class="meta" id="recentNote"></span>
@@ -1271,7 +1271,7 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <p class="hint u-mt-4" id="noHistory"></p>
+  <p class="hint u-mt-3" id="noHistory"></p>
 </div>
 `;
 

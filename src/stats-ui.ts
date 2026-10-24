@@ -25,11 +25,11 @@ const STATS_BODY = `
     </div>
   </header>
 
-  <div id="dataErr" class="notice u-mb-4" role="status" aria-live="polite"></div>
+  <div id="dataErr" class="notice u-mb-3" role="status" aria-live="polite"></div>
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Hour and weekday heatmap <span class="meta">WIB</span></h2>
       <label class="check"><input id="heatValues" type="checkbox"> show values</label>
@@ -46,7 +46,7 @@ const STATS_BODY = `
     <div class="panel-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
       <table class="sr-only" id="heatTable"></table>
-      <p class="hint u-mt-4" id="heatNote"></p>
+      <p class="hint u-mt-3" id="heatNote"></p>
       <div id="heatEmpty"></div>
     </div>
   </section>
@@ -84,7 +84,7 @@ const STATS_BODY = `
       </section>
     </div>
 
-    <div class="grid grid-2 u-mt-4">
+    <div class="grid grid-2 u-mt-3">
       <section class="panel">
         <div class="panel-head">
           <h2>By route</h2>

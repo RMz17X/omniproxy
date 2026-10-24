@@ -9402,20 +9402,21 @@ var BASE_CSS = `
   --r-ctl: 6px;
   --r-pill: 999px;
 
-  /* One spacing scale. 4px base, and one horizontal inset that the panel
-     padding, the table cells and the page padding all share. */
+  /* One spacing scale, powers of two on a 4px base, exactly as the Resend
+     system defines it: 4 / 8 / 16 / 32 / 64. Nothing else is a spacing
+     value; control heights (36/32) and touch floors (44) are sizes, not
+     spacing. Three levels of rhythm come out of it: 8 inside a control
+     group, 16 inside a surface, 32 between sections, 64 for the page
+     frame. */
   --sp-1: 4px;
   --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 20px;
-  --sp-6: 24px;
-  --sp-7: 32px;
-  --sp-8: 48px;
-  --inset: 20px;
+  --sp-3: 16px;
+  --sp-4: 32px;
+  --sp-5: 64px;
+  --inset: 16px;
 
   --tap: 36px;
-  --tap-sm: 30px;
+  --tap-sm: 32px;
 
   --rail: 236px;
   --page-max: 1560px;
@@ -9466,18 +9467,26 @@ var BASE_CSS = `
 
 /* compact density: the same page, one notch tighter ---------------------- */
 :root[data-density="compact"] {
-  --tap: 30px;
-  --tap-sm: 26px;
-  --sp-6: 18px;
-  --sp-7: 24px;
-  --inset: 14px;
-  --page-max: 1560px;
+  --tap: 32px;
+  --tap-sm: 32px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 32px;
+  --inset: 12px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
 html { background: var(--bg); -webkit-text-size-adjust: 100%; }
+/* Web Interface Guidelines: no double-tap zoom delay, an intentional tap
+   highlight, and rubber-band suppression on fine pointers only, so touch
+   keeps pull-to-refresh. */
+body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+@media (pointer: fine) {
+  html { overscroll-behavior: none; }
+}
+#main { scroll-margin-top: var(--sp-5); }
 body {
   background: var(--bg);
   color: var(--text);
@@ -9538,9 +9547,9 @@ code, kbd, samp { font-family: var(--mono); font-size: 0.92em; }
   top: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-5);
+  gap: var(--sp-4);
   height: 100dvh;
-  padding: var(--sp-5) var(--sp-3);
+  padding: var(--sp-3);
   overflow-y: auto;
   background: var(--rail-bg);
   color: var(--rail-text);
@@ -9555,7 +9564,7 @@ body[data-gate="locked"] .app { display: none; }
 .rail-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-2);
   padding: 0 var(--sp-2);
   min-height: var(--tap);
 }
@@ -9563,8 +9572,8 @@ body[data-gate="locked"] .app { display: none; }
 .rail-mark {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
   background: var(--rail-text);
   color: var(--rail-bg);
@@ -9576,14 +9585,14 @@ body[data-gate="locked"] .app { display: none; }
 /* The provider strip under the wordmark. The console is a multi-provider
    gateway, so the rail names every provider it proxies, in that provider's
    own colour, before any page loads. */
-.rail-providers { display: flex; flex-direction: column; gap: 5px; padding: 0 var(--sp-2); }
-.rail-prov { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--rail-muted); }
+.rail-providers { display: flex; flex-direction: column; gap: var(--sp-1); padding: 0 var(--sp-2); }
+.rail-prov { display: flex; align-items: center; gap: var(--sp-2); font-size: 11.5px; color: var(--rail-muted); }
 .rail-prov b { color: var(--rail-text); font-weight: 560; }
 
-.rail-nav { display: flex; flex-direction: column; gap: var(--sp-4); }
-.rail-group { display: flex; flex-direction: column; gap: 2px; }
+.rail-nav { display: flex; flex-direction: column; gap: var(--sp-3); }
+.rail-group { display: flex; flex-direction: column; gap: var(--sp-1); }
 .rail-label {
-  padding: 0 var(--sp-2) 6px;
+  padding: 0 var(--sp-2) var(--sp-1);
   font-size: 10px;
   font-weight: 620;
   letter-spacing: 0.16em;
@@ -9593,9 +9602,9 @@ body[data-gate="locked"] .app { display: none; }
 .rail-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-2);
   min-height: var(--tap);
-  padding: 0 10px;
+  padding: 0 var(--sp-2);
   border-left: 2px solid transparent;
   border-radius: 7px;
   color: var(--rail-muted);
@@ -9612,17 +9621,17 @@ body[data-gate="locked"] .app { display: none; }
 }
 .rail-item[aria-current="page"] svg { opacity: 1; color: var(--accent); }
 
-.rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; }
+.rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: var(--sp-1); }
 .rail-state {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
   font-size: 11.5px;
   color: var(--rail-muted);
 }
 .rail-state b { color: var(--rail-text); font-weight: 560; font-family: var(--mono); font-size: 11px; }
-.rail-tools { display: flex; gap: 4px; padding: 4px var(--sp-2) 0; }
+.rail-tools { display: flex; gap: var(--sp-1); padding: var(--sp-1) var(--sp-2) 0; }
 .rail-tool {
   display: grid;
   place-items: center;
@@ -9638,7 +9647,7 @@ body[data-gate="locked"] .app { display: none; }
 .rail-tool:hover { color: var(--rail-text); border-color: var(--rail-muted); }
 .rail-tool[aria-pressed="true"] { color: var(--rail-text); border-color: var(--accent); }
 
-.rail-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px var(--sp-2) 0; }
+.rail-actions { display: flex; flex-wrap: wrap; gap: var(--sp-1); padding: var(--sp-1) var(--sp-2) 0; }
 .rail-state[data-tone="warn"] b { color: var(--warn); }
 .rail-state[data-tone="bad"] b { color: var(--bad); }
 
@@ -9654,7 +9663,7 @@ body[data-gate="locked"] .app { display: none; }
   align-items: center;
   gap: var(--sp-3);
   min-height: 56px;
-  padding: 0 var(--sp-6);
+  padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--line);
   background: var(--bg);
 }
@@ -9675,7 +9684,7 @@ body[data-gate="locked"] .app { display: none; }
   width: 100%;
   max-width: var(--page-max);
   margin: 0 auto;
-  padding: var(--sp-7) var(--sp-6) var(--sp-8);
+  padding: var(--sp-5) var(--sp-4);
   min-width: 0;
 }
 
@@ -9683,17 +9692,17 @@ body[data-gate="locked"] .app { display: none; }
 
 .eyebrow {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-2);
   font-size: 10.5px;
   font-weight: 640;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--text-3);
 }
-.page-head { display: flex; align-items: flex-end; gap: var(--sp-5); flex-wrap: wrap; margin-bottom: var(--sp-6); }
+.page-head { display: flex; align-items: flex-end; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
 .page-head-main { min-width: 0; flex: 1 1 320px; }
-.page-title { font-size: clamp(24px, 1.6vw + 18px, 34px); letter-spacing: -0.03em; font-weight: 660; }
-.page-lede { margin-top: 6px; max-width: 68ch; color: var(--text-2); font-size: 13.5px; }
+.page-title { font-size: 30px; letter-spacing: -0.03em; font-weight: 660; text-wrap: balance; }
+.page-lede { margin-top: var(--sp-2); max-width: 68ch; color: var(--text-2); font-size: 13.5px; }
 .page-head-side { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 
 /* surfaces --------------------------------------------------------------- */
@@ -9709,29 +9718,29 @@ body[data-gate="locked"] .app { display: none; }
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 14px var(--inset);
+  padding: var(--sp-3);
   border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
-.panel-head h2, .panel-head h3 { font-size: 13.5px; font-weight: 620; letter-spacing: -0.01em; }
+.panel-head h2, .panel-head h3 { font-size: 13.5px; font-weight: 620; letter-spacing: -0.01em; text-wrap: balance; }
 .panel-head .meta { margin-left: auto; font-size: 12px; color: var(--text-3); }
 .panel-body { padding: var(--inset); }
 .panel-body.flush { padding: 0; }
-.panel-foot { display: flex; align-items: center; gap: var(--sp-2); padding: 12px var(--inset); border-top: 1px solid var(--line); flex-wrap: wrap; }
-.panel-note { padding: 10px var(--inset); border-top: 1px solid var(--line); font-size: 12px; color: var(--text-3); }
+.panel-foot { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--inset); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.panel-note { padding: var(--sp-2) var(--inset); border-top: 1px solid var(--line); font-size: 12px; color: var(--text-3); }
 
 /* a zone: hairline header, no box */
-.zone { border-top: 1px solid var(--line); padding-top: var(--sp-4); margin-top: var(--sp-6); }
+.zone { border-top: 1px solid var(--line); padding-top: var(--sp-3); margin-top: var(--sp-4); }
 .zone:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
 .zone-head { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3); }
 .zone-head h2 { font-size: 12px; font-weight: 640; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 .zone-head .meta { margin-left: auto; font-size: 12px; color: var(--text-3); }
 
-.grid { display: grid; gap: var(--sp-4); min-width: 0; }
+.grid { display: grid; gap: var(--sp-3); min-width: 0; }
 .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+.split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
 
 /* figures ---------------------------------------------------------------- */
 
@@ -9744,15 +9753,15 @@ body[data-gate="locked"] .app { display: none; }
   overflow: hidden;
 }
 .fig {
-  padding: 16px var(--inset) 18px;
+  padding: var(--sp-3);
   border-left: 1px solid var(--line);
   min-width: 0;
 }
 .fig:first-child { border-left: 0; }
-.fig-label { display: block; font-size: 10.5px; font-weight: 620; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-3); }
+.fig-label { display: block; font-size: 11px; font-weight: 620; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-3); }
 .fig-value {
   display: block;
-  margin-top: 6px;
+  margin-top: var(--sp-2);
   font-family: var(--mono);
   font-size: 27px;
   font-weight: 550;
@@ -9761,14 +9770,14 @@ body[data-gate="locked"] .app { display: none; }
   line-height: 1.05;
   word-break: break-word;
 }
-.fig-sub { display: block; margin-top: 6px; font-size: 12px; color: var(--text-2); }
+.fig-sub { display: block; margin-top: var(--sp-2); font-size: 12px; color: var(--text-2); }
 .fig[data-tone="ok"] .fig-value { color: var(--ok); }
 .fig[data-tone="warn"] .fig-value { color: var(--warn); }
 .fig[data-tone="bad"] .fig-value { color: var(--bad); }
 .fig[data-tone="prov-gemini"] .fig-value { color: var(--prov-gemini); }
 .fig[data-tone="prov-elevenlabs"] .fig-value { color: var(--prov-elevenlabs); }
 
-.kpi { padding: 14px var(--inset); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-surface); }
+.kpi { padding: var(--sp-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-surface); }
 
 /* controls --------------------------------------------------------------- */
 
@@ -9776,9 +9785,9 @@ body[data-gate="locked"] .app { display: none; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: var(--sp-2);
   min-height: var(--tap);
-  padding: 0 12px;
+  padding: 0 var(--sp-3);
   border: 1px solid var(--line-2);
   border-radius: var(--r-ctl);
   background: var(--surface);
@@ -9800,16 +9809,16 @@ body[data-gate="locked"] .app { display: none; }
 .btn-danger:hover { background: var(--wash-bad); border-color: var(--bad); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn-ghost:hover { background: var(--surface-2); border-color: transparent; color: var(--text); }
-.btn-sm { min-height: var(--tap-sm); padding: 0 9px; font-size: 12.5px; }
+.btn-sm { min-height: var(--tap-sm); padding: 0 var(--sp-2); font-size: 12.5px; }
 .btn-block { width: 100%; }
 .icon-btn { width: var(--tap); padding: 0; }
 .icon-btn.btn-sm { width: var(--tap-sm); }
 
-.field { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 580; color: var(--text-2); }
+.field { display: block; margin-bottom: var(--sp-2); font-size: 12px; font-weight: 580; color: var(--text-2); }
 .input, .select, .textarea {
   width: 100%;
   min-height: var(--tap);
-  padding: 0 10px;
+  padding: 0 var(--sp-2);
   border: 1px solid var(--line-2);
   border-radius: var(--r-ctl);
   background: var(--surface);
@@ -9817,7 +9826,7 @@ body[data-gate="locked"] .app { display: none; }
   font-size: 13px;
   transition: border-color 140ms ease;
 }
-.textarea { padding: 9px 10px; min-height: 96px; resize: vertical; line-height: 1.5; }
+.textarea { padding: var(--sp-2); min-height: 96px; resize: vertical; line-height: 1.5; }
 .input::placeholder, .textarea::placeholder { color: var(--text-3); }
 .input:hover, .select:hover, .textarea:hover { border-color: var(--text-3); }
 .input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
@@ -9836,8 +9845,8 @@ body[data-gate="locked"] .app { display: none; }
 }
 
 .search { position: relative; min-width: 0; }
-.search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
-.search .input { padding-left: 30px; }
+.search svg { position: absolute; left: var(--sp-2); top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.search .input { padding-left: var(--sp-4); }
 
 .toolbar { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .toolbar .grow { flex: 1 1 200px; min-width: 0; }
@@ -9859,7 +9868,7 @@ body[data-gate="locked"] .app { display: none; }
 .filter-grid .search .input { height: 100%; }
 /* The select's intrinsic height + touch tap-target (min-height 44px on
    pointer:coarse) beats a plain height; pin both the height and the floor. */
-.filter-grid .select, .filter-grid .search .input { height: 40px; min-height: 40px; box-sizing: border-box; }
+.filter-grid .select, .filter-grid .search .input { height: var(--tap); min-height: var(--tap); box-sizing: border-box; }
 .filter-size .select { min-width: 96px; }
 @media (max-width: 900px) {
   .filter-grid { grid-template-columns: 1fr 1fr; }
@@ -9949,10 +9958,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   .pickbox input[type=checkbox] { width: 22px; height: 22px; }
 }
 
-.seg { display: inline-flex; padding: 2px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); gap: 2px; }
+.seg { display: inline-flex; padding: var(--sp-1); border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); gap: var(--sp-1); }
 .seg button {
   min-height: calc(var(--tap) - 8px);
-  padding: 0 10px;
+  padding: 0 var(--sp-2);
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -9970,9 +9979,9 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-1);
   max-width: 100%;
-  padding: 1px 9px 1px 7px;
+  padding: 2px var(--sp-2);
   border: 1px solid var(--line-2);
   border-radius: var(--r-pill);
   background: var(--surface);
@@ -10003,9 +10012,9 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .prov {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--sp-1);
   max-width: 100%;
-  padding: 1px 9px 1px 7px;
+  padding: 2px var(--sp-2);
   border: 1px solid var(--line-2);
   border-radius: var(--r-pill);
   background: var(--surface);
@@ -10015,15 +10024,15 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   line-height: 1.7;
   white-space: nowrap;
 }
-.prov .prov-dot { width: 7px; height: 7px; }
+.prov .prov-dot { width: 6px; height: 6px; }
 .prov[data-p="gemini"] { color: var(--prov-gemini); border-color: color-mix(in srgb, var(--prov-gemini) 40%, var(--line)); background: var(--prov-gemini-wash); }
 .prov[data-p="elevenlabs"] { color: var(--prov-elevenlabs); border-color: color-mix(in srgb, var(--prov-elevenlabs) 40%, var(--line)); background: var(--prov-elevenlabs-wash); }
 .prov-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--neutral); }
 .prov-dot[data-p="gemini"] { background: var(--prov-gemini); }
 .prov-dot[data-p="elevenlabs"] { background: var(--prov-elevenlabs); }
 
-.chip { display: inline-flex; align-items: baseline; gap: 8px; }
-.chip + .chip { margin-left: var(--sp-4); padding-left: var(--sp-4); border-left: 1px solid var(--line); }
+.chip { display: inline-flex; align-items: baseline; gap: var(--sp-2); }
+.chip + .chip { margin-left: var(--sp-3); padding-left: var(--sp-3); border-left: 1px solid var(--line); }
 .chip-k { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); }
 .chip-v { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; }
 
@@ -10035,7 +10044,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 9px var(--inset);
+  padding: var(--sp-2) var(--inset);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
   color: var(--text-3);
@@ -10047,7 +10056,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   white-space: nowrap;
 }
 .table td {
-  padding: 10px var(--inset);
+  padding: var(--sp-2) var(--inset);
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
   min-width: 0;
@@ -10087,7 +10096,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   background: var(--accent-wash);
   border: 1px solid var(--line);
   border-radius: var(--r-sm, 6px);
-  padding: 10px 12px;
+  padding: var(--sp-2) var(--sp-3);
   overflow-wrap: anywhere;
   user-select: all;
 }
@@ -10100,8 +10109,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 /* Seven items in three columns leave the last row with one item and two empty
    cells. Auto-fit lets the grid choose the column count from the available
    width, so the final row either fills or carries an even remainder. */
-.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); column-gap: var(--sp-5); gap: 0; }
-.def { display: flex; align-items: baseline; gap: var(--sp-3); padding: 7px 0; border-top: 1px solid var(--line); min-width: 0; }
+.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); column-gap: var(--sp-3); gap: 0; }
+.def { display: flex; align-items: baseline; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--line); min-width: 0; }
 .def:first-child { border-top: 0; padding-top: 0; }
 .def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
 .def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
@@ -10207,7 +10216,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* 20px of padding either side of every cell is 29% of a nine-column table's
    width. The pool table spends it on the columns that need it. */
-#keysBody .table th, #keysBody .table td { padding-inline: 12px; }
+#keysBody .table th, #keysBody .table td { padding-inline: var(--sp-2); }
 
 /* Scrolling right through nine columns loses the row you were acting on. The
    pick column stays put, so a selection made at the left is still visible at
@@ -10257,7 +10266,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    its bottom border and came out at 64.5px. Every cell is one line by design,
    so the height is stated rather than inferred, and the last row keeps its
    border so the arithmetic holds there too. */
-#keysBody .table tbody tr { height: 65px; }
+#keysBody .table tbody tr { height: 64px; }
 /* The fold below turns each row into stacked blocks. A fixed height there made
    every one of the nine cells inherit 65px, so a single key occupied ~585px of a
    phone screen instead of ~234px. */
@@ -10291,9 +10300,9 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 }
 .pager .pages .gap { color: var(--text-3); font-size: 12px; padding: 0 2px; user-select: none; }
 .pager .pages .pagebtn {
-  min-width: 30px;
-  height: 30px;
-  padding: 0 8px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 var(--sp-2);
   border: 1px solid var(--line-2);
   border-radius: var(--r-ctl);
   background: var(--surface);
@@ -10323,8 +10332,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: var(--sp-6) var(--inset);
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--inset);
   color: var(--text-2);
   font-size: 13px;
 }
@@ -10334,8 +10343,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .state-center { align-items: center; text-align: center; }
 
 .sk { position: relative; overflow: hidden; background: var(--surface-2); border-radius: 4px; height: 12px; }
-.sk-line { height: 10px; margin: 7px 0; }
-.sk-block { height: 84px; border-radius: 8px; }
+.sk-line { height: 10px; margin: var(--sp-2) 0; }
+.sk-block { height: 96px; border-radius: 8px; }
 @media (prefers-reduced-motion: no-preference) {
   .sk::after {
     content: "";
@@ -10353,7 +10362,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* charts ----------------------------------------------------------------- */
 
-.poolbar { display: flex; flex-direction: column; gap: 10px; }
+.poolbar { display: flex; flex-direction: column; gap: var(--sp-2); }
 .poolbar-track { display: flex; height: 10px; border-radius: var(--r-pill); overflow: hidden; background: var(--surface-3); }
 .poolbar-track span { display: block; height: 100%; }
 .poolbar-track .ok { background: var(--ok); }
@@ -10370,8 +10379,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .prov-pool:first-child { border-top: 0; }
 .prov-pool .poolbar { flex: 1 1 auto; min-width: 0; }
 .prov-pool .count { flex: none; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-.legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); }
+.legend { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+.legend-item { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: 12px; color: var(--text-2); }
 .legend-item .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
 .legend-item .dot.ok { background: var(--ok); }
 .legend-item .dot.warn { background: var(--warn); }
@@ -10381,7 +10390,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .legend-item .dot.prov-elevenlabs { background: var(--prov-elevenlabs); }
 .legend-item b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text); font-weight: 560; }
 
-.meter { display: flex; flex-direction: column; gap: 5px; }
+.meter { display: flex; flex-direction: column; gap: var(--sp-1); }
 .meter-head { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; }
 .meter-head .v { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2); }
 .meter-track { height: 6px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
@@ -10394,8 +10403,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .meter-fill.prov-gemini { background: var(--prov-gemini); }
 .meter-fill.prov-elevenlabs { background: var(--prov-elevenlabs); }
 
-.bars { display: flex; flex-direction: column; gap: 6px; }
-.bar-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 64px; align-items: center; gap: 10px; font-size: 12px; }
+.bars { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bar-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 64px; align-items: center; gap: var(--sp-2); font-size: 12px; }
 .bar-row .label { font-family: var(--mono); color: var(--text-2); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar-track { height: 7px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
 .bar-fill { height: 100%; border-radius: var(--r-pill); background: var(--accent); min-width: 2px; }
@@ -10413,7 +10422,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .spark .fill { fill: var(--accent-wash); stroke: none; }
 
 /* dashboard per-day provider bars (gemini vs elevenlabs, stacked columns) */
-.daybars { display: flex; align-items: flex-end; gap: 4px; height: 96px; padding-bottom: 18px; }
+.daybars { display: flex; align-items: flex-end; gap: var(--sp-1); height: 96px; padding-bottom: var(--sp-3); }
 .daybar { position: relative; flex: 1 1 0; min-width: 6px; max-width: 26px; height: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; background: var(--surface-3); overflow: hidden; }
 .daybar span { display: block; width: 100%; }
 .daybar .ok { background: var(--ok); }
@@ -10424,7 +10433,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 
 /* hour-by-weekday heatmap. One label column, then 24 hour cells per row. */
-.heat { display: grid; grid-template-columns: 26px repeat(24, minmax(0, 1fr)); gap: 3px; }
+.heat { display: grid; grid-template-columns: 26px repeat(24, minmax(0, 1fr)); gap: var(--sp-1); }
 .heat .h { display: flex; align-items: center; font-size: 9.5px; color: var(--text-3); font-family: var(--mono); min-width: 0; overflow: hidden; white-space: nowrap; }
 .heat .cell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--surface-3); }
 .heat .cell[data-level="1"] { background: color-mix(in srgb, var(--accent) 25%, var(--surface-3)); }
@@ -10440,10 +10449,10 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   place-items: center;
   height: 100%;
   font-family: var(--mono);
-  font-size: 8.5px;
+  font-size: 9px;
   color: var(--text);
 }
-.heat-axis { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; margin-top: 6px; font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.heat-axis { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: var(--sp-1); margin-top: var(--sp-2); font-size: 10px; color: var(--text-3); font-family: var(--mono); }
 .heat-axis span { text-align: left; overflow: hidden; }
 
 /* feed ------------------------------------------------------------------- */
@@ -10456,15 +10465,15 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .attn-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 0;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
   border-bottom: 1px solid var(--line);
   text-decoration: none;
   min-width: 0;
 }
 .attn-item:last-child { border-bottom: 0; }
 .attn-item .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
-.attn-item > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.attn-item > span:nth-child(2) { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
 .attn-item .t { color: var(--text); font-size: 13px; font-weight: 600; }
 .attn-item .d { color: var(--text-2); font-size: 12.5px; }
 .attn-item .go {
@@ -10489,8 +10498,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
     "what what what"
     "who  who  who";
   align-items: baseline;
-  gap: 2px 10px;
-  padding: 10px 0;
+  gap: var(--sp-1) var(--sp-2);
+  padding: var(--sp-2) 0;
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   min-width: 0;
@@ -10517,7 +10526,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   grid-area: who;
   color: var(--text-3);
   font-size: 11.5px;
-  margin-top: 3px;
+  margin-top: var(--sp-1);
 }
 .feed-item time {
   grid-area: time;
@@ -10539,25 +10548,26 @@ dialog {
   background: var(--surface);
   color: var(--text);
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 dialog[open] { display: flex; flex-direction: column; }
 dialog::backdrop { background: rgba(8, 10, 14, 0.55); }
 dialog.wide { width: min(880px, calc(100vw - 32px)); }
-.card-head { display: flex; align-items: center; gap: var(--sp-3); padding: 14px var(--inset); border-bottom: 1px solid var(--line); }
-.card-head h2 { font-size: 15px; font-weight: 620; }
+.card-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-bottom: 1px solid var(--line); }
+.card-head h2 { font-size: 15px; font-weight: 620; text-wrap: balance; }
 .card-head .spacer { flex: 1 1 auto; }
 .card-body { padding: var(--inset); overflow-y: auto; }
-.card-foot { display: flex; align-items: center; gap: var(--sp-2); padding: 12px var(--inset); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.card-foot { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--inset); border-top: 1px solid var(--line); flex-wrap: wrap; }
 
 .help-h { margin: 0 0 var(--sp-2); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
-.help-h + .help-list { margin-bottom: var(--sp-5); }
-.help-list { display: grid; grid-template-columns: minmax(80px, auto) 1fr; gap: 6px var(--sp-4); margin: 0; font-size: 12.5px; }
+.help-h + .help-list { margin-bottom: var(--sp-4); }
+.help-list { display: grid; grid-template-columns: minmax(80px, auto) 1fr; gap: var(--sp-1) var(--sp-3); margin: 0; font-size: 12.5px; }
 .help-list dt { color: var(--text); font-weight: 560; }
 .help-list dd { margin: 0; color: var(--text-2); }
 .help-list kbd {
   display: inline-block;
   min-width: 22px;
-  padding: 0 6px;
+  padding: 0 var(--sp-1);
   border: 1px solid var(--line-2);
   border-bottom-width: 2px;
   border-radius: 4px;
@@ -10572,8 +10582,8 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 .toasts {
   position: fixed;
-  right: var(--sp-5);
-  bottom: var(--sp-5);
+  right: var(--sp-4);
+  bottom: var(--sp-4);
   z-index: 120;
   display: flex;
   flex-direction: column-reverse;
@@ -10588,8 +10598,8 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .toast {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 11px 12px;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--line-2);
   border-radius: 8px;
   background: var(--surface);
@@ -10633,8 +10643,8 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   flex: none;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -10647,7 +10657,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 /* the inline notice strip, for a message that belongs beside a control ---- */
 .notice {
   display: block;
-  padding: 9px 11px;
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: var(--surface-2);
@@ -10678,15 +10688,15 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .u-tnum { font-variant-numeric: tabular-nums; }
 .u-mb-0 { margin-bottom: 0; }
 .u-gap-2 { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
-.u-rule-top { border-top: 1px solid var(--line); padding-top: var(--sp-4); }
-.u-rule-gap { padding-top: var(--sp-4); }
+.u-rule-top { border-top: 1px solid var(--line); padding-top: var(--sp-3); }
+.u-rule-gap { padding-top: var(--sp-3); }
 .notice.err { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); color: var(--bad); }
 .notice.ok { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); color: var(--ok); }
 
 /* command palette -------------------------------------------------------- */
 
 .palette { width: min(600px, calc(100vw - 24px)); }
-.palette-top { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.palette-top { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line); }
 .palette-top svg { color: var(--text-3); flex: none; }
 .palette-input {
   flex: 1 1 auto;
@@ -10694,21 +10704,21 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   border: 0;
   background: transparent;
   font-size: 14.5px;
-  padding: 4px 0;
+  padding: var(--sp-1) 0;
 }
 /* This is the one control a keyboard user lands in after Ctrl K, and it had
    outline:none with border:0 and a transparent background - no indicator at
    all, overriding the global :focus-visible. WCAG 2.4.7 failure. */
 .palette-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .palette-kbd { flex: none; font-family: var(--mono); font-size: 10.5px; color: var(--text-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 1px 5px; }
-.palette-list { padding: 6px; overflow-y: auto; max-height: min(60dvh, 480px); }
-.palette-group { padding: 8px 10px 4px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+.palette-list { padding: var(--sp-1); overflow-y: auto; max-height: min(60dvh, 480px); overscroll-behavior: contain; }
+.palette-group { padding: var(--sp-2) var(--sp-2) var(--sp-1); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 .palette-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 9px 10px;
+  padding: var(--sp-2);
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -10732,19 +10742,20 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   z-index: 100;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
   width: min(280px, 84vw);
-  padding: var(--sp-5) var(--sp-3);
+  padding: var(--sp-3);
   background: var(--rail-bg);
   color: var(--rail-text);
   border-right: 1px solid var(--rail-line);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* gate ------------------------------------------------------------------- */
 
 .gate-wrap { display: grid; place-items: center; min-height: 62dvh; }
-.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-6) var(--inset); }
+.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-4) var(--inset); }
 .login-page .gate-wrap { min-height: 0; }
 .gate { width: min(440px, 100%); }
 .gate-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--text); color: var(--bg); margin-bottom: var(--sp-4); }
@@ -10753,7 +10764,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 /* hero ------------------------------------------------------------------- */
 
-.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-6); align-items: center; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-4); align-items: center; }
 .hero-main { min-width: 0; }
 .hero-title { font-size: 26px; letter-spacing: -0.03em; font-weight: 660; }
 .hero-figure { font-family: var(--mono); font-size: 40px; font-weight: 550; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -10764,8 +10775,9 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .u-mt-3 { margin-top: var(--sp-3); }
 .u-mt-4 { margin-top: var(--sp-4); }
 .u-mt-5 { margin-top: var(--sp-5); }
-.u-mt-6 { margin-top: var(--sp-6); }
+.u-mt-6 { margin-top: var(--sp-5); }
 .u-mb-2 { margin-bottom: var(--sp-2); }
+.u-mb-3 { margin-bottom: var(--sp-3); }
 .u-mb-4 { margin-bottom: var(--sp-4); }
 .u-warn { color: var(--warn); }
 .u-bad { color: var(--bad); }
@@ -10793,8 +10805,8 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { display: none; }
   .menu-btn { display: inline-flex; }
-  .canvas-head { padding: 0 var(--sp-4); }
-  .page { padding: var(--sp-5) var(--sp-4) var(--sp-7); }
+  .canvas-head { padding: 0 var(--sp-3); }
+  .page { padding: var(--sp-4) var(--sp-3); }
   .grid-3, .grid-2 { grid-template-columns: minmax(0, 1fr); }
   .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fig:nth-child(odd) { border-left: 0; }
@@ -10836,9 +10848,9 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   }
   .table td:not([data-l])::before { content: none; }
   .table .actions-cell { justify-content: flex-end; }
-  .heat { gap: 2px; }
+  .heat { gap: var(--sp-1); }
   .heat-axis { display: none; }
-  .toasts { right: 12px; left: 12px; bottom: 12px; width: auto; }
+  .toasts { right: var(--sp-3); left: var(--sp-3); bottom: var(--sp-3); width: auto; }
   .bar-row { grid-template-columns: 74px minmax(0, 1fr) 52px; }
   .panel-body { padding: var(--sp-3) var(--inset); }
 }
@@ -10966,7 +10978,7 @@ function navRail(active, actions = "") {
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
   const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>OmniProxy</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#0b0e14">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
   const providerStrip = '<div class="rail-providers"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span></div>';
@@ -11010,7 +11022,7 @@ var AUTH_GUARD_JS = `
 })();
 `;
 function loginPage() {
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#0b0e14">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
 }
 var LOGIN_JS = `
 (function () {
@@ -11041,7 +11053,7 @@ var LOGIN_JS = `
     var value = input ? input.value.trim() : "";
     if (!value) { say("Paste the token first.", "bad"); return; }
     button.disabled = true;
-    button.textContent = "Checking";
+    button.textContent = "Checking\u2026";
     fetch("/pengatur/keys/list", { headers: { Authorization: "Bearer " + value } })
       .then(function (res) {
         if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? "rejected" : "unreachable");
@@ -11948,10 +11960,10 @@ var OVERVIEW_BODY = `
         <span class="meta" id="healthMeta">-</span>
       </div>
       <div class="panel-body">
-        <div id="poolBar" class="u-mb-4"></div>
+        <div id="poolBar" class="u-mb-3"></div>
         <div class="figures" id="facts"></div>
-        <div id="providerPools" class="u-mt-4"></div>
-        <div class="row u-mt-4" id="chips"></div>
+        <div id="providerPools" class="u-mt-3"></div>
+        <div class="row u-mt-3" id="chips"></div>
       </div>
     </section>
 
@@ -11988,8 +12000,8 @@ var OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="providerMix"></div>
-        <div id="providerDays" class="u-mt-4"></div>
-        <p class="hint u-mt-4">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
+        <div id="providerDays" class="u-mt-3"></div>
+        <p class="hint u-mt-3">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
       </div>
     </section>
 
@@ -12000,7 +12012,7 @@ var OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
-        <p class="hint u-mt-4">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-3">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
@@ -12026,7 +12038,7 @@ ${confirmDialog()}
     <div class="panel-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" class="textarea" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row u-mt-4">
+      <div class="row u-mt-3">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
@@ -12328,7 +12340,7 @@ var OVERVIEW_SCRIPT = `
   }
 
   function testAll() {
-    GX.busy(el.testAllBtn, "Testing");
+    GX.busy(el.testAllBtn, "Testing\u2026");
     el.testAllNote.textContent = "one live call per key, four at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
@@ -12350,7 +12362,7 @@ var OVERVIEW_SCRIPT = `
     var raw = el.newKeys.value;
     var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
-    GX.busy(el.addSubmit, "Adding");
+    GX.busy(el.addSubmit, "Adding\u2026");
     GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
       .then(function (data) {
         el.newKeys.value = "";
@@ -12605,7 +12617,7 @@ var MODELS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Find</h2>
       <div class="actions">
@@ -12650,7 +12662,7 @@ var MODELS_BODY = `
           <select id="size" class="select"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
         </div>
       </div>
-      <div class="toolbar u-mt-4">
+      <div class="toolbar u-mt-3">
         <span class="field u-mb-0">Your plan</span>
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
@@ -12664,12 +12676,12 @@ var MODELS_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>Unified catalog</h2>
       <span class="meta" id="listMeta"></span>
     </div>
-    <div id="body" class="table-wrap">${stateBlock("loading", "Loading catalog")}</div>
+    <div id="body" class="table-wrap">${stateBlock("loading", "Loading catalog\u2026")}</div>
     <div class="panel-foot">
       <div id="pager" class="pager u-full"></div>
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
@@ -12946,7 +12958,7 @@ var MODELS_SCRIPT = `
   }
 
   function load(force) {
-    GX.busy(el.reloadBtn, "Loading");
+    GX.busy(el.reloadBtn, "Loading\u2026");
     var url = "/pengatur/models/list" + (force ? "?refresh=1" : "");
     return GX.api(url)
       .then(function (data) {
@@ -12985,7 +12997,7 @@ var MODELS_SCRIPT = `
 
   function testModel(m, btn, node) {
     btn.disabled = true;
-    node.textContent = "testing...";
+    node.textContent = "testing\u2026";
     GX.say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "");
     GX.api("/pengatur/models/test", { method: "POST", body: { model: m.id } })
       .then(function (data) {
@@ -15721,11 +15733,11 @@ var STATS_BODY = `
     </div>
   </header>
 
-  <div id="dataErr" class="notice u-mb-4" role="status" aria-live="polite"></div>
+  <div id="dataErr" class="notice u-mb-3" role="status" aria-live="polite"></div>
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Hour and weekday heatmap <span class="meta">WIB</span></h2>
       <label class="check"><input id="heatValues" type="checkbox"> show values</label>
@@ -15742,7 +15754,7 @@ var STATS_BODY = `
     <div class="panel-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
       <table class="sr-only" id="heatTable"></table>
-      <p class="hint u-mt-4" id="heatNote"></p>
+      <p class="hint u-mt-3" id="heatNote"></p>
       <div id="heatEmpty"></div>
     </div>
   </section>
@@ -15780,7 +15792,7 @@ var STATS_BODY = `
       </section>
     </div>
 
-    <div class="grid grid-2 u-mt-4">
+    <div class="grid grid-2 u-mt-3">
       <section class="panel">
         <div class="panel-head">
           <h2>By route</h2>
@@ -16439,7 +16451,7 @@ var USAGE_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Filters</h2>
       <span class="meta">the selection survives a reload</span>
@@ -16476,7 +16488,7 @@ var USAGE_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>Request log</h2>
       <span class="meta" id="logMeta"></span>
@@ -16531,7 +16543,7 @@ var USAGE_BODY = `
       </section>
     </div>
 
-    <section class="panel u-mt-4">
+    <section class="panel u-mt-3">
       <div class="panel-head">
         <h2>By day</h2>
         <span class="meta" id="byDayMeta"></span>
@@ -16804,7 +16816,7 @@ var USAGE_SCRIPT = `
   }
 
   function exportCsv() {
-    GX.busy(el.csv, "Exporting");
+    GX.busy(el.csv, "Exporting\u2026");
     GX.download("/pengatur/usage/export.csv" + filterQuery(), "omniproxy-usage.csv")
       .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });
@@ -16886,7 +16898,7 @@ var KEYS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Pool</h2>
       <span class="meta" id="listMeta"></span>
@@ -16961,7 +16973,7 @@ var KEYS_BODY = `
       <div id="bulkMsg" class="notice u-mt-3" role="status" aria-live="polite"></div>
     </div>
 
-    <div id="keysBody" class="table-wrap">${stateBlock("loading", "Loading the pool")}</div>
+    <div id="keysBody" class="table-wrap">${stateBlock("loading", "Loading the pool\u2026")}</div>
 
     <div class="panel-foot">
       <div id="keyPager" class="pager u-full"></div>
@@ -16986,12 +16998,12 @@ ${confirmDialog()}
       </div>
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="toolbar u-mt-4">
+      <div class="toolbar u-mt-3">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
       <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
-      <p class="hint u-mt-4">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+      <p class="hint u-mt-3">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
     </div>
   </form>
 </dialog>
@@ -17615,7 +17627,7 @@ var KEYS_SCRIPT = `
   function validateSelectedPlans(control) {
     var ids = selectedIds();
     if (!ids.length) { GX.notice("Select at least one key.", "err"); return; }
-    GX.busy(control, "Validating");
+    GX.busy(control, "Validating\u2026");
     GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: ids } })
       .then(function (data) {
         var list = (data && (data.results || data.keys)) || [];
@@ -17643,7 +17655,7 @@ var KEYS_SCRIPT = `
   }
 
   function validatePlan(k, btn) {
-    GX.busy(btn, "Validating");
+    GX.busy(btn, "Validating\u2026");
     GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: [k.id] } })
       .then(function (data) {
         var row = pickValidation(data, k.id);
@@ -17705,7 +17717,7 @@ var KEYS_SCRIPT = `
   }
 
   function purgeDead() {
-    GX.busy(el.purgeDeadBtn, "Purging");
+    GX.busy(el.purgeDeadBtn, "Purging\u2026");
     GX.api("/pengatur/keys/purge-dead", { method: "POST" })
       .then(function () {
         /* The recheck timer now keeps the live pool healthy; this button only
@@ -17722,7 +17734,7 @@ var KEYS_SCRIPT = `
   }
 
   function testAll() {
-    GX.busy(el.testAllBtn, "Testing");
+    GX.busy(el.testAllBtn, "Testing\u2026");
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         GX.notice("Tested " + data.tested + " keys.", "ok");
@@ -17785,7 +17797,7 @@ var KEYS_SCRIPT = `
   }
 
   function removeSelectedNow(ids) {
-    GX.busy(el.bulkRemove, "Removing");
+    GX.busy(el.bulkRemove, "Removing\u2026");
     GX.api("/pengatur/keys", { method: "DELETE", body: { ids: ids } })
       .then(function (data) {
         var removed = (data.removed || []).length;
@@ -17810,7 +17822,7 @@ var KEYS_SCRIPT = `
     var provider = (el.newProvider && el.newProvider.value) ? el.newProvider.value.trim() : "gemini";
     var keys = raw.split(/[s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
-    GX.busy(el.addSubmit, "Adding");
+    GX.busy(el.addSubmit, "Adding\u2026");
     GX.api("/pengatur/keys", { method: "POST", body: { keys: keys, provider: provider } })
       .then(function (data) {
         el.newKeys.value = "";
@@ -18012,7 +18024,7 @@ var DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>State</h2>
       <span class="meta" id="stateNote"></span>
@@ -18022,7 +18034,7 @@ var DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4" id="eventsPanel">
+  <section class="panel u-mt-3" id="eventsPanel">
     <div class="panel-head">
       <h2>Cooldown timeline</h2>
       <span class="meta" id="cooldownNote"></span>
@@ -18030,7 +18042,7 @@ var DETAIL_BODY = `
     <div id="eventsFeed" class="feed"></div>
   </section>
 
-  <section class="panel u-mt-4" id="dailyPanel" hidden>
+  <section class="panel u-mt-3" id="dailyPanel" hidden>
     <div class="panel-head">
       <h2>Daily requests</h2>
       <span class="meta" id="dailyNote"></span>
@@ -18046,7 +18058,7 @@ var DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4" id="recentPanel" hidden>
+  <section class="panel u-mt-3" id="recentPanel" hidden>
     <div class="panel-head">
       <h2>Recent requests</h2>
       <span class="meta" id="recentNote"></span>
@@ -18059,7 +18071,7 @@ var DETAIL_BODY = `
     </div>
   </section>
 
-  <p class="hint u-mt-4" id="noHistory"></p>
+  <p class="hint u-mt-3" id="noHistory"></p>
 </div>
 `;
 var DETAIL_SCRIPT = `
@@ -18394,7 +18406,7 @@ var SETTINGS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <div class="grid grid-2 u-mt-6">
+  <div class="grid grid-2 u-mt-4">
     <section class="panel">
       <div class="panel-head"><h2>Defaults</h2></div>
       <div class="panel-body"><dl class="defs" id="defaults"></dl></div>
@@ -18406,7 +18418,7 @@ var SETTINGS_BODY = `
     </section>
   </div>
 
-  <div class="grid grid-2 u-mt-4">
+  <div class="grid grid-2 u-mt-3">
     <section class="panel">
       <div class="panel-head"><h2>Ledger and storage</h2></div>
       <div class="panel-body">
@@ -18430,7 +18442,7 @@ var SETTINGS_BODY = `
     </section>
   </div>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head"><h2>Caveats</h2></div>
     <div class="panel-body">
       <p class="hint" id="note"></p>
@@ -18527,7 +18539,7 @@ var SETTINGS_SCRIPT = `
 
   el.refresh.addEventListener("click", function () { reload(); });
   el.exportBtn.addEventListener("click", function () {
-    GX.busy(el.exportBtn, "Exporting");
+    GX.busy(el.exportBtn, "Exporting\u2026");
     GX.download("/pengatur/settings/export", "omniproxy-config.json")
       .catch(function (err) { GX.say(el.msg, err.message, "err"); })
       .then(function () { GX.idle(el.exportBtn); });
@@ -18639,7 +18651,7 @@ var AUDIT_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Filters</h2>
       <label class="check"><input id="auto" type="checkbox"> Auto refresh every 15s</label>
@@ -18670,7 +18682,7 @@ var AUDIT_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>Trail</h2>
       <span class="meta" id="trailMeta"></span>

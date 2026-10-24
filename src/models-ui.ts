@@ -29,7 +29,7 @@ const MODELS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <section class="panel u-mt-6">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Find</h2>
       <div class="actions">
@@ -74,7 +74,7 @@ const MODELS_BODY = `
           <select id="size" class="select"><option>10</option><option selected>25</option><option>50</option><option>100</option></select>
         </div>
       </div>
-      <div class="toolbar u-mt-4">
+      <div class="toolbar u-mt-3">
         <span class="field u-mb-0">Your plan</span>
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
@@ -88,12 +88,12 @@ const MODELS_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel u-mt-3">
     <div class="panel-head">
       <h2>Unified catalog</h2>
       <span class="meta" id="listMeta"></span>
     </div>
-    <div id="body" class="table-wrap">${stateBlock("loading", "Loading catalog")}</div>
+    <div id="body" class="table-wrap">${stateBlock("loading", "Loading catalog…")}</div>
     <div class="panel-foot">
       <div id="pager" class="pager u-full"></div>
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
@@ -371,7 +371,7 @@ const MODELS_SCRIPT = `
   }
 
   function load(force) {
-    GX.busy(el.reloadBtn, "Loading");
+    GX.busy(el.reloadBtn, "Loading…");
     var url = "/pengatur/models/list" + (force ? "?refresh=1" : "");
     return GX.api(url)
       .then(function (data) {
@@ -410,7 +410,7 @@ const MODELS_SCRIPT = `
 
   function testModel(m, btn, node) {
     btn.disabled = true;
-    node.textContent = "testing...";
+    node.textContent = "testing…";
     GX.say(el.rowMsg, "Calling " + m.id + " with a pooled key...", "");
     GX.api("/pengatur/models/test", { method: "POST", body: { model: m.id } })
       .then(function (data) {

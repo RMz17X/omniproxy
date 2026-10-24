@@ -36,10 +36,10 @@ const OVERVIEW_BODY = `
         <span class="meta" id="healthMeta">-</span>
       </div>
       <div class="panel-body">
-        <div id="poolBar" class="u-mb-4"></div>
+        <div id="poolBar" class="u-mb-3"></div>
         <div class="figures" id="facts"></div>
-        <div id="providerPools" class="u-mt-4"></div>
-        <div class="row u-mt-4" id="chips"></div>
+        <div id="providerPools" class="u-mt-3"></div>
+        <div class="row u-mt-3" id="chips"></div>
       </div>
     </section>
 
@@ -76,8 +76,8 @@ const OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="providerMix"></div>
-        <div id="providerDays" class="u-mt-4"></div>
-        <p class="hint u-mt-4">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
+        <div id="providerDays" class="u-mt-3"></div>
+        <p class="hint u-mt-3">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
       </div>
     </section>
 
@@ -88,7 +88,7 @@ const OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
-        <p class="hint u-mt-4">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-3">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
@@ -114,7 +114,7 @@ ${confirmDialog()}
     <div class="panel-body">
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" class="textarea" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row u-mt-4">
+      <div class="row u-mt-3">
         <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
         <span id="addCount" class="hint"></span>
       </div>
@@ -417,7 +417,7 @@ const OVERVIEW_SCRIPT = `
   }
 
   function testAll() {
-    GX.busy(el.testAllBtn, "Testing");
+    GX.busy(el.testAllBtn, "Testing…");
     el.testAllNote.textContent = "one live call per key, four at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
@@ -439,7 +439,7 @@ const OVERVIEW_SCRIPT = `
     var raw = el.newKeys.value;
     var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
-    GX.busy(el.addSubmit, "Adding");
+    GX.busy(el.addSubmit, "Adding…");
     GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
       .then(function (data) {
         el.newKeys.value = "";
