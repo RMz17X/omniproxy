@@ -422,22 +422,24 @@ const KEYS_SCRIPT = `
     var providers = {};
     keys.forEach(function (k) {
       var p = k.provider || "gemini";
-      providers[p] = true;
+      providers[p] = (providers[p] || 0) + 1;
     });
-    if (state.provider) providers[state.provider] = true;
+    if (state.provider) providers[state.provider] = providers[state.provider] || 0;
 
     if (el.keyProvider) {
       var currentVal = state.provider || el.keyProvider.value;
       el.keyProvider.textContent = "";
       var allOpt = document.createElement("option");
       allOpt.value = "";
-      allOpt.textContent = "all";
+      allOpt.textContent = "all (" + keys.length + ")";
       el.keyProvider.appendChild(allOpt);
 
+      /* The filter names the size of each pool, so the operator picks a
+         provider knowing how many keys sit behind it. */
       Object.keys(providers).sort().forEach(function (p) {
         var opt = document.createElement("option");
         opt.value = p;
-        opt.textContent = p;
+        opt.textContent = providers[p] ? p + " (" + providers[p] + ")" : p;
         if (p === currentVal) opt.selected = true;
         el.keyProvider.appendChild(opt);
       });
@@ -532,6 +534,13 @@ const KEYS_SCRIPT = `
   function renderKpis(pool) {
     el.kpis.textContent = "";
     el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "storage degraded" : "shared by every instance"));
+    /* Per-provider counts, in each provider's colour. A multi-provider pool
+       is two pools wearing one number; the split is the first thing asked. */
+    var byProvider = pool.byProvider || pool.providers || {};
+    var gem = byProvider.gemini || {};
+    var elv = byProvider.elevenlabs || {};
+    el.kpis.appendChild(GX.kpi("Gemini keys", GX.fmt.num(gem.total || 0), (gem.ready || 0) + " ready", "prov-gemini"));
+    el.kpis.appendChild(GX.kpi("ElevenLabs keys", GX.fmt.num(elv.total || 0), (elv.ready || 0) + " ready", "prov-elevenlabs"));
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
@@ -662,7 +671,7 @@ const KEYS_SCRIPT = `
       tr.appendChild(keyCell);
 
       var provCell = GX.el("td", { class: "provider-cell", "data-l": "provider" });
-      provCell.appendChild(GX.el("span", { class: "provider-text", text: k.provider || "gemini" }));
+      provCell.appendChild(GX.providerTag(k.provider || "gemini"));
       tr.appendChild(provCell);
 
       var planCell = GX.el("td", { "data-l": "plan" });
@@ -1440,7 +1449,11 @@ const DETAIL_SCRIPT = `
 
   function render(d) {
     var k = d.key;
-    el.keyPath.textContent = "id " + k.id;
+    /* The provider badge rides in the lede: which upstream pool this key
+       belongs to is the first fact about it. */
+    el.keyPath.textContent = "";
+    el.keyPath.appendChild(GX.providerTag(k.provider || "gemini"));
+    el.keyPath.appendChild(document.createTextNode(" · id " + k.id));
     renderCredential(k);
     renderSummary(k);
     renderDaily(d.daily || []);

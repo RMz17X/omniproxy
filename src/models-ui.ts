@@ -194,8 +194,8 @@ const MODELS_SCRIPT = `
        the catalog is, and how many rows are on screen right now. */
     el.kpis.appendChild(GX.kpi("Showing", GX.fmt.num(shown), shown === state.models.length ? "the whole catalog" : "match the filters below"));
     el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "across all providers"));
-    el.kpis.appendChild(GX.kpi("Gemini", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") === "gemini"; }).length), "Gemini API models"));
-    el.kpis.appendChild(GX.kpi("ElevenLabs", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") !== "gemini"; }).length), "ElevenLabs models & voices"));
+    el.kpis.appendChild(GX.kpi("Gemini", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") === "gemini"; }).length), "Gemini API models", "prov-gemini"));
+    el.kpis.appendChild(GX.kpi("ElevenLabs", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") !== "gemini"; }).length), "ElevenLabs models & voices", "prov-elevenlabs"));
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
     el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "Gemini probed from this browser"));
@@ -266,7 +266,7 @@ const MODELS_SCRIPT = `
 
       var prov = m.provider || "gemini";
       var provCell = GX.el("td", { "data-l": "provider" });
-      provCell.appendChild(GX.el("span", { class: "chip", text: prov }));
+      provCell.appendChild(GX.providerTag(prov));
       tr.appendChild(provCell);
 
       var idCell = GX.el("td", { "data-l": "model" });

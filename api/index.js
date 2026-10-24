@@ -9349,44 +9349,51 @@ async function snapshot() {
 // src/ui.ts
 var BASE_CSS = `
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* paper ------------------------------------------------------------- */
-  --bg: #f5f5f2;
-  --surface: #ffffff;
-  --surface-2: #f1f1ec;
-  --surface-3: #e8e8e2;
-  --line: #e2e1db;
-  /* 1.66:1 was the entire affordance for .input/.select/.textarea/.btn, where
-     1.4.11 wants 3:1. Darkened to 3.1:1 against --surface. */
-  --line-2: #8f8d86;
+  /* ink canvas ----------------------------------------------------------- */
+  --bg: #0b0e14;
+  --surface: #11151d;
+  --surface-2: #161b26;
+  --surface-3: #1d2430;
+  --line: #222a37;
+  /* 3:1 against --surface, the WCAG 1.4.11 floor for control boundaries. */
+  --line-2: #3d4a5f;
 
-  --text: #14161a;
-  --text-2: #4f5560;
-  --text-3: #636974;
+  --text: #e9eef7;
+  --text-2: #a6b1c4;
+  --text-3: #7d8899;
 
-  --accent: #2646c9;
-  --accent-hover: #1d39a8;
-  --accent-ink: #ffffff;
-  --accent-wash: rgba(38, 70, 201, 0.09);
+  --accent: #7c93ff;
+  --accent-hover: #9aabff;
+  --accent-ink: #0b0e14;
+  --accent-wash: rgba(124, 147, 255, 0.13);
 
-  --ok: #0f7a4a;
-  --warn: #8a5200;
-  --bad: #b3261e;
-  --neutral: #5a6270;
+  --ok: #45cf91;
+  --warn: #f0b054;
+  --bad: #ff7f76;
+  --neutral: #9aa4b4;
 
-  --wash-ok: rgba(15, 122, 74, 0.10);
-  --wash-warn: rgba(138, 82, 0, 0.10);
-  --wash-bad: rgba(179, 38, 30, 0.09);
-  --wash-neutral: rgba(90, 98, 112, 0.09);
+  --wash-ok: rgba(69, 207, 145, 0.13);
+  --wash-warn: rgba(240, 176, 84, 0.13);
+  --wash-bad: rgba(255, 127, 118, 0.12);
+  --wash-neutral: rgba(154, 164, 180, 0.12);
 
-  /* ink rail, identical in both themes --------------------------------- */
-  --rail-bg: #101319;
-  --rail-bg-2: #171b23;
-  --rail-line: #262c37;
-  --rail-text: #e9edf4;
+  /* provider identity -----------------------------------------------------
+     Gemini blue and ElevenLabs violet. Used for badges, dots, meter fills
+     and chart segments; always paired with the provider word. */
+  --prov-gemini: #5b9dff;
+  --prov-gemini-wash: rgba(91, 157, 255, 0.14);
+  --prov-elevenlabs: #c084fc;
+  --prov-elevenlabs-wash: rgba(192, 132, 252, 0.14);
+
+  /* the rail, slightly deeper than the canvas so the edge never moves ------ */
+  --rail-bg: #0d1017;
+  --rail-bg-2: #141926;
+  --rail-line: #222a37;
+  --rail-text: #e9eef7;
   --rail-muted: #8d97a8;
-  --rail-active: #232a36;
+  --rail-active: #1a2130;
 
   --sans: "Inter", "Inter var", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -9411,71 +9418,50 @@ var BASE_CSS = `
   --tap-sm: 30px;
 
   --rail: 236px;
-  /* Wide tables need the width. At 1920px a 1240px cap left 214px of dead
-     margin on each side while a 7-column table was begging for it. */
   --page-max: 1560px;
 }
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
+/* the light theme is the same system inverted, chosen explicitly ---------- */
+:root[data-theme="light"] {
+  color-scheme: light;
 
-  --bg: #0c0e12;
-  --surface: #13161c;
-  --surface-2: #191d25;
-  --surface-3: #212630;
-  --line: #242932;
-  --line-2: #5a6270;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f3f7;
+  --surface-3: #e7eaf0;
+  --line: #dfe3ea;
+  --line-2: #9aa3b2;
 
-  --text: #eef1f6;
-  --text-2: #a6aebc;
-  --text-3: #8c94a2;
+  --text: #131720;
+  --text-2: #4a5261;
+  --text-3: #646d7d;
 
-  --accent: #8ea2ff;
-  --accent-hover: #a6b6ff;
-  --accent-ink: #0b0d12;
-  --accent-wash: rgba(142, 162, 255, 0.14);
+  --accent: #3b5bdb;
+  --accent-hover: #2f4bc4;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(59, 91, 219, 0.09);
 
-  --ok: #45cf91;
-  --warn: #f0b054;
-  --bad: #ff7f76;
-  --neutral: #9aa4b4;
+  --ok: #0f7a4a;
+  --warn: #8a5200;
+  --bad: #b3261e;
+  --neutral: #5a6270;
 
-  --wash-ok: rgba(69, 207, 145, 0.14);
-  --wash-warn: rgba(240, 176, 84, 0.14);
-  --wash-bad: rgba(255, 127, 118, 0.13);
-  --wash-neutral: rgba(154, 164, 180, 0.12);
-}
+  --wash-ok: rgba(15, 122, 74, 0.10);
+  --wash-warn: rgba(138, 82, 0, 0.10);
+  --wash-bad: rgba(179, 38, 30, 0.09);
+  --wash-neutral: rgba(90, 98, 112, 0.09);
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
+  --prov-gemini: #1f66d0;
+  --prov-gemini-wash: rgba(31, 102, 208, 0.10);
+  --prov-elevenlabs: #8430c9;
+  --prov-elevenlabs-wash: rgba(132, 48, 201, 0.10);
 
-    --bg: #0c0e12;
-    --surface: #13161c;
-    --surface-2: #191d25;
-    --surface-3: #212630;
-    --line: #242932;
-    --line-2: #5a6270;
-
-    --text: #eef1f6;
-    --text-2: #a6aebc;
-    --text-3: #8c94a2;
-
-    --accent: #8ea2ff;
-    --accent-hover: #a6b6ff;
-    --accent-ink: #0b0d12;
-    --accent-wash: rgba(142, 162, 255, 0.14);
-
-    --ok: #45cf91;
-    --warn: #f0b054;
-    --bad: #ff7f76;
-    --neutral: #9aa4b4;
-
-    --wash-ok: rgba(69, 207, 145, 0.14);
-    --wash-warn: rgba(240, 176, 84, 0.14);
-    --wash-bad: rgba(255, 127, 118, 0.13);
-    --wash-neutral: rgba(154, 164, 180, 0.12);
-  }
+  --rail-bg: #10141d;
+  --rail-bg-2: #171d29;
+  --rail-line: #262e3d;
+  --rail-text: #e9eef7;
+  --rail-muted: #8d97a8;
+  --rail-active: #1d2534;
 }
 
 /* compact density: the same page, one notch tighter ---------------------- */
@@ -9485,7 +9471,6 @@ var BASE_CSS = `
   --sp-6: 18px;
   --sp-7: 24px;
   --inset: 14px;
-  /* Comfortable is the wider default now, so compact must not cap tighter. */
   --page-max: 1560px;
 }
 
@@ -9588,6 +9573,12 @@ body[data-gate="locked"] .app { display: none; }
 .rail-name { display: flex; flex-direction: column; line-height: 1.15; }
 .rail-name b { font-size: 15px; font-weight: 660; letter-spacing: -0.02em; }
 .rail-name span { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rail-muted); }
+/* The provider strip under the wordmark. The console is a multi-provider
+   gateway, so the rail names every provider it proxies, in that provider's
+   own colour, before any page loads. */
+.rail-providers { display: flex; flex-direction: column; gap: 5px; padding: 0 var(--sp-2); }
+.rail-prov { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--rail-muted); }
+.rail-prov b { color: var(--rail-text); font-weight: 560; }
 
 .rail-nav { display: flex; flex-direction: column; gap: var(--sp-4); }
 .rail-group { display: flex; flex-direction: column; gap: 2px; }
@@ -9774,6 +9765,8 @@ body[data-gate="locked"] .app { display: none; }
 .fig[data-tone="ok"] .fig-value { color: var(--ok); }
 .fig[data-tone="warn"] .fig-value { color: var(--warn); }
 .fig[data-tone="bad"] .fig-value { color: var(--bad); }
+.fig[data-tone="prov-gemini"] .fig-value { color: var(--prov-gemini); }
+.fig[data-tone="prov-elevenlabs"] .fig-value { color: var(--prov-elevenlabs); }
 
 .kpi { padding: 14px var(--inset); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-surface); }
 
@@ -9970,7 +9963,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   transition: background-color 140ms ease, color 140ms ease;
 }
 .seg button:hover { color: var(--text); background: var(--surface-2); }
-.seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
 /* tags ------------------------------------------------------------------- */
 
@@ -9998,7 +9991,36 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .tag[data-tone="bad"] { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: var(--wash-bad); }
 .tag[data-tone="neutral"] { color: var(--text-2); background: var(--wash-neutral); }
 .tag[data-tone="accent"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-wash); }
+/* "plain" and "info" are two tones the runtime asks for that had no skin: the
+   unlisted-tier badge and the rotated marker rendered as bare text. */
+.tag[data-tone="plain"] { color: var(--text-3); border-color: var(--line-2); background: transparent; }
+.tag.info { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-wash); }
 .tag-mono { font-family: var(--mono); font-size: 11px; letter-spacing: -0.01em; }
+
+/* provider identity ------------------------------------------------------- */
+
+/* A provider badge: the colour AND the word, never the colour alone. */
+.prov {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 1px 9px 1px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 560;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+.prov .prov-dot { width: 7px; height: 7px; }
+.prov[data-p="gemini"] { color: var(--prov-gemini); border-color: color-mix(in srgb, var(--prov-gemini) 40%, var(--line)); background: var(--prov-gemini-wash); }
+.prov[data-p="elevenlabs"] { color: var(--prov-elevenlabs); border-color: color-mix(in srgb, var(--prov-elevenlabs) 40%, var(--line)); background: var(--prov-elevenlabs-wash); }
+.prov-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--neutral); }
+.prov-dot[data-p="gemini"] { background: var(--prov-gemini); }
+.prov-dot[data-p="elevenlabs"] { background: var(--prov-elevenlabs); }
 
 .chip { display: inline-flex; align-items: baseline; gap: 8px; }
 .chip + .chip { margin-left: var(--sp-4); padding-left: var(--sp-4); border-left: 1px solid var(--line); }
@@ -10338,6 +10360,16 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .poolbar-track .warn { background: var(--warn); }
 .poolbar-track .bad { background: var(--bad); }
 .poolbar-track .neutral { background: var(--line-2); }
+/* quota_exhausted: parked with no reset to wait for, which is neither the
+   cooling amber nor the dead red. */
+.poolbar-track .quota { background: var(--accent); }
+.poolbar-track .prov-gemini { background: var(--prov-gemini); }
+.poolbar-track .prov-elevenlabs { background: var(--prov-elevenlabs); }
+/* one provider's pool as a row: badge, proportional bar, ready count */
+.prov-pool { display: flex; align-items: center; gap: var(--sp-3); padding: 11px 0; border-top: 1px solid var(--line); min-width: 0; }
+.prov-pool:first-child { border-top: 0; }
+.prov-pool .poolbar { flex: 1 1 auto; min-width: 0; }
+.prov-pool .count { flex: none; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); }
 .legend-item .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
@@ -10345,6 +10377,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .legend-item .dot.warn { background: var(--warn); }
 .legend-item .dot.bad { background: var(--bad); }
 .legend-item .dot.neutral { background: var(--line-2); }
+.legend-item .dot.prov-gemini { background: var(--prov-gemini); }
+.legend-item .dot.prov-elevenlabs { background: var(--prov-elevenlabs); }
 .legend-item b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text); font-weight: 560; }
 
 .meter { display: flex; flex-direction: column; gap: 5px; }
@@ -10356,6 +10390,9 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .meter-fill.warn { background: var(--warn); }
 .meter-fill.bad { background: var(--bad); }
 .meter-fill.info { background: var(--accent); }
+/* provider tones: a meter of Gemini traffic is blue, ElevenLabs violet */
+.meter-fill.prov-gemini { background: var(--prov-gemini); }
+.meter-fill.prov-elevenlabs { background: var(--prov-elevenlabs); }
 
 .bars { display: flex; flex-direction: column; gap: 6px; }
 .bar-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 64px; align-items: center; gap: 10px; font-size: 12px; }
@@ -10366,6 +10403,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .bar-fill.warn { background: var(--warn); }
 .bar-fill.bad { background: var(--bad); }
 .bar-fill.neutral { background: var(--line-2); }
+.bar-fill.prov-gemini { background: var(--prov-gemini); }
+.bar-fill.prov-elevenlabs { background: var(--prov-elevenlabs); }
 .bar-row .value { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--text-2); }
 
 .spark { width: 100%; height: 40px; overflow: visible; }
@@ -10379,15 +10418,31 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .daybar span { display: block; width: 100%; }
 .daybar .ok { background: var(--ok); }
 .daybar .warn { background: var(--warn); }
+.daybar .prov-gemini { background: var(--prov-gemini); }
+.daybar .prov-elevenlabs { background: var(--prov-elevenlabs); }
 .daybar-label { position: absolute; left: 0; right: 0; bottom: -18px; font-size: 9.5px; color: var(--text-2); text-align: center; white-space: nowrap; }
 
 
-.heat { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; }
-.heat-cell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--surface-3); }
-.heat-cell[data-l="1"] { background: color-mix(in srgb, var(--accent) 22%, var(--surface-3)); }
-.heat-cell[data-l="2"] { background: color-mix(in srgb, var(--accent) 45%, var(--surface-3)); }
-.heat-cell[data-l="3"] { background: color-mix(in srgb, var(--accent) 70%, var(--surface-3)); }
-.heat-cell[data-l="4"] { background: var(--accent); }
+/* hour-by-weekday heatmap. One label column, then 24 hour cells per row. */
+.heat { display: grid; grid-template-columns: 26px repeat(24, minmax(0, 1fr)); gap: 3px; }
+.heat .h { display: flex; align-items: center; font-size: 9.5px; color: var(--text-3); font-family: var(--mono); min-width: 0; overflow: hidden; white-space: nowrap; }
+.heat .cell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--surface-3); }
+.heat .cell[data-level="1"] { background: color-mix(in srgb, var(--accent) 25%, var(--surface-3)); }
+.heat .cell[data-level="2"] { background: color-mix(in srgb, var(--accent) 45%, var(--surface-3)); }
+.heat .cell[data-level="3"] { background: color-mix(in srgb, var(--accent) 68%, var(--surface-3)); }
+.heat .cell[data-level="4"] { background: color-mix(in srgb, var(--accent) 85%, var(--surface-3)); }
+.heat .cell[data-level="5"] { background: var(--accent); }
+/* "show values" writes the count into every cell that carries traffic. Zero
+   cells stay empty, so the grid does not turn into a field of zeroes. */
+.heat.values .cell:not([data-v="0"])::after {
+  content: attr(data-v);
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  color: var(--text);
+}
 .heat-axis { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; margin-top: 6px; font-size: 10px; color: var(--text-3); font-family: var(--mono); }
 .heat-axis span { text-align: left; overflow: hidden; }
 
@@ -10716,6 +10771,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .u-bad { color: var(--bad); }
 .u-ok { color: var(--ok); }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.nowrap { white-space: nowrap; }
 .sr-only {
   position: absolute;
   width: 1px; height: 1px;
@@ -10904,7 +10960,8 @@ function navMarkup(active, idPrefix) {
   }).join("");
 }
 function navRail(active, actions = "") {
-  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Console</span></span></a><nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-state" title="Where the pool and the ledger live">' + icon("lock", "icon", 13) + '<span>store</span><b id="railStore"></b></div><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
+  const providerStrip = '<div class="rail-providers"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span></div>';
+  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></a>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-state" title="Where the pool and the ledger live">' + icon("lock", "icon", 13) + '<span>store</span><b id="railStore"></b></div><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
 }
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
@@ -10912,7 +10969,8 @@ function consolePage(o) {
   return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
-  return '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div><div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden><div class="rail-brand" style="padding:0 8px"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Console</span></span></div><nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "drawer") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerDensity" aria-label="Switch density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' + icon("help", "icon", 15) + "</button></div></div></div>";
+  const providerStrip = '<div class="rail-providers"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span></div>';
+  return '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div><div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden><div class="rail-brand" style="padding:0 8px"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></div>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "drawer") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerDensity" aria-label="Switch density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' + icon("help", "icon", 15) + "</button></div></div></div>";
 }
 function escapeHtml(v2) {
   return String(v2 ?? "").replace(/[&<>"']/g, (c) => {
@@ -11001,7 +11059,7 @@ var LOGIN_JS = `
 })();
 `;
 function authGate() {
-  return '<section class="gate-wrap" id="gate"><div class="panel gate"><div class="card-body"><span class="gate-mark">' + icon("lock", "icon", 20) + '</span><h1>Admin token</h1><p class="lede">This console reads the pool, the ledger and the settings of this deployment. The token stays in this browser.</p><form id="gateForm" autocomplete="off" class="u-mt-5"><label class="field" for="token">Deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint u-mt-3">Sent only to this deployment, as a bearer token over HTTPS.</p></form><div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div></div></div></section>';
+  return '<section class="gate-wrap" id="gate"><div class="panel gate"><div class="card-body"><span class="gate-mark">' + icon("lock", "icon", 20) + '</span><h1>Admin token</h1><p class="lede">This console reads the Gemini and ElevenLabs pools, the ledger and the settings of this deployment. The token stays in this browser.</p><form id="gateForm" autocomplete="off" class="u-mt-5"><label class="field" for="token">Deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint u-mt-3">Sent only to this deployment, as a bearer token over HTTPS.</p></form><div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div></div></div></section>';
 }
 function helpDialog() {
   const keys = [
@@ -11022,7 +11080,10 @@ function helpDialog() {
     ["ring", "1h and 24h read the live ring: the last requests in this process"],
     ["rollup", "7d and 30d read the daily rollup, one row per day"],
     ["memory", "The pool and the ledger live in this process. A restart empties them"],
-    ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"]
+    ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
+    ["gemini", "The Google Generative Language pool. Chat, embeddings and every non-TTS route"],
+    ["elevenlabs", "The ElevenLabs pool. Text to speech and voices, routed by the model name on /v1/audio/speech"],
+    ["provider", "Which upstream pool a key, a model or a request belongs to. Every badge shows the colour and the name"]
   ];
   const keyRows = keys.map(([k, v2]) => "<dt><kbd>" + escapeHtml(k) + "</kbd></dt><dd>" + escapeHtml(v2) + "</dd>").join("");
   const wordRows = words.map(([k, v2]) => "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(v2) + "</dd>").join("");
@@ -11169,6 +11230,28 @@ var CLIENT_JS = `
       ]);
     },
 
+    /* Provider identity: the provider's colour AND its word. The colour is
+       never the only signal, so a badge always names the provider it marks. */
+    providerTag: function (provider) {
+      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      return GX.el("span", { class: "prov", "data-p": p }, [
+        GX.el("span", { class: "prov-dot", "data-p": p }),
+        GX.el("span", { text: p })
+      ]);
+    },
+
+    providerDot: function (provider) {
+      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      return GX.el("span", { class: "prov-dot", "data-p": p, title: p });
+    },
+
+    /* The ledger logs ElevenLabs TTS under the elevenlabs provider and
+       everything else through the Gemini pool, so the model name is enough
+       to say which upstream served a row. */
+    providerFromModel: function (model) {
+      return /eleven/i.test(String(model || "")) ? "elevenlabs" : "gemini";
+    },
+
     /* one figure: label, tabular value, one line of context */
     stat: function (label, value, sub, tone) {
       /* String(value) printed the literal word "undefined" at 27px whenever a
@@ -11218,6 +11301,28 @@ var CLIENT_JS = `
         ]));
       });
       return GX.el("div", { class: "poolbar" }, [track, legend]);
+    },
+
+    /* one provider's pool: its badge, its proportional bar, its ready count.
+       The per-provider health of a multi-provider gateway is the first thing
+       an operator looks for, so each provider gets its own row. */
+    providerPool: function (provider, snap) {
+      snap = snap || {};
+      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      var ready = Number(snap.ready) || 0;
+      var total = Number(snap.total) || 0;
+      var parts = [
+        { label: "ready", value: ready, tone: "ok" },
+        { label: "cooling", value: Number(snap.cooling) || 0, tone: "warn" },
+        { label: "quota", value: Number(snap.quota_exhausted) || 0, tone: "quota" },
+        { label: "dead", value: Number(snap.dead) || 0, tone: "bad" },
+        { label: "unverified", value: Number(snap.unverified) || 0, tone: "neutral" }
+      ];
+      return GX.el("div", { class: "prov-pool", "data-p": p }, [
+        GX.providerTag(p),
+        GX.poolBar(parts),
+        GX.el("span", { class: "count", text: ready + "/" + total + " ready" })
+      ]);
     },
 
     spark: function (values, width, height) {
@@ -11538,12 +11643,13 @@ var CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. */
+    /* Theme and density. Both survive a reload. Dark is the console default;
+       the light theme is an explicit choice. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
         if (set) return set;
-        return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        return "dark";
       },
       set: function (value) {
         document.documentElement.setAttribute("data-theme", value);
@@ -11844,6 +11950,7 @@ var OVERVIEW_BODY = `
       <div class="panel-body">
         <div id="poolBar" class="u-mb-4"></div>
         <div class="figures" id="facts"></div>
+        <div id="providerPools" class="u-mt-4"></div>
         <div class="row u-mt-4" id="chips"></div>
       </div>
     </section>
@@ -11893,7 +12000,7 @@ var OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
-        <p class="hint u-mt-4">Google never reports a project plan over the API. Declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-4">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
@@ -11956,6 +12063,7 @@ var OVERVIEW_SCRIPT = `
     planMix: document.getElementById("planMix"),
     providerMix: document.getElementById("providerMix"),
     providerDays: document.getElementById("providerDays"),
+    providerPools: document.getElementById("providerPools"),
     activity: document.getElementById("activity")
   };
 
@@ -11985,18 +12093,26 @@ var OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
     el.chips.textContent = "";
-    var byProvider = pool.byProvider || pool.providers || {};
-    Object.keys(byProvider).sort().forEach(function (prov) {
-      var p = byProvider[prov];
-      if (!p) return;
-      el.chips.appendChild(GX.chip(prov, p.ready + "/" + p.total + " ready"));
-    });
+    /* The per-provider ready/total chips moved into the provider pool rows
+       above; this row carries the cross-provider facts only. */
     if (stats) {
       el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
       el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
       el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
     }
     el.healthMeta.textContent = pool.degraded ? "degraded, serving from memory" : pool.storage + " storage";
+
+    /* Per-provider pool health. A multi-provider gateway is only as healthy
+       as its weakest pool, so each provider gets its own bar and count. */
+    el.providerPools.textContent = "";
+    var byProvider = pool.byProvider || pool.providers || {};
+    var provNames = Object.keys(byProvider).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    });
+    provNames.forEach(function (prov) {
+      el.providerPools.appendChild(GX.providerPool(prov, byProvider[prov]));
+    });
 
     var note = document.getElementById("storageNote");
     if (note) {
@@ -12021,21 +12137,50 @@ var OVERVIEW_SCRIPT = `
 
   function renderAttention(pool, tiers) {
     var items = [];
-    if (pool.dead > 0) {
-      items.push({
-        tone: "bad",
-        title: pool.dead + (pool.dead === 1 ? " key is dead" : " keys are dead"),
-        detail: "Revoked or out of quota. Remove them to shrink the pool.",
-        href: "/pengatur/keys"
-      });
-    }
-    if (pool.cooling > 0) {
-      items.push({
-        tone: "warn",
-        title: pool.cooling + (pool.cooling === 1 ? " key is cooling" : " keys are cooling"),
-        detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
-        href: "/pengatur/keys"
-      });
+    /* Per provider where the census allows it: "2 gemini keys are dead" is
+       actionable, "5 keys are dead" across two pools is not. */
+    var byProvider = pool.byProvider || pool.providers || {};
+    var provNames = Object.keys(byProvider).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    });
+    provNames.forEach(function (prov) {
+      var p = byProvider[prov] || {};
+      if (p.dead > 0) {
+        items.push({
+          tone: "bad",
+          title: p.dead + (p.dead === 1 ? " " + prov + " key is dead" : " " + prov + " keys are dead"),
+          detail: "Revoked or out of quota. Remove them to shrink the pool.",
+          href: "/pengatur/keys?provider=" + encodeURIComponent(prov)
+        });
+      }
+      if (p.cooling > 0) {
+        items.push({
+          tone: "warn",
+          title: p.cooling + (p.cooling === 1 ? " " + prov + " key is cooling" : " " + prov + " keys are cooling"),
+          detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
+          href: "/pengatur/keys?provider=" + encodeURIComponent(prov)
+        });
+      }
+    });
+    /* No per-provider census (older server): fall back to the global counts. */
+    if (!provNames.length) {
+      if (pool.dead > 0) {
+        items.push({
+          tone: "bad",
+          title: pool.dead + (pool.dead === 1 ? " key is dead" : " keys are dead"),
+          detail: "Revoked or out of quota. Remove them to shrink the pool.",
+          href: "/pengatur/keys"
+        });
+      }
+      if (pool.cooling > 0) {
+        items.push({
+          tone: "warn",
+          title: pool.cooling + (pool.cooling === 1 ? " key is cooling" : " keys are cooling"),
+          detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
+          href: "/pengatur/keys"
+        });
+      }
     }
     var unset = tiers ? tiers.unknown || 0 : 0;
     if (unset > 0) {
@@ -12054,8 +12199,11 @@ var OVERVIEW_SCRIPT = `
       return;
     }
     items.forEach(function (item) {
+      /* "info" is a runtime tone with no CSS variable of its own; the dot
+         reads it as the accent colour. */
+      var dotTone = item.tone === "info" ? "accent" : item.tone;
       var link = GX.el("a", { class: "attn-item", href: item.href }, [
-        GX.el("span", { class: "dot", style: "background:var(--" + item.tone + ")" }),
+        GX.el("span", { class: "dot", style: "background:var(--" + dotTone + ")" }),
         GX.el("span", null, [
           GX.el("span", { class: "t", text: item.title }),
           GX.el("span", { class: "d", text: item.detail })
@@ -12085,10 +12233,16 @@ var OVERVIEW_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
   }
 
-  /* Provider split: aggregate meters + one stacked bar per WIB day. Bars use
-     the same poolbar tones as the pool bar; the chart stays plain CSS so a
-     failed stats fetch degrades to the "unavailable" state, never a broken
-     canvas. */
+  /* Provider split: aggregate meters + one stacked bar per WIB day. Each
+     provider carries its own colour, so the split reads the same everywhere
+     in the console. Bars stay plain CSS so a failed stats fetch degrades to
+     the "unavailable" state, never a broken canvas. */
+  function provTone(prov) {
+    if (prov === "gemini") return "prov-gemini";
+    if (prov === "elevenlabs") return "prov-elevenlabs";
+    return "info";
+  }
+
   function renderProviderMix(stats) {
     el.providerMix.textContent = "";
     el.providerDays.textContent = "";
@@ -12105,32 +12259,43 @@ var OVERVIEW_SCRIPT = `
     }
     var byProv = {};
     buckets.forEach(function (b) { byProv[b.key] = b.requests; });
-    el.providerMix.appendChild(GX.meter("Gemini", byProv.gemini || 0, total, "ok"));
-    el.providerMix.appendChild(GX.meter("ElevenLabs", byProv.elevenlabs || 0, total, "info"));
+    var order = Object.keys(byProv).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    });
+    order.forEach(function (prov) {
+      el.providerMix.appendChild(GX.meter(prov, byProv[prov] || 0, total, provTone(prov)));
+    });
 
     var days = stats.byProviderDay || [];
     if (!days.length) return;
     var byDay = {};
     var maxDay = 0;
     days.forEach(function (r) {
-      if (!byDay[r.day]) byDay[r.day] = { gemini: 0, elevenlabs: 0 };
+      if (!byDay[r.day]) byDay[r.day] = {};
       byDay[r.day][r.provider] = (byDay[r.day][r.provider] || 0) + r.requests;
-      if (byDay[r.day].gemini + byDay[r.day].elevenlabs > maxDay) maxDay = byDay[r.day].gemini + byDay[r.day].elevenlabs;
+      var sum = 0;
+      order.forEach(function (p) { sum += byDay[r.day][p] || 0; });
+      if (sum > maxDay) maxDay = sum;
     });
-    var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day, gemini vs elevenlabs" });
-    Object.keys(byDay).forEach(function (day) {
-      var g = byDay[day].gemini;
-      var e = byDay[day].elevenlabs;
-      var col = GX.el("div", { class: "daybar", title: day + " \xB7 gemini " + g + " \xB7 elevenlabs " + e });
-      col.appendChild(GX.el("span", { class: "ok", style: "height:" + (maxDay ? ((g / maxDay) * 100).toFixed(1) : 0) + "%" }));
-      col.appendChild(GX.el("span", { class: "warn", style: "height:" + (maxDay ? ((e / maxDay) * 100).toFixed(1) : 0) + "%" }));
+    var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day by provider" });
+    Object.keys(byDay).sort().forEach(function (day) {
+      var col = GX.el("div", { class: "daybar", title: day + " \xB7 " + order.map(function (p) { return p + " " + (byDay[day][p] || 0); }).join(" \xB7 ") });
+      order.forEach(function (p) {
+        col.appendChild(GX.el("span", { class: provTone(p), style: "height:" + (maxDay ? (((byDay[day][p] || 0) / maxDay) * 100).toFixed(1) : 0) + "%" }));
+      });
       col.appendChild(GX.el("span", { class: "daybar-label", text: day.slice(5) }));
       chart.appendChild(col);
     });
     el.providerDays.appendChild(chart);
     var legend = GX.el("div", { class: "legend" });
-    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot ok" }), GX.el("span", { text: "Gemini" }), GX.el("b", { text: GX.fmt.num(byProv.gemini || 0) })]));
-    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot warn" }), GX.el("span", { text: "ElevenLabs" }), GX.el("b", { text: GX.fmt.num(byProv.elevenlabs || 0) })]));
+    order.forEach(function (p) {
+      legend.appendChild(GX.el("span", { class: "legend-item" }, [
+        GX.el("span", { class: "dot " + provTone(p) }),
+        GX.el("span", { text: p }),
+        GX.el("b", { text: GX.fmt.num(byProv[p] || 0) })
+      ]));
+    });
     el.providerDays.appendChild(legend);
   }
 
@@ -12604,8 +12769,8 @@ var MODELS_SCRIPT = `
        the catalog is, and how many rows are on screen right now. */
     el.kpis.appendChild(GX.kpi("Showing", GX.fmt.num(shown), shown === state.models.length ? "the whole catalog" : "match the filters below"));
     el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "across all providers"));
-    el.kpis.appendChild(GX.kpi("Gemini", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") === "gemini"; }).length), "Gemini API models"));
-    el.kpis.appendChild(GX.kpi("ElevenLabs", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") !== "gemini"; }).length), "ElevenLabs models & voices"));
+    el.kpis.appendChild(GX.kpi("Gemini", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") === "gemini"; }).length), "Gemini API models", "prov-gemini"));
+    el.kpis.appendChild(GX.kpi("ElevenLabs", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") !== "gemini"; }).length), "ElevenLabs models & voices", "prov-elevenlabs"));
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
     el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "Gemini probed from this browser"));
@@ -12676,7 +12841,7 @@ var MODELS_SCRIPT = `
 
       var prov = m.provider || "gemini";
       var provCell = GX.el("td", { "data-l": "provider" });
-      provCell.appendChild(GX.el("span", { class: "chip", text: prov }));
+      provCell.appendChild(GX.providerTag(prov));
       tr.appendChild(provCell);
 
       var idCell = GX.el("td", { "data-l": "model" });
@@ -15593,7 +15758,7 @@ var STATS_BODY = `
         </div>
         <div class="table-wrap">
           <table class="table" id="byModel">
-            <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
+            <thead><tr><th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
             <tbody></tbody>
           </table>
           <div id="byModelEmpty"></div>
@@ -15699,6 +15864,13 @@ var STATS_SCRIPT = `
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       cols.forEach(function (c, index) {
+        /* A column may carry a node (the provider badge) instead of text. */
+        if (c.node) {
+          var nodeCell = GX.el("td", { "data-l": c.label || null });
+          nodeCell.appendChild(c.node(r));
+          tr.appendChild(nodeCell);
+          return;
+        }
         var td = GX.el("td", { class: index > 0 ? "num" : "", "data-l": c.label || null });
         td.textContent = c.value(r);
         tr.appendChild(td);
@@ -15796,6 +15968,7 @@ var STATS_SCRIPT = `
     fillHeat(d.heatmap);
     fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
+      { label: "provider", node: function (r) { return GX.providerTag(GX.providerFromModel(r.key)); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
@@ -16311,7 +16484,7 @@ var USAGE_BODY = `
     <div class="table-wrap">
       <table class="table" id="log">
         <thead><tr>
-          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+          <th>Time</th><th>Route</th><th>Model</th><th>Provider</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -16333,7 +16506,7 @@ var USAGE_BODY = `
         <div class="table-wrap">
           <table class="table" id="byModel">
             <thead><tr>
-              <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
+              <th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -16482,6 +16655,13 @@ var USAGE_SCRIPT = `
     buckets.forEach(function (b) {
       var tr = GX.el("tr");
       cols.forEach(function (c) {
+        /* A column may carry a node (the provider badge) instead of text. */
+        if (c.node) {
+          var nodeCell = GX.el("td", { "data-l": c.label || null });
+          nodeCell.appendChild(c.node(b));
+          tr.appendChild(nodeCell);
+          return;
+        }
         var value = c.fmt ? c.fmt(b[c.k], b) : b[c.k];
         GX.cell(tr, value === undefined || value === null ? "-" : String(value), c.num ? "num" : "", c.label);
       });
@@ -16505,6 +16685,12 @@ var USAGE_SCRIPT = `
       GX.cell(tr, GX.fmt.clock(r.ts), "mono nowrap", "time");
       GX.cell(tr, r.route, "mono", "route");
       GX.cell(tr, r.model || "-", "mono", "model");
+      /* The ledger has no provider column: ElevenLabs TTS is logged under
+         the elevenlabs model and everything else through the Gemini pool,
+         so the model name says which upstream served the row. */
+      var provCell = GX.el("td", { "data-l": "provider" });
+      provCell.appendChild(GX.providerTag(GX.providerFromModel(r.model)));
+      tr.appendChild(provCell);
       GX.cell(tr, r.keyMasked || "-", "mono", "key");
       var statusCell = GX.el("td", { "data-l": "status" });
       statusCell.appendChild(GX.tag(String(r.status) + (r.errorCode ? " " + r.errorCode : ""), r.ok ? "ok" : "bad"));
@@ -16561,6 +16747,7 @@ var USAGE_SCRIPT = `
 
     renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
+      { label: "provider", node: function (b) { return GX.providerTag(GX.providerFromModel(b.key)); } },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "promptTokens", num: true, label: "prompt" },
@@ -17026,22 +17213,24 @@ var KEYS_SCRIPT = `
     var providers = {};
     keys.forEach(function (k) {
       var p = k.provider || "gemini";
-      providers[p] = true;
+      providers[p] = (providers[p] || 0) + 1;
     });
-    if (state.provider) providers[state.provider] = true;
+    if (state.provider) providers[state.provider] = providers[state.provider] || 0;
 
     if (el.keyProvider) {
       var currentVal = state.provider || el.keyProvider.value;
       el.keyProvider.textContent = "";
       var allOpt = document.createElement("option");
       allOpt.value = "";
-      allOpt.textContent = "all";
+      allOpt.textContent = "all (" + keys.length + ")";
       el.keyProvider.appendChild(allOpt);
 
+      /* The filter names the size of each pool, so the operator picks a
+         provider knowing how many keys sit behind it. */
       Object.keys(providers).sort().forEach(function (p) {
         var opt = document.createElement("option");
         opt.value = p;
-        opt.textContent = p;
+        opt.textContent = providers[p] ? p + " (" + providers[p] + ")" : p;
         if (p === currentVal) opt.selected = true;
         el.keyProvider.appendChild(opt);
       });
@@ -17136,6 +17325,13 @@ var KEYS_SCRIPT = `
   function renderKpis(pool) {
     el.kpis.textContent = "";
     el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "storage degraded" : "shared by every instance"));
+    /* Per-provider counts, in each provider's colour. A multi-provider pool
+       is two pools wearing one number; the split is the first thing asked. */
+    var byProvider = pool.byProvider || pool.providers || {};
+    var gem = byProvider.gemini || {};
+    var elv = byProvider.elevenlabs || {};
+    el.kpis.appendChild(GX.kpi("Gemini keys", GX.fmt.num(gem.total || 0), (gem.ready || 0) + " ready", "prov-gemini"));
+    el.kpis.appendChild(GX.kpi("ElevenLabs keys", GX.fmt.num(elv.total || 0), (elv.ready || 0) + " ready", "prov-elevenlabs"));
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
@@ -17266,7 +17462,7 @@ var KEYS_SCRIPT = `
       tr.appendChild(keyCell);
 
       var provCell = GX.el("td", { class: "provider-cell", "data-l": "provider" });
-      provCell.appendChild(GX.el("span", { class: "provider-text", text: k.provider || "gemini" }));
+      provCell.appendChild(GX.providerTag(k.provider || "gemini"));
       tr.appendChild(provCell);
 
       var planCell = GX.el("td", { "data-l": "plan" });
@@ -18040,7 +18236,11 @@ var DETAIL_SCRIPT = `
 
   function render(d) {
     var k = d.key;
-    el.keyPath.textContent = "id " + k.id;
+    /* The provider badge rides in the lede: which upstream pool this key
+       belongs to is the first fact about it. */
+    el.keyPath.textContent = "";
+    el.keyPath.appendChild(GX.providerTag(k.provider || "gemini"));
+    el.keyPath.appendChild(document.createTextNode(" \xB7 id " + k.id));
     renderCredential(k);
     renderSummary(k);
     renderDaily(d.daily || []);

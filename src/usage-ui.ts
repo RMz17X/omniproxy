@@ -74,7 +74,7 @@ const USAGE_BODY = `
     <div class="table-wrap">
       <table class="table" id="log">
         <thead><tr>
-          <th>Time</th><th>Route</th><th>Model</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
+          <th>Time</th><th>Route</th><th>Model</th><th>Provider</th><th>Key</th><th>Status</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Total</th><th class="num">Cost</th><th class="num">ms</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -96,7 +96,7 @@ const USAGE_BODY = `
         <div class="table-wrap">
           <table class="table" id="byModel">
             <thead><tr>
-              <th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
+              <th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cached</th><th class="num">Cost</th><th class="num">Avg ms</th>
             </tr></thead>
             <tbody></tbody>
           </table>
@@ -246,6 +246,13 @@ const USAGE_SCRIPT = `
     buckets.forEach(function (b) {
       var tr = GX.el("tr");
       cols.forEach(function (c) {
+        /* A column may carry a node (the provider badge) instead of text. */
+        if (c.node) {
+          var nodeCell = GX.el("td", { "data-l": c.label || null });
+          nodeCell.appendChild(c.node(b));
+          tr.appendChild(nodeCell);
+          return;
+        }
         var value = c.fmt ? c.fmt(b[c.k], b) : b[c.k];
         GX.cell(tr, value === undefined || value === null ? "-" : String(value), c.num ? "num" : "", c.label);
       });
@@ -269,6 +276,12 @@ const USAGE_SCRIPT = `
       GX.cell(tr, GX.fmt.clock(r.ts), "mono nowrap", "time");
       GX.cell(tr, r.route, "mono", "route");
       GX.cell(tr, r.model || "-", "mono", "model");
+      /* The ledger has no provider column: ElevenLabs TTS is logged under
+         the elevenlabs model and everything else through the Gemini pool,
+         so the model name says which upstream served the row. */
+      var provCell = GX.el("td", { "data-l": "provider" });
+      provCell.appendChild(GX.providerTag(GX.providerFromModel(r.model)));
+      tr.appendChild(provCell);
       GX.cell(tr, r.keyMasked || "-", "mono", "key");
       var statusCell = GX.el("td", { "data-l": "status" });
       statusCell.appendChild(GX.tag(String(r.status) + (r.errorCode ? " " + r.errorCode : ""), r.ok ? "ok" : "bad"));
@@ -325,6 +338,7 @@ const USAGE_SCRIPT = `
 
     renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
+      { label: "provider", node: function (b) { return GX.providerTag(GX.providerFromModel(b.key)); } },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "promptTokens", num: true, label: "prompt" },

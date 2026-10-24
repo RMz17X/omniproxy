@@ -38,6 +38,7 @@ const OVERVIEW_BODY = `
       <div class="panel-body">
         <div id="poolBar" class="u-mb-4"></div>
         <div class="figures" id="facts"></div>
+        <div id="providerPools" class="u-mt-4"></div>
         <div class="row u-mt-4" id="chips"></div>
       </div>
     </section>
@@ -87,7 +88,7 @@ const OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
-        <p class="hint u-mt-4">Google never reports a project plan over the API. Declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-4">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
@@ -151,6 +152,7 @@ const OVERVIEW_SCRIPT = `
     planMix: document.getElementById("planMix"),
     providerMix: document.getElementById("providerMix"),
     providerDays: document.getElementById("providerDays"),
+    providerPools: document.getElementById("providerPools"),
     activity: document.getElementById("activity")
   };
 
@@ -180,18 +182,26 @@ const OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
     el.chips.textContent = "";
-    var byProvider = pool.byProvider || pool.providers || {};
-    Object.keys(byProvider).sort().forEach(function (prov) {
-      var p = byProvider[prov];
-      if (!p) return;
-      el.chips.appendChild(GX.chip(prov, p.ready + "/" + p.total + " ready"));
-    });
+    /* The per-provider ready/total chips moved into the provider pool rows
+       above; this row carries the cross-provider facts only. */
     if (stats) {
       el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
       el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
       el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
     }
     el.healthMeta.textContent = pool.degraded ? "degraded, serving from memory" : pool.storage + " storage";
+
+    /* Per-provider pool health. A multi-provider gateway is only as healthy
+       as its weakest pool, so each provider gets its own bar and count. */
+    el.providerPools.textContent = "";
+    var byProvider = pool.byProvider || pool.providers || {};
+    var provNames = Object.keys(byProvider).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    });
+    provNames.forEach(function (prov) {
+      el.providerPools.appendChild(GX.providerPool(prov, byProvider[prov]));
+    });
 
     var note = document.getElementById("storageNote");
     if (note) {
@@ -216,21 +226,50 @@ const OVERVIEW_SCRIPT = `
 
   function renderAttention(pool, tiers) {
     var items = [];
-    if (pool.dead > 0) {
-      items.push({
-        tone: "bad",
-        title: pool.dead + (pool.dead === 1 ? " key is dead" : " keys are dead"),
-        detail: "Revoked or out of quota. Remove them to shrink the pool.",
-        href: "/pengatur/keys"
-      });
-    }
-    if (pool.cooling > 0) {
-      items.push({
-        tone: "warn",
-        title: pool.cooling + (pool.cooling === 1 ? " key is cooling" : " keys are cooling"),
-        detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
-        href: "/pengatur/keys"
-      });
+    /* Per provider where the census allows it: "2 gemini keys are dead" is
+       actionable, "5 keys are dead" across two pools is not. */
+    var byProvider = pool.byProvider || pool.providers || {};
+    var provNames = Object.keys(byProvider).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    });
+    provNames.forEach(function (prov) {
+      var p = byProvider[prov] || {};
+      if (p.dead > 0) {
+        items.push({
+          tone: "bad",
+          title: p.dead + (p.dead === 1 ? " " + prov + " key is dead" : " " + prov + " keys are dead"),
+          detail: "Revoked or out of quota. Remove them to shrink the pool.",
+          href: "/pengatur/keys?provider=" + encodeURIComponent(prov)
+        });
+      }
+      if (p.cooling > 0) {
+        items.push({
+          tone: "warn",
+          title: p.cooling + (p.cooling === 1 ? " " + prov + " key is cooling" : " " + prov + " keys are cooling"),
+          detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
+          href: "/pengatur/keys?provider=" + encodeURIComponent(prov)
+        });
+      }
+    });
+    /* No per-provider census (older server): fall back to the global counts. */
+    if (!provNames.length) {
+      if (pool.dead > 0) {
+        items.push({
+          tone: "bad",
+          title: pool.dead + (pool.dead === 1 ? " key is dead" : " keys are dead"),
+          detail: "Revoked or out of quota. Remove them to shrink the pool.",
+          href: "/pengatur/keys"
+        });
+      }
+      if (pool.cooling > 0) {
+        items.push({
+          tone: "warn",
+          title: pool.cooling + (pool.cooling === 1 ? " key is cooling" : " keys are cooling"),
+          detail: "Free tier quota is exhausted. Longest wait is " + GX.fmt.left(pool.soonestReadyMs) + ".",
+          href: "/pengatur/keys"
+        });
+      }
     }
     var unset = tiers ? tiers.unknown || 0 : 0;
     if (unset > 0) {
@@ -249,8 +288,11 @@ const OVERVIEW_SCRIPT = `
       return;
     }
     items.forEach(function (item) {
+      /* "info" is a runtime tone with no CSS variable of its own; the dot
+         reads it as the accent colour. */
+      var dotTone = item.tone === "info" ? "accent" : item.tone;
       var link = GX.el("a", { class: "attn-item", href: item.href }, [
-        GX.el("span", { class: "dot", style: "background:var(--" + item.tone + ")" }),
+        GX.el("span", { class: "dot", style: "background:var(--" + dotTone + ")" }),
         GX.el("span", null, [
           GX.el("span", { class: "t", text: item.title }),
           GX.el("span", { class: "d", text: item.detail })
@@ -280,10 +322,16 @@ const OVERVIEW_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
   }
 
-  /* Provider split: aggregate meters + one stacked bar per WIB day. Bars use
-     the same poolbar tones as the pool bar; the chart stays plain CSS so a
-     failed stats fetch degrades to the "unavailable" state, never a broken
-     canvas. */
+  /* Provider split: aggregate meters + one stacked bar per WIB day. Each
+     provider carries its own colour, so the split reads the same everywhere
+     in the console. Bars stay plain CSS so a failed stats fetch degrades to
+     the "unavailable" state, never a broken canvas. */
+  function provTone(prov) {
+    if (prov === "gemini") return "prov-gemini";
+    if (prov === "elevenlabs") return "prov-elevenlabs";
+    return "info";
+  }
+
   function renderProviderMix(stats) {
     el.providerMix.textContent = "";
     el.providerDays.textContent = "";
@@ -300,32 +348,43 @@ const OVERVIEW_SCRIPT = `
     }
     var byProv = {};
     buckets.forEach(function (b) { byProv[b.key] = b.requests; });
-    el.providerMix.appendChild(GX.meter("Gemini", byProv.gemini || 0, total, "ok"));
-    el.providerMix.appendChild(GX.meter("ElevenLabs", byProv.elevenlabs || 0, total, "info"));
+    var order = Object.keys(byProv).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    });
+    order.forEach(function (prov) {
+      el.providerMix.appendChild(GX.meter(prov, byProv[prov] || 0, total, provTone(prov)));
+    });
 
     var days = stats.byProviderDay || [];
     if (!days.length) return;
     var byDay = {};
     var maxDay = 0;
     days.forEach(function (r) {
-      if (!byDay[r.day]) byDay[r.day] = { gemini: 0, elevenlabs: 0 };
+      if (!byDay[r.day]) byDay[r.day] = {};
       byDay[r.day][r.provider] = (byDay[r.day][r.provider] || 0) + r.requests;
-      if (byDay[r.day].gemini + byDay[r.day].elevenlabs > maxDay) maxDay = byDay[r.day].gemini + byDay[r.day].elevenlabs;
+      var sum = 0;
+      order.forEach(function (p) { sum += byDay[r.day][p] || 0; });
+      if (sum > maxDay) maxDay = sum;
     });
-    var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day, gemini vs elevenlabs" });
-    Object.keys(byDay).forEach(function (day) {
-      var g = byDay[day].gemini;
-      var e = byDay[day].elevenlabs;
-      var col = GX.el("div", { class: "daybar", title: day + " · gemini " + g + " · elevenlabs " + e });
-      col.appendChild(GX.el("span", { class: "ok", style: "height:" + (maxDay ? ((g / maxDay) * 100).toFixed(1) : 0) + "%" }));
-      col.appendChild(GX.el("span", { class: "warn", style: "height:" + (maxDay ? ((e / maxDay) * 100).toFixed(1) : 0) + "%" }));
+    var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day by provider" });
+    Object.keys(byDay).sort().forEach(function (day) {
+      var col = GX.el("div", { class: "daybar", title: day + " · " + order.map(function (p) { return p + " " + (byDay[day][p] || 0); }).join(" · ") });
+      order.forEach(function (p) {
+        col.appendChild(GX.el("span", { class: provTone(p), style: "height:" + (maxDay ? (((byDay[day][p] || 0) / maxDay) * 100).toFixed(1) : 0) + "%" }));
+      });
       col.appendChild(GX.el("span", { class: "daybar-label", text: day.slice(5) }));
       chart.appendChild(col);
     });
     el.providerDays.appendChild(chart);
     var legend = GX.el("div", { class: "legend" });
-    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot ok" }), GX.el("span", { text: "Gemini" }), GX.el("b", { text: GX.fmt.num(byProv.gemini || 0) })]));
-    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot warn" }), GX.el("span", { text: "ElevenLabs" }), GX.el("b", { text: GX.fmt.num(byProv.elevenlabs || 0) })]));
+    order.forEach(function (p) {
+      legend.appendChild(GX.el("span", { class: "legend-item" }, [
+        GX.el("span", { class: "dot " + provTone(p) }),
+        GX.el("span", { text: p }),
+        GX.el("b", { text: GX.fmt.num(byProv[p] || 0) })
+      ]));
+    });
     el.providerDays.appendChild(legend);
   }
 

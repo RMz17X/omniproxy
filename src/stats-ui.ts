@@ -62,7 +62,7 @@ const STATS_BODY = `
         </div>
         <div class="table-wrap">
           <table class="table" id="byModel">
-            <thead><tr><th>Model</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
+            <thead><tr><th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
             <tbody></tbody>
           </table>
           <div id="byModelEmpty"></div>
@@ -169,6 +169,13 @@ const STATS_SCRIPT = `
     rows.forEach(function (r) {
       var tr = GX.el("tr");
       cols.forEach(function (c, index) {
+        /* A column may carry a node (the provider badge) instead of text. */
+        if (c.node) {
+          var nodeCell = GX.el("td", { "data-l": c.label || null });
+          nodeCell.appendChild(c.node(r));
+          tr.appendChild(nodeCell);
+          return;
+        }
         var td = GX.el("td", { class: index > 0 ? "num" : "", "data-l": c.label || null });
         td.textContent = c.value(r);
         tr.appendChild(td);
@@ -266,6 +273,7 @@ const STATS_SCRIPT = `
     fillHeat(d.heatmap);
     fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
+      { label: "provider", node: function (r) { return GX.providerTag(GX.providerFromModel(r.key)); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },

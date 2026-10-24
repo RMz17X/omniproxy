@@ -20,46 +20,75 @@
  * - every colour comes from a custom property, never from a literal
  */
 
+/**
+ * Shared design system for the OmniProxy operator console.
+ *
+ * One stylesheet, one shell, one client runtime. Every console page is built
+ * from `consolePage`, so the tokens, the reset, the navigation and the control
+ * shapes can only drift in one place.
+ *
+ * The direction is a gateway console, not a dashboard:
+ * - dark ink is the default canvas; the light theme is the same system inverted
+ * - one indigo accent marks the active section and the primary action
+ * - every provider carries its own colour: gemini blue, elevenlabs violet.
+ *   The colour is never the only signal: a provider badge is a dot AND a word
+ * - structure comes from hairlines and eyebrows, never from boxed cards
+ * - numerals are tabular and monospaced, so columns line up down the page
+ *
+ * Rules that hold everywhere:
+ * - no decorative gradient, no shadow, no blur, no glow
+ * - status is a dot plus a word, never a painted block
+ * - radii: 6 controls, 12 surfaces, pills for tags
+ * - every colour comes from a custom property, never from a literal
+ */
+
 export const BASE_CSS = `
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* paper ------------------------------------------------------------- */
-  --bg: #f5f5f2;
-  --surface: #ffffff;
-  --surface-2: #f1f1ec;
-  --surface-3: #e8e8e2;
-  --line: #e2e1db;
-  /* 1.66:1 was the entire affordance for .input/.select/.textarea/.btn, where
-     1.4.11 wants 3:1. Darkened to 3.1:1 against --surface. */
-  --line-2: #8f8d86;
+  /* ink canvas ----------------------------------------------------------- */
+  --bg: #0b0e14;
+  --surface: #11151d;
+  --surface-2: #161b26;
+  --surface-3: #1d2430;
+  --line: #222a37;
+  /* 3:1 against --surface, the WCAG 1.4.11 floor for control boundaries. */
+  --line-2: #3d4a5f;
 
-  --text: #14161a;
-  --text-2: #4f5560;
-  --text-3: #636974;
+  --text: #e9eef7;
+  --text-2: #a6b1c4;
+  --text-3: #7d8899;
 
-  --accent: #2646c9;
-  --accent-hover: #1d39a8;
-  --accent-ink: #ffffff;
-  --accent-wash: rgba(38, 70, 201, 0.09);
+  --accent: #7c93ff;
+  --accent-hover: #9aabff;
+  --accent-ink: #0b0e14;
+  --accent-wash: rgba(124, 147, 255, 0.13);
 
-  --ok: #0f7a4a;
-  --warn: #8a5200;
-  --bad: #b3261e;
-  --neutral: #5a6270;
+  --ok: #45cf91;
+  --warn: #f0b054;
+  --bad: #ff7f76;
+  --neutral: #9aa4b4;
 
-  --wash-ok: rgba(15, 122, 74, 0.10);
-  --wash-warn: rgba(138, 82, 0, 0.10);
-  --wash-bad: rgba(179, 38, 30, 0.09);
-  --wash-neutral: rgba(90, 98, 112, 0.09);
+  --wash-ok: rgba(69, 207, 145, 0.13);
+  --wash-warn: rgba(240, 176, 84, 0.13);
+  --wash-bad: rgba(255, 127, 118, 0.12);
+  --wash-neutral: rgba(154, 164, 180, 0.12);
 
-  /* ink rail, identical in both themes --------------------------------- */
-  --rail-bg: #101319;
-  --rail-bg-2: #171b23;
-  --rail-line: #262c37;
-  --rail-text: #e9edf4;
+  /* provider identity -----------------------------------------------------
+     Gemini blue and ElevenLabs violet. Used for badges, dots, meter fills
+     and chart segments; always paired with the provider word. */
+  --prov-gemini: #5b9dff;
+  --prov-gemini-wash: rgba(91, 157, 255, 0.14);
+  --prov-elevenlabs: #c084fc;
+  --prov-elevenlabs-wash: rgba(192, 132, 252, 0.14);
+
+  /* the rail, slightly deeper than the canvas so the edge never moves ------ */
+  --rail-bg: #0d1017;
+  --rail-bg-2: #141926;
+  --rail-line: #222a37;
+  --rail-text: #e9eef7;
   --rail-muted: #8d97a8;
-  --rail-active: #232a36;
+  --rail-active: #1a2130;
 
   --sans: "Inter", "Inter var", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -84,71 +113,50 @@ export const BASE_CSS = `
   --tap-sm: 30px;
 
   --rail: 236px;
-  /* Wide tables need the width. At 1920px a 1240px cap left 214px of dead
-     margin on each side while a 7-column table was begging for it. */
   --page-max: 1560px;
 }
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
+/* the light theme is the same system inverted, chosen explicitly ---------- */
+:root[data-theme="light"] {
+  color-scheme: light;
 
-  --bg: #0c0e12;
-  --surface: #13161c;
-  --surface-2: #191d25;
-  --surface-3: #212630;
-  --line: #242932;
-  --line-2: #5a6270;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f1f3f7;
+  --surface-3: #e7eaf0;
+  --line: #dfe3ea;
+  --line-2: #9aa3b2;
 
-  --text: #eef1f6;
-  --text-2: #a6aebc;
-  --text-3: #8c94a2;
+  --text: #131720;
+  --text-2: #4a5261;
+  --text-3: #646d7d;
 
-  --accent: #8ea2ff;
-  --accent-hover: #a6b6ff;
-  --accent-ink: #0b0d12;
-  --accent-wash: rgba(142, 162, 255, 0.14);
+  --accent: #3b5bdb;
+  --accent-hover: #2f4bc4;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(59, 91, 219, 0.09);
 
-  --ok: #45cf91;
-  --warn: #f0b054;
-  --bad: #ff7f76;
-  --neutral: #9aa4b4;
+  --ok: #0f7a4a;
+  --warn: #8a5200;
+  --bad: #b3261e;
+  --neutral: #5a6270;
 
-  --wash-ok: rgba(69, 207, 145, 0.14);
-  --wash-warn: rgba(240, 176, 84, 0.14);
-  --wash-bad: rgba(255, 127, 118, 0.13);
-  --wash-neutral: rgba(154, 164, 180, 0.12);
-}
+  --wash-ok: rgba(15, 122, 74, 0.10);
+  --wash-warn: rgba(138, 82, 0, 0.10);
+  --wash-bad: rgba(179, 38, 30, 0.09);
+  --wash-neutral: rgba(90, 98, 112, 0.09);
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
+  --prov-gemini: #1f66d0;
+  --prov-gemini-wash: rgba(31, 102, 208, 0.10);
+  --prov-elevenlabs: #8430c9;
+  --prov-elevenlabs-wash: rgba(132, 48, 201, 0.10);
 
-    --bg: #0c0e12;
-    --surface: #13161c;
-    --surface-2: #191d25;
-    --surface-3: #212630;
-    --line: #242932;
-    --line-2: #5a6270;
-
-    --text: #eef1f6;
-    --text-2: #a6aebc;
-    --text-3: #8c94a2;
-
-    --accent: #8ea2ff;
-    --accent-hover: #a6b6ff;
-    --accent-ink: #0b0d12;
-    --accent-wash: rgba(142, 162, 255, 0.14);
-
-    --ok: #45cf91;
-    --warn: #f0b054;
-    --bad: #ff7f76;
-    --neutral: #9aa4b4;
-
-    --wash-ok: rgba(69, 207, 145, 0.14);
-    --wash-warn: rgba(240, 176, 84, 0.14);
-    --wash-bad: rgba(255, 127, 118, 0.13);
-    --wash-neutral: rgba(154, 164, 180, 0.12);
-  }
+  --rail-bg: #10141d;
+  --rail-bg-2: #171d29;
+  --rail-line: #262e3d;
+  --rail-text: #e9eef7;
+  --rail-muted: #8d97a8;
+  --rail-active: #1d2534;
 }
 
 /* compact density: the same page, one notch tighter ---------------------- */
@@ -158,7 +166,6 @@ export const BASE_CSS = `
   --sp-6: 18px;
   --sp-7: 24px;
   --inset: 14px;
-  /* Comfortable is the wider default now, so compact must not cap tighter. */
   --page-max: 1560px;
 }
 
@@ -261,6 +268,12 @@ body[data-gate="locked"] .app { display: none; }
 .rail-name { display: flex; flex-direction: column; line-height: 1.15; }
 .rail-name b { font-size: 15px; font-weight: 660; letter-spacing: -0.02em; }
 .rail-name span { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rail-muted); }
+/* The provider strip under the wordmark. The console is a multi-provider
+   gateway, so the rail names every provider it proxies, in that provider's
+   own colour, before any page loads. */
+.rail-providers { display: flex; flex-direction: column; gap: 5px; padding: 0 var(--sp-2); }
+.rail-prov { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--rail-muted); }
+.rail-prov b { color: var(--rail-text); font-weight: 560; }
 
 .rail-nav { display: flex; flex-direction: column; gap: var(--sp-4); }
 .rail-group { display: flex; flex-direction: column; gap: 2px; }
@@ -447,6 +460,8 @@ body[data-gate="locked"] .app { display: none; }
 .fig[data-tone="ok"] .fig-value { color: var(--ok); }
 .fig[data-tone="warn"] .fig-value { color: var(--warn); }
 .fig[data-tone="bad"] .fig-value { color: var(--bad); }
+.fig[data-tone="prov-gemini"] .fig-value { color: var(--prov-gemini); }
+.fig[data-tone="prov-elevenlabs"] .fig-value { color: var(--prov-elevenlabs); }
 
 .kpi { padding: 14px var(--inset); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-surface); }
 
@@ -643,7 +658,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   transition: background-color 140ms ease, color 140ms ease;
 }
 .seg button:hover { color: var(--text); background: var(--surface-2); }
-.seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
 /* tags ------------------------------------------------------------------- */
 
@@ -671,7 +686,36 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .tag[data-tone="bad"] { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); background: var(--wash-bad); }
 .tag[data-tone="neutral"] { color: var(--text-2); background: var(--wash-neutral); }
 .tag[data-tone="accent"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-wash); }
+/* "plain" and "info" are two tones the runtime asks for that had no skin: the
+   unlisted-tier badge and the rotated marker rendered as bare text. */
+.tag[data-tone="plain"] { color: var(--text-3); border-color: var(--line-2); background: transparent; }
+.tag.info { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-wash); }
 .tag-mono { font-family: var(--mono); font-size: 11px; letter-spacing: -0.01em; }
+
+/* provider identity ------------------------------------------------------- */
+
+/* A provider badge: the colour AND the word, never the colour alone. */
+.prov {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 1px 9px 1px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 560;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+.prov .prov-dot { width: 7px; height: 7px; }
+.prov[data-p="gemini"] { color: var(--prov-gemini); border-color: color-mix(in srgb, var(--prov-gemini) 40%, var(--line)); background: var(--prov-gemini-wash); }
+.prov[data-p="elevenlabs"] { color: var(--prov-elevenlabs); border-color: color-mix(in srgb, var(--prov-elevenlabs) 40%, var(--line)); background: var(--prov-elevenlabs-wash); }
+.prov-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--neutral); }
+.prov-dot[data-p="gemini"] { background: var(--prov-gemini); }
+.prov-dot[data-p="elevenlabs"] { background: var(--prov-elevenlabs); }
 
 .chip { display: inline-flex; align-items: baseline; gap: 8px; }
 .chip + .chip { margin-left: var(--sp-4); padding-left: var(--sp-4); border-left: 1px solid var(--line); }
@@ -1011,6 +1055,16 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .poolbar-track .warn { background: var(--warn); }
 .poolbar-track .bad { background: var(--bad); }
 .poolbar-track .neutral { background: var(--line-2); }
+/* quota_exhausted: parked with no reset to wait for, which is neither the
+   cooling amber nor the dead red. */
+.poolbar-track .quota { background: var(--accent); }
+.poolbar-track .prov-gemini { background: var(--prov-gemini); }
+.poolbar-track .prov-elevenlabs { background: var(--prov-elevenlabs); }
+/* one provider's pool as a row: badge, proportional bar, ready count */
+.prov-pool { display: flex; align-items: center; gap: var(--sp-3); padding: 11px 0; border-top: 1px solid var(--line); min-width: 0; }
+.prov-pool:first-child { border-top: 0; }
+.prov-pool .poolbar { flex: 1 1 auto; min-width: 0; }
+.prov-pool .count { flex: none; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .legend-item { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); }
 .legend-item .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
@@ -1018,6 +1072,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .legend-item .dot.warn { background: var(--warn); }
 .legend-item .dot.bad { background: var(--bad); }
 .legend-item .dot.neutral { background: var(--line-2); }
+.legend-item .dot.prov-gemini { background: var(--prov-gemini); }
+.legend-item .dot.prov-elevenlabs { background: var(--prov-elevenlabs); }
 .legend-item b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text); font-weight: 560; }
 
 .meter { display: flex; flex-direction: column; gap: 5px; }
@@ -1029,6 +1085,9 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .meter-fill.warn { background: var(--warn); }
 .meter-fill.bad { background: var(--bad); }
 .meter-fill.info { background: var(--accent); }
+/* provider tones: a meter of Gemini traffic is blue, ElevenLabs violet */
+.meter-fill.prov-gemini { background: var(--prov-gemini); }
+.meter-fill.prov-elevenlabs { background: var(--prov-elevenlabs); }
 
 .bars { display: flex; flex-direction: column; gap: 6px; }
 .bar-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 64px; align-items: center; gap: 10px; font-size: 12px; }
@@ -1039,6 +1098,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .bar-fill.warn { background: var(--warn); }
 .bar-fill.bad { background: var(--bad); }
 .bar-fill.neutral { background: var(--line-2); }
+.bar-fill.prov-gemini { background: var(--prov-gemini); }
+.bar-fill.prov-elevenlabs { background: var(--prov-elevenlabs); }
 .bar-row .value { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--text-2); }
 
 .spark { width: 100%; height: 40px; overflow: visible; }
@@ -1052,15 +1113,31 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .daybar span { display: block; width: 100%; }
 .daybar .ok { background: var(--ok); }
 .daybar .warn { background: var(--warn); }
+.daybar .prov-gemini { background: var(--prov-gemini); }
+.daybar .prov-elevenlabs { background: var(--prov-elevenlabs); }
 .daybar-label { position: absolute; left: 0; right: 0; bottom: -18px; font-size: 9.5px; color: var(--text-2); text-align: center; white-space: nowrap; }
 
 
-.heat { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; }
-.heat-cell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--surface-3); }
-.heat-cell[data-l="1"] { background: color-mix(in srgb, var(--accent) 22%, var(--surface-3)); }
-.heat-cell[data-l="2"] { background: color-mix(in srgb, var(--accent) 45%, var(--surface-3)); }
-.heat-cell[data-l="3"] { background: color-mix(in srgb, var(--accent) 70%, var(--surface-3)); }
-.heat-cell[data-l="4"] { background: var(--accent); }
+/* hour-by-weekday heatmap. One label column, then 24 hour cells per row. */
+.heat { display: grid; grid-template-columns: 26px repeat(24, minmax(0, 1fr)); gap: 3px; }
+.heat .h { display: flex; align-items: center; font-size: 9.5px; color: var(--text-3); font-family: var(--mono); min-width: 0; overflow: hidden; white-space: nowrap; }
+.heat .cell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--surface-3); }
+.heat .cell[data-level="1"] { background: color-mix(in srgb, var(--accent) 25%, var(--surface-3)); }
+.heat .cell[data-level="2"] { background: color-mix(in srgb, var(--accent) 45%, var(--surface-3)); }
+.heat .cell[data-level="3"] { background: color-mix(in srgb, var(--accent) 68%, var(--surface-3)); }
+.heat .cell[data-level="4"] { background: color-mix(in srgb, var(--accent) 85%, var(--surface-3)); }
+.heat .cell[data-level="5"] { background: var(--accent); }
+/* "show values" writes the count into every cell that carries traffic. Zero
+   cells stay empty, so the grid does not turn into a field of zeroes. */
+.heat.values .cell:not([data-v="0"])::after {
+  content: attr(data-v);
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  color: var(--text);
+}
 .heat-axis { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; margin-top: 6px; font-size: 10px; color: var(--text-3); font-family: var(--mono); }
 .heat-axis span { text-align: left; overflow: hidden; }
 
@@ -1389,6 +1466,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .u-bad { color: var(--bad); }
 .u-ok { color: var(--ok); }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.nowrap { white-space: nowrap; }
 .sr-only {
   position: absolute;
   width: 1px; height: 1px;
@@ -1630,17 +1708,25 @@ function navMarkup(active: string, idPrefix: string): string {
 
 /**
  * The navigation rail. Ink in both themes: the console always has one edge
- * that never moves, and the operator always knows where they are.
+ * that never moves, and the operator always knows where they are. The strip
+ * under the wordmark names every provider this gateway proxies, so the
+ * multi-provider shape of the system is visible before any data loads.
  */
 export function navRail(active: string, actions = ""): string {
+  const providerStrip =
+    '<div class="rail-providers">' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span>' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span>' +
+    "</div>";
   return (
     '<aside class="rail" aria-label="Sections">' +
     '<a class="rail-brand" href="/pengatur">' +
     '<span class="rail-mark">' +
     icon("command", "icon", 17) +
     "</span>" +
-    '<span class="rail-name"><b>OmniProxy</b><span>Console</span></span>' +
+    '<span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span>' +
     "</a>" +
+    providerStrip +
     '<nav class="rail-nav" aria-label="Console sections">' +
     navMarkup(active, "nav") +
     "</nav>" +
@@ -1744,6 +1830,11 @@ export function consolePage(o: PageOptions): string {
 }
 
 function drawerMarkup(active: string): string {
+  const providerStrip =
+    '<div class="rail-providers">' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span>' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span>' +
+    "</div>";
   return (
     '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div>' +
     '<div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden>' +
@@ -1751,8 +1842,9 @@ function drawerMarkup(active: string): string {
     '<span class="rail-mark">' +
     icon("command", "icon", 17) +
     "</span>" +
-    '<span class="rail-name"><b>OmniProxy</b><span>Console</span></span>' +
+    '<span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span>' +
     "</div>" +
+    providerStrip +
     '<nav class="rail-nav" aria-label="Console sections">' +
     navMarkup(active, "drawer") +
     "</nav>" +
@@ -1935,7 +2027,7 @@ export function authGate(): string {
     icon("lock", "icon", 20) +
     "</span>" +
     "<h1>Admin token</h1>" +
-    '<p class="lede">This console reads the pool, the ledger and the settings of this deployment. The token stays in this browser.</p>' +
+    '<p class="lede">This console reads the Gemini and ElevenLabs pools, the ledger and the settings of this deployment. The token stays in this browser.</p>' +
     '<form id="gateForm" autocomplete="off" class="u-mt-5">' +
     '<label class="field" for="token">Deployment admin token</label>' +
     '<div class="row">' +
@@ -1973,6 +2065,9 @@ export function helpDialog(): string {
     ["rollup", "7d and 30d read the daily rollup, one row per day"],
     ["memory", "The pool and the ledger live in this process. A restart empties them"],
     ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
+    ["gemini", "The Google Generative Language pool. Chat, embeddings and every non-TTS route"],
+    ["elevenlabs", "The ElevenLabs pool. Text to speech and voices, routed by the model name on /v1/audio/speech"],
+    ["provider", "Which upstream pool a key, a model or a request belongs to. Every badge shows the colour and the name"],
   ];
 
   const keyRows = keys
@@ -2183,6 +2278,28 @@ export const CLIENT_JS = `
       ]);
     },
 
+    /* Provider identity: the provider's colour AND its word. The colour is
+       never the only signal, so a badge always names the provider it marks. */
+    providerTag: function (provider) {
+      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      return GX.el("span", { class: "prov", "data-p": p }, [
+        GX.el("span", { class: "prov-dot", "data-p": p }),
+        GX.el("span", { text: p })
+      ]);
+    },
+
+    providerDot: function (provider) {
+      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      return GX.el("span", { class: "prov-dot", "data-p": p, title: p });
+    },
+
+    /* The ledger logs ElevenLabs TTS under the elevenlabs provider and
+       everything else through the Gemini pool, so the model name is enough
+       to say which upstream served a row. */
+    providerFromModel: function (model) {
+      return /eleven/i.test(String(model || "")) ? "elevenlabs" : "gemini";
+    },
+
     /* one figure: label, tabular value, one line of context */
     stat: function (label, value, sub, tone) {
       /* String(value) printed the literal word "undefined" at 27px whenever a
@@ -2232,6 +2349,28 @@ export const CLIENT_JS = `
         ]));
       });
       return GX.el("div", { class: "poolbar" }, [track, legend]);
+    },
+
+    /* one provider's pool: its badge, its proportional bar, its ready count.
+       The per-provider health of a multi-provider gateway is the first thing
+       an operator looks for, so each provider gets its own row. */
+    providerPool: function (provider, snap) {
+      snap = snap || {};
+      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      var ready = Number(snap.ready) || 0;
+      var total = Number(snap.total) || 0;
+      var parts = [
+        { label: "ready", value: ready, tone: "ok" },
+        { label: "cooling", value: Number(snap.cooling) || 0, tone: "warn" },
+        { label: "quota", value: Number(snap.quota_exhausted) || 0, tone: "quota" },
+        { label: "dead", value: Number(snap.dead) || 0, tone: "bad" },
+        { label: "unverified", value: Number(snap.unverified) || 0, tone: "neutral" }
+      ];
+      return GX.el("div", { class: "prov-pool", "data-p": p }, [
+        GX.providerTag(p),
+        GX.poolBar(parts),
+        GX.el("span", { class: "count", text: ready + "/" + total + " ready" })
+      ]);
     },
 
     spark: function (values, width, height) {
@@ -2552,12 +2691,13 @@ export const CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. */
+    /* Theme and density. Both survive a reload. Dark is the console default;
+       the light theme is an explicit choice. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
         if (set) return set;
-        return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        return "dark";
       },
       set: function (value) {
         document.documentElement.setAttribute("data-theme", value);
