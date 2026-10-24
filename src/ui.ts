@@ -526,7 +526,7 @@ body[data-gate="locked"] .app { display: none; }
    space; the two selects are sized to their content; per-page stays narrow. */
 .filter-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(150px, max-content) minmax(150px, max-content) minmax(96px, max-content);
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, max-content) minmax(120px, max-content) minmax(120px, max-content) minmax(96px, max-content);
   gap: var(--sp-2) var(--sp-3);
   align-items: end;
   flex: 1 1 auto;
@@ -764,6 +764,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    horizontal scroll; with one, the value ellipsizes and the button stays put.
    The full credential is always in the cell's title and in the copy button. */
 .table td[data-l="key"] { width: 250px; max-width: 250px; white-space: nowrap; }
+.table td[data-l="provider"] { width: 110px; max-width: 110px; white-space: nowrap; }
 .table td[data-l="status"] { width: 230px; max-width: 230px; }
 .table td[data-l="plan"] { width: 170px; max-width: 170px; }
 /* Stacked rows are full-width cards; the desktop caps above otherwise win on
@@ -771,7 +772,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    the other six, with space-between pushing their values to a different edge.
    This must sit AFTER the base widths to take effect. */
 @media (max-width: 720px) {
-  .table td[data-l="key"], .table td[data-l="status"], .table td[data-l="plan"] {
+  .table td[data-l="key"], .table td[data-l="provider"], .table td[data-l="status"], .table td[data-l="plan"] {
     width: auto; max-width: none;
   }
 }
@@ -782,6 +783,16 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table td .provider-text {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.table .provider-cell {
   white-space: nowrap;
 }
 .table td .key-text {

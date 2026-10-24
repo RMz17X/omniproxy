@@ -44,6 +44,7 @@ export type KeyTierEvidence = {
 export type KeyRow = {
   id: string;
   key: string;
+  provider?: string;
   status: string;
   plan: string;
   planValidated?: boolean;
@@ -118,6 +119,12 @@ const KEYS_BODY = `
             </div>
           </div>
           <div class="filter-cell">
+            <label class="field" for="keyProvider">Provider</label>
+            <select id="keyProvider" class="select">
+              <option value="">all</option>
+            </select>
+          </div>
+          <div class="filter-cell">
             <label class="field" for="keyStatus">Status</label>
             <select id="keyStatus" class="select">
               <option value="">all</option>
@@ -179,6 +186,12 @@ ${confirmDialog()}
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
     <div class="panel-body">
+      <div class="u-mb-3">
+        <label class="field" for="newProvider">Provider</label>
+        <select id="newProvider" class="select">
+          <option value="gemini" selected>gemini</option>
+        </select>
+      </div>
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
       <div class="toolbar u-mt-4">
@@ -203,6 +216,7 @@ const KEYS_SCRIPT = `
     listMeta: document.getElementById("listMeta"),
     keysBody: document.getElementById("keysBody"),
     keyFilter: document.getElementById("keyFilter"),
+    keyProvider: document.getElementById("keyProvider"),
     keyStatus: document.getElementById("keyStatus"),
     keyPlan: document.getElementById("keyPlan"),
     keySize: document.getElementById("keySize"),
@@ -221,12 +235,13 @@ const KEYS_SCRIPT = `
     addClose: document.getElementById("addClose"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
+    newProvider: document.getElementById("newProvider"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg")
   };
 
-  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", status: "", plan: "", selected: {}, timer: null };
+  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", provider: "", status: "", plan: "", selected: {}, timer: null };
 
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
@@ -384,7 +399,7 @@ const KEYS_SCRIPT = `
 
   function writeUrl() {
     GX.url.write({
-      q: state.query, status: state.status, plan: state.plan,
+      q: state.query, provider: state.provider, status: state.status, plan: state.plan,
       size: state.size !== 25 ? state.size : "",
       page: state.page > 1 ? state.page : ""
     });
@@ -393,12 +408,55 @@ const KEYS_SCRIPT = `
   function readUrl() {
     var params = GX.url.read();
     state.query = (params.q || "").toLowerCase();
+    state.provider = params.provider || "";
     state.status = params.status || "";
     state.page = Number(params.page) || 1;
     if (el.keyFilter) el.keyFilter.value = params.q || "";
+    if (el.keyProvider) el.keyProvider.value = state.provider;
     if (el.keyStatus) el.keyStatus.value = params.status || "";
     if (el.keyPlan) el.keyPlan.value = params.plan || "";
     if (params.size && el.keySize) { el.keySize.value = params.size; state.size = Number(params.size) || 25; }
+  }
+
+  function syncProviderOptions(keys) {
+    var providers = {};
+    keys.forEach(function (k) {
+      var p = k.provider || "gemini";
+      providers[p] = true;
+    });
+    if (state.provider) providers[state.provider] = true;
+
+    if (el.keyProvider) {
+      var currentVal = state.provider || el.keyProvider.value;
+      el.keyProvider.textContent = "";
+      var allOpt = document.createElement("option");
+      allOpt.value = "";
+      allOpt.textContent = "all";
+      el.keyProvider.appendChild(allOpt);
+
+      Object.keys(providers).sort().forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        if (p === currentVal) opt.selected = true;
+        el.keyProvider.appendChild(opt);
+      });
+      el.keyProvider.value = currentVal;
+    }
+
+    if (el.newProvider) {
+      var currentNewVal = el.newProvider.value || "gemini";
+      el.newProvider.textContent = "";
+      var known = Object.assign({ gemini: true }, providers);
+      Object.keys(known).sort().forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p;
+        opt.textContent = p;
+        if (p === currentNewVal) opt.selected = true;
+        el.newProvider.appendChild(opt);
+      });
+      el.newProvider.value = currentNewVal;
+    }
   }
 
   function visibleKeys() {
@@ -409,6 +467,8 @@ const KEYS_SCRIPT = `
        81 ready keys. They stay out of the default view; asking for
        status=dead shows them. */
     return state.keys.filter(function (k) {
+      var prov = k.provider || "gemini";
+      if (state.provider && prov !== state.provider) return false;
       var kind = statusKind(k);
       if (state.status && kind !== state.status) return false;
       if (!state.status && kind === "dead") return false;
@@ -429,6 +489,7 @@ const KEYS_SCRIPT = `
       var haystack = [
         k.key,
         k.id,
+        prov,
         k.status,
         planCode,
         tierLabel(planCode),
@@ -490,6 +551,7 @@ const KEYS_SCRIPT = `
          names what each column is; the caption is on the table element below. */
       GX.el("th", { text: "Id", "data-l": "id", scope: "col" }),
       GX.el("th", { text: "Key", "data-l": "key", scope: "col" }),
+      GX.el("th", { text: "Provider", "data-l": "provider", scope: "col" }),
       GX.el("th", { text: "Plan", "data-l": "plan", scope: "col" }),
       GX.el("th", { text: "Status", "data-l": "status", scope: "col" }),
       GX.el("th", { class: "num", text: "Fails", "data-l": "fails", scope: "col" }),
@@ -511,7 +573,7 @@ const KEYS_SCRIPT = `
     var hiddenNote = !state.status && retired ? ", " + retired + " dead hidden" : "";
     el.listMeta.textContent = state.keys.length + " in pool" + hiddenNote + ", " + filtered.length +
       (filtered.length === 1 ? " matches" : " match") +
-      (state.status || state.query ? " these filters" : "");
+      (state.status || state.query || state.provider ? " these filters" : "");
 
     if (!filtered.length) {
       el.keysBody.textContent = "";
@@ -536,12 +598,12 @@ const KEYS_SCRIPT = `
 
     /* An unnamed table with 9 columns. The caption states what the columns are
        and what the row is, which is what a screen reader had to infer. */
-    var table = GX.el("table", { class: "table", "aria-label": "API keys: id, full key, plan, status, consecutive failures, cooldown, last used" });
+    var table = GX.el("table", { class: "table", "aria-label": "API keys: id, full key, provider, plan, status, consecutive failures, cooldown, last used" });
     table.appendChild(tableHead());
 
     var body = GX.el("tbody");
     slice.forEach(function (k) {
-      var tr = GX.el("tr", { "data-key-id": k.id });
+      var tr = GX.el("tr", { "data-key-id": k.id, "data-provider": k.provider || "gemini" });
 
       var pick = GX.el("td", { class: "num pick" });
       var pickLabel = GX.el("label", { class: "pickbox" });
@@ -598,6 +660,10 @@ const KEYS_SCRIPT = `
         }).catch(function () {});
       }
       tr.appendChild(keyCell);
+
+      var provCell = GX.el("td", { class: "provider-cell", "data-l": "provider" });
+      provCell.appendChild(GX.el("span", { class: "provider-text", text: k.provider || "gemini" }));
+      tr.appendChild(provCell);
 
       var planCell = GX.el("td", { "data-l": "plan" });
       var plan = rowPlan(k);
@@ -941,10 +1007,11 @@ const KEYS_SCRIPT = `
 
   function addKeys() {
     var raw = el.newKeys.value;
-    var keys = raw.split(/[\\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    var provider = (el.newProvider && el.newProvider.value) ? el.newProvider.value.trim() : "gemini";
+    var keys = raw.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
     GX.busy(el.addSubmit, "Adding");
-    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys } })
+    GX.api("/pengatur/keys", { method: "POST", body: { keys: keys, provider: provider } })
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";
@@ -971,7 +1038,7 @@ const KEYS_SCRIPT = `
     table.appendChild(tableHead());
     var body = GX.el("tbody");
     var row = GX.el("tr");
-    var td = GX.el("td", { colspan: "9" });
+    var td = GX.el("td", { colspan: "10" });
     var box = GX.state("error", "Could not load the pool", err && err.message ? err.message : "The list request failed.");
     var retry = GX.el("button", { class: "btn btn-sm", type: "button", text: "Try again" });
     retry.addEventListener("click", function () { refresh(); });
@@ -991,6 +1058,7 @@ const KEYS_SCRIPT = `
     return GX.api("/pengatur/keys/list?reveal=1")
       .then(function (data) {
         state.keys = data.keys || [];
+        syncProviderOptions(state.keys);
         if (data.raw) {
           var now = Date.now();
           Object.keys(data.raw).forEach(function (id) {
@@ -1055,6 +1123,14 @@ const KEYS_SCRIPT = `
     writeUrl();
     drawTable();
   }, 140));
+  if (el.keyProvider) {
+    el.keyProvider.addEventListener("change", function () {
+      state.provider = el.keyProvider.value;
+      state.page = 1;
+      writeUrl();
+      drawTable();
+    });
+  }
   el.keyStatus.addEventListener("change", function () {
     state.status = el.keyStatus.value;
     state.page = 1;
@@ -1080,11 +1156,13 @@ const KEYS_SCRIPT = `
     filter: "keyFilter",
     refresh: "refreshBtn",
     onEscape: function () {
-      if (!state.query && !state.status) return;
+      if (!state.query && !state.status && !state.provider) return;
       state.query = "";
       state.status = "";
+      state.provider = "";
       state.page = 1;
       el.keyFilter.value = "";
+      if (el.keyProvider) el.keyProvider.value = "";
       el.keyStatus.value = "";
       writeUrl();
       drawTable();
@@ -1270,6 +1348,7 @@ const DETAIL_SCRIPT = `
   function renderSummary(k) {
     el.summary.textContent = "";
     var rows = [
+      ["Provider", k.provider || "gemini", ""],
       /* The list shows the plan label ("Pay as you go"); the detail page used
          to show the raw code ("paid") for the same key. One fact, one word. */
       ["Plan", tierLabel(k.plan || "") || k.plan || "-", k.plan === "free" ? "ok" : ""],

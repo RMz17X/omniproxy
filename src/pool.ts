@@ -646,7 +646,7 @@ export async function markValidatedPlan(
 ): Promise<void> {
   const st = local.get(key) ?? blank(key);
   if (!evidence || evidence.tier === "unknown") return;
-  st.tier = evidence.tier;
+  st.tier = evidence.tier as KeyTier;
   st.planValidated = true;
   st.planEvidence = evidence;
   local.set(key, st);

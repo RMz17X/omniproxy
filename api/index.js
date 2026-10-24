@@ -16760,7 +16760,7 @@ var KEYS_SCRIPT = `
     var hiddenNote = !state.status && retired ? ", " + retired + " dead hidden" : "";
     el.listMeta.textContent = state.keys.length + " in pool" + hiddenNote + ", " + filtered.length +
       (filtered.length === 1 ? " matches" : " match") +
-      (state.status || state.query ? " these filters" : "");
+      (state.status || state.query || state.provider ? " these filters" : "");
 
     if (!filtered.length) {
       el.keysBody.textContent = "";
@@ -17531,6 +17531,7 @@ var DETAIL_SCRIPT = `
   function renderSummary(k) {
     el.summary.textContent = "";
     var rows = [
+      ["Provider", k.provider || "gemini", ""],
       /* The list shows the plan label ("Pay as you go"); the detail page used
          to show the raw code ("paid") for the same key. One fact, one word. */
       ["Plan", tierLabel(k.plan || "") || k.plan || "-", k.plan === "free" ? "ok" : ""],

@@ -27,6 +27,13 @@ export type AuditRow = {
   detail: Record<string, unknown> | null;
 };
 
+/** Detail recorded for the `keys.add` audit action. */
+export type KeysAddDetail = {
+  received: number;
+  added: number;
+  provider: string;
+};
+
 export type AuditFilter = {
   /** Prefix match, e.g. "keys." matches keys.add and keys.delete. */
   action?: string;

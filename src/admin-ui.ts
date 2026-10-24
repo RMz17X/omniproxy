@@ -166,6 +166,12 @@ const OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
     el.chips.textContent = "";
+    var byProvider = pool.byProvider || pool.providers || {};
+    Object.keys(byProvider).sort().forEach(function (prov) {
+      var p = byProvider[prov];
+      if (!p) return;
+      el.chips.appendChild(GX.chip(prov, p.ready + "/" + p.total + " ready"));
+    });
     if (stats) {
       el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
       el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
