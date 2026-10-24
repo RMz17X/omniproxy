@@ -141,16 +141,25 @@ insert into providers (id, label, base_url, capabilities, wire, key_pattern, mod
 values
   ('gemini', 'Gemini', '', array['llm','tts','image','embeddings'], 'gemini', '^AIza[0-9A-Za-z_-]{20,}$', '{}', true, true, 'Google Generative Language. Chat, TTS, image and embeddings.'),
   ('elevenlabs', 'ElevenLabs', '', array['tts'], 'elevenlabs', '^sk_[a-fA-F0-9]{40,64}$', '{}', true, true, 'Text to speech and voices, routed by model name on /v1/audio/speech.'),
-  ('whatstoken', 'WhatsToken', 'https://www.whatstoken.ai/v1', array['llm','tts','image','video'], 'openai', '^sk-[A-Za-z0-9_-]{16,}$', '{}', true, true, 'OpenAI-compatible model gateway: GPT, Claude, DeepSeek, image and video models.')
+  ('whatstoken', 'WhatsToken', 'https://www.whatstoken.ai/v1', array['llm'], 'openai', '^sk-[A-Za-z0-9_-]{16,}$', array['deepseek-v4.1-flash-1017','deepseek-v4.1-flash-1017-special','deepseek-v4-1-flash','deepseek-v4-flash-ga','deepseek-v4-pro-0813','deepseek-v4-pro-ga-260813'], true, true, 'DeepSeek models through the WhatsToken gateway. Chat only.')
 on conflict (id) do nothing;
 
--- One-time correction: the whatstoken API lives at www.whatstoken.ai (the
--- api.whatstoken.ai subdomain does not resolve). Builtins load their base URL
--- from code, so this only repairs rows seeded before the host was verified.
+-- One-time corrections for rows seeded before the host was verified and the
+-- scope narrowed to DeepSeek. The URL fix is unconditional; the model list is
+-- only restored on a row still carrying the original seed shape (empty list,
+-- old capability set) so an operator's own curation is never overwritten.
 update providers
    set base_url = 'https://www.whatstoken.ai/v1'
  where id = 'whatstoken'
    and base_url = 'https://api.whatstoken.ai/v1';
+
+update providers
+   set capabilities = array['llm'],
+       models = array['deepseek-v4.1-flash-1017','deepseek-v4.1-flash-1017-special','deepseek-v4-1-flash','deepseek-v4-flash-ga','deepseek-v4-pro-0813','deepseek-v4-pro-ga-260813'],
+       note = 'DeepSeek models through the WhatsToken gateway. Chat only.'
+ where id = 'whatstoken'
+   and models = '{}'
+   and capabilities @> array['llm','tts','image','video'];
 
 -- Which pool served a usage row. Model-derived attribution broke the moment a
 -- bare id (gpt-4o, deepseek-v4.1-flash-1017) could route to a non-gemini

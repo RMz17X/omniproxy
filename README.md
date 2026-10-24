@@ -24,8 +24,14 @@ recognises its keys.
 |---|---|---|---|
 | Gemini | gemini | llm, tts, image, embeddings | `AIza…` |
 | ElevenLabs | elevenlabs | tts | `sk_<hex>` |
-| WhatsToken | openai | llm, tts, image, video | `sk-…` |
+| WhatsToken | openai | llm | `sk-…` |
 | custom | openai | operator's choice | operator's pattern |
+
+WhatsToken is deliberately scoped: the gateway hosts a hundred models, this
+deployment fronts it for the DeepSeek family only (`deepseek-v4.1-flash-1017`
+and its siblings), so both its capability set and its declared model list say
+so. Adding a model to the list at `/pengatur/providers` widens what is
+advertised; the capability set decides which routes may reach it at all.
 
 * A model name resolves to a provider in this order: an explicit
   `provider/model` prefix, the ElevenLabs naming convention, a `gemini*` name,

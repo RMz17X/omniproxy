@@ -2118,9 +2118,9 @@ export function helpDialog(): string {
     ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
     ["gemini", "The Google Generative Language pool. Chat, embeddings and every non-TTS route"],
     ["elevenlabs", "The ElevenLabs pool. Text to speech and voices, routed by the model name on /v1/audio/speech"],
-    ["whatstoken", "The WhatsToken pool. An OpenAI-compatible gateway: GPT, Claude, DeepSeek, image and video models"],
+    ["whatstoken", "The WhatsToken pool. An OpenAI-compatible gateway fronted for the DeepSeek family only, on the chat route"],
     ["capability", "What a provider can serve: llm, tts, image, video or embeddings. A route refuses a provider without it"],
-    ["provider/model", "Explicit routing: `whatstoken/gpt-4o` names the pool AND the model. A bare id is resolved by catalog"],
+    ["provider/model", "Explicit routing: `whatstoken/deepseek-v4.1-flash-1017` names the pool AND the model. A bare id is resolved by catalog"],
     ["import", "Reading a provider's own /v1/models into the console, so its models can be picked instead of typed"],
     ["provider", "Which upstream pool a key, a model or a request belongs to. Every badge shows the colour and the name"],
   ];
@@ -2292,7 +2292,7 @@ export const CLIENT_JS = `
       }).catch(function () {});
       /* The rail strip names the builtin providers; the registry adds the
          custom ones so the multi-provider shape is visible on every page. */
-      GX.api("/pengatur/providers").then(function (d) {
+      GX.api("/pengatur/providers/list").then(function (d) {
         if (d && d.providers) GX.railProviders(d.providers);
       }).catch(function () {});
       var result = opts.onSuccess ? opts.onSuccess() : null;

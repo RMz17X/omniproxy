@@ -8,10 +8,10 @@
  * typed by hand or imported from the provider's own /v1/models.
  *
  * The shell carries no data: the browser pastes the admin token once, then
- * reads /pengatur/providers and writes through POST/PATCH/DELETE on the same
- * path. Builtin providers (gemini, elevenlabs, whatstoken) are code-owned:
- * the console may toggle them and curate their model list, never redefine
- * their dialect.
+ * reads /pengatur/providers/list and writes through POST/PATCH/DELETE on the
+ * shell path. Builtin providers (gemini, elevenlabs, whatstoken) are
+ * code-owned: the console may toggle them and curate their model list, never
+ * redefine their dialect.
  */
 
 import { confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
@@ -276,7 +276,7 @@ const PROVIDERS_SCRIPT = `
   }
 
   function reload() {
-    return GX.api("/pengatur/providers")
+    return GX.api("/pengatur/providers/list")
       .then(function (data) {
         state.providers = data.providers || [];
         renderKpis();

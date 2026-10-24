@@ -116,13 +116,24 @@ const BUILTIN: Provider[] = [
     id: "whatstoken",
     label: "WhatsToken",
     baseUrl: process.env.WHATSTOKEN_BASE_URL?.trim() || "https://www.whatstoken.ai/v1",
-    capabilities: ["llm", "tts", "image", "video"],
+    // Deliberately scoped to the DeepSeek family: the gateway hosts a hundred
+    // other models, but this deployment fronts it for DeepSeek only, so the
+    // capability set and the declared list both say so. A route outside llm is
+    // refused with a pointer to the providers that do serve it.
+    capabilities: ["llm"],
     wire: "openai",
     keyPattern: "^sk-[A-Za-z0-9_-]{16,}$",
-    models: [],
+    models: [
+      "deepseek-v4.1-flash-1017",
+      "deepseek-v4.1-flash-1017-special",
+      "deepseek-v4-1-flash",
+      "deepseek-v4-flash-ga",
+      "deepseek-v4-pro-0813",
+      "deepseek-v4-pro-ga-260813",
+    ],
     builtin: true,
     enabled: true,
-    note: "OpenAI-compatible model gateway: GPT, Claude, DeepSeek, image and video models.",
+    note: "DeepSeek models through the WhatsToken gateway. Chat only.",
   },
 ];
 

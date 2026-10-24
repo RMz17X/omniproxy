@@ -360,7 +360,16 @@ app.get("/v1/models", async (c) => {
       continue;
     }
     const raw = (await rawKeyById(st.key)) || st.key;
-    const list = await openaiModelList(provider, raw);
+    const live = await openaiModelList(provider, raw);
+    // A curated model list narrows the public catalog: whatstoken fronts
+    // DeepSeek only, so its other hundred upstream models are not advertised
+    // as servable. No list means the whole upstream catalog is the offering.
+    const declared = provider.models;
+    const list = declared.length
+      ? live.length
+        ? live.filter((m) => declared.includes(m.id))
+        : declared.map((id) => ({ id, ownedBy: provider.id }))
+      : live;
     census[provider.id] = list.length;
     rows.push(
       ...list.map((m) => ({
@@ -572,7 +581,15 @@ async function openaiWireRows(force: boolean): Promise<{
       continue;
     }
     const raw = (await rawKeyById(st.key)) || st.key;
-    const list = await openaiModelList(provider, raw);
+    const live = await openaiModelList(provider, raw);
+    // Same curation rule as the public /v1/models union: a declared list
+    // narrows the console to what this deployment actually serves.
+    const declared = provider.models;
+    const list = declared.length
+      ? live.length
+        ? live.filter((m) => declared.includes(m.id))
+        : declared.map((id) => ({ id, ownedBy: provider.id }))
+      : live;
     census[provider.id] = list.length;
     rows.push(
       ...list.map((m) => ({
@@ -900,8 +917,11 @@ app.post("/pengatur/keys", async (c) => {
  * The registry as the console sees it: every provider with its capabilities,
  * its key counts and whether it is builtin. Drives the add-key provider
  * select, the models filter and the providers page.
+ *
+ * Lives at /list, not at the shell path: two GET handlers on one path means
+ * the first registration wins and the data route would be dead code.
  */
-app.get("/pengatur/providers", async (c) => {
+app.get("/pengatur/providers/list", async (c) => {
   return c.json({
     ok: true,
     providers: await providerViews(),
