@@ -1,9 +1,10 @@
 # OmniProxy
 
-Hono + Bun gateway that fronts a pool of Gemini API keys. Deploys to Vercel
-(Bun runtime) or runs as a plain Bun process. Rotates on quota exhaustion,
-parks dead keys, and speaks three dialects: native Gemini, OpenAI chat, and
-OpenAI speech.
+Hono + Bun gateway that fronts pools of API keys from several providers —
+Gemini, ElevenLabs, WhatsToken, and any OpenAI-compatible upstream an operator
+plugs in. Deploys to Vercel (Bun runtime) or runs as a plain Bun process.
+Rotates on quota exhaustion, parks dead keys, and speaks native Gemini,
+OpenAI chat/speech/embeddings/images, and the ElevenLabs dialect.
 
 ## Why this exists
 
@@ -12,14 +13,45 @@ keys behind one endpoint multiplies the ceiling, but only if the gateway knows
 which key is cooling and which is dead. This one does, and it keeps the state
 either in process memory or in Postgres so multiple Vercel instances agree.
 
+## Providers
+
+Every upstream is a registry entry with four properties: a base URL, the wire
+dialect it speaks (`openai` / `gemini` / `elevenlabs`), the capabilities it
+offers (`llm` / `tts` / `image` / `video` / `embeddings`), and a regex that
+recognises its keys.
+
+| Provider | Wire | Capabilities | Keys |
+|---|---|---|---|
+| Gemini | gemini | llm, tts, image, embeddings | `AIza…` |
+| ElevenLabs | elevenlabs | tts | `sk_<hex>` |
+| WhatsToken | openai | llm, tts, image, video | `sk-…` |
+| custom | openai | operator's choice | operator's pattern |
+
+* A model name resolves to a provider in this order: an explicit
+  `provider/model` prefix, the ElevenLabs naming convention, a `gemini*` name,
+  a provider whose catalog lists the id (declared models plus a live
+  `/v1/models` cache, refreshed every 10 minutes), then Gemini by default.
+* A route requires its capability: a `tts`-only provider is refused on
+  `/v1/chat/completions` with a message naming the providers that do serve it.
+* Keys are matched to a provider by format on intake, so `POST /pengatur/keys`
+  with a bare key list sorts itself. `<PROVIDER>_API_KEYS` env vars seed each
+  pool at boot (`GEMINI_API_KEYS`, `ELEVENLABS_API_KEYS`, `WHATSTOKEN_API_KEYS`,
+  and the same shape for any registered custom provider).
+* Providers are managed at `/pengatur/providers` (console) or
+  `POST/PATCH/DELETE /pengatur/providers` (API). Builtins accept only the
+  enabled flag and a model list; customs accept everything and can import their
+  model list from the upstream's `/v1/models`.
+
 ## Surfaces
 
 | Route | Dialect | Notes |
 |---|---|---|
 | `ANY /v1beta/models/*` | native Gemini | Verbatim passthrough. Streaming, TTS, embeddings, everything. |
 | `POST /v1/chat/completions` | OpenAI | Text, `stream: true` (SSE re-framed), `max_tokens`, `stop`, `temperature`. |
-| `POST /v1/audio/speech` | OpenAI | Gemini TTS wrapped into a valid WAV. `voice` maps OpenAI names → Gemini voices. |
-| `GET /v1/models` | OpenAI | Static list of the models this pool is expected to serve. |
+| `POST /v1/audio/speech` | OpenAI | Gemini or gateway TTS. `voice` maps OpenAI names → Gemini voices. |
+| `POST /v1/embeddings` | OpenAI | Gemini embeddings or a gateway's `/v1/embeddings`. |
+| `POST /v1/images/generations` | OpenAI | Image models on OpenAI-wire providers; Gemini's image models stay on the chat route. |
+| `GET /v1/models` | OpenAI | Union of every provider's catalog; gateway rows are prefixed `provider/model`. |
 | `GET /` | JSON | Health plus a pool snapshot (total / ready / cooling). |
 | `GET /health` | JSON | 200 when at least one key is ready, 503 otherwise. |
 | `GET/POST/DELETE /admin/keys` | JSON | Add, list (masked), remove keys. Requires `ADMIN_TOKEN`. |
@@ -71,6 +103,8 @@ bunx vercel link
 bunx vercel env add ADMIN_TOKEN production
 bunx vercel env add CLIENT_TOKEN production
 bunx vercel env add GEMINI_API_KEYS production
+bunx vercel env add ELEVENLABS_API_KEYS production
+bunx vercel env add WHATSTOKEN_API_KEYS production
 bunx vercel env add DATABASE_URL production
 bunx vercel env add ROLLUP_TOKEN production
 bunx vercel --prod
@@ -113,11 +147,23 @@ curl -s http://localhost:3000/v1/audio/speech \
   -H 'content-type: application/json' \
   -d '{"input":"halo dunia","voice":"nova"}' -o out.wav
 
-# Add keys at runtime
+# Chat through the WhatsToken gateway — bare id or provider/model prefix
+curl -s http://localhost:3000/v1/chat/completions \
+  -H 'authorization: Bearer $CLIENT_TOKEN' \
+  -H 'content-type: application/json' \
+  -d '{"model":"deepseek-v4.1-flash-1017","messages":[{"role":"user","content":"hi"}]}'
+
+# Add keys at runtime (provider auto-detected from the key format)
 curl -s http://localhost:3000/pengatur/keys \
   -H 'authorization: Bearer $ADMIN_TOKEN' \
   -H 'content-type: application/json' \
   -d '{"keys":["AIza...","AIza..."]}'
+
+# Register a custom OpenAI-compatible provider
+curl -s http://localhost:3000/pengatur/providers \
+  -H 'authorization: Bearer $ADMIN_TOKEN' \
+  -H 'content-type: application/json' \
+  -d '{"id":"mygw","label":"My Gateway","baseUrl":"https://gw.example.com/v1","capabilities":["llm","embeddings"],"keyPattern":"^mg-","models":["my-model-1"]}'
 ```
 
 Point the OpenAI SDK at `base_url: http://localhost:3000/v1` and it works
@@ -140,6 +186,7 @@ browser, only its masked form and its sha256 id.
 | `/pengatur/keys` | Every pooled key: plan, health, bulk plan change, probe, remove |
 | `/pengatur/keys/:id` | One key: counters, daily requests, cooldown timeline |
 | `/pengatur/models` | Live model inventory, pricing and a per model probe |
+| `/pengatur/providers` | Provider registry: capabilities, keys, models, enable/disable, import |
 | `/pengatur/settings` | Effective configuration, read only |
 | `/pengatur/audit` | Trail of admin actions |
 

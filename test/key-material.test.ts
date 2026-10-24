@@ -66,7 +66,9 @@ test("the write is an upsert keyed on id", async () => {
   saveMaterial("abc123", "AIzaPLAIN1");
 
   expect(calls).toHaveLength(1);
-  expect(calls[0]?.params).toEqual(["abc123", "AIzaPLAIN1"]);
+  // Third param is the provider column: a material row must remember which
+  // pool it belongs to, or a cold start rebuilds it into the wrong one.
+  expect(calls[0]?.params).toEqual(["abc123", "AIzaPLAIN1", "gemini"]);
   expect(calls[0]?.query).toContain("on conflict (id) do update");
 });
 

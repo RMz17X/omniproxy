@@ -241,7 +241,9 @@ test("a full batch flushes itself", async () => {
     // rows split across statements does not matter; each row must land once.
     expect(calls.length).toBeGreaterThanOrEqual(1);
     expect(calls[0].text).toContain("insert into usage_events");
-    expect(calls.reduce((n, c) => n + c.params.length, 0) - rowsBefore).toBe(15 * 4);
+    // 16 columns per row now: the provider that served the request is one of
+    // them, recorded at commit time instead of guessed from the model name.
+    expect(calls.reduce((n, c) => n + c.params.length, 0) - rowsBefore).toBe(16 * 4);
   } finally {
     setSqlRunner(null);
   }

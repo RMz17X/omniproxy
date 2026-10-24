@@ -43,7 +43,10 @@ test("rollup deletes the day's buckets and rebuilds them from raw events", async
     expect(calls[0].params).toEqual(["2026-10-21"]);
     const text = calls[1].text;
     expect(text).toContain("insert into usage_daily");
-    expect(text).toContain("on conflict (day, route, model, key_id) do update");
+    // The bucket key gained the provider column: the same model name can be
+    // served by different gateways, so the four old columns no longer
+    // identify one bucket.
+    expect(text).toContain("on conflict (day, route, model, key_id, provider) do update");
     expect(text).toContain("percentile_cont(0.5)");
     expect(text).toContain("percentile_cont(0.95)");
     expect(text).toContain("count(*) filter (where status >= 400)");

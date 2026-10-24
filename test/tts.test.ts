@@ -3,8 +3,9 @@
  * - key format validation (sk_ + 40-64 hex)
  * - probe classification (200 = alive with tier, 401/403 = dead/invalid, 429 = quota state with reset)
  * - serve proxy (forward client body as-is with xi-api-key)
- * - routing in app.ts (/v1/audio/speech routes to elevenlabs when picked key is elevenlabs;
- *   chat/embeddings/models reject with 400 when picked key is elevenlabs)
+ * - routing in app.ts (/v1/audio/speech routes to elevenlabs when the model
+ *   names it; a gemini model with only an elevenlabs pool fails on the empty
+ *   gemini pool instead of misrouting through the TTS-only provider)
  */
 import { afterEach, describe, expect, test } from "bun:test";
 import "./env.ts";
@@ -226,7 +227,7 @@ describe("app routing for ElevenLabs vs Gemini", () => {
     globalThis.fetch = origFetch;
   });
 
-  test("routes /v1/audio/speech to ElevenLabs when picked key is elevenlabs", async () => {
+  test("routes /v1/audio/speech to ElevenLabs when the model names it", async () => {
     for (const k of await listKeys()) {
       await removeKeyById(k.id);
     }
@@ -246,6 +247,7 @@ describe("app routing for ElevenLabs vs Gemini", () => {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        model: "eleven_multilingual_v2",
         voice: "21m00Tcm4TlvDq8ikWAM",
         input: "Test voice",
       }),
@@ -256,13 +258,15 @@ describe("app routing for ElevenLabs vs Gemini", () => {
     expect(forwardedToEleven).toBe(true);
   });
 
-  test("rejects chat/embeddings/models with 400 when picked key is elevenlabs", async () => {
+  test("a gemini model with only an ElevenLabs pool fails on the empty gemini pool", async () => {
     for (const k of await listKeys()) {
       await removeKeyById(k.id);
     }
     await addKey(VALID_KEY_40, "elevenlabs");
 
-    // /v1/chat/completions -> 400
+    // The capability gate resolves the provider from the model BEFORE any key
+    // is picked, so a gemini model never reaches the TTS-only pool: it fails
+    // on the gemini pool being empty, which is the actionable truth.
     const chatReq = new Request("http://localhost/v1/chat/completions", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -272,11 +276,10 @@ describe("app routing for ElevenLabs vs Gemini", () => {
       }),
     });
     const chatRes = await app.fetch(chatReq);
-    expect(chatRes.status).toBe(400);
-    const chatData = await chatRes.json();
-    expect(chatData.error?.message).toContain("elevenlabs");
+    expect(chatRes.status).toBe(503);
+    expect((await chatRes.json()).error?.message).toContain("Gemini");
 
-    // /v1/embeddings -> 400
+    // /v1/embeddings -> 503 on the same empty gemini pool
     const embReq = new Request("http://localhost/v1/embeddings", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -286,13 +289,14 @@ describe("app routing for ElevenLabs vs Gemini", () => {
       }),
     });
     const embRes = await app.fetch(embReq);
-    expect(embRes.status).toBe(400);
+    expect(embRes.status).toBe(503);
 
-    // /v1/models -> 400
+    // /v1/models is a catalog union, not a pool probe: it answers from the
+    // gemini catalog even with no gemini key pooled.
     const modReq = new Request("http://localhost/v1/models", {
       method: "GET",
     });
     const modRes = await app.fetch(modReq);
-    expect(modRes.status).toBe(400);
+    expect(modRes.status).toBe(200);
   });
 });

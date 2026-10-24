@@ -115,7 +115,7 @@ const BUILTIN: Provider[] = [
   {
     id: "whatstoken",
     label: "WhatsToken",
-    baseUrl: process.env.WHATSTOKEN_BASE_URL?.trim() || "https://api.whatstoken.ai/v1",
+    baseUrl: process.env.WHATSTOKEN_BASE_URL?.trim() || "https://www.whatstoken.ai/v1",
     capabilities: ["llm", "tts", "image", "video"],
     wire: "openai",
     keyPattern: "^sk-[A-Za-z0-9_-]{16,}$",

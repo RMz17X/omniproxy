@@ -141,8 +141,16 @@ insert into providers (id, label, base_url, capabilities, wire, key_pattern, mod
 values
   ('gemini', 'Gemini', '', array['llm','tts','image','embeddings'], 'gemini', '^AIza[0-9A-Za-z_-]{20,}$', '{}', true, true, 'Google Generative Language. Chat, TTS, image and embeddings.'),
   ('elevenlabs', 'ElevenLabs', '', array['tts'], 'elevenlabs', '^sk_[a-fA-F0-9]{40,64}$', '{}', true, true, 'Text to speech and voices, routed by model name on /v1/audio/speech.'),
-  ('whatstoken', 'WhatsToken', 'https://api.whatstoken.ai/v1', array['llm','tts','image','video'], 'openai', '^sk-[A-Za-z0-9_-]{16,}$', '{}', true, true, 'OpenAI-compatible model gateway: GPT, Claude, DeepSeek, image and video models.')
+  ('whatstoken', 'WhatsToken', 'https://www.whatstoken.ai/v1', array['llm','tts','image','video'], 'openai', '^sk-[A-Za-z0-9_-]{16,}$', '{}', true, true, 'OpenAI-compatible model gateway: GPT, Claude, DeepSeek, image and video models.')
 on conflict (id) do nothing;
+
+-- One-time correction: the whatstoken API lives at www.whatstoken.ai (the
+-- api.whatstoken.ai subdomain does not resolve). Builtins load their base URL
+-- from code, so this only repairs rows seeded before the host was verified.
+update providers
+   set base_url = 'https://www.whatstoken.ai/v1'
+ where id = 'whatstoken'
+   and base_url = 'https://api.whatstoken.ai/v1';
 
 -- Which pool served a usage row. Model-derived attribution broke the moment a
 -- bare id (gpt-4o, deepseek-v4.1-flash-1017) could route to a non-gemini
