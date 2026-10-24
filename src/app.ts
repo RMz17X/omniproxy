@@ -451,7 +451,7 @@ app.post("/pengatur/keys/tier", async (c) => {
 });
 
 app.post("/pengatur/keys", async (c) => {
-  let body: { keys?: string[] | string; key?: string };
+  let body: { keys?: string[] | string; key?: string; provider?: string };
   try {
     body = await c.req.json();
   } catch {
@@ -464,10 +464,15 @@ app.post("/pengatur/keys", async (c) => {
   const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
   if (clean.length === 0) return c.json({ error: { message: "No keys supplied." } }, 400);
 
+  const provider =
+    typeof body.provider === "string" && body.provider.trim()
+      ? body.provider.trim()
+      : "gemini";
+
   const ids: string[] = [];
   let added = 0;
   for (const k of clean) {
-    if (await addKey(k)) {
+    if (await addKey(k, provider)) {
       added++;
       ids.push(keyId(k));
     }
@@ -475,7 +480,7 @@ app.post("/pengatur/keys", async (c) => {
   await auditRecordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
-    detail: { received: clean.length, added },
+    detail: { received: clean.length, added, provider },
   });
   const durable = keyMaterialDurable();
   const warning = durable

@@ -19,6 +19,7 @@ export type KeyIdentity = {
   id: string;
   /** Masked display form. The raw key is never persisted in this table. */
   masked: string;
+  provider: string;
   plan: KeyTier;
   enabled: boolean;
   label: string | null;
@@ -61,6 +62,7 @@ export type KeyIdentity = {
 type KeyRow = {
   id: string;
   masked: string;
+  provider?: string | null;
   label: string | null;
   owner: string | null;
   plan: string;
@@ -116,6 +118,7 @@ function toJson<T>(v: unknown): T | null {
 const toIdentity = (r: KeyRow): KeyIdentity => ({
   id: r.id,
   masked: r.masked,
+  provider: (typeof r.provider === "string" && r.provider.trim()) ? r.provider.trim() : "gemini",
   plan: isTier(r.plan) ? r.plan : "unknown",
   enabled: r.enabled,
   label: r.label,
@@ -138,7 +141,7 @@ const toIdentity = (r: KeyRow): KeyIdentity => ({
 export async function loadKeys(): Promise<KeyIdentity[]> {
   if (!dbEnabled()) return [];
   const res = await sql<KeyRow>(
-    `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
+    `select id, masked, provider, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
             plan_validated_at, last_checked_at, last_used, model_refusals,
             retired_at, retired_reason
@@ -165,20 +168,23 @@ export async function setCooldown(id: string, until: number): Promise<void> {
 export async function upsertKey(identity: {
   id: string;
   masked: string;
+  provider?: string;
   plan?: KeyTier;
   label?: string | null;
   owner?: string | null;
 }): Promise<void> {
   if (!dbEnabled()) return;
   await sql(
-    `insert into keys (id, masked, plan, label, owner)
-     values ($1, $2, $3, $4, $5)
+    `insert into keys (id, masked, provider, plan, label, owner)
+     values ($1, $2, $3, $4, $5, $6)
      on conflict (id) do update
-        set masked = excluded.masked,
-            plan   = excluded.plan`,
+        set masked   = excluded.masked,
+            provider = excluded.provider,
+            plan     = excluded.plan`,
     [
       identity.id,
       identity.masked,
+      identity.provider ?? "gemini",
       identity.plan ?? "unknown",
       identity.label ?? null,
       identity.owner ?? null,

@@ -51,6 +51,10 @@ alter table keys add column if not exists retired_at timestamptz;
 alter table keys add column if not exists retired_reason text;
 alter table keys alter column plan set default 'unknown';
 
+-- Provider dimension. Default 'gemini' so existing Gemini keys remain untouched.
+alter table keys add column if not exists provider text not null default 'gemini';
+create index if not exists keys_provider_status_idx on keys (provider, status);
+
 create table if not exists usage_events (
   ts                timestamptz not null default now(),
   req_id            text,

@@ -19,7 +19,7 @@
 import { sql, sqlLater, dbEnabled } from "./db.ts";
 import { log } from "./log.ts";
 
-type MaterialRow = { id: string; raw_key: string | null };
+export type MaterialRow = { id: string; raw_key: string | null; provider?: string | null };
 
 /** True when there is somewhere durable to write. Delegates, no env of its own. */
 export function materialEnabled(): boolean {

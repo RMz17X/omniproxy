@@ -63,6 +63,7 @@ export type RetirementReason = "invalid" | "leaked" | "zero_quota";
 
 export type KeyState = {
   key: string;
+  provider: string;
   tier: KeyTier;
   failures: number;
   /** permanence marker: the key was rejected as invalid by upstream */
@@ -122,8 +123,9 @@ export function keyId(k: string): string {
   return createHash("sha256").update(k).digest("hex").slice(0, 12);
 }
 
-const blank = (key: string): KeyState => ({
+const blank = (key: string, provider: string = "gemini"): KeyState => ({
   key,
+  provider,
   tier: "unknown",
   failures: 0,
   invalid: false,
@@ -174,7 +176,8 @@ function persistIdentity(st: KeyState): void {
   const id = keyId(st.key);
   const masked = maskKey(st.key);
   const plan = st.tier;
-  later(() => repo.upsertKey({ id, masked, plan }));
+  const provider = st.provider;
+  later(() => repo.upsertKey({ id, masked, plan, provider }));
 }
 
 function persistHealth(st: KeyState, observedAt: number = now()): void {
@@ -221,8 +224,8 @@ function persistHealth(st: KeyState, observedAt: number = now()): void {
 /* ---------- cold start ---------- */
 
 /** Insert one key into the mirror when absent; never disturbs live state. */
-function seed(key: string): void {
-  if (!local.has(key)) local.set(key, blank(key));
+function seed(key: string, provider: string = "gemini"): void {
+  if (!local.has(key)) local.set(key, blank(key, provider));
 }
 
 /**
@@ -262,6 +265,7 @@ export async function hydrate(): Promise<number> {
   for (const row of rows) {
     const hit = byId.get(row.id);
     if (!hit) continue;
+    hit.provider = row.provider || "gemini";
     hit.tier = row.plan;
     hit.failures = Math.max(hit.failures, row.failCount);
     if (row.planValidated) {
@@ -308,12 +312,13 @@ export function keyMaterialDurable(): boolean {
 
 /* ---------- pool management ---------- */
 
-export async function addKey(key: string): Promise<boolean> {
+export async function addKey(key: string, provider: string = "gemini"): Promise<boolean> {
   const k = key.trim();
   if (!k) return false;
+  const p = (provider || "").trim() || "gemini";
   const cur = local.get(k);
   if (cur && !cur.invalid) return false;
-  const st = blank(k);
+  const st = blank(k, p);
   local.set(k, st);
   persistIdentity(st);
   saveMaterial(keyId(k), k);
@@ -399,7 +404,8 @@ export async function rawKeyById(id: string): Promise<string | null> {
  * A key may serve when nothing currently disqualifies it: not dead, not still
  * unproven, and past every known deadline.
  */
-function selectable(s: KeyState, t: number, model?: string): boolean {
+function selectable(s: KeyState, t: number, model?: string, provider?: string): boolean {
+  if (provider && (s.provider || "gemini") !== provider) return false;
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
   // A per-model free-tier refusal disqualifies the pair only: another model
   // on the same credential is untouched, so the key stays in rotation.
@@ -412,14 +418,16 @@ function selectable(s: KeyState, t: number, model?: string): boolean {
 
 /**
  * `model` narrows the candidate set to keys that still hold allowance for it.
+ * `provider` filters keys by provider (e.g. 'gemini', 'elevenlabs').
  * Omit it to ask "any key at all", which is what the pool-exhaustion wait uses.
  */
 export async function pick(
   exclude: Set<string> = new Set(),
   model?: string,
+  provider?: string,
 ): Promise<KeyState | null> {
   const t = now();
-  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model));
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider));
   if (ready.length === 0) return null;
   ready.sort((a, b) => a.failures - b.failures || a.lastUsed - b.lastUsed);
   return ready[0];
@@ -446,12 +454,13 @@ export type ModelBlock = {
   keys: string[];
 };
 
-export function modelBlock(exclude: Set<string>, model: string): ModelBlock {
+export function modelBlock(exclude: Set<string>, model: string, provider?: string): ModelBlock {
   const t = now();
   const refused: string[] = [];
   const parked: string[] = [];
   let untried = false;
   for (const s of local.values()) {
+    if (provider && (s.provider || "gemini") !== provider) continue;
     if (s.invalid || s.status === "dead" || s.status === "unverified") continue;
     if ((s.modelRefusals[model] ?? 0) > t) {
       refused.push(s.key);
@@ -729,6 +738,7 @@ export async function deadKeys(): Promise<string[]> {
 export type KeyView = {
   id: string;
   key: string;
+  provider: string;
   tier: KeyTier;
   /**
    * What the console may display as the plan. `unspecified` while the key is
@@ -755,12 +765,15 @@ const planOf = (s: KeyState): KeyTier | "unspecified" =>
   s.status === "cooling" || s.status === "quota_exhausted" ? "unspecified" : s.tier;
 
 /** Admin view: masked key plus the id used for mutation. */
-export async function listKeys(): Promise<KeyView[]> {
+export async function listKeys(provider?: string): Promise<KeyView[]> {
   const t = now();
-  return [...local.values()]
+  const all = [...local.values()];
+  const filtered = provider ? all.filter((s) => (s.provider || "gemini") === provider) : all;
+  const list = filtered
     .map((s) => ({
       id: keyId(s.key),
       key: maskKey(s.key),
+      provider: s.provider || "gemini",
       tier: s.tier,
       plan: planOf(s),
       planValidated: s.planValidated,
@@ -777,12 +790,36 @@ export async function listKeys(): Promise<KeyView[]> {
       nextAccessAt: Math.max(s.cooldownUntil, s.retryAfterAt),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
+
+  const byProvider: Record<string, KeyView[]> = {};
+  for (const item of list) {
+    (byProvider[item.provider] ??= []).push(item);
+  }
+  Object.defineProperty(list, "byProvider", {
+    value: byProvider,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(list, "providers", {
+    value: byProvider,
+    enumerable: false,
+    configurable: true,
+  });
+
+  return list;
 }
 
 /** Tier census for the console strip: how many keys of each declared plan. */
 export function tierCounts(list: KeyView[]): Record<KeyTier, number> {
   const out: Record<KeyTier, number> = { unknown: 0, free: 0, paid: 0, pro: 0 };
   for (const k of list) out[k.tier] = (out[k.tier] ?? 0) + 1;
+  return out;
+}
+
+/** Provider census: how many keys of each provider. */
+export function providerCounts(list: KeyView[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const k of list) out[k.provider] = (out[k.provider] ?? 0) + 1;
   return out;
 }
 
@@ -805,6 +842,15 @@ export function keySnapshots(): {
   }));
 }
 
+export type ProviderSnapshot = {
+  total: number;
+  ready: number;
+  cooling: number;
+  quota_exhausted: number;
+  dead: number;
+  unverified: number;
+};
+
 export type PoolSnapshot = {
   total: number;
   ready: number;
@@ -816,6 +862,8 @@ export type PoolSnapshot = {
   /** "hosted" when Postgres backs the pool, "memory" when it does not. */
   storage: "memory" | "hosted";
   degraded: boolean;
+  byProvider: Record<string, ProviderSnapshot>;
+  providers: Record<string, ProviderSnapshot>;
 };
 
 export async function snapshot(): Promise<PoolSnapshot> {
@@ -827,20 +875,53 @@ export async function snapshot(): Promise<PoolSnapshot> {
   let dead = 0;
   let unverified = 0;
   let soonest = Infinity;
+  const byProvider: Record<string, ProviderSnapshot> = {};
+
+  const getSlot = (p: string): ProviderSnapshot => {
+    if (!byProvider[p]) {
+      byProvider[p] = {
+        total: 0,
+        ready: 0,
+        cooling: 0,
+        quota_exhausted: 0,
+        dead: 0,
+        unverified: 0,
+      };
+    }
+    return byProvider[p]!;
+  };
+
   for (const s of all) {
-    if (s.invalid || s.status === "dead") dead++;
-    else if (s.status === "unverified") unverified++;
-    else if (s.status === "quota_exhausted" && !(s.retryAfterAt > 0 && s.retryAfterAt <= t)) {
+    const prov = s.provider || "gemini";
+    const ps = getSlot(prov);
+    ps.total++;
+
+    if (s.invalid || s.status === "dead") {
+      dead++;
+      ps.dead++;
+    } else if (s.status === "unverified") {
+      unverified++;
+      ps.unverified++;
+    } else if (s.status === "quota_exhausted" && !(s.retryAfterAt > 0 && s.retryAfterAt <= t)) {
       // A project with no allocation has no reset to wait for: `retryAfterAt`
       // stays 0, so it must not be counted as ready. It stays out of rotation
       // until a recheck proves the upstream serves it again.
       quotaExhausted++;
+      ps.quota_exhausted++;
       if (s.retryAfterAt > t) soonest = Math.min(soonest, s.retryAfterAt - t);
     } else if (s.cooldownUntil > t) {
       cooling++;
+      ps.cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);
-    } else ready++;
+    } else {
+      ready++;
+      ps.ready++;
+    }
   }
+
+  // Ensure 'gemini' entry is always present in byProvider
+  getSlot("gemini");
+
   return {
     total: all.length,
     ready,
@@ -849,10 +930,12 @@ export async function snapshot(): Promise<PoolSnapshot> {
     dead,
     unverified,
     soonestReadyMs: Number.isFinite(soonest) ? soonest : 0,
-      /* One vocabulary for the rail footer: "hosted" when the pool is backed by
-         Postgres, "memory" when it is not. pool.ts used to emit "postgres",
-         which disagreed with settings.data on the same page. */
-      storage: dbEnabled() ? "hosted" : "memory",
-      degraded: counters.dbDegraded > 0,
+    /* One vocabulary for the rail footer: "hosted" when the pool is backed by
+       Postgres, "memory" when it is not. pool.ts used to emit "postgres",
+       which disagreed with settings.data on the same page. */
+    storage: dbEnabled() ? "hosted" : "memory",
+    degraded: counters.dbDegraded > 0,
+    byProvider,
+    providers: byProvider,
   };
 }

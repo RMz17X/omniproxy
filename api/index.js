@@ -8636,6 +8636,7 @@ function toJson(v2) {
 var toIdentity = (r) => ({
   id: r.id,
   masked: r.masked,
+  provider: typeof r.provider === "string" && r.provider.trim() ? r.provider.trim() : "gemini",
   plan: isTier(r.plan) ? r.plan : "unknown",
   enabled: r.enabled,
   label: r.label,
@@ -8656,7 +8657,7 @@ var toIdentity = (r) => ({
 async function loadKeys() {
   if (!dbEnabled()) return [];
   const res = await sql(
-    `select id, masked, label, owner, plan, enabled, fail_count, cooldown_until,
+    `select id, masked, provider, label, owner, plan, enabled, fail_count, cooldown_until,
             status, plan_evidence, quota_state, retry_after_at,
             plan_validated_at, last_checked_at, last_used, model_refusals,
             retired_at, retired_reason
@@ -8673,14 +8674,16 @@ async function setCooldown(id, until) {
 async function upsertKey(identity) {
   if (!dbEnabled()) return;
   await sql(
-    `insert into keys (id, masked, plan, label, owner)
-     values ($1, $2, $3, $4, $5)
+    `insert into keys (id, masked, provider, plan, label, owner)
+     values ($1, $2, $3, $4, $5, $6)
      on conflict (id) do update
-        set masked = excluded.masked,
-            plan   = excluded.plan`,
+        set masked   = excluded.masked,
+            provider = excluded.provider,
+            plan     = excluded.plan`,
     [
       identity.id,
       identity.masked,
+      identity.provider ?? "gemini",
       identity.plan ?? "unknown",
       identity.label ?? null,
       identity.owner ?? null
@@ -8843,8 +8846,9 @@ function maskKey(k) {
 function keyId(k) {
   return createHash("sha256").update(k).digest("hex").slice(0, 12);
 }
-var blank = (key) => ({
+var blank = (key, provider = "gemini") => ({
   key,
+  provider,
   tier: "unknown",
   failures: 0,
   invalid: false,
@@ -8878,7 +8882,8 @@ function persistIdentity(st) {
   const id = keyId(st.key);
   const masked = maskKey(st.key);
   const plan = st.tier;
-  later(() => upsertKey({ id, masked, plan }));
+  const provider = st.provider;
+  later(() => upsertKey({ id, masked, plan, provider }));
 }
 function persistHealth(st, observedAt = now()) {
   const id = keyId(st.key);
@@ -8900,8 +8905,8 @@ function persistHealth(st, observedAt = now()) {
   if (st.lastCheckedAt > 0) later(() => setLastCheckedAt(id, st.lastCheckedAt));
   if (st.lastUsed > 0) later(() => setLastUsed(id, st.lastUsed));
 }
-function seed(key) {
-  if (!local.has(key)) local.set(key, blank(key));
+function seed(key, provider = "gemini") {
+  if (!local.has(key)) local.set(key, blank(key, provider));
 }
 async function hydrate() {
   const env = (process.env.GEMINI_API_KEYS ?? "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
@@ -8922,6 +8927,7 @@ async function hydrate() {
   for (const row of rows) {
     const hit = byId.get(row.id);
     if (!hit) continue;
+    hit.provider = row.provider || "gemini";
     hit.tier = row.plan;
     hit.failures = Math.max(hit.failures, row.failCount);
     if (row.planValidated) {
@@ -8958,12 +8964,13 @@ async function hydrate() {
 function keyMaterialDurable() {
   return materialEnabled();
 }
-async function addKey(key) {
+async function addKey(key, provider = "gemini") {
   const k = key.trim();
   if (!k) return false;
+  const p2 = (provider || "").trim() || "gemini";
   const cur = local.get(k);
   if (cur && !cur.invalid) return false;
-  const st = blank(k);
+  const st = blank(k, p2);
   local.set(k, st);
   persistIdentity(st);
   saveMaterial(keyId(k), k);
@@ -9011,25 +9018,27 @@ async function rawKeyById(id) {
   const hit = [...local.values()].find((s) => keyId(s.key) === id);
   return hit ? hit.key : null;
 }
-function selectable(s, t, model) {
+function selectable(s, t, model, provider) {
+  if (provider && (s.provider || "gemini") !== provider) return false;
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
   if (model && (s.modelRefusals[model] ?? 0) > t) return false;
   if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
   return s.cooldownUntil <= t && s.retryAfterAt <= t;
 }
-async function pick(exclude = /* @__PURE__ */ new Set(), model) {
+async function pick(exclude = /* @__PURE__ */ new Set(), model, provider) {
   const t = now();
-  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model));
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider));
   if (ready.length === 0) return null;
   ready.sort((a2, b2) => a2.failures - b2.failures || a2.lastUsed - b2.lastUsed);
   return ready[0];
 }
-function modelBlock(exclude, model) {
+function modelBlock(exclude, model, provider) {
   const t = now();
   const refused = [];
   const parked = [];
   let untried = false;
   for (const s of local.values()) {
+    if (provider && (s.provider || "gemini") !== provider) continue;
     if (s.invalid || s.status === "dead" || s.status === "unverified") continue;
     if ((s.modelRefusals[model] ?? 0) > t) {
       refused.push(s.key);
@@ -9177,11 +9186,14 @@ async function markHealthy(key, observedAt = now()) {
   later(() => setCooldown(id, 0));
 }
 var planOf = (s) => s.status === "cooling" || s.status === "quota_exhausted" ? "unspecified" : s.tier;
-async function listKeys() {
+async function listKeys(provider) {
   const t = now();
-  return [...local.values()].map((s) => ({
+  const all = [...local.values()];
+  const filtered = provider ? all.filter((s) => (s.provider || "gemini") === provider) : all;
+  const list3 = filtered.map((s) => ({
     id: keyId(s.key),
     key: maskKey(s.key),
+    provider: s.provider || "gemini",
     tier: s.tier,
     plan: planOf(s),
     planValidated: s.planValidated,
@@ -9197,6 +9209,21 @@ async function listKeys() {
     cooldownUntil: s.cooldownUntil,
     nextAccessAt: Math.max(s.cooldownUntil, s.retryAfterAt)
   })).sort((a2, b2) => a2.id.localeCompare(b2.id));
+  const byProvider = {};
+  for (const item of list3) {
+    (byProvider[item.provider] ??= []).push(item);
+  }
+  Object.defineProperty(list3, "byProvider", {
+    value: byProvider,
+    enumerable: false,
+    configurable: true
+  });
+  Object.defineProperty(list3, "providers", {
+    value: byProvider,
+    enumerable: false,
+    configurable: true
+  });
+  return list3;
 }
 function tierCounts(list3) {
   const out = { unknown: 0, free: 0, paid: 0, pro: 0 };
@@ -9212,17 +9239,44 @@ async function snapshot() {
   let dead = 0;
   let unverified = 0;
   let soonest = Infinity;
+  const byProvider = {};
+  const getSlot = (p2) => {
+    if (!byProvider[p2]) {
+      byProvider[p2] = {
+        total: 0,
+        ready: 0,
+        cooling: 0,
+        quota_exhausted: 0,
+        dead: 0,
+        unverified: 0
+      };
+    }
+    return byProvider[p2];
+  };
   for (const s of all) {
-    if (s.invalid || s.status === "dead") dead++;
-    else if (s.status === "unverified") unverified++;
-    else if (s.status === "quota_exhausted" && !(s.retryAfterAt > 0 && s.retryAfterAt <= t)) {
+    const prov = s.provider || "gemini";
+    const ps2 = getSlot(prov);
+    ps2.total++;
+    if (s.invalid || s.status === "dead") {
+      dead++;
+      ps2.dead++;
+    } else if (s.status === "unverified") {
+      unverified++;
+      ps2.unverified++;
+    } else if (s.status === "quota_exhausted" && !(s.retryAfterAt > 0 && s.retryAfterAt <= t)) {
       quotaExhausted++;
+      ps2.quota_exhausted++;
       if (s.retryAfterAt > t) soonest = Math.min(soonest, s.retryAfterAt - t);
     } else if (s.cooldownUntil > t) {
       cooling++;
+      ps2.cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);
-    } else ready++;
+    } else {
+      ready++;
+      ps2.ready++;
+    }
   }
+  getSlot("gemini");
   return {
     total: all.length,
     ready,
@@ -9235,7 +9289,9 @@ async function snapshot() {
        Postgres, "memory" when it is not. pool.ts used to emit "postgres",
        which disagreed with settings.data on the same page. */
     storage: dbEnabled() ? "hosted" : "memory",
-    degraded: counters.dbDegraded > 0
+    degraded: counters.dbDegraded > 0,
+    byProvider,
+    providers: byProvider
   };
 }
 
@@ -17691,22 +17747,24 @@ var AUDIT_BODY = `
     </div>
     <div class="panel-body">
       <div class="toolbar">
-        <div class="grow">
-          <label class="field" for="action">Action prefix</label>
-          <input id="action" type="search" spellcheck="false" placeholder="keys." autocomplete="off">
-        </div>
-        <div class="grow">
-          <label class="field" for="since">Since</label>
-          <input id="since" type="datetime-local">
-        </div>
-        <div class="grow">
-          <label class="field" for="limit">Limit</label>
-          <select id="limit" class="select">
-            <option value="50">50</option>
-            <option value="100" selected>100</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
-          </select>
+        <div class="filter-grid">
+          <div class="filter-cell">
+            <label class="field" for="action">Action prefix</label>
+            <input id="action" type="search" spellcheck="false" placeholder="keys." autocomplete="off">
+          </div>
+          <div class="filter-cell">
+            <label class="field" for="since">Since</label>
+            <input id="since" type="datetime-local">
+          </div>
+          <div class="filter-cell">
+            <label class="field" for="limit">Limit</label>
+            <select id="limit" class="select">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </div>
         </div>
       </div>
       <div id="msg" class="notice u-mt-3" role="status" aria-live="polite"></div>
@@ -18168,10 +18226,11 @@ app.post("/pengatur/keys", async (c) => {
   if (Array.isArray(body.keys)) incoming.push(...body.keys);
   const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
   if (clean.length === 0) return c.json({ error: { message: "No keys supplied." } }, 400);
+  const provider = typeof body.provider === "string" && body.provider.trim() ? body.provider.trim() : "gemini";
   const ids = [];
   let added = 0;
   for (const k of clean) {
-    if (await addKey(k)) {
+    if (await addKey(k, provider)) {
       added++;
       ids.push(keyId(k));
     }
@@ -18179,7 +18238,7 @@ app.post("/pengatur/keys", async (c) => {
   await recordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
-    detail: { received: clean.length, added }
+    detail: { received: clean.length, added, provider }
   });
   const durable = keyMaterialDurable();
   const warning = durable ? {} : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };

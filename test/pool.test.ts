@@ -11,11 +11,13 @@ import { setPool } from "./harness.ts";
 
 import { cfg } from "../src/config.ts";
 import {
+  addKey,
   deadKeys,
   listKeys,
   mark429,
   maskKey,
   markUsed,
+  pick,
   snapshot,
 } from "../src/pool.ts";
 import { execute } from "../src/upstream.ts";
@@ -94,4 +96,32 @@ test("an all-cooling pool answers 429 pool_exhausted without waiting out the coo
   expect(payload.error?.code).toBe("pool_exhausted");
   // Bounded by MAX_WAIT_MS (600ms), not by the 60s cooldown.
   expect(waited).toBeLessThan(5_000);
+});
+
+test("key pool supports provider dimension and filters selection by provider", async () => {
+  await setPool(["AIzaGEMINI1"]);
+  await addKey("sk_test_elevenlabs_1", "elevenlabs");
+
+  const keys = await listKeys();
+  const eleven = keys.find((k) => k.provider === "elevenlabs");
+  const gemini = keys.find((k) => k.provider === "gemini");
+
+  expect(eleven).toBeDefined();
+  expect(gemini).toBeDefined();
+
+  // pick with provider filter
+  const pickedEleven = await pick(new Set(), undefined, "elevenlabs");
+  expect(pickedEleven?.key).toBe("sk_test_elevenlabs_1");
+  expect(pickedEleven?.provider).toBe("elevenlabs");
+
+  const pickedGemini = await pick(new Set(), undefined, "gemini");
+  expect(pickedGemini?.key).toBe("AIzaGEMINI1");
+  expect(pickedGemini?.provider).toBe("gemini");
+
+  // snapshot includes byProvider breakdown
+  const snap = await snapshot();
+  expect(snap.byProvider).toBeDefined();
+  expect(snap.byProvider["elevenlabs"]?.total).toBe(1);
+  expect(snap.byProvider["gemini"]?.total).toBeGreaterThanOrEqual(1);
+  expect(snap.providers["elevenlabs"]?.total).toBe(1);
 });
