@@ -19,7 +19,7 @@ import { log } from "./log.ts";
 import { counters } from "./metrics.ts";
 import { dbEnabled } from "./db.ts";
 import * as repo from "./keys-repo.ts";
-import { loadMaterial, materialEnabled, saveMaterial, deleteMaterial } from "./key-material.ts";
+import { loadMaterial, materialEnabled, saveMaterial, saveMaterialNow, deleteMaterial } from "./key-material.ts";
 import type { QuotaDetail, TierEvidence } from "./verdict.ts";
 
 /** Where durable key metadata lives. */
@@ -171,6 +171,59 @@ function later(fn: () => Promise<void>): void {
 const outranked = (st: KeyState, observedAt: number): boolean =>
   st.retiredAt > observedAt;
 
+/**
+ * Persist raw material for pooled keys that are missing it.
+ *
+ * `saveMaterial` is fire-and-forget, and on a serverless runtime a detached
+ * insert is dropped when the instance is recycled right after the response.
+ * The visible symptom is a durable pool far smaller than the live one: keys
+ * serve traffic in memory, `key_material` never records them, and the next
+ * cold start rebuilds a pool without them — which is why model discovery
+ * intermittently finds "no selectable key" on some instances and not others.
+ *
+ * Only keys already present in THIS instance's pool are backfilled, so a key
+ * that was deliberately removed is never resurrected from a stale sync.
+ * Returns how many rows were written.
+ */
+export async function backfillMaterial(): Promise<number> {
+  if (!materialEnabled()) return 0;
+  let have: Set<string>;
+  try {
+    have = new Set([...(await loadMaterial()).keys()]);
+  } catch {
+    return 0;
+  }
+  let written = 0;
+  for (const [raw, st] of local) {
+    if (st.invalid) continue;
+    const id = keyId(raw);
+    if (have.has(id)) continue;
+    await saveMaterialNow(id, raw);
+    written++;
+  }
+  if (written) log("info", "key_material.backfilled", { written });
+  return written;
+}
+
+/**
+ * Pool size and ready count, for diagnostics only.
+ *
+ * `snapshot()` builds a full view for the console; these are the two numbers a
+ * "no selectable key" error needs to be actionable — whether the instance is
+ * empty (hydration never ran) or full but filtered (every key is cooling down
+ * or retired).
+ */
+export function poolSize(): number {
+  return local.size;
+}
+
+export function readyCount(): number {
+  const t = now();
+  let n = 0;
+  for (const s of local.values()) if (selectable(s, t)) n++;
+  return n;
+}
+
 /** Push the identity half of a key record to the repository. */
 function persistIdentity(st: KeyState): void {
   const id = keyId(st.key);
@@ -321,7 +374,10 @@ export async function addKey(key: string, provider: string = "gemini"): Promise<
   const st = blank(k, p);
   local.set(k, st);
   persistIdentity(st);
-  saveMaterial(keyId(k), k);
+  // Awaited, not fire-and-forget: the sync endpoint answers `durable: true`
+  // from this write, and on a serverless runtime a detached insert is dropped
+  // when the instance is recycled right after the response.
+  await saveMaterialNow(keyId(k), k);
   return true;
 }
 
@@ -421,14 +477,58 @@ function selectable(s: KeyState, t: number, model?: string, provider?: string): 
  * `provider` filters keys by provider (e.g. 'gemini', 'elevenlabs').
  * Omit it to ask "any key at all", which is what the pool-exhaustion wait uses.
  */
+/**
+ * Re-hydrate on a timer, at most once per interval.
+ *
+ * A serverless deployment runs many instances against one Postgres. Each
+ * instance hydrates once at cold start, so an instance that came up before a
+ * key sync never learns the new keys — the sync request only lands on the
+ * instance Vercel happened to route it to. The visible symptom is a pool that
+ * reports "no selectable key" on one instance while another reports 177 ready
+ * at the same moment. Re-hydrating periodically makes every instance converge
+ * on the durable source instead of staying frozen at its own birth snapshot.
+ *
+ * `hydrate()` is idempotent: it merges missing keys and re-applies repo
+ * metadata, so calling it repeatedly only adds keys, never drops state.
+ */
+const HYDRATE_REFRESH_MS = 20_000;
+let lastHydrateAt = 0;
+let hydrating: Promise<void> | null = null;
+
+function refreshFromDurable(): Promise<void> | null {
+  const t = Date.now();
+  if (hydrating) return hydrating;
+  if (t - lastHydrateAt < HYDRATE_REFRESH_MS) return null;
+  lastHydrateAt = t;
+  hydrating = hydrate()
+    .then(() => undefined)
+    .catch((err: unknown) => {
+      log("warn", "pool.refresh_failed", { error: err instanceof Error ? err.message : String(err) });
+    })
+    .finally(() => {
+      hydrating = null;
+    });
+  return hydrating;
+}
+
 export async function pick(
   exclude: Set<string> = new Set(),
   model?: string,
   provider?: string,
 ): Promise<KeyState | null> {
+  // Cheap local check first; only when this instance has nothing to hand out
+  // do we spend a round trip on the durable source.
   const t = now();
   const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider));
-  if (ready.length === 0) return null;
+  if (ready.length === 0) {
+    const pending = refreshFromDurable();
+    if (pending) await pending;
+    const t2 = now();
+    const retry = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t2, model, provider));
+    if (retry.length === 0) return null;
+    retry.sort((a, b) => a.failures - b.failures || a.lastUsed - b.lastUsed);
+    return retry[0];
+  }
   ready.sort((a, b) => a.failures - b.failures || a.lastUsed - b.lastUsed);
   return ready[0];
 }

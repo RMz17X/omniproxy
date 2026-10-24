@@ -8819,9 +8819,9 @@ async function loadMaterial() {
   }
   return out;
 }
-function saveMaterial(id, raw2) {
+async function saveMaterialNow(id, raw2) {
   if (!dbEnabled()) return;
-  sqlLater(
+  await sql(
     `insert into key_material (id, raw_key) values ($1, $2)
      on conflict (id) do update
        set raw_key = excluded.raw_key, updated_at = now()`,
@@ -8878,6 +8878,34 @@ function later(fn) {
   });
 }
 var outranked = (st, observedAt) => st.retiredAt > observedAt;
+async function backfillMaterial() {
+  if (!materialEnabled()) return 0;
+  let have;
+  try {
+    have = /* @__PURE__ */ new Set([...(await loadMaterial()).keys()]);
+  } catch {
+    return 0;
+  }
+  let written = 0;
+  for (const [raw2, st] of local) {
+    if (st.invalid) continue;
+    const id = keyId(raw2);
+    if (have.has(id)) continue;
+    await saveMaterialNow(id, raw2);
+    written++;
+  }
+  if (written) log("info", "key_material.backfilled", { written });
+  return written;
+}
+function poolSize() {
+  return local.size;
+}
+function readyCount() {
+  const t = now();
+  let n = 0;
+  for (const s of local.values()) if (selectable(s, t)) n++;
+  return n;
+}
 function persistIdentity(st) {
   const id = keyId(st.key);
   const masked = maskKey(st.key);
@@ -8973,7 +9001,7 @@ async function addKey(key, provider = "gemini") {
   const st = blank(k, p2);
   local.set(k, st);
   persistIdentity(st);
-  saveMaterial(keyId(k), k);
+  await saveMaterialNow(keyId(k), k);
   return true;
 }
 async function removeKey(key) {
@@ -9025,10 +9053,33 @@ function selectable(s, t, model, provider) {
   if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
   return s.cooldownUntil <= t && s.retryAfterAt <= t;
 }
+var HYDRATE_REFRESH_MS = 2e4;
+var lastHydrateAt = 0;
+var hydrating = null;
+function refreshFromDurable() {
+  const t = Date.now();
+  if (hydrating) return hydrating;
+  if (t - lastHydrateAt < HYDRATE_REFRESH_MS) return null;
+  lastHydrateAt = t;
+  hydrating = hydrate().then(() => void 0).catch((err2) => {
+    log("warn", "pool.refresh_failed", { error: err2 instanceof Error ? err2.message : String(err2) });
+  }).finally(() => {
+    hydrating = null;
+  });
+  return hydrating;
+}
 async function pick(exclude = /* @__PURE__ */ new Set(), model, provider) {
   const t = now();
   const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider));
-  if (ready.length === 0) return null;
+  if (ready.length === 0) {
+    const pending2 = refreshFromDurable();
+    if (pending2) await pending2;
+    const t2 = now();
+    const retry = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t2, model, provider));
+    if (retry.length === 0) return null;
+    retry.sort((a2, b2) => a2.failures - b2.failures || a2.lastUsed - b2.lastUsed);
+    return retry[0];
+  }
   ready.sort((a2, b2) => a2.failures - b2.failures || a2.lastUsed - b2.lastUsed);
   return ready[0];
 }
@@ -12378,6 +12429,41 @@ var MODELS_BODY = `
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
     </div>
   </section>
+
+  <section class="panel u-mt-4" id="elSection" hidden>
+    <div class="panel-head">
+      <h2>ElevenLabs</h2>
+      <div class="actions">
+        <button id="elReloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh voices</button>
+      </div>
+    </div>
+    <p class="hint">
+      Voice and TTS model inventory from api.elevenlabs.io. Free tier can use the
+      <code>premade</code> voices; <code>professional</code> voices return
+      <code>402 paid_plan_required</code> unless the serving key is on a paid plan.
+      Use these names in <code>POST /v1/audio/speech</code> with
+      <code>"model": "eleven_multilingual_v2"</code>.
+    </p>
+    <div class="toolbar u-mt-3">
+      <div class="grow">
+        <label class="field" for="elVoiceQ">Search voices</label>
+        <div class="search">
+          ${icon("search", "icon", 14)}
+          <input id="elVoiceQ" class="input" type="search" spellcheck="false" placeholder="George, Sarah, multilingual">
+        </div>
+      </div>
+      <div class="grow">
+        <label class="field" for="elCat">Category</label>
+        <select id="elCat" class="select">
+          <option value="">all</option>
+          <option value="premade">premade (free tier)</option>
+          <option value="professional">professional (paid)</option>
+        </select>
+      </div>
+    </div>
+    <div id="elBody" class="table-wrap u-mt-3">${stateBlock("loading", "Loading ElevenLabs inventory")}</div>
+    <div class="panel-foot"><div id="elMsg" class="notice" role="status" aria-live="polite"></div></div>
+  </section>
 </div>
 `;
 var MODELS_SCRIPT = `
@@ -12398,7 +12484,13 @@ var MODELS_SCRIPT = `
     pager: document.getElementById("pager"),
     listMeta: document.getElementById("listMeta"),
     msg: document.getElementById("msg"),
-    rowMsg: document.getElementById("rowMsg")
+    rowMsg: document.getElementById("rowMsg"),
+    elSection: document.getElementById("elSection"),
+    elReloadBtn: document.getElementById("elReloadBtn"),
+    elBody: document.getElementById("elBody"),
+    elMsg: document.getElementById("elMsg"),
+    elVoiceQ: document.getElementById("elVoiceQ"),
+    elCat: document.getElementById("elCat")
   };
 
   var TIER_LABELS = {
@@ -12416,6 +12508,7 @@ var MODELS_SCRIPT = `
   };
 
   var state = { models: [], page: 1, size: 25, tier: "free", testing: {} };
+  var elState = { voices: [], models: [] };
 
   function money(v) {
     if (v === null || v === undefined) return null;
@@ -12728,6 +12821,73 @@ var MODELS_SCRIPT = `
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
   GX.shortcuts({ filter: "q", refresh: "reloadBtn" });
+  /* ---------- ElevenLabs ---------- */
+
+  function elEsc(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function elRender() {
+    var q = (el.elVoiceQ.value || "").trim().toLowerCase();
+    var cat = el.elCat.value || "";
+    var rows = elState.voices.filter(function (v) {
+      if (cat && String(v.category) !== cat) return false;
+      if (!q) return true;
+      var labels = v.labels || {};
+      return (String(v.name) + " " + String(v.voice_id) + " " + JSON.stringify(labels)).toLowerCase().indexOf(q) >= 0;
+    });
+
+    var meta = el.elBody.parentNode.parentNode.querySelector(".panel-head .meta");
+    if (meta) meta.textContent = rows.length + " voice" + (rows.length === 1 ? "" : "s") +
+      (elState.models.length ? " \xB7 " + elState.models.length + " models" : "");
+
+    if (!rows.length) {
+      el.elBody.innerHTML = stateBlock("empty", "No ElevenLabs voices matched", "Adjust the search or category filter.");
+      return;
+    }
+
+    var html = '<table class="table"><thead><tr>' +
+      "<th>Voice</th><th>Category</th><th>Labels</th><th>Voice ID</th>" +
+      "</tr></thead><tbody>";
+    rows.forEach(function (v) {
+      var labels = Object.keys(v.labels || {}).map(function (k) {
+        return k + ": " + v.labels[k];
+      }).join(", ");
+      var free = String(v.category) === "premade";
+      html += "<tr>" +
+        "<td><strong>" + elEsc(v.name) + "</strong></td>" +
+        "<td><span class="chip" + (free ? "" : " chip-warn") + "">" + elEsc(v.category) + "</span></td>" +
+        "<td class="muted">" + elEsc(labels) + "</td>" +
+        "<td><code>" + elEsc(v.voice_id) + "</code></td>" +
+        "</tr>";
+    });
+    el.elBody.innerHTML = html + "</tbody></table>";
+
+    var m = elState.models.map(function (x) { return x.model_id; });
+    el.elMsg.textContent = m.length
+      ? "TTS models: " + m.join(", ")
+      : "";
+  }
+
+  function loadElevenLabs(force) {
+    el.elSection.hidden = false;
+    el.elBody.innerHTML = stateBlock("loading", "Loading ElevenLabs inventory");
+    return GX.fetch("/pengatur/elevenlabs/list" + (force ? "?refresh=1" : ""), {})
+      .then(function (d) {
+        if (!d.ok) {
+          el.elBody.innerHTML = stateBlock("error", "ElevenLabs unavailable", d.error || "no keys");
+          return;
+        }
+        elState.voices = d.voices || [];
+        elState.models = d.models || [];
+        elRender();
+      })
+      .catch(function (err) {
+        el.elBody.innerHTML = stateBlock("error", "Could not load ElevenLabs", String(err && err.message || err));
+      });
+  }
+
   GX.gate({
     onSuccess: function () {
       readUrl();
@@ -12735,7 +12895,10 @@ var MODELS_SCRIPT = `
         button.setAttribute("aria-pressed", button.getAttribute("data-tier") === state.tier ? "true" : "false");
       });
       el.tierNote.textContent = TIER_NOTES[state.tier];
-      return load();
+      el.elReloadBtn.addEventListener("click", function () { loadElevenLabs(true); });
+      el.elVoiceQ.addEventListener("input", elRender);
+      el.elCat.addEventListener("change", elRender);
+      return load().then(function () { return loadElevenLabs(false); });
     }
   });
 })();
@@ -13508,16 +13671,49 @@ function kindOf(id, methods) {
   if (methods.some((x2) => /embedContent|embedText/i.test(x2))) return "embedding";
   return "text";
 }
-async function candidateKeys(limit = 6) {
-  const out = [];
+var leakedForListing = /* @__PURE__ */ new Set();
+var knownGoodForListing = /* @__PURE__ */ new Set();
+var DISCOVERY_BACKOFF_MS = 3e5;
+var discoveryBlockedUntil = 0;
+var PROBE_CAP = 100;
+async function candidateKeys(limit = 12) {
+  const states = [];
   const seen = /* @__PURE__ */ new Set();
-  for (let i = 0; i < limit; i++) {
-    const st = await pick(seen);
+  for (; ; ) {
+    const st = await pick(seen, void 0, "gemini");
     if (!st) break;
     seen.add(st.key);
-    out.push(st.key);
+    states.push(st);
   }
+  const rank = (s) => knownGoodForListing.has(s.key) ? 0 : leakedForListing.has(s.key) ? 4 : s.status === "ready" && s.key.startsWith("AIzaSy") ? 1 : s.status === "ready" ? 2 : 3;
+  states.sort(
+    (a2, b2) => rank(a2) - rank(b2) || (a2.key < b2.key ? -1 : a2.key > b2.key ? 1 : 0)
+  );
+  const out = states.slice(0, limit).map((s) => s.key);
+  lastCandidateDebug = {
+    out: out.length,
+    walked: states.length,
+    ready: states.filter((s) => s.status === "ready").length,
+    aiPrefix: states.filter((s) => s.key.startsWith("AIzaSy")).length,
+    aiReady: states.filter((s) => s.status === "ready" && s.key.startsWith("AIzaSy")).length,
+    aiLeaked: states.filter((s) => leakedForListing.has(s.key) && s.key.startsWith("AIzaSy")).length,
+    firstOut: out[0] ? out[0].slice(0, 8) : "",
+    firstAi: states.find((s) => s.key.startsWith("AIzaSy"))?.key.slice(0, 8) ?? "",
+    maxFail: Math.max(0, ...states.map((s) => s.failures)),
+    pool: poolSize()
+  };
   return out;
+}
+var lastCandidateDebug = null;
+function discoveryDebug() {
+  return {
+    pool: poolSize(),
+    ready: readyCount(),
+    leakedKnown: leakedForListing.size,
+    knownGood: knownGoodForListing.size,
+    discoveryBlockedForMs: Math.max(0, discoveryBlockedUntil - Date.now()),
+    candidates: lastCandidateDebug
+  };
 }
 async function fetchWithKey(key) {
   const url = `${cfg.upstream.replace(/\/$/, "")}/v1beta/models?pageSize=1000`;
@@ -13531,14 +13727,26 @@ async function listLiveModels(force = false) {
   if (!force && cache && Date.now() - cache.at < CACHE_MS) {
     return { models: cache.models, source: cache.source, cached: true };
   }
-  const keys = await candidateKeys();
+  if (Date.now() < discoveryBlockedUntil) {
+    const err2 = new Error(
+      `Model discovery blocked: every pooled key is flagged leaked. (known=${leakedForListing.size}, pool=${poolSize()})`
+    );
+    err2.code = "leaked_pool";
+    throw err2;
+  }
+  const keys = await candidateKeys(40);
   if (!keys.length) {
-    const err2 = new Error("Pool has no selectable key, cannot query the model list.");
+    const err2 = new Error(
+      `Pool has no selectable key, cannot query the model list. (pool=${poolSize()}, ready=${readyCount()}, leaked=${leakedForListing.size}, cand=${JSON.stringify(lastCandidateDebug)})`
+    );
     err2.code = "empty_pool";
     throw err2;
   }
   let lastErr = "";
-  for (const key of keys) {
+  let probed = 0;
+  for (let i = 0; i < PROBE_CAP; i++) {
+    const key = keys[i];
+    if (!key) break;
     let res;
     try {
       res = await fetchWithKey(key);
@@ -13546,12 +13754,21 @@ async function listLiveModels(force = false) {
       lastErr = e instanceof Error ? e.message : String(e);
       continue;
     }
+    probed++;
     const body = await res.text().catch(() => "");
     if (!res.ok) {
       lastErr = `HTTP ${res.status}: ${upstreamMessage(body, res.status)}`;
       log("warn", "models.list_key_failed", { status: res.status, zeroQuota: isZeroQuota(body) });
+      if (res.status === 403 && /reported as leaked/i.test(body)) {
+        leakedForListing.add(key);
+        knownGoodForListing.delete(key);
+        log("info", "models.key_skipped_leaked", {});
+        const next = await pick(new Set(keys));
+        if (next) keys.push(next.key);
+      }
       continue;
     }
+    knownGoodForListing.add(key);
     let payload;
     try {
       payload = JSON.parse(body);
@@ -13587,7 +13804,31 @@ async function listLiveModels(force = false) {
     return { models: models2, source: cache.source, cached: false };
   }
   if (cache) return { models: cache.models, source: cache.source + " (stale)", cached: true };
-  throw new Error(lastErr || "Could not list models with any pooled key.");
+  if (probed >= PROBE_CAP && leakedForListing.size >= poolSize()) {
+    discoveryBlockedUntil = Date.now() + DISCOVERY_BACKOFF_MS;
+  }
+  throw new Error(
+    lastErr ? `${lastErr} (probed=${probed}, good=${knownGoodForListing.size})` : "Could not list models with any pooled key."
+  );
+}
+function catalogModels() {
+  return CATALOG.map((c) => ({
+    id: c.id,
+    name: c.id,
+    displayName: c.name,
+    description: "",
+    version: "",
+    methods: [],
+    inputTokenLimit: null,
+    outputTokenLimit: null,
+    kind: c.kind,
+    free: c.free,
+    freeLabel: c.freeLabel,
+    inUsd: c.inUsd,
+    outUsd: c.outUsd,
+    inRaw: c.inRaw,
+    outRaw: c.outRaw
+  }));
 }
 async function testModel(modelId, rawKey, tier = "unknown") {
   const id = modelId.replace(/^models\//, "").trim();
@@ -14107,6 +14348,39 @@ async function probeElevenLabs(rawKey, timeoutMs = TIMEOUT_MS2) {
     tierEvidence: classified.tierEvidence
   };
 }
+function toElevenLabsBody(bodyText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    return bodyText;
+  }
+  if (!parsed || typeof parsed !== "object") return bodyText;
+  const isNative = typeof parsed.text === "string";
+  const hasModelId = typeof parsed.model_id === "string";
+  if (isNative && hasModelId) return bodyText;
+  const out = { ...parsed };
+  const text = parsed.input ?? parsed.text ?? parsed.prompt;
+  if (typeof text === "string") out.text = text;
+  delete out.input;
+  delete out.prompt;
+  const model = parsed.model_id ?? parsed.model;
+  if (typeof model === "string") out.model_id = model;
+  delete out.model;
+  const voice = parsed.voice_id ?? parsed.voice;
+  if (typeof voice === "string") out.voice_id = voice;
+  delete out.voice;
+  const fmt = parsed.response_format;
+  if (typeof fmt === "string" && !out.output_format) {
+    out.output_format = fmt === "wav" ? "pcm_44100" : `mp3_44100_${fmt === "opus" ? "64" : "128"}`;
+  }
+  delete out.response_format;
+  const speed = typeof parsed.speed === "number" ? parsed.speed : void 0;
+  delete out.speed;
+  const vs2 = typeof parsed.voice_settings === "object" && parsed.voice_settings || {};
+  out.voice_settings = speed === void 0 ? vs2 : { ...vs2, speed };
+  return JSON.stringify(out);
+}
 async function serveElevenLabs(req, key) {
   let rawKey = key ? await rawKeyById(key) || key : void 0;
   if (!rawKey) {
@@ -14142,7 +14416,7 @@ async function serveElevenLabs(req, key) {
       "content-type": "application/json",
       "xi-api-key": rawKey
     },
-    body: bodyText,
+    body: toElevenLabsBody(bodyText),
     signal: req.signal
   });
   noteUsage(req, {
@@ -14160,6 +14434,31 @@ async function serveElevenLabs(req, key) {
     status: res.status,
     headers: respHeaders
   });
+}
+async function listElevenLabsInventory() {
+  const st = await pick(/* @__PURE__ */ new Set(), void 0, "elevenlabs");
+  if (!st) return null;
+  const rawKey = await rawKeyById(st.key) || st.key;
+  const fetchJson = async (path) => {
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/${path}`, {
+        headers: { "xi-api-key": rawKey },
+        signal: AbortSignal.timeout(TIMEOUT_MS2)
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  };
+  const [voices, models2] = await Promise.all([
+    fetchJson("voices"),
+    fetchJson("models")
+  ]);
+  return {
+    voices: voices?.voices ?? [],
+    models: models2 ?? []
+  };
 }
 
 // src/probe.ts
@@ -18314,40 +18613,51 @@ app.get("/pengatur/status", async (c) => {
     }
   });
 });
+var ELEVENLABS_MODEL_RE = /^(eleven[_-]|elevenlabs|tts-1|eleven_)/i;
+async function peekModel(req) {
+  try {
+    const parsed = JSON.parse(await req.clone().text());
+    return typeof parsed.model === "string" ? parsed.model : "";
+  } catch {
+    return "";
+  }
+}
 app.post("/v1/chat/completions", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
-    return c.json(
-      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
-      400
-    );
+  const st = await pick(/* @__PURE__ */ new Set(), void 0, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return chatCompletions(c.req.raw);
 });
 app.post("/v1/audio/speech", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
-    return serveElevenLabs(c.req.raw, st.key);
+  const model = await peekModel(c.req.raw);
+  if (ELEVENLABS_MODEL_RE.test(model)) {
+    const st2 = await pick(/* @__PURE__ */ new Set(), void 0, "elevenlabs");
+    if (!st2) {
+      return c.json(
+        { error: { message: "No available ElevenLabs API keys in pool." } },
+        503
+      );
+    }
+    return serveElevenLabs(c.req.raw, st2.key);
+  }
+  const st = await pick(/* @__PURE__ */ new Set(), void 0, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return speech(c.req.raw);
 });
 app.post("/v1/embeddings", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
-    return c.json(
-      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
-      400
-    );
+  const st = await pick(/* @__PURE__ */ new Set(), void 0, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return embeddings(c.req.raw);
 });
 app.get("/v1/models", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
-    return c.json(
-      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
-      400
-    );
+  const st = await pick(/* @__PURE__ */ new Set(), void 0, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return models();
 });
@@ -18394,8 +18704,48 @@ app.get("/pengatur/models/list", async (c) => {
   } catch (err2) {
     const message = err2 instanceof Error ? err2.message : String(err2);
     const status = err2.code === "empty_pool" ? 503 : 502;
-    return c.json({ error: { message } }, status);
+    log("warn", "models.list_fallback_catalog", { reason: message });
+    const fallback = catalogModels();
+    return c.json({
+      ok: true,
+      count: fallback.length,
+      models: fallback,
+      source: "catalog",
+      cached: false,
+      degraded: true,
+      degradedReason: message,
+      status,
+      debug: discoveryDebug(),
+      pricing: pricingMeta()
+    });
   }
+});
+var ELEVENLABS_CACHE_MS = 6e5;
+var elevenLabsCache = null;
+app.get("/pengatur/elevenlabs/list", async (c) => {
+  const force = new URL(c.req.url).searchParams.get("refresh") === "1";
+  if (!force && elevenLabsCache && Date.now() - elevenLabsCache.at < ELEVENLABS_CACHE_MS) {
+    return c.json({
+      ok: true,
+      cached: true,
+      voices: elevenLabsCache.voices,
+      models: elevenLabsCache.models
+    });
+  }
+  const inv = await listElevenLabsInventory();
+  if (!inv) {
+    return c.json(
+      { ok: false, error: "No available ElevenLabs API keys in pool.", voices: [], models: [] },
+      503
+    );
+  }
+  elevenLabsCache = { at: Date.now(), voices: inv.voices, models: inv.models };
+  return c.json({
+    ok: true,
+    cached: false,
+    voices: inv.voices,
+    models: inv.models
+  });
 });
 app.post("/pengatur/models/test", async (c) => {
   let body;
@@ -18565,6 +18915,14 @@ app.post("/pengatur/keys", async (c) => {
   const durable = keyMaterialDurable();
   const warning = durable ? {} : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
   return c.json({ ok: true, received: clean.length, added, ids, durable, ...warning, pool: await snapshot() });
+});
+app.post("/pengatur/keys/backfill-material", async (c) => {
+  const written = await backfillMaterial();
+  await recordNow("keys.backfill_material", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { written }
+  });
+  return c.json({ ok: true, written });
 });
 app.delete("/pengatur/keys", async (c) => {
   let body;

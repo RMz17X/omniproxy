@@ -91,6 +91,41 @@ const MODELS_BODY = `
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
     </div>
   </section>
+
+  <section class="panel u-mt-4" id="elSection" hidden>
+    <div class="panel-head">
+      <h2>ElevenLabs</h2>
+      <div class="actions">
+        <button id="elReloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh voices</button>
+      </div>
+    </div>
+    <p class="hint">
+      Voice and TTS model inventory from api.elevenlabs.io. Free tier can use the
+      <code>premade</code> voices; <code>professional</code> voices return
+      <code>402 paid_plan_required</code> unless the serving key is on a paid plan.
+      Use these names in <code>POST /v1/audio/speech</code> with
+      <code>"model": "eleven_multilingual_v2"</code>.
+    </p>
+    <div class="toolbar u-mt-3">
+      <div class="grow">
+        <label class="field" for="elVoiceQ">Search voices</label>
+        <div class="search">
+          ${icon("search", "icon", 14)}
+          <input id="elVoiceQ" class="input" type="search" spellcheck="false" placeholder="George, Sarah, multilingual">
+        </div>
+      </div>
+      <div class="grow">
+        <label class="field" for="elCat">Category</label>
+        <select id="elCat" class="select">
+          <option value="">all</option>
+          <option value="premade">premade (free tier)</option>
+          <option value="professional">professional (paid)</option>
+        </select>
+      </div>
+    </div>
+    <div id="elBody" class="table-wrap u-mt-3">${stateBlock("loading", "Loading ElevenLabs inventory")}</div>
+    <div class="panel-foot"><div id="elMsg" class="notice" role="status" aria-live="polite"></div></div>
+  </section>
 </div>
 `;
 
@@ -112,7 +147,13 @@ const MODELS_SCRIPT = `
     pager: document.getElementById("pager"),
     listMeta: document.getElementById("listMeta"),
     msg: document.getElementById("msg"),
-    rowMsg: document.getElementById("rowMsg")
+    rowMsg: document.getElementById("rowMsg"),
+    elSection: document.getElementById("elSection"),
+    elReloadBtn: document.getElementById("elReloadBtn"),
+    elBody: document.getElementById("elBody"),
+    elMsg: document.getElementById("elMsg"),
+    elVoiceQ: document.getElementById("elVoiceQ"),
+    elCat: document.getElementById("elCat")
   };
 
   var TIER_LABELS = {
@@ -130,6 +171,7 @@ const MODELS_SCRIPT = `
   };
 
   var state = { models: [], page: 1, size: 25, tier: "free", testing: {} };
+  var elState = { voices: [], models: [] };
 
   function money(v) {
     if (v === null || v === undefined) return null;
@@ -442,6 +484,73 @@ const MODELS_SCRIPT = `
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
   GX.shortcuts({ filter: "q", refresh: "reloadBtn" });
+  /* ---------- ElevenLabs ---------- */
+
+  function elEsc(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function elRender() {
+    var q = (el.elVoiceQ.value || "").trim().toLowerCase();
+    var cat = el.elCat.value || "";
+    var rows = elState.voices.filter(function (v) {
+      if (cat && String(v.category) !== cat) return false;
+      if (!q) return true;
+      var labels = v.labels || {};
+      return (String(v.name) + " " + String(v.voice_id) + " " + JSON.stringify(labels)).toLowerCase().indexOf(q) >= 0;
+    });
+
+    var meta = el.elBody.parentNode.parentNode.querySelector(".panel-head .meta");
+    if (meta) meta.textContent = rows.length + " voice" + (rows.length === 1 ? "" : "s") +
+      (elState.models.length ? " · " + elState.models.length + " models" : "");
+
+    if (!rows.length) {
+      el.elBody.innerHTML = stateBlock("empty", "No ElevenLabs voices matched", "Adjust the search or category filter.");
+      return;
+    }
+
+    var html = '<table class="table"><thead><tr>' +
+      "<th>Voice</th><th>Category</th><th>Labels</th><th>Voice ID</th>" +
+      "</tr></thead><tbody>";
+    rows.forEach(function (v) {
+      var labels = Object.keys(v.labels || {}).map(function (k) {
+        return k + ": " + v.labels[k];
+      }).join(", ");
+      var free = String(v.category) === "premade";
+      html += "<tr>" +
+        "<td><strong>" + elEsc(v.name) + "</strong></td>" +
+        "<td><span class=\"chip" + (free ? "" : " chip-warn") + "\">" + elEsc(v.category) + "</span></td>" +
+        "<td class=\"muted\">" + elEsc(labels) + "</td>" +
+        "<td><code>" + elEsc(v.voice_id) + "</code></td>" +
+        "</tr>";
+    });
+    el.elBody.innerHTML = html + "</tbody></table>";
+
+    var m = elState.models.map(function (x) { return x.model_id; });
+    el.elMsg.textContent = m.length
+      ? "TTS models: " + m.join(", ")
+      : "";
+  }
+
+  function loadElevenLabs(force) {
+    el.elSection.hidden = false;
+    el.elBody.innerHTML = stateBlock("loading", "Loading ElevenLabs inventory");
+    return GX.fetch("/pengatur/elevenlabs/list" + (force ? "?refresh=1" : ""), {})
+      .then(function (d) {
+        if (!d.ok) {
+          el.elBody.innerHTML = stateBlock("error", "ElevenLabs unavailable", d.error || "no keys");
+          return;
+        }
+        elState.voices = d.voices || [];
+        elState.models = d.models || [];
+        elRender();
+      })
+      .catch(function (err) {
+        el.elBody.innerHTML = stateBlock("error", "Could not load ElevenLabs", String(err && err.message || err));
+      });
+  }
+
   GX.gate({
     onSuccess: function () {
       readUrl();
@@ -449,7 +558,10 @@ const MODELS_SCRIPT = `
         button.setAttribute("aria-pressed", button.getAttribute("data-tier") === state.tier ? "true" : "false");
       });
       el.tierNote.textContent = TIER_NOTES[state.tier];
-      return load();
+      el.elReloadBtn.addEventListener("click", function () { loadElevenLabs(true); });
+      el.elVoiceQ.addEventListener("input", elRender);
+      el.elCat.addEventListener("change", elRender);
+      return load().then(function () { return loadElevenLabs(false); });
     }
   });
 })();

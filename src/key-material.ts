@@ -64,6 +64,27 @@ export function saveMaterial(id: string, raw: string): void {
   );
 }
 
+/**
+ * The same write, awaited.
+ *
+ * `saveMaterial` is fire-and-forget so the request path never waits on
+ * Postgres. On a serverless runtime that is a durability hole: the instance
+ * can be frozen or recycled the moment the response is returned, and the
+ * in-flight insert is dropped — a key the console reports as durable
+ * (`durable: true`) never reaches `key_material`, so the next cold start
+ * rebuilds a pool without it. Callers that promise durability (the key-sync
+ * endpoint) must use this variant and await it before answering.
+ */
+export async function saveMaterialNow(id: string, raw: string): Promise<void> {
+  if (!dbEnabled()) return;
+  await sql(
+    `insert into key_material (id, raw_key) values ($1, $2)
+     on conflict (id) do update
+       set raw_key = excluded.raw_key, updated_at = now()`,
+    [id, raw],
+  );
+}
+
 /** Drop the raw value alongside the identity row. Fire and forget. */
 export function deleteMaterial(id: string): void {
   if (!dbEnabled()) return;

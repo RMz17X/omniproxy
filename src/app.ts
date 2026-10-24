@@ -15,15 +15,15 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
+import { addKey, backfillMaterial, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
-import { listLiveModels, pricingMeta, testModel } from "./models.ts";
+import { listLiveModels, catalogModels, discoveryDebug, pricingMeta, testModel } from "./models.ts";
 import { probeKey, probeTier, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
 import { geminiPassthrough, speech } from "./gemini.ts";
-import { serveElevenLabs } from "./tts.ts";
+import { listElevenLabsInventory, serveElevenLabs } from "./tts.ts";
 import { chatCompletions, embeddings, models } from "./openai.ts";
 import {
   beginUsage,
@@ -182,43 +182,68 @@ app.get("/pengatur/status", async (c) => {
 
 /* ---------- OpenAI-compatible ---------- */
 
+/**
+ * Model names that belong to ElevenLabs rather than Gemini.
+ *
+ * An OpenAI-compatible client names the model it wants, so the model is the
+ * only honest signal for which provider should serve the request. Routing on
+ * the pool's next available key instead would hand an ElevenLabs TTS request
+ * to a Gemini credential most of the time — the pool is overwhelmingly
+ * Gemini — and the caller would get a Gemini voice it never asked for.
+ */
+const ELEVENLABS_MODEL_RE = /^(eleven[_-]|elevenlabs|tts-1|eleven_)/i;
+
+/** Peek the OpenAI-compatible body without consuming the downstream handler's stream. */
+async function peekModel(req: Request): Promise<string> {
+  try {
+    const parsed = JSON.parse(await req.clone().text()) as { model?: unknown };
+    return typeof parsed.model === "string" ? parsed.model : "";
+  } catch {
+    return "";
+  }
+}
+
 app.post("/v1/chat/completions", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
-    return c.json(
-      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
-      400,
-    );
+  // Provider-filtered: this endpoint only speaks Gemini, so a leaked or
+  // foreign credential must never be handed to it.
+  const st = await pick(new Set(), undefined, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return chatCompletions(c.req.raw);
 });
 
 app.post("/v1/audio/speech", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
+  const model = await peekModel(c.req.raw);
+  if (ELEVENLABS_MODEL_RE.test(model)) {
+    const st = await pick(new Set(), undefined, "elevenlabs");
+    if (!st) {
+      return c.json(
+        { error: { message: "No available ElevenLabs API keys in pool." } },
+        503,
+      );
+    }
     return serveElevenLabs(c.req.raw, st.key);
+  }
+  const st = await pick(new Set(), undefined, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return speech(c.req.raw);
 });
 
 app.post("/v1/embeddings", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
-    return c.json(
-      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
-      400,
-    );
+  const st = await pick(new Set(), undefined, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return embeddings(c.req.raw);
 });
 
 app.get("/v1/models", async (c) => {
-  const st = await pick();
-  if (st?.provider === "elevenlabs") {
-    return c.json(
-      { error: { message: "Selected API key belongs to provider 'elevenlabs', but this endpoint only supports 'gemini'." } },
-      400,
-    );
+  const st = await pick(new Set(), undefined, "gemini");
+  if (!st) {
+    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
   }
   return models();
 });
@@ -305,8 +330,62 @@ app.get("/pengatur/models/list", async (c) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const status = (err as Error & { code?: string }).code === "empty_pool" ? 503 : 502;
-    return c.json({ error: { message } }, status);
+    // The console must still render a usable list. A key that Google flagged as
+    // leaked can serve generateContent but never answers model discovery, so a
+    // pool where every candidate is leaked would otherwise blank the page with
+    // an upstream 403. Fall back to the static catalog and say so instead.
+    log("warn", "models.list_fallback_catalog", { reason: message });
+    const fallback = catalogModels();
+    return c.json({
+      ok: true,
+      count: fallback.length,
+      models: fallback,
+      source: "catalog",
+      cached: false,
+      degraded: true,
+      degradedReason: message,
+      status,
+      debug: discoveryDebug(),
+      pricing: pricingMeta(),
+    });
   }
+});
+
+/**
+ * Live ElevenLabs inventory: voices and TTS models.
+ *
+ * OmniProxy fronts more than one provider, so the console has to show both.
+ * Unlike Gemini there is no leak gate here — every alive ElevenLabs key answers
+ * these endpoints — so the only failure worth reporting is an empty provider
+ * pool, which the console renders as a section with no rows.
+ */
+const ELEVENLABS_CACHE_MS = 600_000;
+let elevenLabsCache: { at: number; voices: unknown[]; models: unknown[] } | null = null;
+
+app.get("/pengatur/elevenlabs/list", async (c) => {
+  const force = new URL(c.req.url).searchParams.get("refresh") === "1";
+  if (!force && elevenLabsCache && Date.now() - elevenLabsCache.at < ELEVENLABS_CACHE_MS) {
+    return c.json({
+      ok: true,
+      cached: true,
+      voices: elevenLabsCache.voices,
+      models: elevenLabsCache.models,
+    });
+  }
+  const inv = await listElevenLabsInventory();
+  if (!inv) {
+    return c.json(
+      { ok: false, error: "No available ElevenLabs API keys in pool.", voices: [], models: [] },
+      503,
+    );
+  }
+  elevenLabsCache = { at: Date.now(), voices: inv.voices, models: inv.models };
+  return c.json({
+    ok: true,
+    cached: false,
+    voices: inv.voices,
+    models: inv.models,
+  });
 });
 
 /** Real per-model probe: one generateContent call against the named model. */
@@ -531,6 +610,15 @@ app.post("/pengatur/keys", async (c) => {
     ? {}
     : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
   return c.json({ ok: true, received: clean.length, added, ids, durable, ...warning, pool: await snapshot() });
+});
+
+app.post("/pengatur/keys/backfill-material", async (c) => {
+  const written = await backfillMaterial();
+  await auditRecordNow("keys.backfill_material", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { written },
+  });
+  return c.json({ ok: true, written });
 });
 
 app.delete("/pengatur/keys", async (c) => {

@@ -105,7 +105,69 @@ export async function probeElevenLabs(
 }
 
 /**
- * Proxy POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id} with client body as-is.
+/**
+ * Translate an OpenAI-compatible `/v1/audio/speech` body into ElevenLabs' native
+ * shape, leaving a body that already looks native untouched.
+ *
+ * Forwarding the client body verbatim — the previous behaviour — makes every
+ * OpenAI-compatible call fail with `422 Field required: text`, because
+ * ElevenLabs reads `text` and `model_id` while the OpenAI schema names those
+ * fields `input` and `model`. Returning the translated body as a string keeps
+ * the caller's own stream contract intact.
+ */
+function toElevenLabsBody(bodyText: string): string {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(bodyText) as Record<string, unknown>;
+  } catch {
+    return bodyText;
+  }
+  if (!parsed || typeof parsed !== "object") return bodyText;
+
+  // Already native: ElevenLabs callers send `text` (and usually `model_id`).
+  const isNative = typeof parsed.text === "string";
+  const hasModelId = typeof parsed.model_id === "string";
+  if (isNative && hasModelId) return bodyText;
+
+  const out: Record<string, unknown> = { ...parsed };
+
+  const text = parsed.input ?? parsed.text ?? parsed.prompt;
+  if (typeof text === "string") out.text = text;
+  delete out.input;
+  delete out.prompt;
+
+  const model = parsed.model_id ?? parsed.model;
+  if (typeof model === "string") out.model_id = model;
+  delete out.model;
+
+  const voice = parsed.voice_id ?? parsed.voice;
+  if (typeof voice === "string") out.voice_id = voice;
+  delete out.voice;
+
+  const fmt = parsed.response_format;
+  if (typeof fmt === "string" && !out.output_format) {
+    out.output_format = fmt === "wav" ? "pcm_44100" : `mp3_44100_${fmt === "opus" ? "64" : "128"}`;
+  }
+  delete out.response_format;
+
+  // OpenAI `speed` maps onto ElevenLabs' voice_settings, which must stay nested.
+  const speed = typeof parsed.speed === "number" ? parsed.speed : undefined;
+  delete out.speed;
+  const vs = (typeof parsed.voice_settings === "object" && parsed.voice_settings) || {};
+  out.voice_settings = speed === undefined ? vs : { ...vs, speed };
+
+  // A voice that the free tier refuses (the `professional` category) still has
+  // to be requested by id — the caller chose it, so we surface the upstream 402
+  // rather than silently substituting a voice they did not ask for.
+  return JSON.stringify(out);
+}
+
+/**
+ * Proxy POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}.
+ *
+ * Accepts either the native ElevenLabs body or the OpenAI-compatible
+ * `/v1/audio/speech` schema, translating the latter. The voice id may come from
+ * the path, a query parameter, or the body.
  */
 export async function serveElevenLabs(req: Request, key?: string): Promise<Response> {
   let rawKey = key ? (await rawKeyById(key)) || key : undefined;
@@ -147,7 +209,7 @@ export async function serveElevenLabs(req: Request, key?: string): Promise<Respo
       "content-type": "application/json",
       "xi-api-key": rawKey,
     },
-    body: bodyText,
+    body: toElevenLabsBody(bodyText),
     signal: req.signal,
   });
 
@@ -168,4 +230,67 @@ export async function serveElevenLabs(req: Request, key?: string): Promise<Respo
     status: res.status,
     headers: respHeaders,
   });
+}
+
+/* ---------- live inventory ---------- */
+
+export type ElevenLabsVoice = {
+  voice_id: string;
+  name: string;
+  category?: string;
+  labels?: Record<string, string>;
+  preview_url?: string;
+};
+
+export type ElevenLabsModel = {
+  model_id: string;
+  name?: string;
+  description?: string;
+  can_do_text_to_speech?: boolean;
+  languages?: Array<{ language_id: string; name?: string }>;
+};
+
+type VoicesResponse = { voices?: ElevenLabsVoice[] };
+type ModelsResponse = ElevenLabsModel[];
+
+/**
+ * Fetch the live voice and model inventory from ElevenLabs.
+ *
+ * Unlike Gemini there is no "leaked" gate here: every pooled ElevenLabs
+ * credential answers `/v1/voices` and `/v1/models` as long as it is alive, so
+ * one healthy key is enough and the result is cached by the caller.
+ *
+ * Returns `null` when no ElevenLabs key can serve the call, so the caller can
+ * distinguish "no provider keys" from "upstream said something useless".
+ */
+export async function listElevenLabsInventory(): Promise<{
+  voices: ElevenLabsVoice[];
+  models: ElevenLabsModel[];
+} | null> {
+  const st = await pick(new Set(), undefined, "elevenlabs");
+  if (!st) return null;
+  const rawKey = (await rawKeyById(st.key)) || st.key;
+
+  const fetchJson = async <T>(path: string): Promise<T | null> => {
+    try {
+      const res = await fetch(`https://api.elevenlabs.io/v1/${path}`, {
+        headers: { "xi-api-key": rawKey },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  };
+
+  const [voices, models] = await Promise.all([
+    fetchJson<VoicesResponse>("voices"),
+    fetchJson<ModelsResponse>("models"),
+  ]);
+
+  return {
+    voices: voices?.voices ?? [],
+    models: models ?? [],
+  };
 }

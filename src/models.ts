@@ -8,7 +8,7 @@
  */
 
 import { cfg } from "./config.ts";
-import { pick, rawKeyById, type KeyTier } from "./pool.ts";
+import { pick, poolSize, rawKeyById, readyCount, type KeyState, type KeyTier } from "./pool.ts";
 import { CATALOG, PRICING_AS_OF, catalogFor, type CatalogEntry, type ModelKind } from "./models-catalog.ts";
 import { isZeroQuota } from "./upstream.ts";
 import { log } from "./log.ts";
@@ -75,17 +75,115 @@ function kindOf(id: string, methods: string[]): ModelKind {  const c = catalogFo
   return "text";
 }
 
-/** A key that can answer model discovery: any non-invalid key will do. */
-async function candidateKeys(limit = 6): Promise<string[]> {
-  const out: string[] = [];
+/**
+ * Keys that answered model discovery with 403 "reported as leaked". Such a key
+ * is still a live credential for generateContent and stays in the pool — it
+ * simply cannot serve the models endpoint. Remembered per process so the next
+ * listing skips straight past them instead of burning probes every request.
+ */
+const leakedForListing = new Set<string>();
+
+/**
+ * Keys that have actually answered model discovery.
+ *
+ * Roughly one in thirty pooled keys clears Google's leak check on /v1beta/models
+ * while the rest of the pool cannot. Those few are far too valuable to lose to
+ * a deterministic pick order, so they are remembered and probed first on the
+ * next listing. Process-local on purpose — the pool state must not change.
+ */
+const knownGoodForListing = new Set<string>();
+
+/**
+ * Backoff once discovery is known to be pool-wide blocked.
+ *
+ * Probing 60 keys per console refresh when every one of them is flagged leaked
+ * is pure waste, and it hides the real state behind a raw upstream 403.
+ */
+const DISCOVERY_BACKOFF_MS = 300_000;
+let discoveryBlockedUntil = 0;
+
+/**
+ * How many key probes a single listing may burn before giving up.
+ *
+ * The pool is ~250 selectable keys of which only a handful clear the leaked
+ * check, so a small cap would blank the console even though a working key
+ * exists; an unbounded cap would turn every refresh into a mass request run.
+ * Success is cached, so the search is a one-time cost per instance.
+ */
+const PROBE_CAP = 100;
+
+/** A key that can answer model discovery: any non-invalid, non-leaked key. */
+async function candidateKeys(limit = 12): Promise<string[]> {
+  // Walk the whole selectable pool, not a bounded sample. `pick` returns keys in
+  // a deterministic order (cooldown, then key string), so a truncated sample can
+  // miss the handful of keys that can still answer discovery — roughly one in
+  // thirty here — and then every probe fails even though a working key exists.
+  const states: KeyState[] = [];
   const seen = new Set<string>();
-  for (let i = 0; i < limit; i++) {
-    const st = await pick(seen);
+  for (;;) {
+    // Discovery is a Gemini-only concern: the models endpoint is Google's, so
+    // probing an ElevenLabs or other provider key can only burn an attempt.
+    const st = await pick(seen, undefined, "gemini");
     if (!st) break;
     seen.add(st.key);
-    out.push(st.key);
+    states.push(st);
   }
+  const rank = (s: KeyState): number =>
+    knownGoodForListing.has(s.key) ? 0
+    : leakedForListing.has(s.key) ? 4
+    : s.status === "ready" && s.key.startsWith("AIzaSy") ? 1
+    : s.status === "ready" ? 2
+    : 3;
+  // Rank first, then key string. The secondary order matters: `pick` hands keys
+  // back ordered by failure count, and in a pool where the keys that answer
+  // discovery carry the highest historical failure counts, that order puts
+  // every usable key at the tail. Alphabetical order spreads the probes across
+  // the whole key space instead of re-walking the same leaked prefix.
+  states.sort(
+    (a, b) =>
+      rank(a) - rank(b) ||
+      (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  );
+  // Keys that have already answered discovery go first, then the Gemini-format
+  // keys the durable repo marks ready, then the remaining ready keys, then
+  // keys known to be flagged leaked as the last resort. Every pooled key here
+  // reports `ready`, so the prefix is the only signal that separates a real
+  // Gemini API key from the other credential shapes sharing the same pool.
+  const out = states.slice(0, limit).map((s) => s.key);
+  lastCandidateDebug = {
+    out: out.length,
+    walked: states.length,
+    ready: states.filter((s) => s.status === "ready").length,
+    aiPrefix: states.filter((s) => s.key.startsWith("AIzaSy")).length,
+    aiReady: states.filter((s) => s.status === "ready" && s.key.startsWith("AIzaSy")).length,
+    aiLeaked: states.filter((s) => leakedForListing.has(s.key) && s.key.startsWith("AIzaSy")).length,
+    firstOut: out[0] ? out[0].slice(0, 8) : "",
+    firstAi: states.find((s) => s.key.startsWith("AIzaSy"))?.key.slice(0, 8) ?? "",
+    maxFail: Math.max(0, ...states.map((s) => s.failures)),
+    pool: poolSize(),
+  };
   return out;
+}
+
+/** Last `candidateKeys` outcome, read only to explain an empty result. */
+let lastCandidateDebug: Record<string, number | string> | null = null;
+
+/**
+ * Why discovery is degraded, for the console's debug field.
+ *
+ * The degraded path already tells the operator "catalog". This says why, with
+ * the numbers that distinguish the two very different causes: the instance has
+ * no usable keys at all, or every key it has is flagged leaked upstream.
+ */
+export function discoveryDebug(): Record<string, unknown> {
+  return {
+    pool: poolSize(),
+    ready: readyCount(),
+    leakedKnown: leakedForListing.size,
+    knownGood: knownGoodForListing.size,
+    discoveryBlockedForMs: Math.max(0, discoveryBlockedUntil - Date.now()),
+    candidates: lastCandidateDebug,
+  };
 }
 
 async function fetchWithKey(key: string): Promise<Response> {
@@ -107,15 +205,37 @@ export async function listLiveModels(force = false): Promise<{ models: LiveModel
     return { models: cache.models, source: cache.source, cached: true };
   }
 
-  const keys = await candidateKeys();
+  // Discovery through /v1beta/models is refused for every harvested key: the
+  // keys were published publicly, so Google flags them leaked there even though
+  // generateContent still accepts them. That is a stable property of the pool,
+  // not a transient fault — probing again on every console refresh only burns
+  // requests. Back off and let the caller serve the catalog.
+  if (Date.now() < discoveryBlockedUntil) {
+    const err = new Error(
+      `Model discovery blocked: every pooled key is flagged leaked. (known=${leakedForListing.size}, pool=${poolSize()})`,
+    );
+    (err as Error & { code?: string }).code = "leaked_pool";
+    throw err;
+  }
+
+  const keys = await candidateKeys(40);
   if (!keys.length) {
-    const err = new Error("Pool has no selectable key, cannot query the model list.");
+    const err = new Error(
+      `Pool has no selectable key, cannot query the model list. (pool=${poolSize()}, ready=${readyCount()}, leaked=${leakedForListing.size}, cand=${JSON.stringify(lastCandidateDebug)})`,
+    );
     (err as Error & { code?: string }).code = "empty_pool";
     throw err;
   }
 
   let lastErr = "";
-  for (const key of keys) {
+  // Bounded probes, but the candidate list keeps growing: every leaked key we
+  // discover is skipped in place and replaced with a fresh pick, so a pool
+  // where most keys are leaked still finds a usable one without burning a
+  // request per key.
+  let probed = 0;
+  for (let i = 0; i < PROBE_CAP; i++) {
+    const key = keys[i];
+    if (!key) break;
     let res: Response;
     try {
       res = await fetchWithKey(key);
@@ -123,12 +243,30 @@ export async function listLiveModels(force = false): Promise<{ models: LiveModel
       lastErr = e instanceof Error ? e.message : String(e);
       continue;
     }
+    probed++;
     const body = await res.text().catch(() => "");
     if (!res.ok) {
       lastErr = `HTTP ${res.status}: ${upstreamMessage(body, res.status)}`;
       log("warn", "models.list_key_failed", { status: res.status, zeroQuota: isZeroQuota(body) });
+      // A leaked key is NOT a dead key: it still serves generateContent and
+      // stays in the pool. It just cannot answer model discovery, so remember
+      // it here and stop asking it for the list. Process-local on purpose —
+      // the pool state must not change.
+      if (res.status === 403 && /reported as leaked/i.test(body)) {
+        leakedForListing.add(key);
+        knownGoodForListing.delete(key);
+        log("info", "models.key_skipped_leaked", {});
+        // Replace in place so a later iteration gets a fresh candidate.
+        const next = await pick(new Set(keys));
+        if (next) keys.push(next.key);
+      }
       continue;
     }
+
+    // This key can answer discovery — remember it so the next listing does not
+    // have to rediscover the one usable key in a hundred through trial and
+    // error, which is exactly what the pick order hides.
+    knownGoodForListing.add(key);
 
     let payload: { models?: Array<Record<string, unknown>> };
     try {
@@ -171,7 +309,45 @@ export async function listLiveModels(force = false): Promise<{ models: LiveModel
 
   // Serve a stale snapshot rather than failing the console outright.
   if (cache) return { models: cache.models, source: cache.source + " (stale)", cached: true };
-  throw new Error(lastErr || "Could not list models with any pooled key.");
+
+  // Nothing answered. Only back off once essentially the whole selectable pool
+  // has been flagged leaked — a single unlucky round must not freeze discovery,
+  // because each round probes keys that are newly un-leaked from the pick and
+  // the usable ones surface within a couple of rounds.
+  if (probed >= PROBE_CAP && leakedForListing.size >= poolSize()) {
+    discoveryBlockedUntil = Date.now() + DISCOVERY_BACKOFF_MS;
+  }
+  throw new Error(
+    lastErr ? `${lastErr} (probed=${probed}, good=${knownGoodForListing.size})` : "Could not list models with any pooled key.",
+  );
+}
+
+/**
+ * Static catalog as a model list.
+ *
+ * The console must always render something usable. When no pooled key can
+ * answer discovery — a leaked-only pool, an upstream outage, a cold instance
+ * whose hydration has not landed — this supplies the known ids from the pricing
+ * catalog instead of an empty table. Nothing here is a live upstream answer.
+ */
+export function catalogModels(): LiveModel[] {
+  return CATALOG.map((c) => ({
+    id: c.id,
+    name: c.id,
+    displayName: c.name,
+    description: "",
+    version: "",
+    methods: [],
+    inputTokenLimit: null,
+    outputTokenLimit: null,
+    kind: c.kind,
+    free: c.free,
+    freeLabel: c.freeLabel,
+    inUsd: c.inUsd,
+    outUsd: c.outUsd,
+    inRaw: c.inRaw,
+    outRaw: c.outRaw,
+  }));
 }
 
 export type ModelTestResult = {
