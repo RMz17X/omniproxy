@@ -1046,6 +1046,15 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .spark .base { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .spark .fill { fill: var(--accent-wash); stroke: none; }
 
+/* dashboard per-day provider bars (gemini vs elevenlabs, stacked columns) */
+.daybars { display: flex; align-items: flex-end; gap: 4px; height: 96px; padding-bottom: 18px; }
+.daybar { position: relative; flex: 1 1 0; min-width: 6px; max-width: 26px; height: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; background: var(--surface-3); overflow: hidden; }
+.daybar span { display: block; width: 100%; }
+.daybar .ok { background: var(--ok); }
+.daybar .warn { background: var(--warn); }
+.daybar-label { position: absolute; left: 0; right: 0; bottom: -18px; font-size: 9.5px; color: var(--text-2); text-align: center; white-space: nowrap; }
+
+
 .heat { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; }
 .heat-cell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--surface-3); }
 .heat-cell[data-l="1"] { background: color-mix(in srgb, var(--accent) 22%, var(--surface-3)); }

@@ -70,6 +70,18 @@ const OVERVIEW_BODY = `
   <div class="split">
     <section class="panel">
       <div class="panel-head">
+        <h2>Requests by provider</h2>
+        <span class="meta">daily, WIB</span>
+      </div>
+      <div class="panel-body">
+        <div class="bars" id="providerMix"></div>
+        <div id="providerDays" class="u-mt-4"></div>
+        <p class="hint u-mt-4">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Plan mix</h2>
         <span class="meta">declared per key</span>
       </div>
@@ -78,15 +90,15 @@ const OVERVIEW_BODY = `
         <p class="hint u-mt-4">Google never reports a project plan over the API. Declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Recent activity</h2>
-        <a class="meta" href="/pengatur/audit">audit log</a>
-      </div>
-      <div class="feed" id="activity"></div>
-    </section>
   </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Recent activity</h2>
+      <a class="meta" href="/pengatur/audit">audit log</a>
+    </div>
+    <div class="feed" id="activity"></div>
+  </section>
 </div>
 
 ${confirmDialog()}
@@ -137,6 +149,8 @@ const OVERVIEW_SCRIPT = `
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
     planMix: document.getElementById("planMix"),
+    providerMix: document.getElementById("providerMix"),
+    providerDays: document.getElementById("providerDays"),
     activity: document.getElementById("activity")
   };
 
@@ -266,6 +280,55 @@ const OVERVIEW_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
   }
 
+  /* Provider split: aggregate meters + one stacked bar per WIB day. Bars use
+     the same poolbar tones as the pool bar; the chart stays plain CSS so a
+     failed stats fetch degrades to the "unavailable" state, never a broken
+     canvas. */
+  function renderProviderMix(stats) {
+    el.providerMix.textContent = "";
+    el.providerDays.textContent = "";
+    if (!stats) {
+      el.providerMix.appendChild(GX.state("empty", "Statistics unavailable", "The stats endpoint did not answer."));
+      return;
+    }
+    var buckets = stats.byProvider || [];
+    var total = 0;
+    buckets.forEach(function (b) { total += b.requests; });
+    if (!total) {
+      el.providerMix.appendChild(GX.state("empty", "No traffic in this range", "Nothing was routed in the last 30 days."));
+      return;
+    }
+    var byProv = {};
+    buckets.forEach(function (b) { byProv[b.key] = b.requests; });
+    el.providerMix.appendChild(GX.meter("Gemini", byProv.gemini || 0, total, "ok"));
+    el.providerMix.appendChild(GX.meter("ElevenLabs", byProv.elevenlabs || 0, total, "info"));
+
+    var days = stats.byProviderDay || [];
+    if (!days.length) return;
+    var byDay = {};
+    var maxDay = 0;
+    days.forEach(function (r) {
+      if (!byDay[r.day]) byDay[r.day] = { gemini: 0, elevenlabs: 0 };
+      byDay[r.day][r.provider] = (byDay[r.day][r.provider] || 0) + r.requests;
+      if (byDay[r.day].gemini + byDay[r.day].elevenlabs > maxDay) maxDay = byDay[r.day].gemini + byDay[r.day].elevenlabs;
+    });
+    var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day, gemini vs elevenlabs" });
+    Object.keys(byDay).forEach(function (day) {
+      var g = byDay[day].gemini;
+      var e = byDay[day].elevenlabs;
+      var col = GX.el("div", { class: "daybar", title: day + " · gemini " + g + " · elevenlabs " + e });
+      col.appendChild(GX.el("span", { class: "ok", style: "height:" + (maxDay ? ((g / maxDay) * 100).toFixed(1) : 0) + "%" }));
+      col.appendChild(GX.el("span", { class: "warn", style: "height:" + (maxDay ? ((e / maxDay) * 100).toFixed(1) : 0) + "%" }));
+      col.appendChild(GX.el("span", { class: "daybar-label", text: day.slice(5) }));
+      chart.appendChild(col);
+    });
+    el.providerDays.appendChild(chart);
+    var legend = GX.el("div", { class: "legend" });
+    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot ok" }), GX.el("span", { text: "Gemini" }), GX.el("b", { text: GX.fmt.num(byProv.gemini) })]));
+    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot warn" }), GX.el("span", { text: "ElevenLabs" }), GX.el("b", { text: GX.fmt.num(byProv.elevenlabs) })]));
+    el.providerDays.appendChild(legend);
+  }
+
   function renderPlanMix(tiers) {
     el.planMix.textContent = "";
     var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
@@ -348,6 +411,7 @@ const OVERVIEW_SCRIPT = `
       renderHero(pool, state.tiers, res[1]);
       renderAttention(pool, state.tiers);
       renderKpis(res[1]);
+      renderProviderMix(res[1]);
       renderPlanMix(state.tiers);
       renderActivity(res[2]);
       el.updated.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });

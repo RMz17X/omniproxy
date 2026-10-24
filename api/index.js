@@ -10373,6 +10373,15 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .spark .base { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .spark .fill { fill: var(--accent-wash); stroke: none; }
 
+/* dashboard per-day provider bars (gemini vs elevenlabs, stacked columns) */
+.daybars { display: flex; align-items: flex-end; gap: 4px; height: 96px; padding-bottom: 18px; }
+.daybar { position: relative; flex: 1 1 0; min-width: 6px; max-width: 26px; height: 100%; display: flex; flex-direction: column-reverse; border-radius: 2px 2px 0 0; background: var(--surface-3); overflow: hidden; }
+.daybar span { display: block; width: 100%; }
+.daybar .ok { background: var(--ok); }
+.daybar .warn { background: var(--warn); }
+.daybar-label { position: absolute; left: 0; right: 0; bottom: -18px; font-size: 9.5px; color: var(--text-2); text-align: center; white-space: nowrap; }
+
+
 .heat { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px; }
 .heat-cell { aspect-ratio: 1 / 1; border-radius: 2px; background: var(--surface-3); }
 .heat-cell[data-l="1"] { background: color-mix(in srgb, var(--accent) 22%, var(--surface-3)); }
@@ -11867,6 +11876,18 @@ var OVERVIEW_BODY = `
   <div class="split">
     <section class="panel">
       <div class="panel-head">
+        <h2>Requests by provider</h2>
+        <span class="meta">daily, WIB</span>
+      </div>
+      <div class="panel-body">
+        <div class="bars" id="providerMix"></div>
+        <div id="providerDays" class="u-mt-4"></div>
+        <p class="hint u-mt-4">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Plan mix</h2>
         <span class="meta">declared per key</span>
       </div>
@@ -11875,15 +11896,15 @@ var OVERVIEW_BODY = `
         <p class="hint u-mt-4">Google never reports a project plan over the API. Declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Recent activity</h2>
-        <a class="meta" href="/pengatur/audit">audit log</a>
-      </div>
-      <div class="feed" id="activity"></div>
-    </section>
   </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Recent activity</h2>
+      <a class="meta" href="/pengatur/audit">audit log</a>
+    </div>
+    <div class="feed" id="activity"></div>
+  </section>
 </div>
 
 ${confirmDialog()}
@@ -11933,6 +11954,8 @@ var OVERVIEW_SCRIPT = `
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
     planMix: document.getElementById("planMix"),
+    providerMix: document.getElementById("providerMix"),
+    providerDays: document.getElementById("providerDays"),
     activity: document.getElementById("activity")
   };
 
@@ -12062,6 +12085,55 @@ var OVERVIEW_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
   }
 
+  /* Provider split: aggregate meters + one stacked bar per WIB day. Bars use
+     the same poolbar tones as the pool bar; the chart stays plain CSS so a
+     failed stats fetch degrades to the "unavailable" state, never a broken
+     canvas. */
+  function renderProviderMix(stats) {
+    el.providerMix.textContent = "";
+    el.providerDays.textContent = "";
+    if (!stats) {
+      el.providerMix.appendChild(GX.state("empty", "Statistics unavailable", "The stats endpoint did not answer."));
+      return;
+    }
+    var buckets = stats.byProvider || [];
+    var total = 0;
+    buckets.forEach(function (b) { total += b.requests; });
+    if (!total) {
+      el.providerMix.appendChild(GX.state("empty", "No traffic in this range", "Nothing was routed in the last 30 days."));
+      return;
+    }
+    var byProv = {};
+    buckets.forEach(function (b) { byProv[b.key] = b.requests; });
+    el.providerMix.appendChild(GX.meter("Gemini", byProv.gemini || 0, total, "ok"));
+    el.providerMix.appendChild(GX.meter("ElevenLabs", byProv.elevenlabs || 0, total, "info"));
+
+    var days = stats.byProviderDay || [];
+    if (!days.length) return;
+    var byDay = {};
+    var maxDay = 0;
+    days.forEach(function (r) {
+      if (!byDay[r.day]) byDay[r.day] = { gemini: 0, elevenlabs: 0 };
+      byDay[r.day][r.provider] = (byDay[r.day][r.provider] || 0) + r.requests;
+      if (byDay[r.day].gemini + byDay[r.day].elevenlabs > maxDay) maxDay = byDay[r.day].gemini + byDay[r.day].elevenlabs;
+    });
+    var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day, gemini vs elevenlabs" });
+    Object.keys(byDay).forEach(function (day) {
+      var g = byDay[day].gemini;
+      var e = byDay[day].elevenlabs;
+      var col = GX.el("div", { class: "daybar", title: day + " \xB7 gemini " + g + " \xB7 elevenlabs " + e });
+      col.appendChild(GX.el("span", { class: "ok", style: "height:" + (maxDay ? ((g / maxDay) * 100).toFixed(1) : 0) + "%" }));
+      col.appendChild(GX.el("span", { class: "warn", style: "height:" + (maxDay ? ((e / maxDay) * 100).toFixed(1) : 0) + "%" }));
+      col.appendChild(GX.el("span", { class: "daybar-label", text: day.slice(5) }));
+      chart.appendChild(col);
+    });
+    el.providerDays.appendChild(chart);
+    var legend = GX.el("div", { class: "legend" });
+    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot ok" }), GX.el("span", { text: "Gemini" }), GX.el("b", { text: GX.fmt.num(byProv.gemini) })]));
+    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot warn" }), GX.el("span", { text: "ElevenLabs" }), GX.el("b", { text: GX.fmt.num(byProv.elevenlabs) })]));
+    el.providerDays.appendChild(legend);
+  }
+
   function renderPlanMix(tiers) {
     el.planMix.textContent = "";
     var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
@@ -12144,6 +12216,7 @@ var OVERVIEW_SCRIPT = `
       renderHero(pool, state.tiers, res[1]);
       renderAttention(pool, state.tiers);
       renderKpis(res[1]);
+      renderProviderMix(res[1]);
       renderPlanMix(state.tiers);
       renderActivity(res[2]);
       el.updated.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
@@ -15830,6 +15903,10 @@ var RANGE_MS = {
   "30d": 30 * 24 * 60 * 60 * 1e3
 };
 var WIB_OFFSET_MS2 = 7 * 60 * 60 * 1e3;
+function providerOf(model) {
+  const m = (model ?? "").toLowerCase();
+  return m === "elevenlabs" || m.startsWith("elevenlabs:") || m.startsWith("eleven_") ? "elevenlabs" : "gemini";
+}
 function percentile(sorted, p2) {
   if (!sorted.length) return 0;
   const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil(p2 / 100 * sorted.length) - 1));
@@ -15867,6 +15944,22 @@ function bucketRows(list3, keyOf) {
   const out = [...map.values()];
   for (const b2 of out) b2.avgLatencyMs = b2.requests ? Math.round(b2.avgLatencyMs / b2.requests) : 0;
   return out.sort((a2, b2) => b2.requests - a2.requests || b2.totalTokens - a2.totalTokens);
+}
+function providerDayFromRing(rows) {
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const day = wibDayOf(r.ts);
+    const provider = providerOf(r.model);
+    const k = day + "|" + provider;
+    let acc = map.get(k);
+    if (!acc) {
+      acc = { day, provider, requests: 0, errors: 0 };
+      map.set(k, acc);
+    }
+    acc.requests++;
+    if (!r.ok) acc.errors++;
+  }
+  return [...map.values()].sort((a2, b2) => a2.day.localeCompare(b2.day) || a2.provider.localeCompare(b2.provider));
 }
 function wibHourWeekday(ts2) {
   const d = new Date(ts2 + WIB_OFFSET_MS2);
@@ -15911,6 +16004,8 @@ function statsFromRing(range, now2) {
     byModel: bucketRows(rows, (r) => r.model),
     byKey: bucketRows(rows, (r) => r.keyId || r.keyMasked),
     byRoute: bucketRows(rows, (r) => r.route),
+    byProvider: bucketRows(rows, (r) => providerOf(r.model)),
+    byProviderDay: providerDayFromRing(rows),
     byStatus: [...statusMap.entries()].map(([key, requests]) => ({ key, requests })).sort((a2, b2) => b2.requests - a2.requests),
     heatmap: heatmapFromRing(rows),
     projectedMonthlyUsd: Number(projected.toFixed(6)),
@@ -15945,6 +16040,21 @@ function dailyBucket(rows, keyOf) {
   for (const b2 of out) b2.costUsd = Number(b2.costUsd.toFixed(6));
   return out.sort((a2, b2) => b2.requests - a2.requests);
 }
+function providerDayFromDaily(rows) {
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const provider = providerOf(r.model);
+    const k = r.day + "|" + provider;
+    let acc = map.get(k);
+    if (!acc) {
+      acc = { day: r.day, provider, requests: 0, errors: 0 };
+      map.set(k, acc);
+    }
+    acc.requests += num2(r.requests);
+    acc.errors += num2(r.errors);
+  }
+  return [...map.values()].sort((a2, b2) => a2.day.localeCompare(b2.day) || a2.provider.localeCompare(b2.provider));
+}
 async function statsFromDaily(range, now2) {
   const since = now2 - RANGE_MS[range];
   const base = {
@@ -15975,10 +16085,12 @@ async function statsFromDaily(range, now2) {
         byModel: [],
         byKey: [],
         byRoute: [],
+        byProvider: [],
+        byProviderDay: [],
         note: "Daily history needs Postgres; DATABASE_URL is not set."
       };
     }
-    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], error: daily.message };
+    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: daily.message };
   }
   const rows = daily.rows;
   const requests = rows.reduce((s, r) => s + num2(r.requests), 0);
@@ -16008,7 +16120,7 @@ async function statsFromDaily(range, now2) {
     [new Date(since).toISOString()]
   );
   if (!heat.ok) {
-    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], error: heat.message };
+    return { ...base, ok: false, totals: emptyTotals2(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: heat.message };
   }
   const note = rows.length ? "Status codes are aggregated to ok/error for this range; p50/p95 are requests-weighted bucket means." : `No usage_daily rows for this range (rollup runs daily via /internal/rollup).`;
   return {
@@ -16017,6 +16129,8 @@ async function statsFromDaily(range, now2) {
     byModel: dailyBucket(rows, (r) => r.model),
     byKey: dailyBucket(rows, (r) => r.key_id),
     byRoute: dailyBucket(rows, (r) => r.route),
+    byProvider: dailyBucket(rows, (r) => providerOf(r.model)),
+    byProviderDay: providerDayFromDaily(rows),
     byStatus: [
       { key: "ok", requests: Math.max(0, requests - errors) },
       { key: "error", requests: errors }
@@ -16039,6 +16153,8 @@ async function statsSnapshot(range, now2 = Date.now()) {
       byModel: [],
       byKey: [],
       byRoute: [],
+      byProvider: [],
+      byProviderDay: [],
       byStatus: [],
       heatmap: [],
       projectedMonthlyUsd: 0,

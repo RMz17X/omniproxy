@@ -46,6 +46,21 @@ export type StatsBucket = {
 
 export type StatusBucket = { key: string; requests: number };
 
+/** One per-day provider row for the dashboard bar chart. */
+export type ProviderDay = { day: string; provider: string; requests: number; errors: number };
+
+/**
+ * Which pool served a request, derived from the ledger's model field:
+ * ElevenLabs usage is logged with the literal model "elevenlabs", everything
+ * else (model ids or "models/…" names) belongs to the Gemini pool.
+ */
+export function providerOf(model: string | null | undefined): "elevenlabs" | "gemini" {
+  const m = (model ?? "").toLowerCase();
+  return m === "elevenlabs" || m.startsWith("elevenlabs:") || m.startsWith("eleven_")
+    ? "elevenlabs"
+    : "gemini";
+}
+
 /** One heatmap cell; weekday 0 = Sunday, WIB wall clock. */
 export type HeatCell = { weekday: number; hour: number; requests: number };
 
@@ -73,6 +88,10 @@ export type StatsSnapshot = {
   byModel: StatsBucket[];
   byKey: StatsBucket[];
   byRoute: StatsBucket[];
+  /** Requests split by pool (gemini / elevenlabs), derived from the model field. */
+  byProvider: StatsBucket[];
+  /** Per-day provider counts for the dashboard bar chart. */
+  byProviderDay: ProviderDay[];
   /** Full status codes for ring ranges; an ok/error pair for daily ranges. */
   byStatus: StatusBucket[];
   /** Hour x weekday grid, WIB. Empty when no hourly data exists. */
@@ -128,6 +147,24 @@ function bucketRows(list: UsageRow[], keyOf: (r: UsageRow) => string): StatsBuck
   return out.sort((a, b) => b.requests - a.requests || b.totalTokens - a.totalTokens);
 }
 
+/** Per-day provider counts for the dashboard chart, from raw ring rows (WIB days). */
+function providerDayFromRing(rows: UsageRow[]): ProviderDay[] {
+  const map = new Map<string, ProviderDay>();
+  for (const r of rows) {
+    const day = wibDayOf(r.ts);
+    const provider = providerOf(r.model);
+    const k = day + "|" + provider;
+    let acc = map.get(k);
+    if (!acc) {
+      acc = { day, provider, requests: 0, errors: 0 };
+      map.set(k, acc);
+    }
+    acc.requests++;
+    if (!r.ok) acc.errors++;
+  }
+  return [...map.values()].sort((a, b) => a.day.localeCompare(b.day) || a.provider.localeCompare(b.provider));
+}
+
 /** WIB wall-clock hour and weekday (0 = Sunday) of an instant. */
 function wibHourWeekday(ts: number): { hour: number; weekday: number } {
   const d = new Date(ts + WIB_OFFSET_MS);
@@ -180,6 +217,8 @@ function statsFromRing(range: StatsRange, now: number): StatsSnapshot {
     byModel: bucketRows(rows, (r) => r.model),
     byKey: bucketRows(rows, (r) => r.keyId || r.keyMasked),
     byRoute: bucketRows(rows, (r) => r.route),
+    byProvider: bucketRows(rows, (r) => providerOf(r.model)),
+    byProviderDay: providerDayFromRing(rows),
     byStatus: [...statusMap.entries()]
       .map(([key, requests]) => ({ key, requests }))
       .sort((a, b) => b.requests - a.requests),
@@ -238,10 +277,27 @@ function dailyBucket(rows: DailyRow[], keyOf: (r: DailyRow) => string): StatsBuc
   return out.sort((a, b) => b.requests - a.requests);
 }
 
+/** Per-day provider counts for the dashboard chart, from usage_daily rows. */
+function providerDayFromDaily(rows: DailyRow[]): ProviderDay[] {
+  const map = new Map<string, ProviderDay>();
+  for (const r of rows) {
+    const provider = providerOf(r.model);
+    const k = r.day + "|" + provider;
+    let acc = map.get(k);
+    if (!acc) {
+      acc = { day: r.day, provider, requests: 0, errors: 0 };
+      map.set(k, acc);
+    }
+    acc.requests += num(r.requests);
+    acc.errors += num(r.errors);
+  }
+  return [...map.values()].sort((a, b) => a.day.localeCompare(b.day) || a.provider.localeCompare(b.provider));
+}
+
 /** 7d / 30d: totals from usage_daily, heatmap aggregated from usage_events. */
 async function statsFromDaily(range: StatsRange, now: number): Promise<StatsSnapshot> {
   const since = now - RANGE_MS[range];
-  const base: Omit<StatsSnapshot, "totals" | "byModel" | "byKey" | "byRoute"> = {
+  const base: Omit<StatsSnapshot, "totals" | "byModel" | "byKey" | "byRoute" | "byProvider" | "byProviderDay"> = {
     ok: true,
     range,
     source: "usage_daily",
@@ -270,10 +326,12 @@ async function statsFromDaily(range: StatsRange, now: number): Promise<StatsSnap
         byModel: [],
         byKey: [],
         byRoute: [],
+        byProvider: [],
+        byProviderDay: [],
         note: "Daily history needs Postgres; DATABASE_URL is not set.",
       };
     }
-    return { ...base, ok: false, totals: emptyTotals(), byModel: [], byKey: [], byRoute: [], error: daily.message };
+    return { ...base, ok: false, totals: emptyTotals(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: daily.message };
   }
 
   const rows = daily.rows;
@@ -311,7 +369,7 @@ async function statsFromDaily(range: StatsRange, now: number): Promise<StatsSnap
     [new Date(since).toISOString()],
   );
   if (!heat.ok) {
-    return { ...base, ok: false, totals: emptyTotals(), byModel: [], byKey: [], byRoute: [], error: heat.message };
+    return { ...base, ok: false, totals: emptyTotals(), byModel: [], byKey: [], byRoute: [], byProvider: [], byProviderDay: [], error: heat.message };
   }
 
   const note = rows.length
@@ -324,6 +382,8 @@ async function statsFromDaily(range: StatsRange, now: number): Promise<StatsSnap
     byModel: dailyBucket(rows, (r) => r.model),
     byKey: dailyBucket(rows, (r) => r.key_id),
     byRoute: dailyBucket(rows, (r) => r.route),
+    byProvider: dailyBucket(rows, (r) => providerOf(r.model)),
+    byProviderDay: providerDayFromDaily(rows),
     byStatus: [
       { key: "ok", requests: Math.max(0, requests - errors) },
       { key: "error", requests: errors },
@@ -350,6 +410,8 @@ export async function statsSnapshot(range: StatsRange, now = Date.now()): Promis
       byModel: [],
       byKey: [],
       byRoute: [],
+      byProvider: [],
+      byProviderDay: [],
       byStatus: [],
       heatmap: [],
       projectedMonthlyUsd: 0,
