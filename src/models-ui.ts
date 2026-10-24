@@ -17,8 +17,8 @@ const MODELS_BODY = `
   <header class="page-head">
     <div class="page-head-main">
       <span class="eyebrow">Catalog</span>
-      <h1 class="page-title">Models</h1>
-      <p class="page-lede">Live inventory from the Generative Language API, joined with published pricing.</p>
+      <h1 class="page-title">Models &amp; Voices</h1>
+      <p class="page-lede">Unified inventory across providers. Gemini models and ElevenLabs voices/models in one place.</p>
     </div>
     <div class="page-head-side">
       <span class="meta" id="asOf">-</span>
@@ -31,9 +31,9 @@ const MODELS_BODY = `
 
   <section class="panel u-mt-6">
     <div class="panel-head">
-      <h2>Find a model</h2>
+      <h2>Find</h2>
       <div class="actions">
-        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh live list</button>
+        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh all</button>
       </div>
     </div>
     <div class="panel-body">
@@ -42,15 +42,23 @@ const MODELS_BODY = `
           <label class="field" for="q">Search</label>
           <div class="search">
             ${icon("search", "icon", 14)}
-            <input id="q" class="input" type="search" spellcheck="false" placeholder="gemini, tts, image, embedding">
+            <input id="q" class="input" type="search" spellcheck="false" placeholder="gemini, eleven, tts, voice, multilingual">
           </div>
         </div>
         <div class="grow">
-          <label class="field" for="kind">Capability</label>
+          <label class="field" for="provider">Provider</label>
+          <select id="provider" class="select">
+            <option value="">all</option>
+            <option value="gemini">gemini</option>
+            <option value="elevenlabs">elevenlabs</option>
+          </select>
+        </div>
+        <div class="grow">
+          <label class="field" for="kind">Type</label>
           <select id="kind" class="select">
             <option value="">all</option>
             <option value="text">text</option>
-            <option value="tts">tts</option>
+            <option value="tts">tts/voice</option>
             <option value="image">image</option>
             <option value="video">video</option>
             <option value="audio">audio</option>
@@ -82,49 +90,14 @@ const MODELS_BODY = `
 
   <section class="panel u-mt-4">
     <div class="panel-head">
-      <h2>Models</h2>
+      <h2>Unified catalog</h2>
       <span class="meta" id="listMeta"></span>
     </div>
-    <div id="body" class="table-wrap">${stateBlock("loading", "Loading the model list")}</div>
+    <div id="body" class="table-wrap">${stateBlock("loading", "Loading catalog")}</div>
     <div class="panel-foot">
       <div id="pager" class="pager u-full"></div>
       <div id="rowMsg" class="notice" role="status" aria-live="polite"></div>
     </div>
-  </section>
-
-  <section class="panel u-mt-4" id="elSection" hidden>
-    <div class="panel-head">
-      <h2>ElevenLabs</h2>
-      <div class="actions">
-        <button id="elReloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh voices</button>
-      </div>
-    </div>
-    <p class="hint">
-      Voice and TTS model inventory from api.elevenlabs.io. Free tier can use the
-      <code>premade</code> voices; <code>professional</code> voices return
-      <code>402 paid_plan_required</code> unless the serving key is on a paid plan.
-      Use these names in <code>POST /v1/audio/speech</code> with
-      <code>"model": "eleven_multilingual_v2"</code>.
-    </p>
-    <div class="toolbar u-mt-3">
-      <div class="grow">
-        <label class="field" for="elVoiceQ">Search voices</label>
-        <div class="search">
-          ${icon("search", "icon", 14)}
-          <input id="elVoiceQ" class="input" type="search" spellcheck="false" placeholder="George, Sarah, multilingual">
-        </div>
-      </div>
-      <div class="grow">
-        <label class="field" for="elCat">Category</label>
-        <select id="elCat" class="select">
-          <option value="">all</option>
-          <option value="premade">premade (free tier)</option>
-          <option value="professional">professional (paid)</option>
-        </select>
-      </div>
-    </div>
-    <div id="elBody" class="table-wrap u-mt-3">${stateBlock("loading", "Loading ElevenLabs inventory")}</div>
-    <div class="panel-foot"><div id="elMsg" class="notice" role="status" aria-live="polite"></div></div>
   </section>
 </div>
 `;
@@ -141,19 +114,14 @@ const MODELS_SCRIPT = `
     tierNote: document.getElementById("tierNote"),
     q: document.getElementById("q"),
     kind: document.getElementById("kind"),
+    provider: document.getElementById("provider"),
     size: document.getElementById("size"),
     reloadBtn: document.getElementById("reloadBtn"),
     body: document.getElementById("body"),
     pager: document.getElementById("pager"),
     listMeta: document.getElementById("listMeta"),
     msg: document.getElementById("msg"),
-    rowMsg: document.getElementById("rowMsg"),
-    elSection: document.getElementById("elSection"),
-    elReloadBtn: document.getElementById("elReloadBtn"),
-    elBody: document.getElementById("elBody"),
-    elMsg: document.getElementById("elMsg"),
-    elVoiceQ: document.getElementById("elVoiceQ"),
-    elCat: document.getElementById("elCat")
+    rowMsg: document.getElementById("rowMsg")
   };
 
   var TIER_LABELS = {
@@ -171,7 +139,6 @@ const MODELS_SCRIPT = `
   };
 
   var state = { models: [], page: 1, size: 25, tier: "free", testing: {} };
-  var elState = { voices: [], models: [] };
 
   function money(v) {
     if (v === null || v === undefined) return null;
@@ -189,6 +156,7 @@ const MODELS_SCRIPT = `
     GX.url.write({
       q: el.q.value.trim(),
       kind: el.kind.value,
+      provider: el.provider.value,
       tier: state.tier,
       page: state.page > 1 ? state.page : ""
     });
@@ -198,6 +166,7 @@ const MODELS_SCRIPT = `
     var params = GX.url.read();
     if (params.q) el.q.value = params.q;
     if (params.kind) el.kind.value = params.kind;
+    if (params.provider && (params.provider === "gemini" || params.provider === "elevenlabs")) el.provider.value = params.provider;
     if (params.tier && TIER_LABELS[params.tier]) state.tier = params.tier;
     state.page = Number(params.page) || 1;
   }
@@ -205,24 +174,31 @@ const MODELS_SCRIPT = `
   function visible() {
     var q = el.q.value.trim().toLowerCase();
     var kind = el.kind.value;
+    var prov = el.provider.value;
     return state.models.filter(function (m) {
-      if (kind && m.kind !== kind) return false;
+      if (prov && (m.provider || "gemini") !== prov) return false;
+      // "tts/voice" is one user-facing capability: Gemini TTS models and
+      // ElevenLabs voices answer the same POST /v1/audio/speech call.
+      if (kind === "tts") {
+        if (m.kind !== "tts" && m.kind !== "voice") return false;
+      } else if (kind && m.kind !== kind) return false;
       if (!tierMatches(m)) return false;
       if (!q) return true;
-      return (m.id + " " + m.displayName + " " + m.description).toLowerCase().indexOf(q) >= 0;
+      return (m.id + " " + m.displayName + " " + m.description + " " + (m.provider || "")).toLowerCase().indexOf(q) >= 0;
     });
   }
 
   function renderKpis(shown) {
     el.kpis.textContent = "";
-    /* The strip answers two different questions and says which is which: how
-       big the catalog is, and how many rows are on screen right now. Reading
-       "Catalog 63" beside a 4-row table used to look like a broken filter. */
+    /* The strip answers two different questions and says which is which: how big
+       the catalog is, and how many rows are on screen right now. */
     el.kpis.appendChild(GX.kpi("Showing", GX.fmt.num(shown), shown === state.models.length ? "the whole catalog" : "match the filters below"));
-    el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "models Google returns"));
+    el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "across all providers"));
+    el.kpis.appendChild(GX.kpi("Gemini", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") === "gemini"; }).length), "Gemini API models"));
+    el.kpis.appendChild(GX.kpi("ElevenLabs", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") !== "gemini"; }).length), "ElevenLabs models & voices"));
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
-    el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
+    el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "Gemini probed from this browser"));
   }
 
   function badgeFor(m) {
@@ -273,7 +249,8 @@ const MODELS_SCRIPT = `
 
     var table = GX.el("table", { class: "table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
-      GX.el("th", { text: "Model" }),
+      GX.el("th", { text: "Provider" }),
+      GX.el("th", { text: "Model / Voice" }),
       GX.el("th", { text: "Tier" }),
       GX.el("th", { class: "num", text: "Input /1M" }),
       GX.el("th", { class: "num", text: "Output /1M" }),
@@ -287,10 +264,16 @@ const MODELS_SCRIPT = `
     slice.forEach(function (m) {
       var tr = GX.el("tr");
 
+      var prov = m.provider || "gemini";
+      var provCell = GX.el("td", { "data-l": "provider" });
+      provCell.appendChild(GX.el("span", { class: "chip", text: prov }));
+      tr.appendChild(provCell);
+
       var idCell = GX.el("td", { "data-l": "model" });
       idCell.appendChild(GX.el("span", { class: "mono", text: m.id }));
       var bits = [m.displayName];
       if (m.kind && m.kind !== "text") bits.push(m.kind);
+      if (m.voiceCategory) bits.push(m.voiceCategory);
       if (m.methods && m.methods.length) bits.push(m.methods.join("/"));
       var sub = GX.el("div", { class: "sub", text: bits.join(" · ") });
       sub.title = bits.join(" · ");
@@ -331,9 +314,13 @@ const MODELS_SCRIPT = `
       tr.appendChild(probeCell);
 
       var actions = GX.el("td", { class: "actions" });
-      var btn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
-      btn.addEventListener("click", function () { testModel(m, btn, pv); });
-      actions.appendChild(btn);
+      if ((m.provider || "gemini") === "gemini" && m.kind === "text") {
+        var btn = GX.el("button", { class: "btn btn-sm", type: "button", text: "Test" });
+        btn.addEventListener("click", function () { testModel(m, btn, pv); });
+        actions.appendChild(btn);
+      } else {
+        actions.appendChild(GX.el("span", { class: "sub", text: (m.kind === "voice" || m.provider === "elevenlabs") ? "voices serve via /v1/audio/speech" : "" }));
+      }
       tr.appendChild(actions);
 
       body.appendChild(tr);
@@ -390,7 +377,10 @@ const MODELS_SCRIPT = `
       .then(function (data) {
         state.models = data.models || [];
         var source = data.source || "upstream";
-        GX.say(el.msg, state.models.length + " models from " + source + (data.cached ? " (cached)" : ""), "ok");
+        var provMsg = data.providers
+          ? " (" + data.providers.gemini + " gemini, " + data.providers.elevenlabs + " elevenlabs)"
+          : "";
+        GX.say(el.msg, state.models.length + " rows from " + source + (data.cached ? " (cached)" : "") + provMsg + (data.degraded ? " · Gemini " + data.degradedReason : ""), data.degraded ? "" : "ok");
         el.asOf.textContent = "pricing " + (data.pricing && data.pricing.asOf ? data.pricing.asOf : "-");
         el.console.hidden = false;
         render();
@@ -484,72 +474,6 @@ const MODELS_SCRIPT = `
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
   GX.shortcuts({ filter: "q", refresh: "reloadBtn" });
-  /* ---------- ElevenLabs ---------- */
-
-  function elEsc(s) {
-    return String(s === null || s === undefined ? "" : s)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
-
-  function elRender() {
-    var q = (el.elVoiceQ.value || "").trim().toLowerCase();
-    var cat = el.elCat.value || "";
-    var rows = elState.voices.filter(function (v) {
-      if (cat && String(v.category) !== cat) return false;
-      if (!q) return true;
-      var labels = v.labels || {};
-      return (String(v.name) + " " + String(v.voice_id) + " " + JSON.stringify(labels)).toLowerCase().indexOf(q) >= 0;
-    });
-
-    var meta = el.elBody.parentNode.parentNode.querySelector(".panel-head .meta");
-    if (meta) meta.textContent = rows.length + " voice" + (rows.length === 1 ? "" : "s") +
-      (elState.models.length ? " · " + elState.models.length + " models" : "");
-
-    if (!rows.length) {
-      el.elBody.innerHTML = stateBlock("empty", "No ElevenLabs voices matched", "Adjust the search or category filter.");
-      return;
-    }
-
-    var html = '<table class="table"><thead><tr>' +
-      "<th>Voice</th><th>Category</th><th>Labels</th><th>Voice ID</th>" +
-      "</tr></thead><tbody>";
-    rows.forEach(function (v) {
-      var labels = Object.keys(v.labels || {}).map(function (k) {
-        return k + ": " + v.labels[k];
-      }).join(", ");
-      var free = String(v.category) === "premade";
-      html += "<tr>" +
-        "<td><strong>" + elEsc(v.name) + "</strong></td>" +
-        "<td><span class=\"chip" + (free ? "" : " chip-warn") + "\">" + elEsc(v.category) + "</span></td>" +
-        "<td class=\"muted\">" + elEsc(labels) + "</td>" +
-        "<td><code>" + elEsc(v.voice_id) + "</code></td>" +
-        "</tr>";
-    });
-    el.elBody.innerHTML = html + "</tbody></table>";
-
-    var m = elState.models.map(function (x) { return x.model_id; });
-    el.elMsg.textContent = m.length
-      ? "TTS models: " + m.join(", ")
-      : "";
-  }
-
-  function loadElevenLabs(force) {
-    el.elSection.hidden = false;
-    el.elBody.innerHTML = stateBlock("loading", "Loading ElevenLabs inventory");
-    return GX.fetch("/pengatur/elevenlabs/list" + (force ? "?refresh=1" : ""), {})
-      .then(function (d) {
-        if (!d.ok) {
-          el.elBody.innerHTML = stateBlock("error", "ElevenLabs unavailable", d.error || "no keys");
-          return;
-        }
-        elState.voices = d.voices || [];
-        elState.models = d.models || [];
-        elRender();
-      })
-      .catch(function (err) {
-        el.elBody.innerHTML = stateBlock("error", "Could not load ElevenLabs", String(err && err.message || err));
-      });
-  }
 
   GX.gate({
     onSuccess: function () {
@@ -558,10 +482,12 @@ const MODELS_SCRIPT = `
         button.setAttribute("aria-pressed", button.getAttribute("data-tier") === state.tier ? "true" : "false");
       });
       el.tierNote.textContent = TIER_NOTES[state.tier];
-      el.elReloadBtn.addEventListener("click", function () { loadElevenLabs(true); });
-      el.elVoiceQ.addEventListener("input", elRender);
-      el.elCat.addEventListener("change", elRender);
-      return load().then(function () { return loadElevenLabs(false); });
+      el.provider.addEventListener("change", function () {
+        state.page = 1;
+        writeUrl();
+        render();
+      });
+      return load();
     }
   });
 })();

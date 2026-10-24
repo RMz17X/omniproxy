@@ -317,38 +317,84 @@ app.get("/pengatur/stats/data", async (c) => {
  */
 app.get("/pengatur/models/list", async (c) => {
   const force = new URL(c.req.url).searchParams.get("refresh") === "1";
+  // Gemini fallback + ElevenLabs are independent: a leaked-blocked Gemini pool
+  // must not hide a healthy ElevenLabs inventory, and vice versa. The catalog
+  // is unified and carries a `provider` field on every row.
+  let gemini: { models: unknown[]; source: string; cached: boolean; degraded?: boolean; degradedReason?: string };
   try {
-    const { models, source, cached } = await listLiveModels(force);
-    return c.json({
-      ok: true,
-      count: models.length,
-      models,
-      source,
-      cached,
-      pricing: pricingMeta(),
-    });
+    const live = await listLiveModels(force);
+    gemini = live;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const status = (err as Error & { code?: string }).code === "empty_pool" ? 503 : 502;
-    // The console must still render a usable list. A key that Google flagged as
-    // leaked can serve generateContent but never answers model discovery, so a
-    // pool where every candidate is leaked would otherwise blank the page with
-    // an upstream 403. Fall back to the static catalog and say so instead.
     log("warn", "models.list_fallback_catalog", { reason: message });
-    const fallback = catalogModels();
-    return c.json({
-      ok: true,
-      count: fallback.length,
-      models: fallback,
+    gemini = {
+      models: catalogModels(),
       source: "catalog",
       cached: false,
       degraded: true,
       degradedReason: message,
-      status,
-      debug: discoveryDebug(),
-      pricing: pricingMeta(),
-    });
+    };
   }
+  const inv = await listElevenLabsInventory();
+  const eleven = inv
+    ? inv.models.map((m) => ({
+        id: `elevenlabs:${m.model_id}`,
+        provider: "elevenlabs",
+        name: m.model_id,
+        displayName: m.name || m.model_id,
+        description: m.description || "",
+        version: "",
+        methods: m.can_do_text_to_speech ? ["generateSpeech"] : [],
+        inputTokenLimit: null,
+        outputTokenLimit: null,
+        kind: "tts" as const,
+        free: true,
+        freeLabel: "per-character quota",
+        inUsd: null,
+        outUsd: null,
+        inRaw: "",
+        outRaw: "",
+      }))
+    : [];
+  const voices = inv
+    ? inv.voices.map((v) => ({
+        id: `voice:${v.voice_id}`,
+        provider: "elevenlabs",
+        name: v.voice_id,
+        displayName: v.name,
+        description: typeof v.labels === "object" ? JSON.stringify(v.labels) : "",
+        version: "",
+        methods: [],
+        inputTokenLimit: null,
+        outputTokenLimit: null,
+        kind: "voice" as const,
+        free: v.category === "premade",
+        freeLabel: v.category === "premade" ? "premade (free tier)" : `professional (${v.category}) — paid plan required`,
+        inUsd: null,
+        outUsd: null,
+        inRaw: "",
+        outRaw: "",
+        voiceCategory: v.category ?? "",
+      }))
+    : [];
+
+  const models = [...gemini.models, ...eleven, ...voices];
+  return c.json({
+    ok: true,
+    count: models.length,
+    models,
+    source: gemini.source,
+    cached: gemini.cached,
+    degraded: gemini.degraded,
+    degradedReason: gemini.degradedReason,
+    providers: {
+      gemini: gemini.models.length,
+      elevenlabs: eleven.length + voices.length,
+      voice: voices.length,
+    },
+    pricing: pricingMeta(),
+  });
 });
 
 /**

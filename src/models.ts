@@ -19,6 +19,8 @@ const TIMEOUT_MS = Number(process.env.MODELS_TIMEOUT_MS ?? 10_000);
 export type LiveModel = {
   /** bare id, no models/ prefix */
   id: string;
+  /** which pool owns this row: "gemini" or "elevenlabs" */
+  provider: string;
   name: string;
   displayName: string;
   description: string;
@@ -36,6 +38,8 @@ export type LiveModel = {
   outUsd: number | null;
   inRaw: string;
   outRaw: string;
+  /** elevenlabs voice category, when the row is a voice */
+  voiceCategory?: string;
 };
 
 type Cache = { at: number; models: LiveModel[]; source: string };
@@ -285,6 +289,7 @@ export async function listLiveModels(force = false): Promise<{ models: LiveModel
       const cat: CatalogEntry | null = catalogFor(id);
       return {
         id,
+        provider: "gemini",
         name: full,
         displayName: String(raw.displayName ?? id),
         description: String(raw.description ?? ""),
@@ -333,6 +338,7 @@ export async function listLiveModels(force = false): Promise<{ models: LiveModel
 export function catalogModels(): LiveModel[] {
   return CATALOG.map((c) => ({
     id: c.id,
+    provider: "gemini" as const,
     name: c.id,
     displayName: c.name,
     description: "",
