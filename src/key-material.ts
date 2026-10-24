@@ -50,17 +50,44 @@ export async function loadMaterial(): Promise<Map<string, string>> {
 }
 
 /**
+ * Every stored key with its provider, `id -> { raw, provider }`.
+ *
+ * `loadMaterial()` drops the provider because most callers only need the raw
+ * value; hydrate() is the exception — it rebuilds the pool and must seed each
+ * key under the provider that owns it, or a whatstoken key comes back as
+ * gemini on the next cold start.
+ */
+export async function loadMaterialEntries(): Promise<Map<string, { raw: string; provider: string }>> {
+  const out = new Map<string, { raw: string; provider: string }>();
+  if (!dbEnabled()) return out;
+
+  const res = await sql<MaterialRow>(`select id, raw_key, provider from key_material`);
+  if (!res.ok) {
+    log("warn", "key_material.load_failed", { reason: res.reason });
+    return out;
+  }
+
+  for (const row of res.rows) {
+    const raw = typeof row.raw_key === "string" ? row.raw_key.trim() : "";
+    if (!raw) continue;
+    const provider = typeof row.provider === "string" && row.provider.trim() ? row.provider.trim() : "gemini";
+    out.set(row.id, { raw, provider });
+  }
+  return out;
+}
+
+/**
  * Insert or replace one key's raw value. Fire and forget: the pool has already
  * accepted the key in memory by the time this runs. The raw value is a bind
  * parameter and is never logged.
  */
-export function saveMaterial(id: string, raw: string): void {
+export function saveMaterial(id: string, raw: string, provider = "gemini"): void {
   if (!dbEnabled()) return;
   sqlLater(
-    `insert into key_material (id, raw_key) values ($1, $2)
+    `insert into key_material (id, raw_key, provider) values ($1, $2, $3)
      on conflict (id) do update
-       set raw_key = excluded.raw_key, updated_at = now()`,
-    [id, raw],
+       set raw_key = excluded.raw_key, provider = excluded.provider, updated_at = now()`,
+    [id, raw, provider],
   );
 }
 
@@ -75,13 +102,13 @@ export function saveMaterial(id: string, raw: string): void {
  * rebuilds a pool without it. Callers that promise durability (the key-sync
  * endpoint) must use this variant and await it before answering.
  */
-export async function saveMaterialNow(id: string, raw: string): Promise<void> {
+export async function saveMaterialNow(id: string, raw: string, provider = "gemini"): Promise<void> {
   if (!dbEnabled()) return;
   await sql(
-    `insert into key_material (id, raw_key) values ($1, $2)
+    `insert into key_material (id, raw_key, provider) values ($1, $2, $3)
      on conflict (id) do update
-       set raw_key = excluded.raw_key, updated_at = now()`,
-    [id, raw],
+       set raw_key = excluded.raw_key, provider = excluded.provider, updated_at = now()`,
+    [id, raw, provider],
   );
 }
 

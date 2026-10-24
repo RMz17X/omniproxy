@@ -109,3 +109,52 @@ create table if not exists key_material (
   raw_key    text not null,             -- stored as-is, NOT encrypted
   updated_at timestamptz not null default now()
 );
+
+-- Which pool the material belongs to, so a cold start rebuilds the pool with
+-- the right provider before the `keys` identity overlay lands.
+alter table key_material add column if not exists provider text not null default 'gemini';
+
+-- Provider registry. A provider is an upstream the gateway can serve: where
+-- its API lives, what it can do (llm / tts / image / video / embeddings),
+-- which wire dialect it speaks, and how its keys are shaped. Builtin rows
+-- (gemini / elevenlabs / whatstoken) are code-owned: the row only carries
+-- operator state (enabled flag, imported model list). Custom rows carry the
+-- full definition added through the console.
+create table if not exists providers (
+  id           text primary key,
+  label        text not null,
+  base_url     text not null default '',
+  capabilities text[] not null default '{}',
+  wire         text not null default 'openai',
+  key_pattern  text,
+  models       text[] not null default '{}',
+  enabled      boolean not null default true,
+  builtin      boolean not null default false,
+  note         text,
+  created_at   timestamptz not null default now()
+);
+
+-- Seed the builtins so a console toggle or an imported model list survives a
+-- cold start. `do nothing` on conflict: the code owns the definition, the row
+-- only carries operator state, so a redeploy never reverts an edit.
+insert into providers (id, label, base_url, capabilities, wire, key_pattern, models, enabled, builtin, note)
+values
+  ('gemini', 'Gemini', '', array['llm','tts','image','embeddings'], 'gemini', '^AIza[0-9A-Za-z_-]{20,}$', '{}', true, true, 'Google Generative Language. Chat, TTS, image and embeddings.'),
+  ('elevenlabs', 'ElevenLabs', '', array['tts'], 'elevenlabs', '^sk_[a-fA-F0-9]{40,64}$', '{}', true, true, 'Text to speech and voices, routed by model name on /v1/audio/speech.'),
+  ('whatstoken', 'WhatsToken', 'https://api.whatstoken.ai/v1', array['llm','tts','image','video'], 'openai', '^sk-[A-Za-z0-9_-]{16,}$', '{}', true, true, 'OpenAI-compatible model gateway: GPT, Claude, DeepSeek, image and video models.')
+on conflict (id) do nothing;
+
+-- Which pool served a usage row. Model-derived attribution broke the moment a
+-- bare id (gpt-4o, deepseek-v4.1-flash-1017) could route to a non-gemini
+-- provider, so the provider is recorded at commit time instead of guessed.
+alter table usage_events add column if not exists provider text not null default 'gemini';
+
+-- Same dimension on the rollup. Functionally dependent on key_id in practice
+-- (a key belongs to one provider), but explicit so the console never guesses.
+-- The bucket key gains the column: the old primary key cannot express it, so
+-- the constraint is replaced by a unique index over the five columns. Rows
+-- written before this column existed all carry 'gemini', so the new index
+-- never collides with existing data.
+alter table usage_daily add column if not exists provider text not null default 'gemini';
+alter table usage_daily drop constraint if exists usage_daily_pkey;
+create unique index if not exists usage_daily_bucket_idx on usage_daily (day, route, model, key_id, provider);

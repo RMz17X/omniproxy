@@ -57,8 +57,12 @@ export type SettingsView = {
 /**
  * Tokens are the only names whose *value* must never be observable, so they
  * are listed separately and reduced to a boolean before anything is returned.
+ *
+ * `WHATSTOKEN_API_KEYS` is the pattern for every provider: `<ID>_API_KEYS`
+ * seeds that provider's pool at hydrate(), so a custom provider registered
+ * through the console is seeded the same way.
  */
-const TOKEN_ENVS = ["ADMIN_TOKEN", "CLIENT_TOKEN", "ROLLUP_TOKEN", "GEMINI_API_KEYS"] as const;
+const TOKEN_ENVS = ["ADMIN_TOKEN", "CLIENT_TOKEN", "ROLLUP_TOKEN", "GEMINI_API_KEYS", "WHATSTOKEN_API_KEYS"] as const;
 
 /** Non-secret knobs an operator may want to confirm are present. */
 const FLAG_ENVS = [

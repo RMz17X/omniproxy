@@ -138,7 +138,7 @@ const MODELS_SCRIPT = `
     any: "Showing every model Google returns, regardless of billing."
   };
 
-  var state = { models: [], page: 1, size: 25, tier: "free", testing: {} };
+  var state = { models: [], census: {}, page: 1, size: 25, tier: "free", testing: {} };
 
   function money(v) {
     if (v === null || v === undefined) return null;
@@ -166,7 +166,11 @@ const MODELS_SCRIPT = `
     var params = GX.url.read();
     if (params.q) el.q.value = params.q;
     if (params.kind) el.kind.value = params.kind;
-    if (params.provider && (params.provider === "gemini" || params.provider === "elevenlabs")) el.provider.value = params.provider;
+    /* Any provider the catalog actually returned is a valid filter value,
+       so a custom provider survives a reload the same way gemini does. */
+    if (params.provider && el.provider.querySelector('option[value="' + params.provider + '"]')) {
+      el.provider.value = params.provider;
+    }
     if (params.tier && TIER_LABELS[params.tier]) state.tier = params.tier;
     state.page = Number(params.page) || 1;
   }
@@ -188,17 +192,51 @@ const MODELS_SCRIPT = `
     });
   }
 
-  function renderKpis(shown) {
+  /* The provider filter and the per-provider cards are built from the
+     catalog's own census, so every provider in the registry (gemini,
+     elevenlabs, whatstoken, customs) appears without hardcoding. */
+  function provTone(p) {
+    if (p === "gemini") return "prov-gemini";
+    if (p === "elevenlabs") return "prov-elevenlabs";
+    if (p === "whatstoken") return "prov-whatstoken";
+    return "prov-custom";
+  }
+
+  function syncProviderFilter(census) {
+    if (!el.provider) return;
+    var current = el.provider.value;
+    el.provider.textContent = "";
+    var allOpt = document.createElement("option");
+    allOpt.value = "";
+    allOpt.textContent = "all";
+    el.provider.appendChild(allOpt);
+    Object.keys(census || {}).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    }).forEach(function (p) {
+      var opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p + (census[p] ? " (" + census[p] + ")" : "");
+      el.provider.appendChild(opt);
+    });
+    if (current && el.provider.querySelector('option[value="' + current + '"]')) el.provider.value = current;
+  }
+
+  function renderKpis(shown, census) {
     el.kpis.textContent = "";
     /* The strip answers two different questions and says which is which: how big
        the catalog is, and how many rows are on screen right now. */
     el.kpis.appendChild(GX.kpi("Showing", GX.fmt.num(shown), shown === state.models.length ? "the whole catalog" : "match the filters below"));
     el.kpis.appendChild(GX.kpi("Catalog", GX.fmt.num(state.models.length), "across all providers"));
-    el.kpis.appendChild(GX.kpi("Gemini", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") === "gemini"; }).length), "Gemini API models", "prov-gemini"));
-    el.kpis.appendChild(GX.kpi("ElevenLabs", GX.fmt.num(state.models.filter(function (m) { return (m.provider || "gemini") !== "gemini"; }).length), "ElevenLabs models & voices", "prov-elevenlabs"));
+    Object.keys(census || {}).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    }).forEach(function (p) {
+      el.kpis.appendChild(GX.kpi(p, GX.fmt.num(census[p] || 0), p + " models", provTone(p)));
+    });
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
-    el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "Gemini probed from this browser"));
+    el.kpis.appendChild(GX.kpi("Tested", GX.fmt.num(Object.keys(state.testing).length), "probed from this browser"));
   }
 
   function badgeFor(m) {
@@ -228,7 +266,7 @@ const MODELS_SCRIPT = `
     if (state.page < 1) state.page = 1;
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
-    renderKpis(rows.length);
+    renderKpis(rows.length, state.census);
     /* The only filtered count in the panel head, and it says so. The KPI strip
        above carries catalog facts plus a "Showing" figure, so no two numbers
        answer the same question. */
@@ -376,9 +414,14 @@ const MODELS_SCRIPT = `
     return GX.api(url)
       .then(function (data) {
         state.models = data.models || [];
+        state.census = data.providers || {};
+        syncProviderFilter(state.census);
         var source = data.source || "upstream";
-        var provMsg = data.providers
-          ? " (" + data.providers.gemini + " gemini, " + data.providers.elevenlabs + " elevenlabs)"
+        var provMsg = Object.keys(state.census).length
+          ? " (" + Object.keys(state.census).sort(function (a, b) {
+              if (a === b) return 0;
+              return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+            }).map(function (p) { return p + " " + state.census[p]; }).join(", ") + ")"
           : "";
         GX.say(el.msg, state.models.length + " rows from " + source + (data.cached ? " (cached)" : "") + provMsg + (data.degraded ? " · Gemini " + data.degradedReason : ""), data.degraded ? "" : "ok");
         el.asOf.textContent = "pricing " + (data.pricing && data.pricing.asOf ? data.pricing.asOf : "-");
@@ -391,7 +434,7 @@ const MODELS_SCRIPT = `
           throw err;
         }
         el.console.hidden = false;
-        renderKpis();
+        renderKpis(0, {});
         GX.say(el.msg, "Could not load the model list: " + err.message, "err");
         el.asOf.textContent = "pricing unavailable";
         el.body.textContent = "";
@@ -423,7 +466,7 @@ const MODELS_SCRIPT = `
         } else {
           GX.say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "" : "err");
         }
-        renderKpis();
+        renderKpis(0, state.census);
       })
       .catch(function (err) {
         node.textContent = "error";

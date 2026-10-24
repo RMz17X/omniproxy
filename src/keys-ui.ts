@@ -188,9 +188,8 @@ ${confirmDialog()}
     <div class="panel-body">
       <div class="u-mb-3">
         <label class="field" for="newProvider">Provider</label>
-        <select id="newProvider" class="select">
-          <option value="gemini" selected>gemini</option>
-        </select>
+        <select id="newProvider" class="select"></select>
+        <p class="hint u-mt-2" id="newProviderHint"></p>
       </div>
       <label class="field" for="newKeys">One key per line, or separated by commas</label>
       <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
@@ -236,12 +235,13 @@ const KEYS_SCRIPT = `
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
     newProvider: document.getElementById("newProvider"),
+    newProviderHint: document.getElementById("newProviderHint"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg")
   };
 
-  var state = { keys: [], knownTiers: [], page: 1, size: 25, query: "", provider: "", status: "", plan: "", selected: {}, timer: null };
+  var state = { keys: [], providers: [], knownTiers: [], page: 1, size: 25, query: "", provider: "", status: "", plan: "", selected: {}, timer: null };
 
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
@@ -418,13 +418,23 @@ const KEYS_SCRIPT = `
     if (params.size && el.keySize) { el.keySize.value = params.size; state.size = Number(params.size) || 25; }
   }
 
+  /* The registry (GET /pengatur/keys/list -> providers) is the source of
+     truth for the add-key dialog; keys observed in the pool extend the filter
+     list so a provider whose keys predate the registry still filters. */
   function syncProviderOptions(keys) {
-    var providers = {};
+    var observed = {};
     keys.forEach(function (k) {
       var p = k.provider || "gemini";
-      providers[p] = (providers[p] || 0) + 1;
+      observed[p] = (observed[p] || 0) + 1;
     });
-    if (state.provider) providers[state.provider] = providers[state.provider] || 0;
+    var registry = {};
+    (state.providers || []).forEach(function (p) {
+      registry[p.id] = { label: p.label || p.id, caps: p.capabilities || [], keys: p.keys || 0 };
+    });
+    var ids = {};
+    Object.keys(registry).forEach(function (p) { ids[p] = registry[p].keys || observed[p] || 0; });
+    Object.keys(observed).forEach(function (p) { if (!(p in ids)) ids[p] = observed[p]; });
+    if (state.provider) ids[state.provider] = ids[state.provider] || 0;
 
     if (el.keyProvider) {
       var currentVal = state.provider || el.keyProvider.value;
@@ -436,10 +446,11 @@ const KEYS_SCRIPT = `
 
       /* The filter names the size of each pool, so the operator picks a
          provider knowing how many keys sit behind it. */
-      Object.keys(providers).sort().forEach(function (p) {
+      Object.keys(ids).sort().forEach(function (p) {
         var opt = document.createElement("option");
         opt.value = p;
-        opt.textContent = providers[p] ? p + " (" + providers[p] + ")" : p;
+        var name = registry[p] ? registry[p].label + " (" + p + ")" : p;
+        opt.textContent = ids[p] ? name + " · " + ids[p] : name;
         if (p === currentVal) opt.selected = true;
         el.keyProvider.appendChild(opt);
       });
@@ -447,18 +458,41 @@ const KEYS_SCRIPT = `
     }
 
     if (el.newProvider) {
-      var currentNewVal = el.newProvider.value || "gemini";
+      var currentNewVal = el.newProvider.value || "";
       el.newProvider.textContent = "";
-      var known = Object.assign({ gemini: true }, providers);
-      Object.keys(known).sort().forEach(function (p) {
+      var autoOpt = document.createElement("option");
+      autoOpt.value = "";
+      autoOpt.textContent = "Auto-detect from key format";
+      if (!currentNewVal) autoOpt.selected = true;
+      el.newProvider.appendChild(autoOpt);
+      Object.keys(ids).sort().forEach(function (p) {
         var opt = document.createElement("option");
         opt.value = p;
-        opt.textContent = p;
+        var label = registry[p] ? registry[p].label + " (" + p + ")" : p;
+        var caps = registry[p] && registry[p].caps.length ? " · " + registry[p].caps.join("/") : "";
+        opt.textContent = label + caps;
         if (p === currentNewVal) opt.selected = true;
         el.newProvider.appendChild(opt);
       });
       el.newProvider.value = currentNewVal;
+      paintProviderHint();
     }
+  }
+
+  /* One line under the provider select: what the choice can serve, and how
+     its keys are recognised when auto-detect is on. */
+  function paintProviderHint() {
+    if (!el.newProviderHint) return;
+    var id = el.newProvider ? el.newProvider.value : "";
+    if (!id) {
+      el.newProviderHint.textContent = "Each key is matched to a provider by its format (AIza… Google, sk_… ElevenLabs, sk-… gateways).";
+      return;
+    }
+    var hit = null;
+    (state.providers || []).forEach(function (p) { if (p.id === id) hit = p; });
+    if (!hit) { el.newProviderHint.textContent = ""; return; }
+    var caps = (hit.capabilities || []).join(", ") || "nothing";
+    el.newProviderHint.textContent = "Serves: " + caps + ". Keys added here join that pool only.";
   }
 
   function visibleKeys() {
@@ -535,12 +569,28 @@ const KEYS_SCRIPT = `
     el.kpis.textContent = "";
     el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "storage degraded" : "shared by every instance"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
-       is two pools wearing one number; the split is the first thing asked. */
+       is several pools wearing one number; the split is the first thing
+       asked. The registry names every provider, so a custom one gets its own
+       card the moment it holds a key. */
     var byProvider = pool.byProvider || pool.providers || {};
-    var gem = byProvider.gemini || {};
-    var elv = byProvider.elevenlabs || {};
-    el.kpis.appendChild(GX.kpi("Gemini keys", GX.fmt.num(gem.total || 0), (gem.ready || 0) + " ready", "prov-gemini"));
-    el.kpis.appendChild(GX.kpi("ElevenLabs keys", GX.fmt.num(elv.total || 0), (elv.ready || 0) + " ready", "prov-elevenlabs"));
+    var tone = function (p) {
+      if (p === "gemini") return "prov-gemini";
+      if (p === "elevenlabs") return "prov-elevenlabs";
+      if (p === "whatstoken") return "prov-whatstoken";
+      return "prov-custom";
+    };
+    var label = function (p) {
+      var hit = null;
+      (state.providers || []).forEach(function (x) { if (x.id === p) hit = x; });
+      return hit && hit.label ? hit.label + " keys" : p + " keys";
+    };
+    Object.keys(byProvider).sort(function (a, b) {
+      if (a === b) return 0;
+      return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
+    }).forEach(function (p) {
+      var snap = byProvider[p] || {};
+      el.kpis.appendChild(GX.kpi(label(p), GX.fmt.num(snap.total || 0), (snap.ready || 0) + " ready", tone(p)));
+    });
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
@@ -1016,7 +1066,9 @@ const KEYS_SCRIPT = `
 
   function addKeys() {
     var raw = el.newKeys.value;
-    var provider = (el.newProvider && el.newProvider.value) ? el.newProvider.value.trim() : "gemini";
+    /* Empty provider = auto-detect: the server matches each key to a pool by
+       its format, so a mixed paste lands in the right pools. */
+    var provider = (el.newProvider && el.newProvider.value) ? el.newProvider.value.trim() : "";
     var keys = raw.split(/[\s,]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     if (!keys.length) { GX.say(el.addMsg, "Nothing to add.", "err"); return; }
     GX.busy(el.addSubmit, "Adding…");
@@ -1024,7 +1076,13 @@ const KEYS_SCRIPT = `
       .then(function (data) {
         el.newKeys.value = "";
         el.addCount.textContent = "";
-        GX.say(el.addMsg, "Sent " + data.received + ", added " + data.added + ".", data.added ? "ok" : "");
+        var byProvider = data.providers || {};
+        var split = Object.keys(byProvider).map(function (p) { return p + " ×" + byProvider[p]; }).join(", ");
+        GX.say(
+          el.addMsg,
+          "Sent " + data.received + ", added " + data.added + (split ? " (" + split + ")" : "") + ".",
+          data.added ? "ok" : ""
+        );
         GX.closeDialog(el.addDialog);
         GX.notice(
           data.added ? "Added " + data.added + " key(s) to the pool." : "No key was added.",
@@ -1067,6 +1125,7 @@ const KEYS_SCRIPT = `
     return GX.api("/pengatur/keys/list?reveal=1")
       .then(function (data) {
         state.keys = data.keys || [];
+        state.providers = data.providers || [];
         syncProviderOptions(state.keys);
         if (data.raw) {
           var now = Date.now();
@@ -1106,10 +1165,12 @@ const KEYS_SCRIPT = `
 
   el.addBtn.addEventListener("click", function () {
     GX.say(el.addMsg, "");
+    paintProviderHint();
     GX.openDialog(el.addDialog);
     if (el.newKeys) el.newKeys.focus();
   });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  if (el.newProvider) el.newProvider.addEventListener("change", paintProviderHint);
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;

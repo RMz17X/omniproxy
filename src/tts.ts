@@ -215,6 +215,7 @@ export async function serveElevenLabs(req: Request, key?: string): Promise<Respo
 
   noteUsage(req, {
     model: "elevenlabs",
+    provider: "elevenlabs",
     keyRaw: rawKey,
     attempts: 1,
     rotated: false,

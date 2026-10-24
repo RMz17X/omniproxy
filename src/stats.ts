@@ -220,7 +220,7 @@ function statsFromRing(range: StatsRange, now: number): StatsSnapshot {
     byModel: bucketRows(rows, (r) => r.model),
     byKey: bucketRows(rows, (r) => r.keyId || r.keyMasked),
     byRoute: bucketRows(rows, (r) => r.route),
-    byProvider: bucketRows(rows, (r) => providerOf(r.model)),
+    byProvider: bucketRows(rows, (r) => r.provider || providerOf(r.model)),
     byProviderDay: providerDayFromRing(rows),
     byStatus: [...statusMap.entries()]
       .map(([key, requests]) => ({ key, requests }))
@@ -235,6 +235,7 @@ type DailyRow = {
   day: string;
   route: string;
   model: string;
+  provider: string;
   key_id: string;
   requests: number | string;
   errors: number | string;
@@ -284,7 +285,7 @@ function dailyBucket(rows: DailyRow[], keyOf: (r: DailyRow) => string): StatsBuc
 function providerDayFromDaily(rows: DailyRow[]): ProviderDay[] {
   const map = new Map<string, ProviderDay>();
   for (const r of rows) {
-    const provider = providerOf(r.model);
+    const provider = r.provider || providerOf(r.model);
     const k = r.day + "|" + provider;
     let acc = map.get(k);
     if (!acc) {
@@ -313,7 +314,7 @@ async function statsFromDaily(range: StatsRange, now: number): Promise<StatsSnap
 
   const sinceDay = wibDayOf(since);
   const daily = await sql<DailyRow>(
-    `select day::text as day, route, model, key_id,
+    `select day::text as day, route, model, coalesce(provider, 'gemini') as provider, key_id,
             requests, errors, rotated,
             prompt_tokens, completion_tokens, cost_usd, p50_ms, p95_ms
        from usage_daily
@@ -385,7 +386,7 @@ async function statsFromDaily(range: StatsRange, now: number): Promise<StatsSnap
     byModel: dailyBucket(rows, (r) => r.model),
     byKey: dailyBucket(rows, (r) => r.key_id),
     byRoute: dailyBucket(rows, (r) => r.route),
-    byProvider: dailyBucket(rows, (r) => providerOf(r.model)),
+    byProvider: dailyBucket(rows, (r) => r.provider || providerOf(r.model)),
     byProviderDay: providerDayFromDaily(rows),
     byStatus: [
       { key: "ok", requests: Math.max(0, requests - errors) },
@@ -426,6 +427,7 @@ async function statsFromEvents(range: StatsRange, now: number): Promise<StatsSna
       `select to_char(ts at time zone 'Asia/Jakarta', 'YYYY-MM-DD') as day,
               route,
               coalesce(model, '') as model,
+              coalesce(provider, 'gemini') as provider,
               coalesce(key_id, '') as key_id,
               count(*)::int as requests,
               (count(*) filter (where status >= 400))::int as errors,
@@ -437,7 +439,7 @@ async function statsFromEvents(range: StatsRange, now: number): Promise<StatsSna
               coalesce(percentile_cont(0.95) within group (order by latency_ms), 0)::int as p95_ms
          from usage_events
         where ts >= $1
-        group by 1, 2, 3, 4`,
+        group by 1, 2, 3, 4, 5`,
       [since.toISOString()],
     ),
     sql<HeatRow>(
@@ -490,7 +492,7 @@ async function statsFromEvents(range: StatsRange, now: number): Promise<StatsSna
     byModel: dailyBucket(rows, (r) => r.model),
     byKey: dailyBucket(rows, (r) => r.key_id),
     byRoute: dailyBucket(rows, (r) => r.route),
-    byProvider: dailyBucket(rows, (r) => providerOf(r.model)),
+    byProvider: dailyBucket(rows, (r) => r.provider || providerOf(r.model)),
     byProviderDay: providerDayFromDaily(rows),
     byStatus: [
       { key: "ok", requests: Math.max(0, requests - errors) },

@@ -17,6 +17,7 @@ import {
   type TierEvidence,
 } from "./verdict.ts";
 import { isValidElevenLabsKey, probeElevenLabs } from "./tts.ts";
+import { allProviders, baseUrlOf, detectProvider } from "./providers.ts";
 
 export type ProbeStatus =
   | "ok"
@@ -167,19 +168,29 @@ export async function probeLeak(rawKey: string, timeoutMs = TIMEOUT_MS): Promise
 }
 
 /**
- * A probe of the credential itself, independent of any model.
+ * Probe a credential through the registry.
  *
- * Only a quota refusal can hide a revoked key: every other verdict already
- * names what the key is. So the extra call is spent on parked keys only, and
- * the recheck volume of a healthy pool does not move.
+ * The provider is named by the caller (the console knows which pool the key
+ * was added to) or sniffed from the key format. Each wire dialect gets its
+ * own probe: ElevenLabs answers GET /v1/user, an OpenAI-compatible gateway
+ * answers GET /models, and Google's generateContent chain is the default.
+ * A key is only ever asked in its own dialect — a whatstoken credential
+ * probed against Google would answer 403 and look revoked.
  */
 export async function probeKey(
   rawKey: string,
   model?: string,
   provider?: string,
 ): Promise<ProbeResult> {
-  if (provider === "elevenlabs" || (!provider && isValidElevenLabsKey(rawKey))) {
+  const providers = await allProviders();
+  const named = (provider ?? "").trim();
+  const id = named || detectProvider(rawKey, providers) || "gemini";
+  const entry = providers.find((p) => p.id === id) ?? null;
+  if (id === "elevenlabs" || entry?.wire === "elevenlabs") {
     return probeElevenLabs(rawKey);
+  }
+  if (entry?.wire === "openai") {
+    return probeOpenAICompatible(rawKey, baseUrlOf(entry));
   }
   const result = await probeModels(rawKey, model);
   if (result.status !== "zero_quota") return result;
@@ -190,6 +201,91 @@ export async function probeKey(
     message: "upstream reported the API key as leaked",
     quota: null,
     tierEvidence: null,
+  };
+}
+
+/**
+ * Probe an OpenAI-compatible credential via GET {base}/models.
+ *
+ * 200 = alive, and the model count is the evidence; 401/403 = the credential
+ * itself was rejected (invalid); 429 = a window that resets (rate_limited);
+ * 5xx and transport failures say nothing about the key.
+ */
+export async function probeOpenAICompatible(
+  rawKey: string,
+  baseUrl: string,
+  timeoutMs: number = TIMEOUT_MS,
+): Promise<ProbeResult> {
+  const started = Date.now();
+  const k = rawKey.trim();
+  if (!baseUrl) {
+    return {
+      status: "unexpected",
+      httpStatus: 0,
+      latencyMs: 0,
+      retryAfterMs: 0,
+      message: "provider has no base URL configured",
+    };
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl.replace(/\/+$/, "")}/models`, {
+      headers: { authorization: `Bearer ${k}`, accept: "application/json" },
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    return {
+      status: "network_error",
+      httpStatus: 0,
+      latencyMs: Date.now() - started,
+      retryAfterMs: 0,
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+  const latencyMs = Date.now() - started;
+  if (res.status === 429) {
+    const body = await res.text().catch(() => "");
+    return {
+      status: "rate_limited",
+      httpStatus: 429,
+      latencyMs,
+      retryAfterMs: parseRetryAfter(res, body) ?? cfg.cooldownMs,
+      message: body.slice(0, 220) || "rate limited",
+    };
+  }
+  if (res.status === 401 || res.status === 403) {
+    const body = await res.text().catch(() => "");
+    return {
+      status: "invalid",
+      httpStatus: res.status,
+      latencyMs,
+      retryAfterMs: 0,
+      message: body.slice(0, 220) || `HTTP ${res.status}`,
+    };
+  }
+  if (res.status >= 500) {
+    return {
+      status: "server_error",
+      httpStatus: res.status,
+      latencyMs,
+      retryAfterMs: 0,
+      message: `HTTP ${res.status}`,
+    };
+  }
+  let count = 0;
+  try {
+    const payload = (await res.json()) as { data?: unknown[] };
+    count = Array.isArray(payload.data) ? payload.data.length : 0;
+  } catch {
+    /* a 200 without a JSON body still proves the credential */
+  }
+  return {
+    status: res.ok ? "ok" : "unexpected",
+    httpStatus: res.status,
+    latencyMs,
+    retryAfterMs: 0,
+    message: res.ok ? `serving (${count} models)` : `HTTP ${res.status}`,
   };
 }
 

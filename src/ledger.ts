@@ -39,6 +39,7 @@ export function ledgerKeyId(masked: string): string {
 export type UsageRoute =
   | "chat.completions"
   | "audio.speech"
+  | "images.generations"
   | "gemini.passthrough"
   | "models.list"
   | "embeddings"
@@ -52,6 +53,8 @@ export type UsageRow = {
   path: string;
   method: string;
   model: string;
+  /** which pool served the row; recorded at commit time, never guessed */
+  provider?: string;
   keyId: string;
   keyMasked: string;
   status: number;
@@ -74,6 +77,7 @@ export type LedgerEvent = {
   reqId: string | null;
   route: string;
   model: string | null;
+  provider: string;
   keyId: string | null;
   status: number;
   attempts: number;
@@ -139,6 +143,7 @@ function toEvent(row: UsageRow): LedgerEvent {
     reqId: row.id,
     route: row.route,
     model: row.model,
+    provider: row.provider ?? "gemini",
     keyId: row.keyId,
     status: row.status,
     attempts: row.attempts,
@@ -188,17 +193,18 @@ export function record(row: UsageRow): void {
 const CHUNK = 100;
 
 function insertStatement(rows: LedgerEvent[]): { text: string; params: unknown[] } {
-  const cols = 15;
+  const cols = 16;
   const tuples: string[] = [];
   const params: unknown[] = [];
   rows.forEach((e, i) => {
     const base = i * cols;
-    tuples.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14},$${base + 15})`);
+    tuples.push(`($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14},$${base + 15},$${base + 16})`);
     params.push(
       new Date(e.ts).toISOString(),
       e.reqId,
       e.route,
       e.model,
+      e.provider,
       e.keyId,
       e.status,
       e.attempts,
@@ -213,7 +219,7 @@ function insertStatement(rows: LedgerEvent[]): { text: string; params: unknown[]
     );
   });
   const text =
-    "insert into usage_events (ts, req_id, route, model, key_id, status, attempts, rotated, stream, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, error_code) values " +
+    "insert into usage_events (ts, req_id, route, model, provider, key_id, status, attempts, rotated, stream, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, error_code) values " +
     tuples.join(",");
   return { text, params };
 }
@@ -281,6 +287,7 @@ export type Collector = {
   method: string;
   route: UsageRoute;
   model: string;
+  provider: string;
   keyId: string;
   keyMasked: string;
   attempts: number;
@@ -314,6 +321,7 @@ export function routeOf(path: string): UsageRoute | null {
   if (path === "/internal/rollup") return null;
   if (path === "/v1/chat/completions") return "chat.completions";
   if (path === "/v1/audio/speech") return "audio.speech";
+  if (path === "/v1/images/generations") return "images.generations";
   if (path === "/v1/embeddings") return "embeddings";
   if (path === "/v1/models") return "models.list";
   if (path.startsWith("/v1beta/models")) return "gemini.passthrough";
@@ -328,6 +336,7 @@ export function beginUsage(req: Request, path: string, route: UsageRoute): Colle
     method: req.method,
     route,
     model: "",
+    provider: "",
     keyId: "",
     keyMasked: "",
     attempts: 0,
@@ -346,6 +355,8 @@ export function beginUsage(req: Request, path: string, route: UsageRoute): Colle
 
 export type UsagePatch = {
   model?: string;
+  /** which pool served the request; set by the route that resolved it */
+  provider?: string;
   /** Raw credential from `execute()`. Reduced here, never retained. */
   keyRaw?: string;
   keyId?: string;
@@ -364,6 +375,7 @@ export type UsagePatch = {
 export function noteUsage(req: Request, patch: UsagePatch): void {
   const c = collectors.get(req);
   if (!c || c.committed) return;
+  if (patch.provider) c.provider = patch.provider;
   if (patch.keyRaw) {
     c.keyMasked = maskKey(patch.keyRaw);
     c.keyId = ledgerKeyId(c.keyMasked);
@@ -420,6 +432,7 @@ export function commitUsage(req: Request, status: number): UsageRow | null {
     path: c.path,
     method: c.method,
     model: c.model || "unknown",
+    provider: c.provider || "gemini",
     keyId: c.keyId,
     keyMasked: c.keyMasked,
     status,
@@ -546,6 +559,7 @@ export const dayOf = (ts: number): string => new Date(ts).toISOString().slice(0,
 export type RowFilter = {
   day?: string;
   model?: string;
+  provider?: string;
   key?: string;
   status?: string;
   route?: string;
@@ -555,6 +569,7 @@ export function filterRows(list: UsageRow[], f: RowFilter): UsageRow[] {
   return list.filter((r) => {
     if (f.day && dayOf(r.ts) !== f.day) return false;
     if (f.model && r.model !== f.model) return false;
+    if (f.provider && r.provider !== f.provider) return false;
     if (f.key && r.keyId !== f.key && r.keyMasked !== f.key) return false;
     if (f.route && r.route !== f.route) return false;
     if (f.status === "ok" && !r.ok) return false;
@@ -600,6 +615,7 @@ export function toCsv(list: UsageRow[]): string {
     "path",
     "method",
     "model",
+    "provider",
     "keyId",
     "keyMasked",
     "status",

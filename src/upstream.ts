@@ -148,6 +148,10 @@ function headersFor(src: Headers, key: string): Headers {
   }
   if (key.startsWith("ya29.") || key.startsWith("Bearer ")) {
     h.set("authorization", key.startsWith("Bearer ") ? key : `Bearer ${key}`);
+  } else if (key.startsWith("sk-") || key.startsWith("sk_")) {
+    // OpenAI-style gateways (whatstoken and custom providers) authenticate
+    // with a bearer token, never with Google's x-goog-api-key header.
+    h.set("authorization", `Bearer ${key}`);
   } else {
     h.set("x-goog-api-key", key);
   }
@@ -176,7 +180,7 @@ export async function execute(
   init: RequestInit & { method: string },
   path: string,
   signal?: AbortSignal,
-  opts?: { timeoutMs?: number; deferQuotaRetire?: boolean; model?: string },
+  opts?: { timeoutMs?: number; deferQuotaRetire?: boolean; model?: string; provider?: string },
 ): Promise<ExecResult> {
   const tried = new Set<string>();
   const deadline = Date.now() + cfg.maxWaitMs;
@@ -191,7 +195,9 @@ export async function execute(
   if (signal?.aborted) return aborted();
 
   for (;;) {
-    let st = await pick(tried, opts?.model);
+    // `provider` restricts selection to one pool: a request routed to
+    // whatstoken must never be handed a Gemini credential (and vice versa).
+    let st = await pick(tried, opts?.model, opts?.provider);
 
     // A live per-model refusal has no bounded reset to wait for (the deadline
     // is that model's next daily reset), so report a model verdict and let the
@@ -200,7 +206,7 @@ export async function execute(
     // refusal must reach the caller's per-model tally so a key is retired only
     // once the whole chain agrees.
     if (!st && opts?.model) {
-      const block = modelBlock(tried, opts.model);
+      const block = modelBlock(tried, opts.model, opts?.provider);
       if (block.kind === "model_refusal") {
         counters.poolExhausted++;
         log("warn", "model.quota_refused_all", {
@@ -287,7 +293,7 @@ export async function execute(
         };
       }
       await sleep(wait);
-      st = await pick(tried, opts?.model);
+      st = await pick(tried, opts?.model, opts?.provider);
     }
 
     if (attempts > 0) {

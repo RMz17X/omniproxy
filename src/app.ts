@@ -19,12 +19,28 @@ import { addKey, backfillMaterial, KEY_TIERS, keyId, keyMaterialDurable, listKey
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
-import { listLiveModels, catalogModels, discoveryDebug, pricingMeta, testModel } from "./models.ts";
+import { catalogModels, discoveryDebug, listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey, probeTier, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { listElevenLabsInventory, serveElevenLabs } from "./tts.ts";
-import { chatCompletions, embeddings, models } from "./openai.ts";
+import { chatCompletions, embeddings, geminiModelRows } from "./openai.ts";
+import { openaiModelList, openaiWire } from "./passthrough.ts";
+import {
+  allProviders,
+  CAPABILITIES,
+  CAPABILITY_LABEL,
+  detectProvider,
+  getProvider,
+  providerViews,
+  providersWith,
+  registerProvider,
+  removeProvider,
+  resolveModelRoute,
+  updateProvider,
+  type Capability,
+  type Provider,
+} from "./providers.ts";
 import {
   beginUsage,
   commitUsage,
@@ -43,6 +59,7 @@ import { STATS_HTML } from "./stats-ui.ts";
 import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 import { KEYS_HTML, KEY_DETAIL_HTML } from "./keys-ui.ts";
+import { PROVIDERS_HTML } from "./providers-ui.ts";
 import { loadKeys, purgeDead } from "./keys-repo.ts";
 import { SETTINGS_HTML } from "./settings-ui.ts";
 import { settingsView } from "./settings.ts";
@@ -106,6 +123,7 @@ const SHELL_PATHS = [
   "/pengatur/usage",
   "/pengatur/stats",
   "/pengatur/keys",
+  "/pengatur/providers",
   "/pengatur/settings",
   "/pengatur/audit",
   "/pengatur/logs",
@@ -182,17 +200,6 @@ app.get("/pengatur/status", async (c) => {
 
 /* ---------- OpenAI-compatible ---------- */
 
-/**
- * Model names that belong to ElevenLabs rather than Gemini.
- *
- * An OpenAI-compatible client names the model it wants, so the model is the
- * only honest signal for which provider should serve the request. Routing on
- * the pool's next available key instead would hand an ElevenLabs TTS request
- * to a Gemini credential most of the time — the pool is overwhelmingly
- * Gemini — and the caller would get a Gemini voice it never asked for.
- */
-const ELEVENLABS_MODEL_RE = /^(eleven[_-]|elevenlabs|tts-1|eleven_)/i;
-
 /** Peek the OpenAI-compatible body without consuming the downstream handler's stream. */
 async function peekModel(req: Request): Promise<string> {
   try {
@@ -203,49 +210,176 @@ async function peekModel(req: Request): Promise<string> {
   }
 }
 
+type RoutePick =
+  | { ok: true; provider: Provider; model: string }
+  | { ok: false; status: 400 | 409 | 503; message: string };
+
+/**
+ * Resolve a model name to the provider that serves it and check that the
+ * provider is allowed to serve this route.
+ *
+ * Capability gating lives here, once, instead of per handler: a provider
+ * declared as tts-only is refused on /v1/chat/completions with an answer that
+ * names the providers that DO speak the route, so the client can retry with a
+ * model from the right pool.
+ */
+async function resolveRoute(model: string, cap: Capability): Promise<RoutePick> {
+  const route = await resolveModelRoute(model);
+  const provider = await getProvider(route.provider);
+  const withCap = (await providersWith(cap)).map((p) => p.id);
+  if (!provider) {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        `Unknown provider \`${route.provider}\`.` +
+        (withCap.length ? ` Providers that serve ${cap}: ${withCap.join(", ")}.` : ""),
+    };
+  }
+  if (!provider.enabled) {
+    return { ok: false, status: 400, message: `Provider \`${provider.id}\` is disabled.` };
+  }
+  if (!provider.capabilities.includes(cap)) {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        `Provider \`${provider.id}\` does not support ${cap}.` +
+        (withCap.length ? ` Providers that do: ${withCap.join(", ")}.` : ""),
+    };
+  }
+  return { ok: true, provider, model: route.model };
+}
+
+/** 503 when the resolved provider's pool holds no selectable key. */
+async function poolReady(provider: Provider): Promise<boolean> {
+  return Boolean(await pick(new Set(), undefined, provider.id));
+}
+
 app.post("/v1/chat/completions", async (c) => {
-  // Provider-filtered: this endpoint only speaks Gemini, so a leaked or
-  // foreign credential must never be handed to it.
-  const st = await pick(new Set(), undefined, "gemini");
-  if (!st) {
-    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
+  const resolved = await resolveRoute(await peekModel(c.req.raw), "llm");
+  if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
+  // Provider-filtered: a leaked or foreign credential must never be handed to
+  // a route the provider does not own.
+  if (!(await poolReady(resolved.provider))) {
+    return c.json(
+      { error: { message: `No available ${resolved.provider.label} API keys in pool.` } },
+      503,
+    );
+  }
+  if (resolved.provider.wire === "openai") {
+    return openaiWire(c.req.raw, resolved.provider, "chat", resolved.model, c.req.raw.signal);
   }
   return chatCompletions(c.req.raw);
 });
 
 app.post("/v1/audio/speech", async (c) => {
-  const model = await peekModel(c.req.raw);
-  if (ELEVENLABS_MODEL_RE.test(model)) {
-    const st = await pick(new Set(), undefined, "elevenlabs");
-    if (!st) {
-      return c.json(
-        { error: { message: "No available ElevenLabs API keys in pool." } },
-        503,
-      );
-    }
-    return serveElevenLabs(c.req.raw, st.key);
+  const resolved = await resolveRoute(await peekModel(c.req.raw), "tts");
+  if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
+  if (!(await poolReady(resolved.provider))) {
+    return c.json(
+      { error: { message: `No available ${resolved.provider.label} API keys in pool.` } },
+      503,
+    );
   }
-  const st = await pick(new Set(), undefined, "gemini");
-  if (!st) {
-    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
+  if (resolved.provider.wire === "openai") {
+    return openaiWire(c.req.raw, resolved.provider, "audio", resolved.model, c.req.raw.signal);
+  }
+  if (resolved.provider.wire === "elevenlabs") {
+    const st = await pick(new Set(), undefined, "elevenlabs");
+    return serveElevenLabs(c.req.raw, st?.key);
   }
   return speech(c.req.raw);
 });
 
 app.post("/v1/embeddings", async (c) => {
-  const st = await pick(new Set(), undefined, "gemini");
-  if (!st) {
-    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
+  const resolved = await resolveRoute(await peekModel(c.req.raw), "embeddings");
+  if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
+  if (!(await poolReady(resolved.provider))) {
+    return c.json(
+      { error: { message: `No available ${resolved.provider.label} API keys in pool.` } },
+      503,
+    );
+  }
+  if (resolved.provider.wire === "openai") {
+    return openaiWire(c.req.raw, resolved.provider, "embeddings", resolved.model, c.req.raw.signal);
   }
   return embeddings(c.req.raw);
 });
 
-app.get("/v1/models", async (c) => {
-  const st = await pick(new Set(), undefined, "gemini");
-  if (!st) {
-    return c.json({ error: { message: "No available Gemini API keys in pool." } }, 503);
+/**
+ * OpenAI-compatible image generation. Only OpenAI-wire providers serve it:
+ * Google's image models are reached through /v1/chat/completions, and the
+ * capability gate above already refused a provider without `image`.
+ */
+app.post("/v1/images/generations", async (c) => {
+  const resolved = await resolveRoute(await peekModel(c.req.raw), "image");
+  if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
+  if (resolved.provider.wire !== "openai") {
+    return c.json(
+      {
+        error: {
+          message: `Provider \`${resolved.provider.id}\` serves image models through POST /v1/chat/completions, not /v1/images/generations.`,
+        },
+      },
+      400,
+    );
   }
-  return models();
+  if (!(await poolReady(resolved.provider))) {
+    return c.json(
+      { error: { message: `No available ${resolved.provider.label} API keys in pool.` } },
+      503,
+    );
+  }
+  return openaiWire(c.req.raw, resolved.provider, "images", resolved.model, c.req.raw.signal);
+});
+
+/**
+ * Union model list: every provider that holds a key contributes its own
+ * catalog, each row owned by the provider that serves it. A client picks a
+ * model by bare id and the router resolves the pool — or names the provider
+ * explicitly as `provider/model`.
+ */
+app.get("/v1/models", async (c) => {
+  const rows: Record<string, unknown>[] = [];
+  const census: Record<string, number> = {};
+
+  try {
+    const gemini = await geminiModelRows();
+    rows.push(...gemini.rows);
+    census.gemini = gemini.rows.length;
+  } catch {
+    census.gemini = 0;
+  }
+
+  for (const provider of await allProviders()) {
+    if (!provider.enabled || provider.wire !== "openai") continue;
+    const st = await pick(new Set(), undefined, provider.id);
+    if (!st) {
+      census[provider.id] = 0;
+      continue;
+    }
+    const raw = (await rawKeyById(st.key)) || st.key;
+    const list = await openaiModelList(provider, raw);
+    census[provider.id] = list.length;
+    rows.push(
+      ...list.map((m) => ({
+        // Prefixed so every row routes deterministically: two gateways can
+        // both list `gpt-4o-mini`, and a bare id would resolve by registry
+        // order instead of by the row the client actually picked.
+        id: `${provider.id}/${m.id}`,
+        object: "model",
+        created: 1700000000,
+        owned_by: provider.id,
+        upstream_owned_by: m.ownedBy,
+      })),
+    );
+  }
+
+  if (rows.length === 0) {
+    return c.json({ error: { message: "No provider can list models right now." } }, 503);
+  }
+  return c.json({ object: "list", data: rows, omniproxy: { providers: census } });
 });
 
 /* ---------- native Gemini passthrough ---------- */
@@ -379,7 +513,17 @@ app.get("/pengatur/models/list", async (c) => {
       }))
     : [];
 
-  const models = [...gemini.models, ...eleven, ...voices];
+  // Every OpenAI-wire provider contributes its own catalog, so the console
+  // shows whatstoken (and any custom gateway) next to gemini and elevenlabs.
+  const wire = await openaiWireRows(new URL(c.req.url).searchParams.get("refresh") === "1");
+
+  const models = [...gemini.models, ...eleven, ...voices, ...wire.rows];
+  const census: Record<string, number> = {
+    gemini: gemini.models.length,
+    elevenlabs: eleven.length + voices.length,
+    voice: voices.length,
+    ...wire.census,
+  };
   return c.json({
     ok: true,
     count: models.length,
@@ -388,14 +532,72 @@ app.get("/pengatur/models/list", async (c) => {
     cached: gemini.cached,
     degraded: gemini.degraded,
     degradedReason: gemini.degradedReason,
-    providers: {
-      gemini: gemini.models.length,
-      elevenlabs: eleven.length + voices.length,
-      voice: voices.length,
-    },
+    providers: census,
     pricing: pricingMeta(),
   });
 });
+
+/**
+ * Live catalogs of every enabled OpenAI-wire provider, cached 10 minutes.
+ * Rows are shaped like the Gemini/ElevenLabs rows so the console renders one
+ * table; `kind` is derived from the model id because a gateway publishes no
+ * generation methods.
+ */
+const OPENAI_WIRE_CACHE_MS = 600_000;
+let openaiWireCache: { at: number; rows: Record<string, unknown>[]; census: Record<string, number> } | null = null;
+
+function kindOfWireModel(id: string): string {
+  const m = id.toLowerCase();
+  if (/embed/.test(m)) return "embedding";
+  if (/tts|speech|audio/.test(m)) return "tts";
+  if (/image|flux|dall|midjourney|draw|paint|banana/.test(m)) return "image";
+  if (/veo|vidu|seedance|kling|sora|hailuo|runway|video/.test(m)) return "video";
+  return "text";
+}
+
+async function openaiWireRows(force: boolean): Promise<{
+  rows: Record<string, unknown>[];
+  census: Record<string, number>;
+}> {
+  if (!force && openaiWireCache && Date.now() - openaiWireCache.at < OPENAI_WIRE_CACHE_MS) {
+    return { rows: openaiWireCache.rows, census: openaiWireCache.census };
+  }
+  const rows: Record<string, unknown>[] = [];
+  const census: Record<string, number> = {};
+  for (const provider of await allProviders()) {
+    if (!provider.enabled || provider.wire !== "openai") continue;
+    const st = await pick(new Set(), undefined, provider.id);
+    if (!st) {
+      census[provider.id] = 0;
+      continue;
+    }
+    const raw = (await rawKeyById(st.key)) || st.key;
+    const list = await openaiModelList(provider, raw);
+    census[provider.id] = list.length;
+    rows.push(
+      ...list.map((m) => ({
+        id: m.id,
+        provider: provider.id,
+        name: m.id,
+        displayName: m.id,
+        description: m.ownedBy && m.ownedBy !== provider.id ? `upstream: ${m.ownedBy}` : "",
+        version: "",
+        methods: [],
+        inputTokenLimit: null,
+        outputTokenLimit: null,
+        kind: kindOfWireModel(m.id),
+        free: null,
+        freeLabel: "gateway pricing",
+        inUsd: null,
+        outUsd: null,
+        inRaw: "",
+        outRaw: "",
+      })),
+    );
+  }
+  openaiWireCache = { at: Date.now(), rows, census };
+  return { rows, census };
+}
 
 /**
  * Live ElevenLabs inventory: voices and TTS models.
@@ -457,6 +659,9 @@ app.post("/pengatur/models/test", async (c) => {
 /** Keys console shell. Public like the other shells; its data routes are not. */
 app.get("/pengatur/keys", (c) => c.html(KEYS_HTML));
 
+/** Provider registry console shell. Public like the other shells. */
+app.get("/pengatur/providers", (c) => c.html(PROVIDERS_HTML));
+
 /**
  * Pool state plus one row per key. Moved off /pengatur/keys so the shell can
  * live there; `enabled`/`label` are merged in from the durable identities.
@@ -490,9 +695,24 @@ app.get("/pengatur/keys/list", async (c) => {
       target: "pool",
       detail: { action: "reveal-page", revealed: Object.keys(rawById).length, requested: merged.length },
     });
-    return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS, raw: rawById });
+    return c.json({
+      pool: snap,
+      keys: merged,
+      tiers: tierCounts(keys),
+      knownTiers: KEY_TIERS,
+      raw: rawById,
+      // The registry rides along so the add-key dialog's provider select and
+      // the capability hints come from one source of truth.
+      providers: await providerViews(),
+    });
   }
-  return c.json({ pool: snap, keys: merged, tiers: tierCounts(keys), knownTiers: KEY_TIERS });
+  return c.json({
+    pool: snap,
+    keys: merged,
+    tiers: tierCounts(keys),
+    knownTiers: KEY_TIERS,
+    providers: await providerViews(),
+  });
 });
 
 /** Keys detail shell. Public like the list shell; its /data sibling is gated. */
@@ -633,29 +853,206 @@ app.post("/pengatur/keys", async (c) => {
   const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
   if (clean.length === 0) return c.json({ error: { message: "No keys supplied." } }, 400);
 
-  const provider =
-    typeof body.provider === "string" && body.provider.trim()
-      ? body.provider.trim()
-      : "gemini";
+  const named = typeof body.provider === "string" ? body.provider.trim() : "";
+  if (named && !(await getProvider(named))) {
+    return c.json({ error: { message: `Unknown provider \`${named}\`.` } }, 400);
+  }
+  /* No provider named: each key is matched to a provider by its format
+     (`sk-…` gateways, `sk_<hex>` ElevenLabs, `AIza…` Google). A format
+     nothing recognises keeps the historical gemini default. */
+  const registry = named ? [] : await allProviders();
+  const perKey = clean.map((k) => named || detectProvider(k, registry) || "gemini");
 
   const ids: string[] = [];
+  const addedByProvider: Record<string, number> = {};
   let added = 0;
-  for (const k of clean) {
-    if (await addKey(k, provider)) {
+  for (let i = 0; i < clean.length; i++) {
+    if (await addKey(clean[i], perKey[i])) {
       added++;
-      ids.push(keyId(k));
+      ids.push(keyId(clean[i]));
+      addedByProvider[perKey[i]] = (addedByProvider[perKey[i]] ?? 0) + 1;
     }
   }
   await auditRecordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
-    detail: { received: clean.length, added, provider },
+    detail: { received: clean.length, added, provider: named || "auto", providers: addedByProvider },
   });
   const durable = keyMaterialDurable();
   const warning = durable
     ? {}
     : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
-  return c.json({ ok: true, received: clean.length, added, ids, durable, ...warning, pool: await snapshot() });
+  return c.json({
+    ok: true,
+    received: clean.length,
+    added,
+    ids,
+    durable,
+    providers: addedByProvider,
+    ...warning,
+    pool: await snapshot(),
+  });
+});
+
+/* ---------- provider registry console ---------- */
+
+/**
+ * The registry as the console sees it: every provider with its capabilities,
+ * its key counts and whether it is builtin. Drives the add-key provider
+ * select, the models filter and the providers page.
+ */
+app.get("/pengatur/providers", async (c) => {
+  return c.json({
+    ok: true,
+    providers: await providerViews(),
+    capabilities: CAPABILITIES,
+    capabilityLabels: CAPABILITY_LABEL,
+  });
+});
+
+/**
+ * Register a custom provider. Body:
+ *   { id, label, baseUrl, capabilities, keyPattern?, models?, note?, keys? }
+ *
+ * `keys` is accepted in the same call so the console's add-provider dialog
+ * can create the provider AND seed its first credential in one step — a
+ * provider with no keys is a row that serves nothing.
+ */
+app.post("/pengatur/providers", async (c) => {
+  let body: {
+    id?: string;
+    label?: string;
+    baseUrl?: string;
+    capabilities?: Capability[];
+    keyPattern?: string;
+    models?: string[];
+    note?: string;
+    keys?: string[] | string;
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  let provider: Provider;
+  try {
+    provider = await registerProvider({
+      id: String(body.id ?? ""),
+      label: String(body.label ?? ""),
+      baseUrl: String(body.baseUrl ?? ""),
+      capabilities: Array.isArray(body.capabilities) ? body.capabilities : [],
+      keyPattern: typeof body.keyPattern === "string" ? body.keyPattern : undefined,
+      models: Array.isArray(body.models) ? body.models.map((m) => String(m)) : [],
+      note: typeof body.note === "string" ? body.note : "",
+    });
+  } catch (err) {
+    return c.json({ error: { message: err instanceof Error ? err.message : String(err) } }, 400);
+  }
+
+  const incoming: string[] = [];
+  if (typeof body.keys === "string") incoming.push(...body.keys.split(/[\s,]+/));
+  if (Array.isArray(body.keys)) incoming.push(...body.keys);
+  const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
+  let added = 0;
+  for (const k of clean) if (await addKey(k, provider.id)) added++;
+
+  await auditRecordNow("providers.add", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: provider.id,
+    detail: {
+      label: provider.label,
+      baseUrl: provider.baseUrl,
+      capabilities: provider.capabilities,
+      models: provider.models.length,
+      keysAdded: added,
+    },
+  });
+  return c.json({ ok: true, provider, added, pool: await snapshot() });
+});
+
+/** Update a provider. Builtins accept only `enabled` and `models`. */
+app.patch("/pengatur/providers/:id", async (c) => {
+  const id = c.req.param("id");
+  let body: {
+    label?: string;
+    baseUrl?: string;
+    capabilities?: Capability[];
+    keyPattern?: string | null;
+    models?: string[];
+    note?: string;
+    enabled?: boolean;
+  };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  try {
+    const provider = await updateProvider(id, {
+      label: typeof body.label === "string" ? body.label : undefined,
+      baseUrl: typeof body.baseUrl === "string" ? body.baseUrl : undefined,
+      capabilities: Array.isArray(body.capabilities) ? body.capabilities : undefined,
+      keyPattern: body.keyPattern === undefined ? undefined : body.keyPattern,
+      models: Array.isArray(body.models) ? body.models.map((m) => String(m)) : undefined,
+      note: typeof body.note === "string" ? body.note : undefined,
+      enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
+    });
+    if (!provider) return c.json({ error: { message: "No provider with that id." } }, 404);
+    await auditRecordNow("providers.update", {
+      actor: actorFrom(c.req.header("user-agent")),
+      target: id,
+      detail: { enabled: provider.enabled, models: provider.models.length, capabilities: provider.capabilities },
+    });
+    return c.json({ ok: true, provider, pool: await snapshot() });
+  } catch (err) {
+    return c.json({ error: { message: err instanceof Error ? err.message : String(err) } }, 400);
+  }
+});
+
+/** Remove a custom provider. Refused while pooled keys still point at it. */
+app.delete("/pengatur/providers/:id", async (c) => {
+  const id = c.req.param("id");
+  const result = await removeProvider(id);
+  if (!result.ok) {
+    const status = /No provider/.test(result.error ?? "") ? 404 : 409;
+    return c.json({ error: { message: result.error } }, status);
+  }
+  await auditRecordNow("providers.remove", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: id,
+    detail: {},
+  });
+  return c.json({ ok: true, pool: await snapshot() });
+});
+
+/**
+ * Import a provider's model list from its own /v1/models, for the console's
+ * "import" action. Read-only preview: the operator reviews the ids and saves
+ * the ones they want onto the provider (PATCH), or types models by hand for
+ * gateways that expose no catalog.
+ */
+app.get("/pengatur/providers/:id/models", async (c) => {
+  const id = c.req.param("id");
+  const provider = await getProvider(id);
+  if (!provider) return c.json({ error: { message: "No provider with that id." } }, 404);
+  if (provider.wire !== "openai") {
+    return c.json(
+      { error: { message: `Provider \`${id}\` does not expose an OpenAI-compatible /v1/models.` } },
+      400,
+    );
+  }
+  const st = await pick(new Set(), undefined, id);
+  if (!st) {
+    return c.json({ error: { message: `No available ${provider.label} API keys in pool.` } }, 503);
+  }
+  const raw = (await rawKeyById(st.key)) || st.key;
+  const list = await openaiModelList(provider, raw);
+  await auditRecordNow("providers.import_models", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: id,
+    detail: { count: list.length },
+  });
+  return c.json({ ok: true, provider: id, count: list.length, models: list });
 });
 
 app.post("/pengatur/keys/backfill-material", async (c) => {
@@ -842,7 +1239,9 @@ app.post("/pengatur/keys/test-all", async (c) => {
       const k = target[i];
       const raw = await rawKeyById(k.id);
       if (!raw) continue;
-      const probe = await probeKey(raw);
+      // The pool knows which provider owns the key; naming it keeps the
+      // probe in that provider's dialect even when the format is ambiguous.
+      const probe = await probeKey(raw, undefined, k.provider);
       const applied = await applyProbe(raw, probe);
       results.push({ id: k.id, key: k.key, probe, applied });
     }

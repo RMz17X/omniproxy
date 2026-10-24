@@ -325,11 +325,13 @@ const OVERVIEW_SCRIPT = `
   /* Provider split: aggregate meters + one stacked bar per WIB day. Each
      provider carries its own colour, so the split reads the same everywhere
      in the console. Bars stay plain CSS so a failed stats fetch degrades to
-     the "unavailable" state, never a broken canvas. */
+     the "unavailable" state, never a broken canvas. Known providers get
+     their registry colour; anything else falls back to the custom accent. */
   function provTone(prov) {
     if (prov === "gemini") return "prov-gemini";
     if (prov === "elevenlabs") return "prov-elevenlabs";
-    return "info";
+    if (prov === "whatstoken") return "prov-whatstoken";
+    return "prov-custom";
   }
 
   function renderProviderMix(stats) {

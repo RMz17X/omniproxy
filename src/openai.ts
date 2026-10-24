@@ -332,6 +332,7 @@ export async function chatCompletions(req: Request): Promise<Response> {
   const model = result.model;
 
   noteUsage(req, {
+    provider: "gemini",
     model,
     keyRaw: result.key,
     attempts: result.attempts,
@@ -688,6 +689,7 @@ export async function embeddings(req: Request): Promise<Response> {
   );
 
   noteUsage(req, {
+    provider: "gemini",
     model,
     keyRaw: result.key,
     attempts: result.attempts,
@@ -747,7 +749,17 @@ export function visibleModels(ids: string[]): string[] {
   return ids.filter((id) => !retired.has(id.replace(/^models\//, "").toLowerCase()));
 }
 
-export async function models(): Promise<Response> {
+/**
+ * The Gemini rows of the public model list: live discovery when a pooled key
+ * can answer it, the static catalog fallback otherwise. Split out of
+ * `models()` so `/v1/models` can union these rows with every other
+ * provider's catalog instead of serving a gemini-only list.
+ */
+export async function geminiModelRows(): Promise<{
+  rows: Record<string, unknown>[];
+  live: number;
+  degraded: boolean;
+}> {
   const fallback = visibleModels([
     cfg.defaultModel,
     cfg.searchModel,
@@ -758,56 +770,67 @@ export async function models(): Promise<Response> {
   ]);
 
   let live: LiveModel[] = [];
-  let cached = false;
   let degraded = false;
   try {
     const r = await listLiveModels();
     live = r.models.filter((m) => visibleModels([m.id]).length > 0);
-    cached = r.cached;
   } catch {
     degraded = true;
   }
 
   if (!live.length) {
-    return Response.json(
-      {
-        object: "list",
-        data: [...new Set(fallback)].map((id) => ({
-          id,
-          object: "model",
-          created: 1700000000,
-          owned_by: "google",
-        })),
-        omniproxy: { source: "fallback", cached: false, degraded, live: 0, pricing: pricingMeta() },
-      },
-      { headers: { "x-omniproxy-models": "fallback" } },
-    );
+    return {
+      rows: [...new Set(fallback)].map((id) => ({
+        id,
+        object: "model",
+        created: 1700000000,
+        owned_by: "google",
+      })),
+      live: 0,
+      degraded,
+    };
   }
 
+  return {
+    rows: live.map((m) => {
+      const c = catalogFor(m.id);
+      return {
+        id: m.id,
+        object: "model",
+        created: 1700000000,
+        owned_by: "google",
+        // OpenAI clients ignore unknown fields; these are additive.
+        display_name: m.displayName,
+        kind: m.kind,
+        free: m.free,
+        context_window: m.inputTokenLimit,
+        max_output_tokens: m.outputTokenLimit,
+        pricing: c
+          ? { input_per_1m_usd: c.inUsd, output_per_1m_usd: c.outUsd, as_of: PRICING_AS_OF }
+          : null,
+      };
+    }),
+    live: live.length,
+    degraded,
+  };
+}
+
+/** Gemini-only model list. The public route unions this with other providers. */
+export async function models(): Promise<Response> {
+  const { rows, live, degraded } = await geminiModelRows();
   return Response.json(
     {
       object: "list",
-      data: live.map((m) => {
-        const c = catalogFor(m.id);
-        return {
-          id: m.id,
-          object: "model",
-          created: 1700000000,
-          owned_by: "google",
-          // OpenAI clients ignore unknown fields; these are additive.
-          display_name: m.displayName,
-          kind: m.kind,
-          free: m.free,
-          context_window: m.inputTokenLimit,
-          max_output_tokens: m.outputTokenLimit,
-          pricing: c
-            ? { input_per_1m_usd: c.inUsd, output_per_1m_usd: c.outUsd, as_of: PRICING_AS_OF }
-            : null,
-        };
-      }),
-      omniproxy: { source: "live", cached, degraded, live: live.length, pricing: pricingMeta() },
+      data: rows,
+      omniproxy: {
+        source: live ? "live" : "fallback",
+        cached: false,
+        degraded,
+        live,
+        pricing: pricingMeta(),
+      },
     },
-    { headers: { "x-omniproxy-models": cached ? "live-cached" : "live" } },
+    { headers: { "x-omniproxy-models": live ? "live" : "fallback" } },
   );
 }
 

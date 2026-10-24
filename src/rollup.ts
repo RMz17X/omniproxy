@@ -80,7 +80,7 @@ export async function rollupDay(day?: string): Promise<RollupResult> {
 
   const text = `
 insert into usage_daily (
-  day, route, model, key_id,
+  day, route, model, key_id, provider,
   requests, errors, rotated,
   prompt_tokens, completion_tokens,
   cost_usd, p50_ms, p95_ms
@@ -90,6 +90,7 @@ select
   route,
   coalesce(model, ''),
   coalesce(key_id, ''),
+  coalesce(provider, 'gemini'),
   count(*)::int,
   (count(*) filter (where status >= 400))::int,
   (count(*) filter (where rotated))::int,
@@ -100,8 +101,8 @@ select
   percentile_cont(0.95) within group (order by latency_ms)::int
 from usage_events
 where ts >= $2::timestamptz and ts < $3::timestamptz
-group by route, coalesce(model, ''), coalesce(key_id, '')
-on conflict (day, route, model, key_id) do update set
+group by route, coalesce(model, ''), coalesce(key_id, ''), coalesce(provider, 'gemini')
+on conflict (day, route, model, key_id, provider) do update set
   requests = excluded.requests,
   errors = excluded.errors,
   rotated = excluded.rotated,

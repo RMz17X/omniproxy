@@ -75,12 +75,18 @@ export const BASE_CSS = `
   --wash-neutral: rgba(154, 164, 180, 0.12);
 
   /* provider identity -----------------------------------------------------
-     Gemini blue and ElevenLabs violet. Used for badges, dots, meter fills
-     and chart segments; always paired with the provider word. */
+     Gemini blue, ElevenLabs violet, WhatsToken emerald. Used for badges,
+     dots, meter fills and chart segments; always paired with the provider
+     word. An unknown provider (a custom one) falls back to the accent, so
+     the badge still reads as identity rather than as an error. */
   --prov-gemini: #5b9dff;
   --prov-gemini-wash: rgba(91, 157, 255, 0.14);
   --prov-elevenlabs: #c084fc;
   --prov-elevenlabs-wash: rgba(192, 132, 252, 0.14);
+  --prov-whatstoken: #34d399;
+  --prov-whatstoken-wash: rgba(52, 211, 153, 0.14);
+  --prov-custom: #7c93ff;
+  --prov-custom-wash: rgba(124, 147, 255, 0.13);
 
   /* the rail, slightly deeper than the canvas so the edge never moves ------ */
   --rail-bg: #0d1017;
@@ -151,6 +157,10 @@ export const BASE_CSS = `
   --prov-gemini-wash: rgba(31, 102, 208, 0.10);
   --prov-elevenlabs: #8430c9;
   --prov-elevenlabs-wash: rgba(132, 48, 201, 0.10);
+  --prov-whatstoken: #0a7d5a;
+  --prov-whatstoken-wash: rgba(10, 125, 90, 0.10);
+  --prov-custom: #3b5bdb;
+  --prov-custom-wash: rgba(59, 91, 219, 0.09);
 
   --rail-bg: #10141d;
   --rail-bg-2: #171d29;
@@ -471,6 +481,8 @@ body[data-gate="locked"] .app { display: none; }
 .fig[data-tone="bad"] .fig-value { color: var(--bad); }
 .fig[data-tone="prov-gemini"] .fig-value { color: var(--prov-gemini); }
 .fig[data-tone="prov-elevenlabs"] .fig-value { color: var(--prov-elevenlabs); }
+.fig[data-tone="prov-whatstoken"] .fig-value { color: var(--prov-whatstoken); }
+.fig[data-tone="prov-custom"] .fig-value { color: var(--prov-custom); }
 
 .kpi { padding: var(--sp-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-surface); }
 
@@ -720,11 +732,17 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
   white-space: nowrap;
 }
 .prov .prov-dot { width: 6px; height: 6px; }
+/* Specific providers first; the generic rules after them give any custom
+   provider id the accent identity instead of the neutral grey. */
 .prov[data-p="gemini"] { color: var(--prov-gemini); border-color: color-mix(in srgb, var(--prov-gemini) 40%, var(--line)); background: var(--prov-gemini-wash); }
 .prov[data-p="elevenlabs"] { color: var(--prov-elevenlabs); border-color: color-mix(in srgb, var(--prov-elevenlabs) 40%, var(--line)); background: var(--prov-elevenlabs-wash); }
+.prov[data-p="whatstoken"] { color: var(--prov-whatstoken); border-color: color-mix(in srgb, var(--prov-whatstoken) 40%, var(--line)); background: var(--prov-whatstoken-wash); }
+.prov[data-p]:not([data-p="gemini"]):not([data-p="elevenlabs"]):not([data-p="whatstoken"]) { color: var(--prov-custom); border-color: color-mix(in srgb, var(--prov-custom) 40%, var(--line)); background: var(--prov-custom-wash); }
 .prov-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--neutral); }
 .prov-dot[data-p="gemini"] { background: var(--prov-gemini); }
 .prov-dot[data-p="elevenlabs"] { background: var(--prov-elevenlabs); }
+.prov-dot[data-p="whatstoken"] { background: var(--prov-whatstoken); }
+.prov-dot[data-p]:not([data-p="gemini"]):not([data-p="elevenlabs"]):not([data-p="whatstoken"]) { background: var(--prov-custom); }
 
 .chip { display: inline-flex; align-items: baseline; gap: var(--sp-2); }
 .chip + .chip { margin-left: var(--sp-3); padding-left: var(--sp-3); border-left: 1px solid var(--line); }
@@ -1069,6 +1087,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .poolbar-track .quota { background: var(--accent); }
 .poolbar-track .prov-gemini { background: var(--prov-gemini); }
 .poolbar-track .prov-elevenlabs { background: var(--prov-elevenlabs); }
+.poolbar-track .prov-whatstoken { background: var(--prov-whatstoken); }
+.poolbar-track .prov-custom { background: var(--prov-custom); }
 /* one provider's pool as a row: badge, proportional bar, ready count */
 .prov-pool { display: flex; align-items: center; gap: var(--sp-3); padding: 11px 0; border-top: 1px solid var(--line); min-width: 0; }
 .prov-pool:first-child { border-top: 0; }
@@ -1083,6 +1103,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .legend-item .dot.neutral { background: var(--line-2); }
 .legend-item .dot.prov-gemini { background: var(--prov-gemini); }
 .legend-item .dot.prov-elevenlabs { background: var(--prov-elevenlabs); }
+.legend-item .dot.prov-whatstoken { background: var(--prov-whatstoken); }
+.legend-item .dot.prov-custom { background: var(--prov-custom); }
 .legend-item b { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text); font-weight: 560; }
 
 .meter { display: flex; flex-direction: column; gap: var(--sp-1); }
@@ -1097,6 +1119,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 /* provider tones: a meter of Gemini traffic is blue, ElevenLabs violet */
 .meter-fill.prov-gemini { background: var(--prov-gemini); }
 .meter-fill.prov-elevenlabs { background: var(--prov-elevenlabs); }
+.meter-fill.prov-whatstoken { background: var(--prov-whatstoken); }
+.meter-fill.prov-custom { background: var(--prov-custom); }
 
 .bars { display: flex; flex-direction: column; gap: var(--sp-2); }
 .bar-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 64px; align-items: center; gap: var(--sp-2); font-size: 12px; }
@@ -1109,6 +1133,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .bar-fill.neutral { background: var(--line-2); }
 .bar-fill.prov-gemini { background: var(--prov-gemini); }
 .bar-fill.prov-elevenlabs { background: var(--prov-elevenlabs); }
+.bar-fill.prov-whatstoken { background: var(--prov-whatstoken); }
+.bar-fill.prov-custom { background: var(--prov-custom); }
 .bar-row .value { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--text-2); }
 
 .spark { width: 100%; height: 40px; overflow: visible; }
@@ -1124,6 +1150,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .daybar .warn { background: var(--warn); }
 .daybar .prov-gemini { background: var(--prov-gemini); }
 .daybar .prov-elevenlabs { background: var(--prov-elevenlabs); }
+.daybar .prov-whatstoken { background: var(--prov-whatstoken); }
+.daybar .prov-custom { background: var(--prov-custom); }
 .daybar-label { position: absolute; left: 0; right: 0; bottom: -18px; font-size: 9.5px; color: var(--text-2); text-align: center; white-space: nowrap; }
 
 
@@ -1592,6 +1620,7 @@ const ICON_PATHS: Record<string, string> = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   key: '<circle cx="8" cy="8" r="4"/><path d="M11 11l9 9M17 17l2-2M14 20l2-2"/>',
+  plug: '<path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 01-10 0V7zM12 16v5"/>',
   cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
   sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/>',
@@ -1650,6 +1679,7 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: "Operate",
     items: [
       { href: "/pengatur/keys", label: "Keys", icon: "key" },
+      { href: "/pengatur/providers", label: "Providers", icon: "plug" },
       { href: "/pengatur/models", label: "Models", icon: "cube" },
     ],
   },
@@ -1670,6 +1700,7 @@ const SECTION_LABELS: Record<string, string> = {
   "/pengatur/usage": "Logs",
   "/pengatur/stats": "Statistics",
   "/pengatur/keys": "Keys",
+  "/pengatur/providers": "Providers",
   "/pengatur/models": "Models",
   "/pengatur/settings": "Settings",
   "/pengatur/audit": "Audit",
@@ -1726,9 +1757,10 @@ function navMarkup(active: string, idPrefix: string): string {
  */
 export function navRail(active: string, actions = ""): string {
   const providerStrip =
-    '<div class="rail-providers">' +
+    '<div class="rail-providers" id="railProviders">' +
     '<span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span>' +
     '<span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span>' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span>' +
     "</div>";
   return (
     '<aside class="rail" aria-label="Sections">' +
@@ -1847,9 +1879,10 @@ export function consolePage(o: PageOptions): string {
 
 function drawerMarkup(active: string): string {
   const providerStrip =
-    '<div class="rail-providers">' +
+    '<div class="rail-providers" id="drawerProviders">' +
     '<span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span>' +
     '<span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span>' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span>' +
     "</div>";
   return (
     '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div>' +
@@ -2085,6 +2118,10 @@ export function helpDialog(): string {
     ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
     ["gemini", "The Google Generative Language pool. Chat, embeddings and every non-TTS route"],
     ["elevenlabs", "The ElevenLabs pool. Text to speech and voices, routed by the model name on /v1/audio/speech"],
+    ["whatstoken", "The WhatsToken pool. An OpenAI-compatible gateway: GPT, Claude, DeepSeek, image and video models"],
+    ["capability", "What a provider can serve: llm, tts, image, video or embeddings. A route refuses a provider without it"],
+    ["provider/model", "Explicit routing: `whatstoken/gpt-4o` names the pool AND the model. A bare id is resolved by catalog"],
+    ["import", "Reading a provider's own /v1/models into the console, so its models can be picked instead of typed"],
     ["provider", "Which upstream pool a key, a model or a request belongs to. Every badge shows the colour and the name"],
   ];
 
@@ -2253,6 +2290,11 @@ export const CLIENT_JS = `
       GX.api("/pengatur/settings/data").then(function (d) {
         if (d && d.storage) GX.storage(d.storage.mode, d.storage.mode === "memory" ? "warn" : "");
       }).catch(function () {});
+      /* The rail strip names the builtin providers; the registry adds the
+         custom ones so the multi-provider shape is visible on every page. */
+      GX.api("/pengatur/providers").then(function (d) {
+        if (d && d.providers) GX.railProviders(d.providers);
+      }).catch(function () {});
       var result = opts.onSuccess ? opts.onSuccess() : null;
       if (result && result.catch) {
         result.catch(function (err) {
@@ -2297,9 +2339,10 @@ export const CLIENT_JS = `
     },
 
     /* Provider identity: the provider's colour AND its word. The colour is
-       never the only signal, so a badge always names the provider it marks. */
+       never the only signal, so a badge always names the provider it marks.
+       Any id renders — a custom provider keeps its own id as the word. */
     providerTag: function (provider) {
-      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      var p = String(provider || "gemini");
       return GX.el("span", { class: "prov", "data-p": p }, [
         GX.el("span", { class: "prov-dot", "data-p": p }),
         GX.el("span", { text: p })
@@ -2307,15 +2350,18 @@ export const CLIENT_JS = `
     },
 
     providerDot: function (provider) {
-      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      var p = String(provider || "gemini");
       return GX.el("span", { class: "prov-dot", "data-p": p, title: p });
     },
 
-    /* The ledger logs ElevenLabs TTS under the elevenlabs provider and
-       everything else through the Gemini pool, so the model name is enough
-       to say which upstream served a row. */
+    /* Which pool served a row. The ledger records the provider explicitly;
+       this is the fallback for rows written before that column existed, and
+       it understands the provider/model naming convention. */
     providerFromModel: function (model) {
-      return /eleven/i.test(String(model || "")) ? "elevenlabs" : "gemini";
+      var m = String(model || "");
+      var slash = m.indexOf("/");
+      if (slash > 0 && /^[a-z][a-z0-9-]*$/.test(m.slice(0, slash))) return m.slice(0, slash);
+      return /eleven/i.test(m) ? "elevenlabs" : "gemini";
     },
 
     /* one figure: label, tabular value, one line of context */
@@ -2540,6 +2586,26 @@ export const CLIENT_JS = `
       node.textContent = text || "-";
       var row = node.parentNode;
       if (row) row.setAttribute("data-tone", tone || "");
+    },
+
+    /* The rail strip names the builtin providers server-side; custom ones
+       only exist once the registry answers, so they are appended here after
+       the token is accepted. Idempotent: a provider already on the strip is
+       never duplicated. */
+    railProviders: function (providers) {
+      ["railProviders", "drawerProviders"].forEach(function (mountId) {
+        var mount = document.getElementById(mountId);
+        if (!mount) return;
+        (providers || []).forEach(function (p) {
+          if (!p || !p.id) return;
+          if (mount.querySelector('[data-p="' + p.id + '"]')) return;
+          var item = GX.el("span", { class: "rail-prov", "data-id": p.id }, [
+            GX.el("span", { class: "prov-dot", "data-p": p.id }),
+            GX.el("span", { text: p.label || p.id })
+          ]);
+          mount.appendChild(item);
+        });
+      });
     },
 
     debounce: function (fn, ms) {

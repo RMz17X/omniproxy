@@ -19,7 +19,8 @@ import { log } from "./log.ts";
 import { counters } from "./metrics.ts";
 import { dbEnabled } from "./db.ts";
 import * as repo from "./keys-repo.ts";
-import { loadMaterial, materialEnabled, saveMaterial, saveMaterialNow, deleteMaterial } from "./key-material.ts";
+import { loadMaterial, loadMaterialEntries, materialEnabled, saveMaterial, saveMaterialNow, deleteMaterial } from "./key-material.ts";
+import { allProviders, envKeyVar } from "./providers.ts";
 import type { QuotaDetail, TierEvidence } from "./verdict.ts";
 
 /** Where durable key metadata lives. */
@@ -284,8 +285,10 @@ function seed(key: string, provider: string = "gemini"): void {
 /**
  * Fill the mirror, in priority order:
  *
- *   1. `GEMINI_API_KEYS` — the deployment's own supply
- *   2. `key_material`    — keys added through the console or by the hunter
+ *   1. `<PROVIDER>_API_KEYS` — the deployment's own supply, one env var per
+ *      registry provider (`GEMINI_API_KEYS`, `WHATSTOKEN_API_KEYS`, …)
+ *   2. `key_material`    — keys added through the console or by the hunter,
+ *      each under the provider its row names
  *   3. `keys`            — identity overlay (plan, enable flag, fail count)
  *
  * Step 2 is what makes a key survive a cold start; step 3 never introduces a
@@ -293,12 +296,14 @@ function seed(key: string, provider: string = "gemini"): void {
  * `loadMaterial()` swallows the failure and returns an empty map.
  */
 export async function hydrate(): Promise<number> {
-  const env = (process.env.GEMINI_API_KEYS ?? "")
-    .split(/[\s,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  for (const k of env) seed(k);
+  const providers = await allProviders();
+  for (const p of providers) {
+    const env = (process.env[envKeyVar(p.id)] ?? "")
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const k of env) seed(k, p.id);
+  }
 
   if (!dbEnabled()) {
     log("info", "pool.hydrated", { source: "env", keys: local.size, material: 0 });
@@ -307,8 +312,8 @@ export async function hydrate(): Promise<number> {
 
   let material = 0;
   if (materialEnabled()) {
-    for (const raw of (await loadMaterial()).values()) {
-      seed(raw);
+    for (const entry of (await loadMaterialEntries()).values()) {
+      seed(entry.raw, entry.provider);
       material++;
     }
   }
@@ -376,8 +381,9 @@ export async function addKey(key: string, provider: string = "gemini"): Promise<
   persistIdentity(st);
   // Awaited, not fire-and-forget: the sync endpoint answers `durable: true`
   // from this write, and on a serverless runtime a detached insert is dropped
-  // when the instance is recycled right after the response.
-  await saveMaterialNow(keyId(k), k);
+  // when the instance is recycled right after the response. The provider
+  // travels with the material so a cold start re-seeds it under the right pool.
+  await saveMaterialNow(keyId(k), k, p);
   return true;
 }
 

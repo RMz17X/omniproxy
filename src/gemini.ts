@@ -46,6 +46,7 @@ export async function geminiPassthrough(req: Request, path: string): Promise<Res
   const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
   noteUsage(req, {
     model,
+    provider: "gemini",
     keyRaw: r.key,
     attempts: r.attempts,
     rotated: r.rotated,
@@ -130,6 +131,7 @@ export async function speech(req: Request): Promise<Response> {
   // never asks for usageMetadata. Record the attempt and the model only.
   noteUsage(req, {
     model,
+    provider: "gemini",
     keyRaw: result.key,
     attempts: result.attempts,
     rotated: result.rotated,
