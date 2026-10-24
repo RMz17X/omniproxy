@@ -12129,8 +12129,8 @@ var OVERVIEW_SCRIPT = `
     });
     el.providerDays.appendChild(chart);
     var legend = GX.el("div", { class: "legend" });
-    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot ok" }), GX.el("span", { text: "Gemini" }), GX.el("b", { text: GX.fmt.num(byProv.gemini) })]));
-    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot warn" }), GX.el("span", { text: "ElevenLabs" }), GX.el("b", { text: GX.fmt.num(byProv.elevenlabs) })]));
+    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot ok" }), GX.el("span", { text: "Gemini" }), GX.el("b", { text: GX.fmt.num(byProv.gemini || 0) })]));
+    legend.appendChild(GX.el("span", { class: "legend-item" }, [GX.el("span", { class: "dot warn" }), GX.el("span", { text: "ElevenLabs" }), GX.el("b", { text: GX.fmt.num(byProv.elevenlabs || 0) })]));
     el.providerDays.appendChild(legend);
   }
 
