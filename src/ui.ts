@@ -1678,7 +1678,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .rail-mark { background: var(--text); color: var(--bg); border-radius: 6px; }
 .rail-name b { font-size: 15px; }
 .rail-name span { display: none; }
-.rail-providers { display: none; }
+.rail .rail-providers { display: none; }
 .rail-nav { flex-direction: row; gap: var(--sp-1); align-items: center; }
 .rail-group { flex-direction: row; align-items: center; gap: var(--sp-1); }
 .rail-label {
@@ -1800,6 +1800,21 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .rail-state span { display: none; }
   .page-title { font-size: 20px; }
   .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* drawer navigation (revived): the top bar keeps hiding its own provider
+   strip and the menu button on desktop; at <=1023px the button returns and
+   the drawer stacks the same sections vertically, with the same
+   aria-current marker the top bar uses. The drawer strip itself is NOT
+   hidden here: scoping the restyle hide to .rail leaves the base column
+   style in place for it. */
+.drawer .rail-nav { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
+.drawer .rail-group { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
+.drawer .rail-item { width: 100%; }
+.drawer .rail-foot { margin-left: 0; margin-top: auto; }
+.drawer .rail-tools { padding: 0; }
+@media screen and (max-width: 1023px) {
+  .menu-btn { display: inline-flex !important; }
 }
 `;
 
@@ -2762,12 +2777,14 @@ export const CLIENT_JS = `
     },
 
 
-    /* The rail strip names the builtin providers server-side; custom ones
+    /* The drawer strip names the builtin providers server-side; custom ones
        only exist once the registry answers, so they are appended here after
        the token is accepted. Idempotent: a provider already on the strip is
-       never duplicated. */
+       never duplicated. The top-bar strip is intentionally NOT filled: the
+       restyle hides it at every width, so filling it would only grow a
+       hidden DOM subtree. */
     railProviders: function (providers) {
-      ["railProviders", "drawerProviders"].forEach(function (mountId) {
+      ["drawerProviders"].forEach(function (mountId) {
         var mount = document.getElementById(mountId);
         if (!mount) return;
         (providers || []).forEach(function (p) {

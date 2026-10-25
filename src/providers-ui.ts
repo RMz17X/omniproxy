@@ -65,6 +65,30 @@ const PROVIDERS_BODY = `
         <button id="addBtn" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add provider</button>
       </div>
     </div>
+    <div class="panel-body">
+      <div class="toolbar">
+        <div class="filter-grid">
+          <div class="filter-cell filter-search">
+            <label class="field" for="pFilter">Search</label>
+            <div class="search">
+              ${icon("search", "icon", 14)}
+              <input id="pFilter" class="input" type="search" spellcheck="false" placeholder="id, label or base URL">
+            </div>
+          </div>
+          <div class="filter-cell">
+            <label class="field" for="pState">State</label>
+            <select id="pState" class="select">
+              <option value="">all</option>
+              <option value="enabled">enabled</option>
+              <option value="disabled">disabled</option>
+            </select>
+          </div>
+          <div class="filter-cell">
+            <button id="pReset" class="btn btn-sm" type="button" hidden>Reset filters</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="body" class="table-wrap">${stateBlock("loading", "Loading the registry…")}</div>
     <div class="panel-foot">
       <p class="hint">A provider is routable by naming its models as <code>provider/model</code> (for example <code>whatstoken/deepseek-v4.1-flash-1017</code>). A bare model id is resolved through the provider's own catalog.</p>
@@ -124,6 +148,7 @@ ${confirmDialog()}
           <label class="field u-mb-0 grow" for="pModels">Models</label>
           <button id="pImport" class="btn btn-sm" type="button">${icon("download")}Import from /v1/models</button>
         </div>
+        <p class="hint u-mt-1" id="pImportHint"></p>
         <textarea id="pModels" spellcheck="false" rows="5" placeholder="deepseek-v4.1-flash-1017&#10;gpt-4o"></textarea>
         <p class="hint u-mt-1">One model id per line. A bare id a client asks for is routed here when it appears in this list or in the provider's live catalog.</p>
       </div>
@@ -156,6 +181,9 @@ const PROVIDERS_SCRIPT = `
     listMeta: document.getElementById("listMeta"),
     countMeta: document.getElementById("countMeta"),
     body: document.getElementById("body"),
+    filter: document.getElementById("pFilter"),
+    stateSel: document.getElementById("pState"),
+    resetBtn: document.getElementById("pReset"),
     reloadBtn: document.getElementById("reloadBtn"),
     addBtn: document.getElementById("addBtn"),
     dialog: document.getElementById("providerDialog"),
@@ -172,12 +200,13 @@ const PROVIDERS_SCRIPT = `
     keys: document.getElementById("pKeys"),
     note: document.getElementById("pNote"),
     importBtn: document.getElementById("pImport"),
+    importHint: document.getElementById("pImportHint"),
     submit: document.getElementById("pSubmit"),
     count: document.getElementById("pCount"),
     msg: document.getElementById("pMsg")
   };
 
-  var state = { providers: [], editId: "" };
+  var state = { providers: [], editId: "", q: "", st: "" };
 
   var CAP_LABEL = {
     llm: "LLM", tts: "TTS", image: "Image", video: "Video", embeddings: "Embeddings"
@@ -215,22 +244,66 @@ const PROVIDERS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(ready), "selectable right now", "ok"));
   }
 
+  /* Registry filters, following the Keys page: search matches id, label or
+     base URL; state matches the enabled flag; both persist to the URL so a
+     filtered view is a shareable link and survives a reload. KPIs stay
+     registry totals; only the table and its count narrow. */
+  function filtersActive() { return Boolean(state.q || state.st); }
+
+  function visibleProviders() {
+    return state.providers.filter(function (p) {
+      if (state.st === "enabled" && !p.enabled) return false;
+      if (state.st === "disabled" && p.enabled) return false;
+      if (state.q) {
+        var hay = ((p.id || "") + " " + (p.label || "") + " " + (p.baseUrl || "")).toLowerCase();
+        if (hay.indexOf(state.q) < 0) return false;
+      }
+      return true;
+    });
+  }
+
+  function writeUrl() {
+    GX.url.write({ q: state.q, state: state.st });
+  }
+
+  function readUrl() {
+    var params = GX.url.read();
+    state.q = (params.q || "").toLowerCase();
+    state.st = params.state === "enabled" || params.state === "disabled" ? params.state : "";
+    if (el.filter) el.filter.value = params.q || "";
+    if (el.stateSel) el.stateSel.value = state.st;
+  }
+
+  function applyFilters() {
+    writeUrl();
+    drawTable();
+  }
+
   function drawTable() {
     el.body.textContent = "";
     if (!state.providers.length) {
       el.body.appendChild(GX.state("empty", "No providers", "The registry is empty."));
+      el.countMeta.textContent = "0 providers";
+      if (el.resetBtn) el.resetBtn.hidden = true;
+      return;
+    }
+    var visible = visibleProviders();
+    if (!visible.length) {
+      el.body.appendChild(GX.state("empty", "No matches", "No provider matches the current filters."));
+      el.countMeta.textContent = "0 of " + state.providers.length + " providers";
+      if (el.resetBtn) el.resetBtn.hidden = !filtersActive();
       return;
     }
     var table = GX.el("table", { class: "table" });
     table.appendChild(tableHead());
     var body = GX.el("tbody");
-    state.providers.forEach(function (p) {
+    visible.forEach(function (p) {
       var tr = GX.el("tr", { "data-provider": p.id });
 
       var prov = GX.el("td", {}, [
         GX.el("div", { class: "row-gap" }, [
           GX.providerTag(p.id),
-          GX.el("span", { class: "sub", text: p.builtin ? "builtin" : "custom" })
+          GX.el("span", { class: "sub", text: p.builtin ? "builtin · model list only" : "custom" })
         ]),
         GX.el("div", { class: "sub", text: p.label })
       ]);
@@ -290,7 +363,10 @@ const PROVIDERS_SCRIPT = `
     });
     table.appendChild(body);
     el.body.appendChild(table);
-    el.countMeta.textContent = state.providers.length + " provider" + (state.providers.length === 1 ? "" : "s");
+    el.countMeta.textContent = filtersActive()
+      ? visible.length + " of " + state.providers.length + " providers"
+      : state.providers.length + " provider" + (state.providers.length === 1 ? "" : "s");
+    if (el.resetBtn) el.resetBtn.hidden = !filtersActive();
   }
 
   function reload() {
@@ -323,6 +399,7 @@ const PROVIDERS_SCRIPT = `
     el.id.disabled = false;
     el.keysRow.hidden = false;
     el.count.textContent = "";
+    if (el.importHint) el.importHint.textContent = "";
     GX.say(el.msg, "");
   }
 
@@ -350,6 +427,11 @@ const PROVIDERS_SCRIPT = `
       });
       el.keysRow.hidden = true;
       el.importBtn.disabled = p.wire !== "openai";
+      /* A disabled Import used to carry no explanation. The button's state
+         rule is unchanged; only the reason is now visible. */
+      if (el.importHint) el.importHint.textContent = p.wire !== "openai"
+        ? "Import is available for OpenAI-compatible wires only."
+        : "";
     } else {
       Array.prototype.forEach.call(el.caps.querySelectorAll("input"), function (box) {
         box.disabled = false;
@@ -358,6 +440,7 @@ const PROVIDERS_SCRIPT = `
       el.baseUrl.disabled = false;
       el.keyPattern.disabled = false;
       el.importBtn.disabled = true;
+      if (el.importHint) el.importHint.textContent = "Import is available after the provider is saved.";
     }
     GX.openDialog(el.dialog);
   }
@@ -417,7 +500,20 @@ const PROVIDERS_SCRIPT = `
       .then(function () { GX.idle(el.submit); });
   }
 
+  /* Import overwrites the textarea, so a non-empty list goes through the
+     shared confirm dialog first; an empty list imports straight away. The
+     fetch itself is untouched. */
   function importModels() {
+    if (!state.editId) return;
+    if (!el.models.value.trim()) { importModelsNow(); return; }
+    GX.confirm({
+      title: "Replace the model list?",
+      message: "Import from /v1/models will replace the current model list. Review and save after import.",
+      confirmLabel: "Replace and import"
+    }).then(function (ok) { if (ok) importModelsNow(); });
+  }
+
+  function importModelsNow() {
     if (!state.editId) return;
     GX.busy(el.importBtn, "Importing…");
     GX.api("/pengatur/providers/" + encodeURIComponent(state.editId) + "/models")
@@ -458,6 +554,22 @@ const PROVIDERS_SCRIPT = `
     });
   }
 
+  if (el.filter) el.filter.addEventListener("input", function () {
+    state.q = el.filter.value.trim().toLowerCase();
+    applyFilters();
+  });
+  if (el.stateSel) el.stateSel.addEventListener("change", function () {
+    state.st = el.stateSel.value;
+    applyFilters();
+  });
+  if (el.resetBtn) el.resetBtn.addEventListener("click", function () {
+    state.q = "";
+    state.st = "";
+    if (el.filter) el.filter.value = "";
+    if (el.stateSel) el.stateSel.value = "";
+    applyFilters();
+  });
+
   el.addBtn.addEventListener("click", function () { openDialog(null); });
   el.closeBtn.addEventListener("click", function () { GX.closeDialog(el.dialog); });
   el.submit.addEventListener("click", function (ev) { ev.preventDefault(); submitDialog(); });
@@ -466,6 +578,7 @@ const PROVIDERS_SCRIPT = `
   el.reloadBtn.addEventListener("click", function () { reload(); });
 
   GX.shortcuts({ refresh: "reloadBtn" });
+  readUrl();
   GX.gate({ onSuccess: reload });
 })();
 `;
