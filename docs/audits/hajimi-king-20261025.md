@@ -179,7 +179,7 @@ Instance hangat lain masih memegang baris itu di memori dan terus menampilkannya
 dari DB): `282 total / 282 ready / 0 dead`, ElevenLabs 49 ready. Tidak ada risiko servis: key mati tidak
 pernah dipilih, dan `backfillMaterial()` melewati key `invalid` sehingga tidak bisa menulis ulang material.
 
-## 9. Provider baru: Groq, Cerebras, Mistral, OpenRouter (2026-10-25 20:00 WIB)
+## 9. Provider baru: Groq, Cerebras, OpenRouter (2026-10-25 20:00 WIB)
 
 Keempatnya OpenAI-compatible, jadi hanya menambah baris registry — `wire: openai` memakai adapter yang sudah ada
 (`passthrough.ts`), probe memakai `GET {base}/models`, katalog model diisi otomatis lewat `refreshCatalog()`.
@@ -188,24 +188,23 @@ Keempatnya OpenAI-compatible, jadi hanya menambah baris registry — `wire: open
 |---|---|---|---|
 | groq | `https://api.groq.com/openai/v1` | `^gsk_[A-Za-z0-9]{40,64}$` | llm |
 | cerebras | `https://api.cerebras.ai/v1` | `^csk-[A-Za-z0-9]{32,64}$` | llm |
-| mistral | `https://api.mistral.ai/v1` | — (tanpa pola) | llm, embeddings |
 | openrouter | `https://openrouter.ai/api/v1` | `^sk-or-v1-[A-Za-z0-9]{48,80}$` | llm |
 
-Mistral sengaja tanpa `keyPattern`: key-nya 32 karakter base62 tanpa prefiks, tidak bisa dibedakan dari token acak.
-Konsekuensi: key Mistral **wajib** menyebut `provider: "mistral"` saat ingest; tanpa itu `detectProvider` mengembalikan
-null dan key jatuh ke default gemini (lalu mati saat probe). Pola OpenRouter lebih panjang daripada pola gateway `sk-…`
-generik sehingga `detectProvider` (longest-first) memilih OpenRouter, bukan gateway.
+Mistral **dihapus** dari registry (keputusan operator, 2026-10-25 20:06 WIB): key-nya 32 karakter base62
+tanpa prefiks, jadi `detectProvider` tidak pernah bisa menamainya dan `keyShapeError` tidak bisa menilainya. Provider
+yang tidak bisa diperiksa gate bentuk key hanya menambah footgun: ingest tanpa `provider` eksplisit akan memarkir
+key itu di pool gemini dan mematikannya pada probe pertama. Tiga provider lain tetap karena punya pola.
 
-Cara mengisi key: `GROQ_API_KEYS` / `CEREBRAS_API_KEYS` / `MISTRAL_API_KEYS` / `OPENROUTER_API_KEYS` (dipisah koma,
+Cara mengisi key: `GROQ_API_KEYS` / `CEREBRAS_API_KEYS` / `OPENROUTER_API_KEYS` (dipisah koma,
 di-seed saat hydrate), atau `POST /pengatur/keys` dengan `provider` eksplisit. Routing per model: prefiks
-`groq/llama-3.3-70b-versatile`, `mistral/mistral-large-latest`, dst.
+`groq/llama-3.3-70b-versatile`, `openrouter/anthropic/claude-3.5-sonnet`, dst.
 
 Verifikasi live (deploy `459312f`, alias `omniproxy.vercel.app`):
 
-- `GET /pengatur/providers/list` → 6 builtin (`gemini`, `elevenlabs`, `groq`, `cerebras`, `mistral`, `openrouter`)
+- `GET /pengatur/providers/list` → 5 builtin (`gemini`, `elevenlabs`, `groq`, `cerebras`, `openrouter`)
   plus `whatstoken` (custom), semuanya enabled, key count 0 untuk empat yang baru.
 - Ingest dengan key cacat: `gsk_short` → `rejected: does not match the \`groq\` key format`; `csk-abc` → cerebras;
   `sk-or-v1-xyz` → openrouter. Pool tidak berubah (282/282/0).
 - Deteksi lokal: `gsk_…` → groq, `csk-…` → cerebras, `sk-or-v1-…` → openrouter (mengalahkan pola `sk-…` generik),
-  key 32 char → null (Mistral, sesuai desain).
+  Mistral sudah tidak ada di registry.
 
