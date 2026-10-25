@@ -390,7 +390,10 @@ export async function testModel(modelId: string, rawKey?: string, tier: KeyTier 
   let key = rawKey?.trim() ?? "";
   const pooled = !key;
   if (!key) {
-    const st = await pick();
+    // Gemini-only probe: an unfiltered pick could hand this Google call an
+    // ElevenLabs/WhatsToken/custom key and report the model "invalid" when
+    // the model was fine and the credential was simply foreign.
+    const st = await pick(new Set(), undefined, "gemini");
     if (!st) {
       return {
         id, status: "error", httpStatus: 0, latencyMs: 0, reply: "",

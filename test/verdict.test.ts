@@ -125,7 +125,10 @@ test("every transport and status class maps to exactly one verdict", () => {
   expect(classifyResponse(0, "").verdict).toBe("network_error");
   expect(classifyResponse(200, "{}").verdict).toBe("ok");
   expect(classifyResponse(204, "").verdict).toBe("ok");
-  expect(classifyResponse(401, "{}").verdict).toBe("invalid");
+  // A bare 401 is not a dead credential (project/model access refusals
+  // answer 401 too); only invalid-key text retires the key.
+  expect(classifyResponse(401, "{}").verdict).toBe("unexpected");
+  expect(classifyResponse(401, '{"error":{"message":"API key not valid."}}').verdict).toBe("invalid");
   expect(classifyResponse(403, LEAKED_403).verdict).toBe("invalid");
   expect(classifyResponse(403, '{"error":{"message":"Permission denied."}}').verdict).toBe("unexpected");
   expect(classifyResponse(500, "{}").verdict).toBe("server_error");

@@ -31,8 +31,9 @@ export const cfg = {
   get upstream(): string {
     return process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com";
   },
-  /** per-key pacing: after a successful call the key sleeps this long.
-   *  4000ms == 15 RPM, the Gemini free-tier ceiling per project. */
+  /** per-key pacing, ENFORCED by pool.selectable(): a key whose lastUsed is
+   *  inside this window is not selectable at all (not merely deprioritised
+   *  by LRU). 4000ms == 15 RPM, the Gemini free-tier ceiling per project. */
   rateWindowMs: num(process.env.KEY_RATE_WINDOW_MS, 4000),
   /** cooldown applied on 429 / RESOURCE_EXHAUSTED */
   cooldownMs: num(process.env.KEY_COOLDOWN_MS, 60_000),

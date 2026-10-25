@@ -2,7 +2,7 @@
 
 Hono + Bun gateway that fronts pools of API keys from several providers —
 Gemini, ElevenLabs, WhatsToken, and any OpenAI-compatible upstream an operator
-plugs in. Deploys to Vercel (Bun runtime) or runs as a plain Bun process.
+plugs in. Deploys to Vercel (Node runtime: `vercel.json` uses `@vercel/node` on the esbuild bundle in `api/index.js`) or runs as a plain Bun process.
 Rotates on quota exhaustion, parks dead keys, and speaks native Gemini,
 OpenAI chat/speech/embeddings/images, and the ElevenLabs dialect.
 
@@ -58,9 +58,9 @@ advertised; the capability set decides which routes may reach it at all.
 | `POST /v1/embeddings` | OpenAI | Gemini embeddings or a gateway's `/v1/embeddings`. |
 | `POST /v1/images/generations` | OpenAI | Image models on OpenAI-wire providers; Gemini's image models stay on the chat route. |
 | `GET /v1/models` | OpenAI | Union of every provider's catalog; gateway rows are prefixed `provider/model`. |
-| `GET /` | JSON | Health plus a pool snapshot (total / ready / cooling). |
+| `GET /` | JSON | Anonymous liveness only: `{ok, service}`. The full pool snapshot lives behind the admin token at `/pengatur/status`. |
 | `GET /health` | JSON | 200 when at least one key is ready, 503 otherwise. |
-| `GET/POST/DELETE /admin/keys` | JSON | Add, list (masked), remove keys. Requires `ADMIN_TOKEN`. |
+| `POST/DELETE /pengatur/keys`, `GET /pengatur/keys/list` | JSON | Add, list (masked), remove keys. Requires `ADMIN_TOKEN`. (There is no `/admin/*` route; raw keys are never sent to the browser.) |
 
 Search grounding is available on the OpenAI route with `"search": true` (or
 `web_search: true`); it routes to `SEARCH_MODEL` with `tools: [{google_search:{}}]`.
@@ -70,9 +70,9 @@ Search grounding is available on the OpenAI route with `"search": true` (or
 Each key record tracks `failures`, `invalid`, `cooldownUntil`, `lastUsed`.
 
 Selection picks the **lowest failure count, then least-recently-used** key that
-is not cooling. Pacing falls out of that for free: a key that just served a
-request has `lastUsed = now`, so it loses every LRU comparison until its rate
-window elapses.
+is not cooling and not inside its pacing window: a key whose `lastUsed` is
+within `KEY_RATE_WINDOW_MS` (default 4000 ms, the 15 RPM ceiling) is not
+selectable at all, not merely deprioritised by LRU.
 
 Classification on the response:
 
@@ -81,6 +81,8 @@ Classification on the response:
 | `2xx` / `3xx` | Return untouched (streams included). |
 | `429` | Park key for `max(KEY_COOLDOWN_MS, Retry-After)`, retry with next key. |
 | `401` / `403` + invalid-key text | Mark key permanently invalid, retry. |
+| `401` without invalid-key text | Park key briefly, retry with next key. A bare 401 is not proof the credential is dead. |
+| `403` (ElevenLabs) without invalid-key wording | Not a dead credential (often a permission/voice restriction) — do not retire. |
 | `403` + quota text | Treat as 429. |
 | `403` other | Real auth failure for the caller — pass through, do not rotate. |
 | `400` + `API_KEY_INVALID` | Mark invalid, retry. |
@@ -117,8 +119,10 @@ bunx vercel --prod
 ```
 
 `vercel.json` defines one daily cron, `0 19 * * *` (02:00 WIB), calling
-`POST /internal/rollup`. The route requires `Authorization: Bearer
-$ROLLUP_TOKEN` (or `X-Rollup-Token`); with `ROLLUP_TOKEN` unset it returns 403.
+`GET /internal/rollup` (Vercel cron issues GET; the handler is `app.all`, so
+a manual POST works too). The route accepts `Authorization: Bearer
+$ROLLUP_TOKEN` or `Bearer $CRON_SECRET` (or `X-Rollup-Token`); with neither
+token set it returns 403.
 Each run recomputes yesterday's `usage_daily` buckets from `usage_events` and
 then prunes events older than `RETENTION_DAYS`.
 
@@ -207,14 +211,14 @@ containing `429` always rate limits, `dead` always returns `API_KEY_INVALID`,
 `boom` returns 500, everything else succeeds.
 
 ```bash
-bun run test/mock-upstream.ts &          # :8089
-GEMINI_BASE_URL=http://127.0.0.1:8089 \
-GEMINI_API_KEYS='AIzaGOOD1,AIza429X,AIzadead1,AIzaGOOD2' \
-KEY_COOLDOWN_MS=3000 ADMIN_TOKEN=adm CLIENT_TOKEN=tok \
-bun run src/index.ts &
+bun test
 ```
+
+The suite boots its own mock upstream on an OS-assigned port (the harness
+reads the port from the mock's stdout); do not run the mock by hand on a
+fixed port — a stale mock on that port would answer the suite with old code.
 
 Verified behaviour against that mock: healthy chat completion, streaming SSE
 re-framed into OpenAI chunks with `[DONE]`, WAV header emitted for TTS,
-cooldown recorded for the 429 key, invalid key dropped from the pool, and an
+cooldown recorded for the 429 key, invalid key marked dead and excluded from rotation, and an
 all-bad pool returning `429 pool_exhausted` instead of a false 200.

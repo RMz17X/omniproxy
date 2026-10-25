@@ -12,6 +12,12 @@ import { CLIENT_JS, LOGIN_HTML } from "../src/ui.ts";
 import { ADMIN_HTML } from "../src/admin-ui.ts";
 import { MODELS_HTML } from "../src/models-ui.ts";
 import { KEYS_HTML } from "../src/keys-ui.ts";
+import { AUDIT_HTML } from "../src/audit-ui.ts";
+import { SETTINGS_HTML } from "../src/settings-ui.ts";
+import { USAGE_HTML } from "../src/usage-ui.ts";
+import { STATS_HTML } from "../src/stats-ui.ts";
+import { PROVIDERS_HTML } from "../src/providers-ui.ts";
+import { KEY_DETAIL_HTML } from "../src/keys-ui.ts";
 
 /** Every inline <script> body in a rendered page, in document order. */
 function inlineScripts(html: string): string[] {
@@ -38,6 +44,23 @@ describe("shipped client scripts", () => {
     expect(CLIENT_JS).toContain("var GX = {");
   });
 
+  test("console pages never call the raw-key route", () => {
+    for (const [name, html] of [
+      ["keys", KEYS_HTML],
+      ["key detail", KEY_DETAIL_HTML],
+    ] as const) {
+      expect(html, `${name} has no raw route call`).not.toContain("/raw");
+      expect(html, `${name} has no reveal flag`).not.toContain("reveal=1");
+    }
+    expect(KEYS_HTML, "keys page brands the copy as masked").toContain("Copy the masked key");
+    expect(KEY_DETAIL_HTML, "key detail is masked only").toContain("masked only");
+  });
+
+  test("providerPool never collapses a provider to gemini", () => {
+    expect(CLIENT_JS).not.toContain('provider === "elevenlabs" ? "elevenlabs" : "gemini"');
+    expect(CLIENT_JS).toContain('var p = provider || "custom"');
+  });
+
   test("the login page ships a working gate script", () => {
     const scripts = inlineScripts(LOGIN_HTML);
     expect(scripts.length).toBeGreaterThan(0);
@@ -50,6 +73,12 @@ describe("shipped client scripts", () => {
       ["overview", ADMIN_HTML],
       ["models", MODELS_HTML],
       ["keys", KEYS_HTML],
+      ["key detail", KEY_DETAIL_HTML],
+      ["providers", PROVIDERS_HTML],
+      ["statistics", STATS_HTML],
+      ["logs", USAGE_HTML],
+      ["settings", SETTINGS_HTML],
+      ["audit", AUDIT_HTML],
     ] as const) {
       const scripts = inlineScripts(html);
       expect(scripts.length, `${name} ships scripts`).toBeGreaterThan(0);

@@ -12,7 +12,7 @@
  *   DELETE /pengatur/keys          remove key { key: "AIza..." }
  */
 
-import { Hono } from "hono";
+import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
 import { addKey, backfillMaterial, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
@@ -106,14 +106,25 @@ const bearer = (h: string | undefined): string => {
   return m ? m[1].trim() : h.trim();
 };
 
-app.use("/v1/*", async (c, next) => {
+/**
+ * Client-token gate, shared by every public upstream surface. It used to be
+ * registered only on `/v1/*`, which left the native Gemini passthrough
+ * (`/v1beta/models/*`) ungated even when CLIENT_TOKEN was set: the two
+ * prefixes are different Hono segments, so one middleware never covered the
+ * other. Both prefixes are gated here, with identical semantics — unset
+ * token means open, exactly like `/v1/*` before.
+ */
+const clientGate = async (c: Context, next: Next) => {
   if (!cfg.clientToken) return next();
   const presented = bearer(c.req.header("authorization")) || c.req.header("x-api-key") || "";
   if (presented !== cfg.clientToken) {
     return c.json({ error: { type: "auth_error", message: "Invalid API key." } }, 401);
   }
   return next();
-});
+};
+
+app.use("/v1/*", clientGate);
+app.use("/v1beta/*", clientGate);
 
 /** Shells carry no data; their client scripts fetch `/data` with the token. */
 const SHELL_PATHS = [
@@ -270,7 +281,10 @@ app.post("/v1/chat/completions", async (c) => {
   if (resolved.provider.wire === "openai") {
     return openaiWire(c.req.raw, resolved.provider, "chat", resolved.model, c.req.raw.signal);
   }
-  return chatCompletions(c.req.raw);
+  // Pass the resolved model through: the handler must not re-derive it from
+  // the raw body (that turned `gemini/foo` into an invalid upstream URL and
+  // silently replaced non-Gemini models with the default).
+  return chatCompletions(c.req.raw, resolved.model);
 });
 
 app.post("/v1/audio/speech", async (c) => {
@@ -289,7 +303,7 @@ app.post("/v1/audio/speech", async (c) => {
     const st = await pick(new Set(), undefined, "elevenlabs");
     return serveElevenLabs(c.req.raw, st?.key);
   }
-  return speech(c.req.raw);
+  return speech(c.req.raw, resolved.model);
 });
 
 app.post("/v1/embeddings", async (c) => {
@@ -304,7 +318,7 @@ app.post("/v1/embeddings", async (c) => {
   if (resolved.provider.wire === "openai") {
     return openaiWire(c.req.raw, resolved.provider, "embeddings", resolved.model, c.req.raw.signal);
   }
-  return embeddings(c.req.raw);
+  return embeddings(c.req.raw, resolved.model);
 });
 
 /**
@@ -696,33 +710,10 @@ app.get("/pengatur/keys/list", async (c) => {
       label: identity?.label ?? null,
     };
   });
-  /* The console shows every key in full, so it used to call GET /raw once per
-     row - 25 requests per render, each writing its own `keys.raw` audit row.
-     Measured on the live ledger: 1,320 `keys.raw` rows out of 2,077 total, 63%
-     of the trail, all of it page-view noise. `reveal=1` returns the whole page
-     in one response and writes ONE audit row for the reveal. */
-  if (c.req.query("reveal") === "1") {
-    const rawById: Record<string, string> = {};
-    for (const k of merged) {
-      const raw = await rawKeyById(k.id);
-      if (raw) rawById[k.id] = raw;
-    }
-    await auditRecordNow("keys.reveal", {
-      actor: actorFrom(c.req.header("user-agent")),
-      target: "pool",
-      detail: { action: "reveal-page", revealed: Object.keys(rawById).length, requested: merged.length },
-    });
-    return c.json({
-      pool: snap,
-      keys: merged,
-      tiers: tierCounts(keys),
-      knownTiers: KEY_TIERS,
-      raw: rawById,
-      // The registry rides along so the add-key dialog's provider select and
-      // the capability hints come from one source of truth.
-      providers: await providerViews(),
-    });
-  }
+  /* Raw keys are never sent to the browser: the former `?reveal=1` branch
+     returned every pooled key in one response, which was the same leak as
+     the deleted /raw route, just batched. The list endpoint returns masked
+     keys only; the UI redesign owns removing the reveal caller. */
   return c.json({
     pool: snap,
     keys: merged,
@@ -1362,22 +1353,11 @@ app.post("/pengatur/keys/validate-plan", async (c) => {
   return c.json({ ok: true, validated, results, pool: await snapshot() });
 });
 
-/**
- * Reveal one raw key. Listings never carry raw material; this route exists so
- * an operator can copy a key they own. The path does not match any public
- * shell, so the `/pengatur/*` gate demands the admin token for it.
- */
-app.get("/pengatur/keys/:id/raw", async (c) => {
-  const id = c.req.param("id");
-  const raw = await rawKeyById(id);
-  if (!raw) return c.json({ error: { message: "No key with that id." } }, 404);
-  await auditRecordNow("keys.raw", {
-    actor: actorFrom(c.req.header("user-agent")),
-    target: id,
-    detail: { action: "reveal" },
-  });
-  return c.json({ ok: true, id, raw });
-});
+/* Raw keys are never sent to the browser: the former
+ * GET /pengatur/keys/:id/raw route was deleted (it contradicted the console
+ * contract and gave any admin-token holder, and any XSS in the console, every
+ * live credential). Operators copy keys from their own source, not from this
+ * gateway. */
 
 /* ---------- cron ---------- */
 

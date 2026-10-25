@@ -571,7 +571,12 @@ export function resolveModel(model: string, providers: Provider[]): ModelRoute {
   const slash = raw.indexOf("/");
   if (slash > 0) {
     const head = raw.slice(0, slash);
-    const hit = providers.find((p) => p.id === head && p.enabled);
+    // An explicit prefix names its provider even when that provider is
+    // disabled: falling through to another provider silently served a
+    // request the operator explicitly routed elsewhere. The caller
+    // (app.resolveRoute) already errors on a disabled provider, so
+    // returning it here turns the misroute into that error.
+    const hit = providers.find((p) => p.id === head);
     if (hit) return { provider: hit.id, model: raw.slice(slash + 1), explicit: true };
   }
   if (ELEVENLABS_MODEL_RE.test(raw)) return { provider: "elevenlabs", model: raw, explicit: false };

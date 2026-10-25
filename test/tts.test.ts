@@ -72,14 +72,17 @@ describe("ElevenLabs classification and probe", () => {
     expect(res.quota).toBeNull();
   });
 
-  test("401 and 403 classify as invalid (dead key)", () => {
+  test("401 classifies as invalid; a bare 403 does not (permission, not a dead key)", () => {
     const res401 = classifyElevenLabsResponse(401, '{"detail":{"status":"invalid_api_key"}}');
     expect(res401.verdict).toBe("invalid");
     expect(res401.quota).toBeNull();
 
     const res403 = classifyElevenLabsResponse(403, '{"detail":{"status":"forbidden"}}');
-    expect(res403.verdict).toBe("invalid");
+    expect(res403.verdict).toBe("unexpected");
     expect(res403.quota).toBeNull();
+
+    const res403Invalid = classifyElevenLabsResponse(403, '{"detail":{"status":"invalid_api_key"}}');
+    expect(res403Invalid.verdict).toBe("invalid");
   });
 
   test("429 classifies as rate_limited (quota state, not dead)", () => {

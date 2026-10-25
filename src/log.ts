@@ -3,8 +3,10 @@
  *
  * Every line is one JSON object so log shippers can index it without parsing
  * prose. Field values are scrubbed of anything that looks like a Google API
- * key or OAuth token as a defence in depth: callers are expected to pass
- * `maskKey()` values, and this is the belt to that suspenders.
+ * key, an OAuth token, or an OpenAI-style bearer key (`sk-…` / `sk_…`, as
+ * pooled for WhatsToken, ElevenLabs and custom providers) as a defence in
+ * depth: callers are expected to pass `maskKey()` values, and this is the
+ * belt to that suspenders.
  */
 
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 } as const;
@@ -14,7 +16,8 @@ export type LogLevel = keyof typeof LEVELS;
 const threshold: number =
   LEVELS[(process.env.LOG_LEVEL ?? "info") as LogLevel] ?? LEVELS.info;
 
-const KEY_SHAPED = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/g;
+const KEY_SHAPED =
+  /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}|sk-[0-9A-Za-z_-]{10,}|sk_[0-9A-Za-z]{10,}/g;
 
 const scrub = (value: unknown): unknown => {
   if (typeof value === "string") return value.replace(KEY_SHAPED, "[redacted]");

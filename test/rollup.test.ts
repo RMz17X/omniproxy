@@ -81,12 +81,13 @@ test("running the same day twice issues the same statement", async () => {
   }
 });
 
-test("an invalid day falls back to yesterday instead of failing", async () => {
+test("an invalid day fails instead of silently rolling up yesterday", async () => {
   const calls = fakeDb();
   try {
     const res = await rollupDay("not-a-day");
-    expect(res.day).toBe(yesterdayWib());
-    expect(calls[0].params[0]).toBe(yesterdayWib());
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("invalid day");
+    expect(calls.length).toBe(0);
   } finally {
     setSqlRunner(null);
   }

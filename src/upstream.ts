@@ -21,6 +21,7 @@ import {
   markModelRefused,
   markSoftError,
   markUsed,
+  maskKey,
   modelBlock,
   pick,
   snapshot,
@@ -211,7 +212,7 @@ export async function execute(
         counters.poolExhausted++;
         log("warn", "model.quota_refused_all", {
           path,
-          keys: block.keys,
+          keys: block.keys.map(maskKey),
           model: opts.model,
         });
         return {
@@ -247,7 +248,7 @@ export async function execute(
         // such: the caller can move to the next model instead of telling the
         // client the pool is exhausted.
         if (modelRefusedKeys.size > 0) {
-          log("warn", "model.quota_refused_all", { path, keys: [...modelRefusedKeys], model: opts?.model ?? "" });
+          log("warn", "model.quota_refused_all", { path, keys: [...modelRefusedKeys].map(maskKey), model: opts?.model ?? "" });
           return {
             response: jsonError(
               429,
@@ -331,7 +332,7 @@ export async function execute(
     } catch (err) {
       if (signal?.aborted) {
         counters.clientAborts++;
-        log("warn", "client.aborted", { path, attempt: attempts, key: st.key });
+        log("warn", "client.aborted", { path, attempt: attempts, key: maskKey(st.key) });
         return aborted();
       }
       // A timeout that is not the client's disconnect is a property of the
@@ -343,7 +344,7 @@ export async function execute(
         counters.networkErrors++;
         log("warn", "model.timeout", {
           path,
-          key: st.key,
+          key: maskKey(st.key),
           attempt: attempts,
           timeoutMs: opts?.timeoutMs ?? cfg.upstreamTimeoutMs,
         });
@@ -363,11 +364,25 @@ export async function execute(
       await markSoftError(st.key, cfg.serverErrCooldownMs);
       log("warn", "upstream.network_error", {
         path,
-        key: st.key,
+        key: maskKey(st.key),
         attempt: attempts,
         error: err instanceof Error ? err.message : String(err),
       });
-      if (attempts >= cfg.maxAttempts) throw err;
+      // Never throw to the generic 500 handler: a network failure is a
+      // gateway answer (the key was already parked above), so return it in
+      // the same jsonError shape as every other rotation outcome.
+      if (attempts >= cfg.maxAttempts) {
+        return {
+          response: jsonError(
+            502,
+            "upstream_error",
+            `Upstream did not answer after ${attempts} attempt${attempts === 1 ? "" : "s"}.`,
+          ),
+          key: st.key,
+          attempts,
+          rotated,
+        };
+      }
       continue;
     }
 
@@ -389,7 +404,7 @@ export async function execute(
         modelRefusedKeys.add(st.key);
         log("warn", "model.quota_refused", {
           path,
-          key: st.key,
+          key: maskKey(st.key),
           model: scopeModel,
           retryAfterMs: quota.retryAfterMs,
         });
@@ -413,9 +428,9 @@ export async function execute(
         // key is retired here as before.
         if (!opts?.deferQuotaRetire) {
           const claimed = await markInvalid(st.key);
-          log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+          log("warn", "key.zero_quota", { path, key: maskKey(st.key), first: claimed });
         } else {
-          log("warn", "model.zero_quota", { path, key: st.key });
+          log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
         }
         if (attempts >= cfg.maxAttempts) {
           return {
@@ -431,16 +446,25 @@ export async function execute(
       }
       const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
       await mark429(st.key, Math.max(cfg.cooldownMs, cd));
-      log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
+      log("info", "key.cooldown", { path, key: maskKey(st.key), status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
 
     if (status === 401 || status === 403) {
       const body = await safeText(res);
-      if (isInvalidKeyText(body) || status === 401) {
+      if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
-        log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
+        log("warn", "key.invalid", { path, key: maskKey(st.key), status, first: claimed });
+      } else if (status === 401) {
+        // A bare 401 is NOT proof the credential is dead: it can be a
+        // project/model-access refusal for a live key. Retiring on it burned
+        // healthy keys. Park the key briefly and rotate instead; only
+        // invalid-key text retires (the branch above).
+        await markSoftError(st.key, cfg.serverErrCooldownMs);
+        log("warn", "key.auth_cooldown", { path, key: maskKey(st.key), status });
+        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        continue;
       } else if (isQuotaText(body)) {
         const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
         const scopeModel = opts?.model ?? quota?.model ?? "";
@@ -451,7 +475,7 @@ export async function execute(
           modelRefusedKeys.add(st.key);
           log("warn", "model.quota_refused", {
             path,
-            key: st.key,
+            key: maskKey(st.key),
             model: scopeModel,
             retryAfterMs: quota.retryAfterMs,
           });
@@ -470,9 +494,9 @@ export async function execute(
           quotaRefused.add(st.key);
           if (!opts?.deferQuotaRetire) {
             const claimed = await markInvalid(st.key);
-            log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+            log("warn", "key.zero_quota", { path, key: maskKey(st.key), first: claimed });
           } else {
-            log("warn", "model.zero_quota", { path, key: st.key });
+            log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
           }
           if (attempts >= cfg.maxAttempts) {
             return {
@@ -488,7 +512,7 @@ export async function execute(
         }
         const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
         await mark429(st.key, Math.max(cfg.cooldownMs, cd));
-        log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
+        log("info", "key.cooldown", { path, key: maskKey(st.key), status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
       } else {
         // Genuine authorisation failure for the caller, not a key problem.
         return { response: rebuild(res, body), key: st.key, attempts, rotated };
@@ -501,12 +525,12 @@ export async function execute(
       const body = await safeText(res);
       if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
-        log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
+        log("warn", "key.invalid", { path, key: maskKey(st.key), status, first: claimed });
         if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       }
       if (isModelUnavailable(body)) {
-        log("warn", "model.unavailable", { path, key: st.key, status });
+        log("warn", "model.unavailable", { path, key: maskKey(st.key), status });
         return { response: rebuild(res, body), key: st.key, attempts, rotated, modelRefused: true };
       }
       // Bad request / Not found from the client — no amount of rotation fixes it.
@@ -519,11 +543,11 @@ export async function execute(
       // 503 UNAVAILABLE "high demand" is the model being overloaded, not the
       // key; parking the key would burn a healthy credential per attempt.
       if (isModelUnavailable(body)) {
-        log("warn", "model.unavailable", { path, key: st.key, status });
+        log("warn", "model.unavailable", { path, key: maskKey(st.key), status });
         return { response: rebuild(res, body), key: st.key, attempts, rotated, modelRefused: true };
       }
       await markSoftError(st.key, cfg.serverErrCooldownMs);
-      log("warn", "key.soft_error", { path, key: st.key, status, attempt: attempts });
+      log("warn", "key.soft_error", { path, key: maskKey(st.key), status, attempt: attempts });
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
@@ -687,7 +711,7 @@ export async function executeWithFallback(
     for (const [key, seen] of quotaRefusedBy) {
       if (seen.size >= chain.length) {
         const claimed = await markInvalid(key);
-        log("warn", "key.zero_quota", { key, models: [...seen], first: claimed });
+        log("warn", "key.zero_quota", { key: maskKey(key), models: [...seen], first: claimed });
       }
     }
   }

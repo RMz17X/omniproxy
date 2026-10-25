@@ -197,17 +197,24 @@ export async function setEnabled(id: string, enabled: boolean): Promise<void> {
   await sql(`update keys set enabled = $2 where id = $1`, [id, enabled]);
 }
 
-/** Operator override. Does not mark the plan validated. */
+/** Operator override. Does not mark the plan validated — and clears any
+ * previous validation, so an overridden plan never still presents as
+ * upstream-validated with stale evidence. */
 export async function setPlan(id: string, plan: KeyTier): Promise<void> {
   if (!dbEnabled()) return;
-  await sql(`update keys set plan = $2 where id = $1`, [id, plan]);
+  await sql(
+    `update keys set plan = $2, plan_validated_at = null, plan_evidence = null where id = $1`,
+    [id, plan],
+  );
 }
 
 /**
  * Durable retirement. The verdict that killed the credential is the source of
  * truth, so the write carries its observation instant instead of the wall
- * clock: a slower statement can never shorten a newer retirement, and a
- * retirement at or after `observedAt` keeps its instant and its reason.
+ * clock: a slower statement can never shorten a newer retirement. Only a
+ * STRICTLY newer retirement replaces the one on record: with `<=`, two
+ * verdicts landing in the same millisecond could overwrite each other, and
+ * the in-memory pool's `outranked` guard already uses strict ordering.
  */
 export async function retire(
   id: string,
@@ -220,9 +227,9 @@ export async function retire(
     `update keys
         set enabled = false,
             status = 'dead',
-            retired_at = case when retired_at is null or retired_at <= $2::timestamptz
+            retired_at = case when retired_at is null or retired_at < $2::timestamptz
                               then $2::timestamptz else retired_at end,
-            retired_reason = case when retired_at is null or retired_at <= $2::timestamptz
+            retired_reason = case when retired_at is null or retired_at < $2::timestamptz
                                   then $3 else retired_reason end
       where id = $1`,
     [id, at, reason],
@@ -234,29 +241,38 @@ export async function retire(
  *
  * A retired credential is a dead row that can never serve traffic again and
  * only inflates the pool snapshot, so it is removed rather than kept as a
- * tombstone. `quota_exhausted` and `cooling` are NOT touched: those are live
- * credentials whose project has no allocation yet, and a 200 revives them.
+ * tombstone. `zero_quota` rows are NOT touched, even though they also carry
+ * status `dead`: a zero-quota project can regain allocation, and deleting
+ * its material made revival impossible. `quota_exhausted` and `cooling` are
+ * likewise untouched. Rows with no recorded reason are left alone too —
+ * purging an unclassified row would delete a credential nobody classified.
+ *
+ * All three statements use the SAME filter (status + reason), so a key that
+ * becomes dead between the id-select and the deletes cannot end up deleted
+ * from `keys` while its material survives, or vice versa: the deletes only
+ * ever touch the ids selected under that filter.
  *
  * The audit row keeps the census (how many, which reason) so the removal is
  * still traceable without keeping 800 dead keys in the hot table.
  */
 export async function purgeDead(): Promise<{ removed: number; byReason: Record<string, number> }> {
   if (!dbEnabled()) return { removed: 0, byReason: {} };
+  const FILTER = `status = 'dead' and retired_reason in ('invalid', 'leaked')`;
   const census = await sql<{ retired_reason: string | null; n: number }>(
     `select retired_reason, count(*)::int as n
        from keys
-      where status = 'dead'
+      where ${FILTER}
       group by 1`,
   );
   const byReason: Record<string, number> = {};
   if (census.ok) for (const row of census.rows) byReason[row.retired_reason ?? "unset"] = row.n;
-  const ids = await sql<{ id: string }>(`select id from keys where status = 'dead'`);
+  const ids = await sql<{ id: string }>(`select id from keys where ${FILTER}`);
   if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason };
   const doomed = ids.rows.map((r) => r.id);
   /* key_material holds the raw credential; delete it in the same pass or the
-     secret outlives the row that owned it. */
+     secret outlives the row that owned it. Same id set, same filter. */
   await sql(`delete from key_material where id = any($1::text[])`, [doomed]);
-  await sql(`delete from keys where status = 'dead'`);
+  await sql(`delete from keys where id = any($1::text[])`, [doomed]);
   /* The driver reports no row count for a bare DELETE, so the census is the
      number removed. */
   return { removed: doomed.length, byReason };
@@ -281,7 +297,7 @@ export async function revive(
             retired_at = null,
             retired_reason = null
       where id = $1
-        and (retired_at is null or retired_at <= $2::timestamptz)`,
+        and (retired_at is null or retired_at < $2::timestamptz)`,
     [id, new Date(observedAt).toISOString(), status],
   );
 }
@@ -296,7 +312,7 @@ export async function setStatus(
   await sql(
     `update keys set status = $2
       where id = $1
-        and (retired_at is null or retired_at <= $3::timestamptz)`,
+        and (retired_at is null or retired_at < $3::timestamptz)`,
     [id, status, new Date(observedAt).toISOString()],
   );
 }
@@ -372,4 +388,8 @@ export async function bumpFailCount(id: string): Promise<void> {
 export async function deleteKey(id: string): Promise<void> {
   if (!dbEnabled()) return;
   await sql(`delete from keys where id = $1`, [id]);
+  // Direct callers used to leave a live raw key behind: deleteKey alone
+  // removed the identity row but not key_material. Pair them here so the
+  // material cannot outlive the row that owned it.
+  await sql(`delete from key_material where id = $1`, [id]);
 }

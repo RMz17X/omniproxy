@@ -344,46 +344,11 @@ const KEYS_SCRIPT = `
     return out;
   }
 
-  /* Raw keys leave the server only through this one call, and only when the
-     operator asks for it or the row is dead. */
-  var rawCache = {};
-  /* Cached forever meant a rotated key kept its pre-rotation value until a
-     full reload. Five minutes is long enough to survive a re-render and short
-     enough that a rotation lands on the next page-load. */
-  var RAW_TTL_MS = 300000;
-  function fetchRaw(id) {
-    var hit = rawCache[id];
-    if (hit && Date.now() - hit.at < RAW_TTL_MS) return Promise.resolve(hit.value);
-    var headers = {};
-    var token = GX.token();
-    if (token) headers["Authorization"] = "Bearer " + token;
-    return fetch("/pengatur/keys/" + encodeURIComponent(id) + "/raw", { headers: headers, cache: "no-store" })
-      .then(function (res) {
-        return res.text().then(function (text) {
-          if (!res.ok) {
-            var line = text ? text.split("\\n")[0].slice(0, 160) : "";
-            throw new Error(line || "Request failed (" + res.status + ")");
-          }
-          var value = text;
-          try {
-            var parsed = JSON.parse(text);
-            if (typeof parsed === "string") value = parsed;
-            else if (parsed && typeof parsed === "object") value = parsed.key || parsed.raw || parsed.value || text;
-          } catch (e) {}
-          value = String(value === null || value === undefined ? "" : value).trim();
-          if (!value) throw new Error("The server returned an empty key.");
-          rawCache[id] = { at: Date.now(), value: value };
-          return value;
-        });
-      });
-  }
-
+  /* Masked keys only. The console never fetches a raw credential: the
+     list API hands out the masked form, and that is what is shown and
+     copied. There is intentionally no raw-key reveal button or flow. */
   function copyKey(k, btn) {
-    btn.disabled = true;
-    fetchRaw(k.id)
-      .then(function (value) { GX.copy(value, "Raw key"); })
-      .catch(function (err) { GX.notice("Could not read the raw key: " + err.message, "err"); })
-      .then(function () { btn.disabled = false; });
+    GX.copy(k.key || k.masked || "", "Masked key");
   }
 
   /* ErNor: never hide the key. A Google key is 39 characters and is shown in
@@ -695,29 +660,16 @@ const KEYS_SCRIPT = `
       var copyBtn = GX.el("button", {
         class: "btn btn-ghost btn-sm icon-btn",
         type: "button",
-        title: "Copy the raw key",
-        "aria-label": "Copy the raw key",
+        title: "Copy the masked key",
+        "aria-label": "Copy the masked key",
         html: COPY_ICON
       });
       copyBtn.addEventListener("click", function () { copyKey(k, copyBtn); });
       /* The button used to be built, wired, and then dropped on the floor: it
          was never appended, so no row ever had a copy control. */
       keyCell.appendChild(copyBtn);
-      /* Every row shows its key, not just the dead ones. The list API only
-         ever hands out the masked form, so the real value is fetched here and
-         cached; the cell keeps the masked text until it arrives so the table
-         paints immediately. */
-      if (rawCache[k.id] && Date.now() - rawCache[k.id].at < RAW_TTL_MS) {
-        keyText.textContent = keyDisplay(rawCache[k.id].value);
-        keyText.className = "key-text raw";
-        keyText.title = rawCache[k.id].value;
-      } else {
-        fetchRaw(k.id).then(function (value) {
-          keyText.textContent = keyDisplay(value);
-          keyText.className = "key-text raw";
-          keyText.title = value;
-        }).catch(function () {});
-      }
+      /* Every row shows the masked form from the list API. Nothing is
+         fetched per row: the masked text is the whole value shown here. */
       tr.appendChild(keyCell);
 
       var provCell = GX.el("td", { class: "provider-cell", "data-l": "provider" });
@@ -1122,17 +1074,11 @@ const KEYS_SCRIPT = `
     /* One request, one audit row. Asking per row cost 25 keys.raw audit
        writes on every render, and a 15s auto-refresh turned that into ~100
        rows a minute of page-view noise in the trail. */
-    return GX.api("/pengatur/keys/list?reveal=1")
+    return GX.api("/pengatur/keys/list")
       .then(function (data) {
         state.keys = data.keys || [];
         state.providers = data.providers || [];
         syncProviderOptions(state.keys);
-        if (data.raw) {
-          var now = Date.now();
-          Object.keys(data.raw).forEach(function (id) {
-            rawCache[id] = { at: now, value: data.raw[id] };
-          });
-        }
         state.knownTiers = data.knownTiers || [];
         var pool = data.pool || {};
         renderKpis(pool);
@@ -1274,7 +1220,7 @@ const DETAIL_BODY = `
   <section class="panel">
     <div class="panel-head">
       <h2>API key</h2>
-      <span class="meta" id="keyMaskNote">revealed on demand</span>
+      <span class="meta" id="keyMaskNote">masked only</span>
     </div>
     <div class="panel-body">
       <div class="credential">
@@ -1382,34 +1328,15 @@ const DETAIL_SCRIPT = `
     noHistory: document.getElementById("noHistory")
   };
 
-  /* The detail page shows the credential itself. Nothing is trimmed here: a
-     single key has the room, and the operator is already looking at one row. */
+  /* The detail page shows the masked form only. No raw credential is
+     fetched, revealed, or copied from this page. */
   function renderCredential(k) {
-    el.keyMaskedNote.textContent = "Masked form: " + k.masked;
-    el.keyCopy.disabled = true;
-    fetch("/pengatur/keys/" + encodeURIComponent(k.id) + "/raw", {
-      headers: { Authorization: "Bearer " + (GX.token() || "") },
-      cache: "no-store"
-    })
-      .then(function (res) {
-        return res.json().then(function (d) {
-          if (!res.ok || !d || !d.raw) throw new Error((d && d.error && d.error.message) || "Request failed (" + res.status + ")");
-          return d.raw;
-        });
-      })
-      .then(function (raw) {
-        el.keyRaw.textContent = raw;
-        el.keyRaw.title = raw;
-        el.keyMaskNote.textContent = "revealed on demand";
-        el.keyCopy.disabled = false;
-        el.keyCopy.onclick = function () { GX.copy(raw, "Raw key"); };
-      })
-      .catch(function (err) {
-        el.keyRaw.textContent = k.masked;
-        el.keyMaskNote.textContent = "could not be revealed";
-        el.keyMaskedNote.textContent = "The raw value could not be read: " + err.message;
-        el.keyCopy.disabled = true;
-      });
+    el.keyRaw.textContent = k.masked || k.key || "-";
+    el.keyRaw.title = "";
+    el.keyMaskNote.textContent = "masked only";
+    el.keyMaskedNote.textContent = "Masked form: " + (k.masked || k.key || "-");
+    el.keyCopy.disabled = false;
+    el.keyCopy.onclick = function () { GX.copy(k.masked || k.key || "", "Masked key"); };
   }
 
   /* Seven KPI cards used to wrap into a 200px strip above the fold. A

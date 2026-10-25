@@ -17,6 +17,10 @@
  * "passes" against stale behaviour.
  */
 process.env.KEY_COOLDOWN_MS = "5000";
+/** Pacing is enforced in production (default 4000 ms); the suite pins it to
+ * 1 ms like every other timing knob here, or sequential requests in one
+ * test would wait out a real rate window. Production behaviour is unchanged. */
+process.env.KEY_RATE_WINDOW_MS = "1";
 process.env.KEY_5XX_COOLDOWN_MS = "100";
 /** Small so the "whole pool is cooling" path terminates quickly. */
 process.env.MAX_WAIT_MS = "600";

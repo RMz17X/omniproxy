@@ -33,8 +33,9 @@ var init_config = __esm({
       get upstream() {
         return process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com";
       },
-      /** per-key pacing: after a successful call the key sleeps this long.
-       *  4000ms == 15 RPM, the Gemini free-tier ceiling per project. */
+      /** per-key pacing, ENFORCED by pool.selectable(): a key whose lastUsed is
+       *  inside this window is not selectable at all (not merely deprioritised
+       *  by LRU). 4000ms == 15 RPM, the Gemini free-tier ceiling per project. */
       rateWindowMs: num(process.env.KEY_RATE_WINDOW_MS, 4e3),
       /** cooldown applied on 429 / RESOURCE_EXHAUSTED */
       cooldownMs: num(process.env.KEY_COOLDOWN_MS, 6e4),
@@ -192,7 +193,7 @@ var init_log = __esm({
     "use strict";
     LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
     threshold = LEVELS[process.env.LOG_LEVEL ?? "info"] ?? LEVELS.info;
-    KEY_SHAPED = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/g;
+    KEY_SHAPED = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}|sk-[0-9A-Za-z_-]{10,}|sk_[0-9A-Za-z]{10,}/g;
     scrub = (value) => {
       if (typeof value === "string") return value.replace(KEY_SHAPED, "[redacted]");
       if (Array.isArray(value)) return value.map(scrub);
@@ -5639,7 +5640,10 @@ async function upsertKey(identity) {
 }
 async function setPlan(id, plan) {
   if (!dbEnabled()) return;
-  await sql(`update keys set plan = $2 where id = $1`, [id, plan]);
+  await sql(
+    `update keys set plan = $2, plan_validated_at = null, plan_evidence = null where id = $1`,
+    [id, plan]
+  );
 }
 async function retire(id, observedAt, reason) {
   if (!dbEnabled()) return;
@@ -5648,9 +5652,9 @@ async function retire(id, observedAt, reason) {
     `update keys
         set enabled = false,
             status = 'dead',
-            retired_at = case when retired_at is null or retired_at <= $2::timestamptz
+            retired_at = case when retired_at is null or retired_at < $2::timestamptz
                               then $2::timestamptz else retired_at end,
-            retired_reason = case when retired_at is null or retired_at <= $2::timestamptz
+            retired_reason = case when retired_at is null or retired_at < $2::timestamptz
                                   then $3 else retired_reason end
       where id = $1`,
     [id, at, reason]
@@ -5658,19 +5662,20 @@ async function retire(id, observedAt, reason) {
 }
 async function purgeDead() {
   if (!dbEnabled()) return { removed: 0, byReason: {} };
+  const FILTER = `status = 'dead' and retired_reason in ('invalid', 'leaked')`;
   const census = await sql(
     `select retired_reason, count(*)::int as n
        from keys
-      where status = 'dead'
+      where ${FILTER}
       group by 1`
   );
   const byReason = {};
   if (census.ok) for (const row of census.rows) byReason[row.retired_reason ?? "unset"] = row.n;
-  const ids = await sql(`select id from keys where status = 'dead'`);
+  const ids = await sql(`select id from keys where ${FILTER}`);
   if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason };
   const doomed = ids.rows.map((r) => r.id);
   await sql(`delete from key_material where id = any($1::text[])`, [doomed]);
-  await sql(`delete from keys where status = 'dead'`);
+  await sql(`delete from keys where id = any($1::text[])`, [doomed]);
   return { removed: doomed.length, byReason };
 }
 async function revive(id, observedAt, status) {
@@ -5682,7 +5687,7 @@ async function revive(id, observedAt, status) {
             retired_at = null,
             retired_reason = null
       where id = $1
-        and (retired_at is null or retired_at <= $2::timestamptz)`,
+        and (retired_at is null or retired_at < $2::timestamptz)`,
     [id, new Date(observedAt).toISOString(), status]
   );
 }
@@ -5691,7 +5696,7 @@ async function setStatus(id, status, observedAt) {
   await sql(
     `update keys set status = $2
       where id = $1
-        and (retired_at is null or retired_at <= $3::timestamptz)`,
+        and (retired_at is null or retired_at < $3::timestamptz)`,
     [id, status, new Date(observedAt).toISOString()]
   );
 }
@@ -5745,6 +5750,7 @@ async function bumpFailCount(id) {
 async function deleteKey(id) {
   if (!dbEnabled()) return;
   await sql(`delete from keys where id = $1`, [id]);
+  await sql(`delete from key_material where id = $1`, [id]);
 }
 var isTier, STATUSES, isStatus, toEpoch, toIdentity, deadline;
 var init_keys_repo = __esm({
@@ -6103,7 +6109,7 @@ function resolveModel(model, providers) {
   const slash = raw2.indexOf("/");
   if (slash > 0) {
     const head = raw2.slice(0, slash);
-    const hit = providers.find((p2) => p2.id === head && p2.enabled);
+    const hit = providers.find((p2) => p2.id === head);
     if (hit) return { provider: hit.id, model: raw2.slice(slash + 1), explicit: true };
   }
   if (ELEVENLABS_MODEL_RE.test(raw2)) return { provider: "elevenlabs", model: raw2, explicit: false };
@@ -6473,6 +6479,7 @@ async function rawKeyById(id) {
 function selectable(s, t, model, provider) {
   if (provider && (s.provider || "gemini") !== provider) return false;
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
+  if (s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) return false;
   if (model && (s.modelRefusals[model] ?? 0) > t) return false;
   if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
   return s.cooldownUntil <= t && s.retryAfterAt <= t;
@@ -6675,7 +6682,6 @@ async function markHealthy(key, observedAt = now()) {
   st.failures = 0;
   st.cooldownUntil = 0;
   st.retryAfterAt = 0;
-  st.lastUsed = now();
   st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   st.status = "ready";
   local.set(key, st);
@@ -6788,6 +6794,10 @@ async function snapshot() {
       cooling++;
       ps2.cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);
+    } else if (s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) {
+      cooling++;
+      ps2.cooling++;
+      soonest = Math.min(soonest, s.lastUsed + cfg.rateWindowMs - t);
     } else {
       ready++;
       ps2.ready++;
@@ -6815,6 +6825,7 @@ var storageMode, KEY_TIERS, local, now, blank, outranked, HYDRATE_REFRESH_MS, la
 var init_pool = __esm({
   "src/pool.ts"() {
     "use strict";
+    init_config();
     init_log();
     init_metrics();
     init_db();
@@ -9897,130 +9908,188 @@ init_pool();
 // src/ui.ts
 var BASE_CSS = `
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* ink canvas ----------------------------------------------------------- */
-  --bg: #0b0e14;
-  --surface: #11151d;
-  --surface-2: #161b26;
-  --surface-3: #1d2430;
-  --line: #222a37;
-  /* 3:1 against --surface, the WCAG 1.4.11 floor for control boundaries. */
-  --line-2: #3d4a5f;
+  /* Vercel dashboard canvas -------------------------------------------- */
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --surface-3: #eaeaea;
+  --line: #eaeaea;
+  --line-2: #d4d4d4;
 
-  --text: #e9eef7;
-  --text-2: #a6b1c4;
-  --text-3: #7d8899;
+  --text: #171717;
+  --text-2: #525252;
+  --text-3: #737373;
 
-  --accent: #7c93ff;
-  --accent-hover: #9aabff;
-  --accent-ink: #0b0e14;
-  --accent-wash: rgba(124, 147, 255, 0.13);
+  --accent: #000000;
+  --accent-hover: #333333;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(0, 0, 0, 0.05);
 
-  --ok: #45cf91;
-  --warn: #f0b054;
-  --bad: #ff7f76;
-  --neutral: #9aa4b4;
+  --ok: #067647;
+  --warn: #b54708;
+  --bad: #dc2626;
+  --neutral: #737373;
 
-  --wash-ok: rgba(69, 207, 145, 0.13);
-  --wash-warn: rgba(240, 176, 84, 0.13);
-  --wash-bad: rgba(255, 127, 118, 0.12);
-  --wash-neutral: rgba(154, 164, 180, 0.12);
+  --wash-ok: rgba(6, 118, 71, 0.08);
+  --wash-warn: rgba(181, 71, 8, 0.08);
+  --wash-bad: rgba(220, 38, 38, 0.07);
+  --wash-neutral: rgba(115, 115, 115, 0.08);
 
-  /* provider identity -----------------------------------------------------
-     Gemini blue, ElevenLabs violet, WhatsToken emerald. Used for badges,
-     dots, meter fills and chart segments; always paired with the provider
-     word. An unknown provider (a custom one) falls back to the accent, so
-     the badge still reads as identity rather than as an error. */
-  --prov-gemini: #5b9dff;
-  --prov-gemini-wash: rgba(91, 157, 255, 0.14);
-  --prov-elevenlabs: #c084fc;
-  --prov-elevenlabs-wash: rgba(192, 132, 252, 0.14);
-  --prov-whatstoken: #34d399;
-  --prov-whatstoken-wash: rgba(52, 211, 153, 0.14);
-  --prov-custom: #7c93ff;
-  --prov-custom-wash: rgba(124, 147, 255, 0.13);
+  /* provider identity: muted Vercel-style hues, always paired with the word */
+  --prov-gemini: #0070f3;
+  --prov-gemini-wash: rgba(0, 112, 243, 0.08);
+  --prov-elevenlabs: #7928ca;
+  --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
+  --prov-whatstoken: #0a7d5a;
+  --prov-whatstoken-wash: rgba(10, 125, 90, 0.08);
+  --prov-custom: #171717;
+  --prov-custom-wash: rgba(0, 0, 0, 0.05);
 
-  /* the rail, slightly deeper than the canvas so the edge never moves ------ */
-  --rail-bg: #0d1017;
-  --rail-bg-2: #141926;
-  --rail-line: #222a37;
-  --rail-text: #e9eef7;
-  --rail-muted: #8d97a8;
-  --rail-active: #1a2130;
+  /* top bar (the old rail, restyled) ----------------------------------- */
+  --rail-bg: #ffffff;
+  --rail-bg-2: #f5f5f5;
+  --rail-line: #eaeaea;
+  --rail-text: #171717;
+  --rail-muted: #737373;
+  --rail-active: #f5f5f5;
 
-  --sans: "Inter", "Inter var", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  --r-surface: 12px;
+  --r-surface: 8px;
   --r-ctl: 6px;
   --r-pill: 999px;
 
-  /* One spacing scale, powers of two on a 4px base, exactly as the Resend
-     system defines it: 4 / 8 / 16 / 32 / 64. Nothing else is a spacing
-     value; control heights (36/32) and touch floors (44) are sizes, not
-     spacing. Three levels of rhythm come out of it: 8 inside a control
-     group, 16 inside a surface, 32 between sections, 64 for the page
-     frame. */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 16px;
-  --sp-4: 32px;
-  --sp-5: 64px;
+  --sp-4: 24px;
+  --sp-5: 48px;
   --inset: 16px;
 
-  --tap: 36px;
-  --tap-sm: 32px;
+  --tap: 32px;
+  --tap-sm: 28px;
 
   --rail: 236px;
-  --page-max: 1560px;
+  --page-max: 1200px;
 }
 
 /* the light theme is the same system inverted, chosen explicitly ---------- */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f6f7f9;
+  /* Vercel dashboard canvas -------------------------------------------- */
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-2: #f1f3f7;
-  --surface-3: #e7eaf0;
-  --line: #dfe3ea;
-  --line-2: #9aa3b2;
+  --surface-2: #f5f5f5;
+  --surface-3: #eaeaea;
+  --line: #eaeaea;
+  --line-2: #d4d4d4;
 
-  --text: #131720;
-  --text-2: #4a5261;
-  --text-3: #646d7d;
+  --text: #171717;
+  --text-2: #525252;
+  --text-3: #737373;
 
-  --accent: #3b5bdb;
-  --accent-hover: #2f4bc4;
+  --accent: #000000;
+  --accent-hover: #333333;
   --accent-ink: #ffffff;
-  --accent-wash: rgba(59, 91, 219, 0.09);
+  --accent-wash: rgba(0, 0, 0, 0.05);
 
-  --ok: #0f7a4a;
-  --warn: #8a5200;
-  --bad: #b3261e;
-  --neutral: #5a6270;
+  --ok: #067647;
+  --warn: #b54708;
+  --bad: #dc2626;
+  --neutral: #737373;
 
-  --wash-ok: rgba(15, 122, 74, 0.10);
-  --wash-warn: rgba(138, 82, 0, 0.10);
-  --wash-bad: rgba(179, 38, 30, 0.09);
-  --wash-neutral: rgba(90, 98, 112, 0.09);
+  --wash-ok: rgba(6, 118, 71, 0.08);
+  --wash-warn: rgba(181, 71, 8, 0.08);
+  --wash-bad: rgba(220, 38, 38, 0.07);
+  --wash-neutral: rgba(115, 115, 115, 0.08);
 
-  --prov-gemini: #1f66d0;
-  --prov-gemini-wash: rgba(31, 102, 208, 0.10);
-  --prov-elevenlabs: #8430c9;
-  --prov-elevenlabs-wash: rgba(132, 48, 201, 0.10);
+  /* provider identity: muted Vercel-style hues, always paired with the word */
+  --prov-gemini: #0070f3;
+  --prov-gemini-wash: rgba(0, 112, 243, 0.08);
+  --prov-elevenlabs: #7928ca;
+  --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
   --prov-whatstoken: #0a7d5a;
-  --prov-whatstoken-wash: rgba(10, 125, 90, 0.10);
-  --prov-custom: #3b5bdb;
-  --prov-custom-wash: rgba(59, 91, 219, 0.09);
+  --prov-whatstoken-wash: rgba(10, 125, 90, 0.08);
+  --prov-custom: #171717;
+  --prov-custom-wash: rgba(0, 0, 0, 0.05);
 
-  --rail-bg: #10141d;
-  --rail-bg-2: #171d29;
-  --rail-line: #262e3d;
-  --rail-text: #e9eef7;
-  --rail-muted: #8d97a8;
-  --rail-active: #1d2534;
+  /* top bar (the old rail, restyled) ----------------------------------- */
+  --rail-bg: #ffffff;
+  --rail-bg-2: #f5f5f5;
+  --rail-line: #eaeaea;
+  --rail-text: #171717;
+  --rail-muted: #737373;
+  --rail-active: #f5f5f5;
+
+  --sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --r-surface: 8px;
+  --r-ctl: 6px;
+  --r-pill: 999px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 16px;
+  --sp-4: 24px;
+  --sp-5: 48px;
+  --inset: 16px;
+
+  --tap: 32px;
+  --tap-sm: 28px;
+
+  --rail: 236px;
+  --page-max: 1200px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #000000;
+  --surface: #111111;
+  --surface-2: #1a1a1a;
+  --surface-3: #262626;
+  --line: #333333;
+  --line-2: #444444;
+
+  --text: #ededed;
+  --text-2: #a1a1a1;
+  --text-3: #737373;
+
+  --accent: #ffffff;
+  --accent-hover: #e5e5e5;
+  --accent-ink: #000000;
+  --accent-wash: rgba(255, 255, 255, 0.08);
+
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --neutral: #a1a1a1;
+
+  --wash-ok: rgba(74, 222, 128, 0.12);
+  --wash-warn: rgba(251, 191, 36, 0.12);
+  --wash-bad: rgba(248, 113, 113, 0.12);
+  --wash-neutral: rgba(161, 161, 161, 0.12);
+
+  --prov-gemini: #3291ff;
+  --prov-gemini-wash: rgba(50, 145, 255, 0.12);
+  --prov-elevenlabs: #a78bfa;
+  --prov-elevenlabs-wash: rgba(167, 139, 250, 0.12);
+  --prov-whatstoken: #34d399;
+  --prov-whatstoken-wash: rgba(52, 211, 153, 0.12);
+  --prov-custom: #ededed;
+  --prov-custom-wash: rgba(255, 255, 255, 0.08);
+
+  --rail-bg: #000000;
+  --rail-bg-2: #1a1a1a;
+  --rail-line: #333333;
+  --rail-text: #ededed;
+  --rail-muted: #a1a1a1;
+  --rail-active: #1a1a1a;
 }
 
 /* compact density: the same page, one notch tighter ---------------------- */
@@ -11464,6 +11533,150 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .page { max-width: none; padding: 0; }
   .panel, .figures { border-color: #bbb; }
 }
+
+/* Vercel dashboard restyle (total redesign) -------------------------------
+   Same DOM ids/classes, new layout: the rail becomes one black-on-white
+   top bar, panels become white cards, buttons/tables/forms follow the
+   Vercel dashboard vocabulary. This block sits last in BASE_CSS so it
+   wins over the earlier rules without renaming anything JS depends on. */
+
+/* top navigation bar (was the left rail) */
+.shell { display: block; }
+.rail {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; flex-direction: row; align-items: center; gap: 24px;
+  height: 56px; width: 100%; padding: 0 24px;
+  background: var(--rail-bg); color: var(--rail-text);
+  border-right: 0; border-bottom: 1px solid var(--rail-line);
+  overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+}
+.rail-brand { padding: 0; flex: none; }
+.rail-mark { background: var(--text); color: var(--bg); border-radius: 6px; }
+.rail-name b { font-size: 15px; }
+.rail-name span { display: none; }
+.rail-providers { display: none; }
+.rail-nav { flex-direction: row; gap: 4px; align-items: center; }
+.rail-group { flex-direction: row; align-items: center; gap: 4px; }
+.rail-label {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.rail-item {
+  border-left: 0; border-radius: 6px; min-height: 32px; height: 32px;
+  padding: 0 12px; font-size: 13.5px; color: var(--rail-muted);
+}
+.rail-item:hover { background: var(--rail-bg-2); }
+.rail-item[aria-current="page"] {
+  background: var(--rail-active); color: var(--rail-text);
+  border-left: 0; font-weight: 600;
+}
+.rail-item[aria-current="page"] svg { color: var(--rail-text); }
+.rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: 8px; flex: none; }
+.rail-state { padding: 0; }
+.rail-tools { padding: 0; }
+.rail-actions { padding: 0; }
+.menu-btn { display: none !important; }
+
+/* breadcrumb strip under the top bar + page headers */
+.canvas-head {
+  position: static; min-height: auto; padding: 20px 24px 0;
+  border-bottom: 0; background: transparent;
+}
+.canvas-crumb { font-size: 12px; }
+.canvas-crumb b { font-size: 12px; }
+.page { padding: 20px 24px 48px; }
+.eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-3);
+}
+.page-head { margin-bottom: 24px; align-items: flex-start; }
+.page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.page-lede { font-size: 14px; }
+
+/* white cards on the grey canvas */
+.panel {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.panel-head { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.panel-head h2, .panel-head h3 { font-size: 13px; font-weight: 600; }
+.panel-body { padding: 16px; }
+.panel-foot, .panel-note { border-top: 1px solid var(--line); }
+.kpi {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.fig-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+
+/* buttons: black primary, neutral secondary */
+.btn {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-ctl); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-weight: 500;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--line-2); }
+.btn-primary { background: #000; border-color: #000; color: #fff; }
+.btn-primary:hover { background: #333; border-color: #333; }
+:root[data-theme="dark"] .btn-primary { background: #fff; border-color: #fff; color: #000; }
+:root[data-theme="dark"] .btn-primary:hover { background: #e5e5e5; border-color: #e5e5e5; }
+
+/* forms */
+.input, .select, .textarea {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+.input:focus, .select:focus, .textarea:focus { border-color: var(--text); }
+
+/* tables: sticky header, row hover, mono ids */
+.table-wrap { overflow-x: auto; }
+.table th {
+  position: sticky; top: 0; z-index: 1; background: var(--surface);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-3);
+  border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.table td { border-bottom: 1px solid var(--surface-2); }
+.table tbody tr:hover { background: var(--bg); }
+.table .id-cell, .table td.mono, .key-text, .credential-value {
+  font-family: var(--mono); overflow-wrap: anywhere;
+}
+
+/* pills: status + provider, dot + word */
+.tag, .prov {
+  border-radius: var(--r-pill); padding: 2px 8px;
+  font-size: 11px; font-weight: 500;
+}
+.tag .dot, .prov .prov-dot { width: 6px; height: 6px; }
+
+/* masked credential on the key-detail page: never a full raw value */
+.credential-value { overflow-wrap: anywhere; word-break: break-all; }
+
+/* empty / loading / error states as centred white cards */
+.state {
+  background: var(--surface); border: 1px dashed var(--line-2);
+  border-radius: var(--r-surface); padding: 32px 16px; text-align: center;
+}
+
+/* dialogs + toasts: white cards, one shadow */
+.dialog, .toast {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* responsive: top bar wraps, nav scrolls, pages stack, tables keep folding */
+@media (max-width: 1023px) {
+  .rail { height: auto; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px; }
+  .rail-nav { order: 3; width: 100%; }
+  .rail-foot { margin-left: 0; }
+  .canvas-head { padding: 16px 16px 0; }
+  .page { padding: 16px; }
+}
+@media (max-width: 720px) {
+  .rail-brand { flex: 1 1 auto; }
+  .rail-state span { display: none; }
+  .page-title { font-size: 20px; }
+  .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
+}
 `;
 var ICON_PATHS = {
   pulse: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
@@ -11557,7 +11770,7 @@ function navRail(active, actions = "") {
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
   const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>OmniProxy</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#0b0e14">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#fafafa">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
   const providerStrip = '<div class="rail-providers" id="drawerProviders"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span><span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span></div>';
@@ -11601,7 +11814,7 @@ var AUTH_GUARD_JS = `
 })();
 `;
 function loginPage() {
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#0b0e14">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#fafafa">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
 }
 var LOGIN_JS = `
 (function () {
@@ -11912,7 +12125,10 @@ var CLIENT_JS = `
        an operator looks for, so each provider gets its own row. */
     providerPool: function (provider, snap) {
       snap = snap || {};
-      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      /* Never collapse a provider: WhatsToken/custom rows used to be
+         labelled Gemini here. Every provider keeps its own tag; only a
+         missing value falls back to the generic custom tag. */
+      var p = provider || "custom";
       var ready = Number(snap.ready) || 0;
       var total = Number(snap.total) || 0;
       var parts = [
@@ -12267,13 +12483,12 @@ var CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. Dark is the console default;
-       the light theme is an explicit choice. */
+    /* Theme and density. Both survive a reload. Light is the console default; dark is an explicit toggle. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
         if (set) return set;
-        return "dark";
+        return "light";
       },
       set: function (value) {
         document.documentElement.setAttribute("data-theme", value);
@@ -13197,17 +13412,17 @@ function buildFaviconIco(deflate) {
   }
   const ico = new Uint8Array(22 + png.length);
   const iv = new DataView(ico.buffer);
-  iv.setUint16(0, 0);
-  iv.setUint16(2, 1);
-  iv.setUint16(4, 1);
+  iv.setUint16(0, 0, true);
+  iv.setUint16(2, 1, true);
+  iv.setUint16(4, 1, true);
   ico[6] = SIZE;
   ico[7] = SIZE;
   ico[8] = 0;
   ico[9] = 0;
-  iv.setUint16(10, 1);
-  iv.setUint16(12, 32);
-  iv.setUint32(14, png.length);
-  iv.setUint32(18, 22);
+  iv.setUint16(10, 1, true);
+  iv.setUint16(12, 32, true);
+  iv.setUint32(14, png.length, true);
+  iv.setUint32(18, 22, true);
   ico.set(png, 22);
   return ico;
 }
@@ -13930,7 +14145,9 @@ function classifyResponse(status, body, headers) {
   const none = { quota: null, tierEvidence: null };
   if (status === 0) return { verdict: "network_error", ...none };
   if (status >= 200 && status < 300) return { verdict: "ok", ...none };
-  if (status === 401) return { verdict: "invalid", ...none };
+  if (status === 401) {
+    return INVALID_KEY.test(body) ? { verdict: "invalid", ...none } : { verdict: "unexpected", ...none };
+  }
   if (status === 403) {
     return INVALID_KEY.test(body) ? { verdict: "invalid", ...none } : { verdict: "unexpected", ...none };
   }
@@ -13981,8 +14198,11 @@ function classifyElevenLabsResponse(status, body, headers) {
     };
     return { verdict: "ok", quota: null, tierEvidence: evidence };
   }
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return { verdict: "invalid", ...none };
+  }
+  if (status === 403) {
+    return /invalid|expired|revoked/i.test(body) ? { verdict: "invalid", ...none } : { verdict: "unexpected", ...none };
   }
   if (status === 429) {
     let retryAfterMs = 0;
@@ -14106,7 +14326,7 @@ async function execute(url, init, path, signal, opts) {
         counters.poolExhausted++;
         log("warn", "model.quota_refused_all", {
           path,
-          keys: block.keys,
+          keys: block.keys.map(maskKey),
           model: opts.model
         });
         return {
@@ -14137,7 +14357,7 @@ async function execute(url, init, path, signal, opts) {
       if (Date.now() + wait > deadline2 || signal?.aborted) {
         counters.poolExhausted++;
         if (modelRefusedKeys.size > 0) {
-          log("warn", "model.quota_refused_all", { path, keys: [...modelRefusedKeys], model: opts?.model ?? "" });
+          log("warn", "model.quota_refused_all", { path, keys: [...modelRefusedKeys].map(maskKey), model: opts?.model ?? "" });
           return {
             response: jsonError(
               429,
@@ -14218,14 +14438,14 @@ async function execute(url, init, path, signal, opts) {
     } catch (err2) {
       if (signal?.aborted) {
         counters.clientAborts++;
-        log("warn", "client.aborted", { path, attempt: attempts, key: st.key });
+        log("warn", "client.aborted", { path, attempt: attempts, key: maskKey(st.key) });
         return aborted();
       }
       if (timeout.aborted) {
         counters.networkErrors++;
         log("warn", "model.timeout", {
           path,
-          key: st.key,
+          key: maskKey(st.key),
           attempt: attempts,
           timeoutMs: opts?.timeoutMs ?? cfg.upstreamTimeoutMs
         });
@@ -14245,11 +14465,22 @@ async function execute(url, init, path, signal, opts) {
       await markSoftError(st.key, cfg.serverErrCooldownMs);
       log("warn", "upstream.network_error", {
         path,
-        key: st.key,
+        key: maskKey(st.key),
         attempt: attempts,
         error: err2 instanceof Error ? err2.message : String(err2)
       });
-      if (attempts >= cfg.maxAttempts) throw err2;
+      if (attempts >= cfg.maxAttempts) {
+        return {
+          response: jsonError(
+            502,
+            "upstream_error",
+            `Upstream did not answer after ${attempts} attempt${attempts === 1 ? "" : "s"}.`
+          ),
+          key: st.key,
+          attempts,
+          rotated
+        };
+      }
       continue;
     }
     await markUsed(st.key);
@@ -14264,7 +14495,7 @@ async function execute(url, init, path, signal, opts) {
         modelRefusedKeys.add(st.key);
         log("warn", "model.quota_refused", {
           path,
-          key: st.key,
+          key: maskKey(st.key),
           model: scopeModel,
           retryAfterMs: quota.retryAfterMs
         });
@@ -14283,9 +14514,9 @@ async function execute(url, init, path, signal, opts) {
         quotaRefused.add(st.key);
         if (!opts?.deferQuotaRetire) {
           const claimed = await markInvalid(st.key);
-          log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+          log("warn", "key.zero_quota", { path, key: maskKey(st.key), first: claimed });
         } else {
-          log("warn", "model.zero_quota", { path, key: st.key });
+          log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
         }
         if (attempts >= cfg.maxAttempts) {
           return {
@@ -14301,15 +14532,20 @@ async function execute(url, init, path, signal, opts) {
       }
       const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
       await mark429(st.key, Math.max(cfg.cooldownMs, cd));
-      log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
+      log("info", "key.cooldown", { path, key: maskKey(st.key), status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
     if (status === 401 || status === 403) {
       const body = await safeText(res);
-      if (isInvalidKeyText(body) || status === 401) {
+      if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
-        log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
+        log("warn", "key.invalid", { path, key: maskKey(st.key), status, first: claimed });
+      } else if (status === 401) {
+        await markSoftError(st.key, cfg.serverErrCooldownMs);
+        log("warn", "key.auth_cooldown", { path, key: maskKey(st.key), status });
+        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        continue;
       } else if (isQuotaText(body)) {
         const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
         const scopeModel = opts?.model ?? quota?.model ?? "";
@@ -14318,7 +14554,7 @@ async function execute(url, init, path, signal, opts) {
           modelRefusedKeys.add(st.key);
           log("warn", "model.quota_refused", {
             path,
-            key: st.key,
+            key: maskKey(st.key),
             model: scopeModel,
             retryAfterMs: quota.retryAfterMs
           });
@@ -14337,9 +14573,9 @@ async function execute(url, init, path, signal, opts) {
           quotaRefused.add(st.key);
           if (!opts?.deferQuotaRetire) {
             const claimed = await markInvalid(st.key);
-            log("warn", "key.zero_quota", { path, key: st.key, first: claimed });
+            log("warn", "key.zero_quota", { path, key: maskKey(st.key), first: claimed });
           } else {
-            log("warn", "model.zero_quota", { path, key: st.key });
+            log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
           }
           if (attempts >= cfg.maxAttempts) {
             return {
@@ -14355,7 +14591,7 @@ async function execute(url, init, path, signal, opts) {
         }
         const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
         await mark429(st.key, Math.max(cfg.cooldownMs, cd));
-        log("info", "key.cooldown", { path, key: st.key, status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
+        log("info", "key.cooldown", { path, key: maskKey(st.key), status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
       } else {
         return { response: rebuild(res, body), key: st.key, attempts, rotated };
       }
@@ -14366,12 +14602,12 @@ async function execute(url, init, path, signal, opts) {
       const body = await safeText(res);
       if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
-        log("warn", "key.invalid", { path, key: st.key, status, first: claimed });
+        log("warn", "key.invalid", { path, key: maskKey(st.key), status, first: claimed });
         if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       }
       if (isModelUnavailable(body)) {
-        log("warn", "model.unavailable", { path, key: st.key, status });
+        log("warn", "model.unavailable", { path, key: maskKey(st.key), status });
         return { response: rebuild(res, body), key: st.key, attempts, rotated, modelRefused: true };
       }
       return { response: rebuild(res, body), key: st.key, attempts, rotated };
@@ -14380,11 +14616,11 @@ async function execute(url, init, path, signal, opts) {
       counters.upstream5xx++;
       const body = await safeText(res);
       if (isModelUnavailable(body)) {
-        log("warn", "model.unavailable", { path, key: st.key, status });
+        log("warn", "model.unavailable", { path, key: maskKey(st.key), status });
         return { response: rebuild(res, body), key: st.key, attempts, rotated, modelRefused: true };
       }
       await markSoftError(st.key, cfg.serverErrCooldownMs);
-      log("warn", "key.soft_error", { path, key: st.key, status, attempt: attempts });
+      log("warn", "key.soft_error", { path, key: maskKey(st.key), status, attempt: attempts });
       if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
@@ -14480,7 +14716,7 @@ async function executeWithFallback(models, build, signal) {
     for (const [key, seen] of quotaRefusedBy) {
       if (seen.size >= chain.length) {
         const claimed = await markInvalid(key);
-        log("warn", "key.zero_quota", { key, models: [...seen], first: claimed });
+        log("warn", "key.zero_quota", { key: maskKey(key), models: [...seen], first: claimed });
       }
     }
   }
@@ -14675,7 +14911,7 @@ async function testModel(modelId, rawKey, tier = "unknown") {
   let key = rawKey?.trim() ?? "";
   const pooled = !key;
   if (!key) {
-    const st = await pick();
+    const st = await pick(/* @__PURE__ */ new Set(), void 0, "gemini");
     if (!st) {
       return {
         id,
@@ -15641,7 +15877,7 @@ function withMeta(res, meta) {
   h2.set("x-omniproxy-rotated", meta.rotated ? "1" : "0");
   return new Response(res.body, { status: res.status, headers: h2 });
 }
-async function speech(req) {
+async function speech(req, resolvedModel) {
   let body;
   try {
     body = await req.json();
@@ -15650,7 +15886,13 @@ async function speech(req) {
   }
   const text = (body.input ?? "").trim();
   if (!text) return badRequest("`input` is required.");
-  const model = body.model && body.model.startsWith("gemini") ? body.model : cfg.defaultTtsModel;
+  if (resolvedModel !== void 0) {
+    const m = resolvedModel.replace(/^models\//, "");
+    if (!m.toLowerCase().startsWith("gemini")) {
+      return badRequest(`Model \`${resolvedModel}\` is not a Gemini model and cannot be served on the Gemini TTS route.`);
+    }
+  }
+  const model = resolvedModel !== void 0 ? resolvedModel.replace(/^models\//, "") : body.model && body.model.startsWith("gemini") ? body.model : cfg.defaultTtsModel;
   const voice = VOICE_MAP[(body.voice ?? "").toLowerCase()] ?? body.voice ?? cfg.defaultVoice;
   const fmt = (body.response_format ?? "wav").toLowerCase();
   const payload = {
@@ -15825,7 +16067,11 @@ function jsonArgs(raw2) {
     return {};
   }
 }
-function toGemini(body) {
+function geminiModelOrNull(resolved) {
+  const m = resolved.replace(/^models\//, "").trim();
+  return m.toLowerCase().startsWith("gemini") ? m : null;
+}
+function toGemini(body, resolvedModel) {
   const msgs = body.messages ?? [];
   const systemParts = [];
   const contents = [];
@@ -15864,7 +16110,7 @@ function toGemini(body) {
     if (parts.length) contents.push({ role: "user", parts });
   }
   const wantsSearch = Boolean(body.web_search ?? body.search);
-  const model = body.model && body.model.startsWith("gemini") ? body.model : wantsSearch ? cfg.searchModel : cfg.defaultModel;
+  const model = resolvedModel !== void 0 ? resolvedModel.replace(/^models\//, "") : body.model && body.model.startsWith("gemini") ? body.model : wantsSearch ? cfg.searchModel : cfg.defaultModel;
   const gen = {};
   if (typeof body.temperature === "number") gen.temperature = body.temperature;
   if (typeof body.top_p === "number") gen.topP = body.top_p;
@@ -15904,7 +16150,7 @@ var metaHeaders = (attempts, rotated) => ({
   "x-omniproxy-attempts": String(attempts),
   "x-omniproxy-rotated": rotated ? "1" : "0"
 });
-async function chatCompletions(req) {
+async function chatCompletions(req, resolvedModel) {
   let body;
   try {
     body = await req.json();
@@ -15914,7 +16160,14 @@ async function chatCompletions(req) {
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return err(400, "invalid_request_error", "`messages` must be a non-empty array.");
   }
-  const { model: requested, payload, wantsSearch } = toGemini(body);
+  if (resolvedModel !== void 0 && geminiModelOrNull(resolvedModel) === null) {
+    return err(
+      400,
+      "invalid_request_error",
+      `Model \`${resolvedModel}\` is not a Gemini model and cannot be served on the Gemini route.`
+    );
+  }
+  const { model: requested, payload, wantsSearch } = toGemini(body, resolvedModel);
   const stream = Boolean(body.stream);
   const method = stream ? "streamGenerateContent" : "generateContent";
   const search = stream ? "?alt=sse" : "";
@@ -15960,6 +16213,9 @@ async function chatCompletions(req) {
       return err(502, "upstream_error", "Upstream returned non-JSON.");
     }
     const cand = json2.candidates?.[0];
+    if (!json2.candidates?.length || (cand?.finishReason === "SAFETY" || cand?.finishReason === "PROHIBITED_CONTENT") && !cand?.content?.parts?.length) {
+      return err(400, "content_filter", "Upstream blocked the prompt (safety filter).");
+    }
     const { text, grounding, toolCalls } = parseCandidate(cand);
     const usage = json2.usageMetadata ?? {};
     const thoughts = usage.thoughtsTokenCount ?? 0;
@@ -16118,6 +16374,32 @@ async function chatCompletions(req) {
                   choices: [{ index: 0, delta: { content: tailParsed.text }, finish_reason: null }]
                 });
               }
+              for (const c of tailParsed.toolCalls) {
+                const index = toolCalls.length;
+                toolCalls.push(c);
+                send({
+                  id,
+                  object: "chat.completion.chunk",
+                  created,
+                  model,
+                  choices: [
+                    {
+                      index: 0,
+                      delta: {
+                        tool_calls: [
+                          {
+                            index,
+                            id: c.id,
+                            type: "function",
+                            function: { name: c.name, arguments: c.args }
+                          }
+                        ]
+                      },
+                      finish_reason: null
+                    }
+                  ]
+                });
+              }
             } catch {
             }
           }
@@ -16208,7 +16490,7 @@ function base64Float32(values) {
   values.forEach((v2, i) => buf.writeFloatLE(v2, i * 4));
   return buf.toString("base64");
 }
-async function embeddings(req) {
+async function embeddings(req, resolvedModel) {
   counters.embeddings++;
   let body;
   try {
@@ -16220,14 +16502,22 @@ async function embeddings(req) {
   if (texts.length === 0) {
     return err(400, "invalid_request_error", "`input` must be a string or an array of strings.");
   }
-  const model = body.model && (body.model.includes("embed") || body.model.startsWith("gemini")) ? body.model : cfg.defaultEmbedModel;
-  const gen = {};
-  if (typeof body.dimensions === "number") gen.outputDimensionality = body.dimensions;
+  if (resolvedModel !== void 0) {
+    const m = resolvedModel.replace(/^models\//, "");
+    if (!(m.includes("embed") || m.toLowerCase().startsWith("gemini"))) {
+      return err(
+        400,
+        "invalid_request_error",
+        `Model \`${resolvedModel}\` is not an embeddings model and cannot be served on the Gemini embeddings route.`
+      );
+    }
+  }
+  const model = resolvedModel !== void 0 ? resolvedModel.replace(/^models\//, "") : body.model && (body.model.includes("embed") || body.model.startsWith("gemini")) ? body.model : cfg.defaultEmbedModel;
   const payload = {
     requests: texts.map((text) => ({
       model: `models/${model}`,
       content: { parts: [{ text }] },
-      ...Object.keys(gen).length ? { generationConfig: gen } : {}
+      ...typeof body.dimensions === "number" ? { outputDimensionality: body.dimensions } : {}
     }))
   };
   const path = `/v1beta/models/${model}:batchEmbedContents`;
@@ -16260,6 +16550,13 @@ async function embeddings(req) {
   const vectors = json2.embeddings ?? (json2.embedding ? [json2.embedding] : []);
   if (vectors.length === 0) {
     return err(502, "upstream_error", "Upstream returned no embeddings.");
+  }
+  if (vectors.length !== texts.length) {
+    return err(
+      502,
+      "upstream_error",
+      `Upstream returned ${vectors.length} embedding(s) for ${texts.length} input(s).`
+    );
   }
   const wantsBase64 = body.encoding_format === "base64";
   const data = vectors.map((v2, index) => ({
@@ -16511,14 +16808,23 @@ function dayStart(day) {
   return /* @__PURE__ */ new Date(`${day}T00:00:00.000+07:00`);
 }
 function normalizeDay(day) {
-  if (day && DAY_RE.test(day)) {
+  if (!day) return yesterdayWib();
+  if (DAY_RE.test(day)) {
     const t = Date.parse(`${day}T00:00:00.000Z`);
     if (Number.isFinite(t)) return day;
   }
-  return yesterdayWib();
+  return null;
 }
 async function rollupDay(day) {
   const target = normalizeDay(day);
+  if (target === null) {
+    return {
+      day: day ?? "",
+      buckets: 0,
+      ok: false,
+      error: `invalid day \`${day}\`: expected YYYY-MM-DD`
+    };
+  }
   if (!dbEnabled()) return { day: target, buckets: 0, ok: false, error: "database disabled" };
   const start = dayStart(target);
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1e3);
@@ -17071,7 +17377,7 @@ function providerDayFromRing(rows) {
   const map = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const day = wibDayOf(r.ts);
-    const provider = providerOf(r.model);
+    const provider = r.provider || providerOf(r.model);
     const k = day + "|" + provider;
     let acc = map.get(k);
     if (!acc) {
@@ -18085,46 +18391,11 @@ var KEYS_SCRIPT = `
     return out;
   }
 
-  /* Raw keys leave the server only through this one call, and only when the
-     operator asks for it or the row is dead. */
-  var rawCache = {};
-  /* Cached forever meant a rotated key kept its pre-rotation value until a
-     full reload. Five minutes is long enough to survive a re-render and short
-     enough that a rotation lands on the next page-load. */
-  var RAW_TTL_MS = 300000;
-  function fetchRaw(id) {
-    var hit = rawCache[id];
-    if (hit && Date.now() - hit.at < RAW_TTL_MS) return Promise.resolve(hit.value);
-    var headers = {};
-    var token = GX.token();
-    if (token) headers["Authorization"] = "Bearer " + token;
-    return fetch("/pengatur/keys/" + encodeURIComponent(id) + "/raw", { headers: headers, cache: "no-store" })
-      .then(function (res) {
-        return res.text().then(function (text) {
-          if (!res.ok) {
-            var line = text ? text.split("\\n")[0].slice(0, 160) : "";
-            throw new Error(line || "Request failed (" + res.status + ")");
-          }
-          var value = text;
-          try {
-            var parsed = JSON.parse(text);
-            if (typeof parsed === "string") value = parsed;
-            else if (parsed && typeof parsed === "object") value = parsed.key || parsed.raw || parsed.value || text;
-          } catch (e) {}
-          value = String(value === null || value === undefined ? "" : value).trim();
-          if (!value) throw new Error("The server returned an empty key.");
-          rawCache[id] = { at: Date.now(), value: value };
-          return value;
-        });
-      });
-  }
-
+  /* Masked keys only. The console never fetches a raw credential: the
+     list API hands out the masked form, and that is what is shown and
+     copied. There is intentionally no raw-key reveal button or flow. */
   function copyKey(k, btn) {
-    btn.disabled = true;
-    fetchRaw(k.id)
-      .then(function (value) { GX.copy(value, "Raw key"); })
-      .catch(function (err) { GX.notice("Could not read the raw key: " + err.message, "err"); })
-      .then(function () { btn.disabled = false; });
+    GX.copy(k.key || k.masked || "", "Masked key");
   }
 
   /* ErNor: never hide the key. A Google key is 39 characters and is shown in
@@ -18436,29 +18707,16 @@ var KEYS_SCRIPT = `
       var copyBtn = GX.el("button", {
         class: "btn btn-ghost btn-sm icon-btn",
         type: "button",
-        title: "Copy the raw key",
-        "aria-label": "Copy the raw key",
+        title: "Copy the masked key",
+        "aria-label": "Copy the masked key",
         html: COPY_ICON
       });
       copyBtn.addEventListener("click", function () { copyKey(k, copyBtn); });
       /* The button used to be built, wired, and then dropped on the floor: it
          was never appended, so no row ever had a copy control. */
       keyCell.appendChild(copyBtn);
-      /* Every row shows its key, not just the dead ones. The list API only
-         ever hands out the masked form, so the real value is fetched here and
-         cached; the cell keeps the masked text until it arrives so the table
-         paints immediately. */
-      if (rawCache[k.id] && Date.now() - rawCache[k.id].at < RAW_TTL_MS) {
-        keyText.textContent = keyDisplay(rawCache[k.id].value);
-        keyText.className = "key-text raw";
-        keyText.title = rawCache[k.id].value;
-      } else {
-        fetchRaw(k.id).then(function (value) {
-          keyText.textContent = keyDisplay(value);
-          keyText.className = "key-text raw";
-          keyText.title = value;
-        }).catch(function () {});
-      }
+      /* Every row shows the masked form from the list API. Nothing is
+         fetched per row: the masked text is the whole value shown here. */
       tr.appendChild(keyCell);
 
       var provCell = GX.el("td", { class: "provider-cell", "data-l": "provider" });
@@ -18863,17 +19121,11 @@ var KEYS_SCRIPT = `
     /* One request, one audit row. Asking per row cost 25 keys.raw audit
        writes on every render, and a 15s auto-refresh turned that into ~100
        rows a minute of page-view noise in the trail. */
-    return GX.api("/pengatur/keys/list?reveal=1")
+    return GX.api("/pengatur/keys/list")
       .then(function (data) {
         state.keys = data.keys || [];
         state.providers = data.providers || [];
         syncProviderOptions(state.keys);
-        if (data.raw) {
-          var now = Date.now();
-          Object.keys(data.raw).forEach(function (id) {
-            rawCache[id] = { at: now, value: data.raw[id] };
-          });
-        }
         state.knownTiers = data.knownTiers || [];
         var pool = data.pool || {};
         renderKpis(pool);
@@ -19012,7 +19264,7 @@ var DETAIL_BODY = `
   <section class="panel">
     <div class="panel-head">
       <h2>API key</h2>
-      <span class="meta" id="keyMaskNote">revealed on demand</span>
+      <span class="meta" id="keyMaskNote">masked only</span>
     </div>
     <div class="panel-body">
       <div class="credential">
@@ -19119,34 +19371,15 @@ var DETAIL_SCRIPT = `
     noHistory: document.getElementById("noHistory")
   };
 
-  /* The detail page shows the credential itself. Nothing is trimmed here: a
-     single key has the room, and the operator is already looking at one row. */
+  /* The detail page shows the masked form only. No raw credential is
+     fetched, revealed, or copied from this page. */
   function renderCredential(k) {
-    el.keyMaskedNote.textContent = "Masked form: " + k.masked;
-    el.keyCopy.disabled = true;
-    fetch("/pengatur/keys/" + encodeURIComponent(k.id) + "/raw", {
-      headers: { Authorization: "Bearer " + (GX.token() || "") },
-      cache: "no-store"
-    })
-      .then(function (res) {
-        return res.json().then(function (d) {
-          if (!res.ok || !d || !d.raw) throw new Error((d && d.error && d.error.message) || "Request failed (" + res.status + ")");
-          return d.raw;
-        });
-      })
-      .then(function (raw) {
-        el.keyRaw.textContent = raw;
-        el.keyRaw.title = raw;
-        el.keyMaskNote.textContent = "revealed on demand";
-        el.keyCopy.disabled = false;
-        el.keyCopy.onclick = function () { GX.copy(raw, "Raw key"); };
-      })
-      .catch(function (err) {
-        el.keyRaw.textContent = k.masked;
-        el.keyMaskNote.textContent = "could not be revealed";
-        el.keyMaskedNote.textContent = "The raw value could not be read: " + err.message;
-        el.keyCopy.disabled = true;
-      });
+    el.keyRaw.textContent = k.masked || k.key || "-";
+    el.keyRaw.title = "";
+    el.keyMaskNote.textContent = "masked only";
+    el.keyMaskedNote.textContent = "Masked form: " + (k.masked || k.key || "-");
+    el.keyCopy.disabled = false;
+    el.keyCopy.onclick = function () { GX.copy(k.masked || k.key || "", "Masked key"); };
   }
 
   /* Seven KPI cards used to wrap into a 200px strip above the fold. A
@@ -20293,14 +20526,16 @@ var bearer = (h2) => {
   const m = /^Bearer\s+(.+)$/i.exec(h2.trim());
   return m ? m[1].trim() : h2.trim();
 };
-app.use("/v1/*", async (c, next) => {
+var clientGate = async (c, next) => {
   if (!cfg.clientToken) return next();
   const presented = bearer(c.req.header("authorization")) || c.req.header("x-api-key") || "";
   if (presented !== cfg.clientToken) {
     return c.json({ error: { type: "auth_error", message: "Invalid API key." } }, 401);
   }
   return next();
-});
+};
+app.use("/v1/*", clientGate);
+app.use("/v1beta/*", clientGate);
 var SHELL_PATHS = [
   "/pengatur",
   "/pengatur/login",
@@ -20405,7 +20640,7 @@ app.post("/v1/chat/completions", async (c) => {
   if (resolved.provider.wire === "openai") {
     return openaiWire(c.req.raw, resolved.provider, "chat", resolved.model, c.req.raw.signal);
   }
-  return chatCompletions(c.req.raw);
+  return chatCompletions(c.req.raw, resolved.model);
 });
 app.post("/v1/audio/speech", async (c) => {
   const resolved = await resolveRoute(await peekModel(c.req.raw), "tts");
@@ -20423,7 +20658,7 @@ app.post("/v1/audio/speech", async (c) => {
     const st = await pick(/* @__PURE__ */ new Set(), void 0, "elevenlabs");
     return serveElevenLabs(c.req.raw, st?.key);
   }
-  return speech(c.req.raw);
+  return speech(c.req.raw, resolved.model);
 });
 app.post("/v1/embeddings", async (c) => {
   const resolved = await resolveRoute(await peekModel(c.req.raw), "embeddings");
@@ -20437,7 +20672,7 @@ app.post("/v1/embeddings", async (c) => {
   if (resolved.provider.wire === "openai") {
     return openaiWire(c.req.raw, resolved.provider, "embeddings", resolved.model, c.req.raw.signal);
   }
-  return embeddings(c.req.raw);
+  return embeddings(c.req.raw, resolved.model);
 });
 app.post("/v1/images/generations", async (c) => {
   const resolved = await resolveRoute(await peekModel(c.req.raw), "image");
@@ -20715,28 +20950,6 @@ app.get("/pengatur/keys/list", async (c) => {
       label: identity?.label ?? null
     };
   });
-  if (c.req.query("reveal") === "1") {
-    const rawById = {};
-    for (const k of merged) {
-      const raw2 = await rawKeyById(k.id);
-      if (raw2) rawById[k.id] = raw2;
-    }
-    await recordNow("keys.reveal", {
-      actor: actorFrom(c.req.header("user-agent")),
-      target: "pool",
-      detail: { action: "reveal-page", revealed: Object.keys(rawById).length, requested: merged.length }
-    });
-    return c.json({
-      pool: snap,
-      keys: merged,
-      tiers: tierCounts(keys),
-      knownTiers: KEY_TIERS,
-      raw: rawById,
-      // The registry rides along so the add-key dialog's provider select and
-      // the capability hints come from one source of truth.
-      providers: await providerViews()
-    });
-  }
   return c.json({
     pool: snap,
     keys: merged,
@@ -21208,17 +21421,6 @@ app.post("/pengatur/keys/validate-plan", async (c) => {
     detail: { requested: ids.length, validated }
   });
   return c.json({ ok: true, validated, results, pool: await snapshot() });
-});
-app.get("/pengatur/keys/:id/raw", async (c) => {
-  const id = c.req.param("id");
-  const raw2 = await rawKeyById(id);
-  if (!raw2) return c.json({ error: { message: "No key with that id." } }, 404);
-  await recordNow("keys.raw", {
-    actor: actorFrom(c.req.header("user-agent")),
-    target: id,
-    detail: { action: "reveal" }
-  });
-  return c.json({ ok: true, id, raw: raw2 });
 });
 app.all("/internal/rollup", async (c) => {
   const presented = (c.req.header("authorization") ?? "").replace(/^Bearer\s+/i, "").trim() || c.req.header("x-rollup-token") || "";

@@ -150,12 +150,15 @@ function bucketRows(list: UsageRow[], keyOf: (r: UsageRow) => string): StatsBuck
   return out.sort((a, b) => b.requests - a.requests || b.totalTokens - a.totalTokens);
 }
 
-/** Per-day provider counts for the dashboard chart, from raw ring rows (WIB days). */
+/** Per-day provider counts for the dashboard chart, from raw ring rows (WIB days).
+ * The stored provider wins: it was recorded at commit time. Guessing from
+ * the model name is only a fallback for legacy rows that predate the field,
+ * otherwise WhatsToken/custom traffic was misreported as Gemini. */
 function providerDayFromRing(rows: UsageRow[]): ProviderDay[] {
   const map = new Map<string, ProviderDay>();
   for (const r of rows) {
     const day = wibDayOf(r.ts);
-    const provider = providerOf(r.model);
+    const provider = r.provider || providerOf(r.model);
     const k = day + "|" + provider;
     let acc = map.get(k);
     if (!acc) {

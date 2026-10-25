@@ -52,18 +52,32 @@ function dayStart(day: WibDay): Date {
   return new Date(`${day}T00:00:00.000+07:00`);
 }
 
-/** Return `day` unchanged when valid, otherwise the WIB day it would parse to. */
-function normalizeDay(day: string | undefined): WibDay {
-  if (day && DAY_RE.test(day)) {
+/**
+ * Return `day` unchanged when valid, `null` when it was supplied but is not
+ * a real calendar day. The old code silently fell back to yesterday on a
+ * typo, so a mistyped `?day=` rolled up the wrong day and reported success.
+ * Only an omitted day defaults to yesterday.
+ */
+function normalizeDay(day: string | undefined): WibDay | null {
+  if (!day) return yesterdayWib();
+  if (DAY_RE.test(day)) {
     const t = Date.parse(`${day}T00:00:00.000Z`);
     if (Number.isFinite(t)) return day;
   }
-  return yesterdayWib();
+  return null;
 }
 
 /** Recompute one WIB day of `usage_daily` from `usage_events`. */
 export async function rollupDay(day?: string): Promise<RollupResult> {
   const target = normalizeDay(day);
+  if (target === null) {
+    return {
+      day: day ?? "",
+      buckets: 0,
+      ok: false,
+      error: `invalid day \`${day}\`: expected YYYY-MM-DD`,
+    };
+  }
   if (!dbEnabled()) return { day: target, buckets: 0, ok: false, error: "database disabled" };
 
   const start = dayStart(target);
@@ -73,6 +87,11 @@ export async function rollupDay(day?: string): Promise<RollupResult> {
   // the same key in one statement: the unique index check still sees the row the
   // CTE is deleting, so the run dies with a duplicate key violation instead of
   // rebuilding the bucket.
+  // NOTE (deliberately kept, not fixed here): this is delete-then-insert,
+  // not one transaction. If the insert below fails, that day's buckets are
+  // gone until the next rollup run re-recomputes them from usage_events
+  // (which pruneOlderThan keeps for RETENTION_DAYS, so the data is not lost,
+  // only the daily aggregate is temporarily missing).
   const cleared = await sql("delete from usage_daily where day = $1::date", [target]);
   if (!cleared.ok) {
     return { day: target, buckets: 0, ok: false, error: `${cleared.reason}: ${cleared.message}` };

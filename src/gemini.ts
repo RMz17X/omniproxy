@@ -84,7 +84,7 @@ type SpeechBody = {
  * wrap the PCM result in a WAV container. Gemini returns 16-bit mono
  * 24 kHz little-endian PCM with no header, which most players reject.
  */
-export async function speech(req: Request): Promise<Response> {
+export async function speech(req: Request, resolvedModel?: string): Promise<Response> {
   let body: SpeechBody;
   try {
     body = (await req.json()) as SpeechBody;
@@ -95,7 +95,18 @@ export async function speech(req: Request): Promise<Response> {
   const text = (body.input ?? "").trim();
   if (!text) return badRequest("`input` is required.");
 
-  const model = body.model && body.model.startsWith("gemini") ? body.model : cfg.defaultTtsModel;
+  if (resolvedModel !== undefined) {
+    const m = resolvedModel.replace(/^models\//, "");
+    if (!m.toLowerCase().startsWith("gemini")) {
+      return badRequest(`Model \`${resolvedModel}\` is not a Gemini model and cannot be served on the Gemini TTS route.`);
+    }
+  }
+  const model =
+    resolvedModel !== undefined
+      ? resolvedModel.replace(/^models\//, "")
+      : body.model && body.model.startsWith("gemini")
+        ? body.model
+        : cfg.defaultTtsModel;
   const voice = VOICE_MAP[(body.voice ?? "").toLowerCase()] ?? body.voice ?? cfg.defaultVoice;
   const fmt = (body.response_format ?? "wav").toLowerCase();
 

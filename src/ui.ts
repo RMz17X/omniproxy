@@ -1,173 +1,204 @@
 /**
- * Shared design system for the operator console.
+ * Shared design system for the OmniProxy operator console — Vercel style.
  *
- * One stylesheet, one shell, one client runtime. Every console page is built
- * from `consolePage`, so the tokens, the reset, the navigation and the control
- * shapes can only drift in one place.
- *
- * The direction is a ledger, not a dashboard:
- * - a paper surface carries the data; an ink rail carries the navigation
- * - structure comes from hairlines and eyebrows, never from boxed cards
- * - one cobalt accent marks the active section and the primary action
- * - numerals are tabular and monospaced, so columns line up down the page
- * - light is the default; the dark theme is the same system, inverted
- *
- * Rules that hold everywhere:
- * - no decorative gradient, no shadow, no blur, no glow
- * - status is a dot plus a word, never a painted block
- * - radii: 6 controls, 12 surfaces, pills for tags
- * - type: 11 / 12 / 13 / 14 / 16 / 20 / 26 / 34
+ * Light dashboard theme, the way a Vercel dashboard reads:
+ * - white cards on a neutral grey canvas (#fafafa), 1px neutral borders
+ * - a single black top navigation bar; page headers carry breadcrumb,
+ *   title and actions; the old left rail is gone as a layout (its DOM
+ *   ids/classes are kept, restyled as the top bar, so client JS is untouched)
+ * - restrained black primary buttons, neutral secondary buttons
+ * - small-caps uppercase micro-labels, monospace for ids/keys/models
+ * - status and provider pills: dot + word, never colour alone
+ * - tables: sticky headers, row hover, no horizontal blowout (mobile folds
+ *   rows into labelled blocks, as before)
+ * - radii: 6 controls, 8 cards, 999 pills; type: 11 / 12 / 13 / 14 / 16 / 24
  * - every colour comes from a custom property, never from a literal
+ * - dark is an opt-in toggle only; the default is the light dashboard
  */
-
-/**
- * Shared design system for the OmniProxy operator console.
- *
- * One stylesheet, one shell, one client runtime. Every console page is built
- * from `consolePage`, so the tokens, the reset, the navigation and the control
- * shapes can only drift in one place.
- *
- * The direction is a gateway console, not a dashboard:
- * - dark ink is the default canvas; the light theme is the same system inverted
- * - one indigo accent marks the active section and the primary action
- * - every provider carries its own colour: gemini blue, elevenlabs violet.
- *   The colour is never the only signal: a provider badge is a dot AND a word
- * - structure comes from hairlines and eyebrows, never from boxed cards
- * - numerals are tabular and monospaced, so columns line up down the page
- *
- * Rules that hold everywhere:
- * - no decorative gradient, no shadow, no blur, no glow
- * - status is a dot plus a word, never a painted block
- * - radii: 6 controls, 12 surfaces, pills for tags
- * - every colour comes from a custom property, never from a literal
- */
-
 export const BASE_CSS = `
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* ink canvas ----------------------------------------------------------- */
-  --bg: #0b0e14;
-  --surface: #11151d;
-  --surface-2: #161b26;
-  --surface-3: #1d2430;
-  --line: #222a37;
-  /* 3:1 against --surface, the WCAG 1.4.11 floor for control boundaries. */
-  --line-2: #3d4a5f;
+  /* Vercel dashboard canvas -------------------------------------------- */
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --surface-3: #eaeaea;
+  --line: #eaeaea;
+  --line-2: #d4d4d4;
 
-  --text: #e9eef7;
-  --text-2: #a6b1c4;
-  --text-3: #7d8899;
+  --text: #171717;
+  --text-2: #525252;
+  --text-3: #737373;
 
-  --accent: #7c93ff;
-  --accent-hover: #9aabff;
-  --accent-ink: #0b0e14;
-  --accent-wash: rgba(124, 147, 255, 0.13);
+  --accent: #000000;
+  --accent-hover: #333333;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(0, 0, 0, 0.05);
 
-  --ok: #45cf91;
-  --warn: #f0b054;
-  --bad: #ff7f76;
-  --neutral: #9aa4b4;
+  --ok: #067647;
+  --warn: #b54708;
+  --bad: #dc2626;
+  --neutral: #737373;
 
-  --wash-ok: rgba(69, 207, 145, 0.13);
-  --wash-warn: rgba(240, 176, 84, 0.13);
-  --wash-bad: rgba(255, 127, 118, 0.12);
-  --wash-neutral: rgba(154, 164, 180, 0.12);
+  --wash-ok: rgba(6, 118, 71, 0.08);
+  --wash-warn: rgba(181, 71, 8, 0.08);
+  --wash-bad: rgba(220, 38, 38, 0.07);
+  --wash-neutral: rgba(115, 115, 115, 0.08);
 
-  /* provider identity -----------------------------------------------------
-     Gemini blue, ElevenLabs violet, WhatsToken emerald. Used for badges,
-     dots, meter fills and chart segments; always paired with the provider
-     word. An unknown provider (a custom one) falls back to the accent, so
-     the badge still reads as identity rather than as an error. */
-  --prov-gemini: #5b9dff;
-  --prov-gemini-wash: rgba(91, 157, 255, 0.14);
-  --prov-elevenlabs: #c084fc;
-  --prov-elevenlabs-wash: rgba(192, 132, 252, 0.14);
-  --prov-whatstoken: #34d399;
-  --prov-whatstoken-wash: rgba(52, 211, 153, 0.14);
-  --prov-custom: #7c93ff;
-  --prov-custom-wash: rgba(124, 147, 255, 0.13);
+  /* provider identity: muted Vercel-style hues, always paired with the word */
+  --prov-gemini: #0070f3;
+  --prov-gemini-wash: rgba(0, 112, 243, 0.08);
+  --prov-elevenlabs: #7928ca;
+  --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
+  --prov-whatstoken: #0a7d5a;
+  --prov-whatstoken-wash: rgba(10, 125, 90, 0.08);
+  --prov-custom: #171717;
+  --prov-custom-wash: rgba(0, 0, 0, 0.05);
 
-  /* the rail, slightly deeper than the canvas so the edge never moves ------ */
-  --rail-bg: #0d1017;
-  --rail-bg-2: #141926;
-  --rail-line: #222a37;
-  --rail-text: #e9eef7;
-  --rail-muted: #8d97a8;
-  --rail-active: #1a2130;
+  /* top bar (the old rail, restyled) ----------------------------------- */
+  --rail-bg: #ffffff;
+  --rail-bg-2: #f5f5f5;
+  --rail-line: #eaeaea;
+  --rail-text: #171717;
+  --rail-muted: #737373;
+  --rail-active: #f5f5f5;
 
-  --sans: "Inter", "Inter var", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  --r-surface: 12px;
+  --r-surface: 8px;
   --r-ctl: 6px;
   --r-pill: 999px;
 
-  /* One spacing scale, powers of two on a 4px base, exactly as the Resend
-     system defines it: 4 / 8 / 16 / 32 / 64. Nothing else is a spacing
-     value; control heights (36/32) and touch floors (44) are sizes, not
-     spacing. Three levels of rhythm come out of it: 8 inside a control
-     group, 16 inside a surface, 32 between sections, 64 for the page
-     frame. */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 16px;
-  --sp-4: 32px;
-  --sp-5: 64px;
+  --sp-4: 24px;
+  --sp-5: 48px;
   --inset: 16px;
 
-  --tap: 36px;
-  --tap-sm: 32px;
+  --tap: 32px;
+  --tap-sm: 28px;
 
   --rail: 236px;
-  --page-max: 1560px;
+  --page-max: 1200px;
 }
 
 /* the light theme is the same system inverted, chosen explicitly ---------- */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #f6f7f9;
+  /* Vercel dashboard canvas -------------------------------------------- */
+  --bg: #fafafa;
   --surface: #ffffff;
-  --surface-2: #f1f3f7;
-  --surface-3: #e7eaf0;
-  --line: #dfe3ea;
-  --line-2: #9aa3b2;
+  --surface-2: #f5f5f5;
+  --surface-3: #eaeaea;
+  --line: #eaeaea;
+  --line-2: #d4d4d4;
 
-  --text: #131720;
-  --text-2: #4a5261;
-  --text-3: #646d7d;
+  --text: #171717;
+  --text-2: #525252;
+  --text-3: #737373;
 
-  --accent: #3b5bdb;
-  --accent-hover: #2f4bc4;
+  --accent: #000000;
+  --accent-hover: #333333;
   --accent-ink: #ffffff;
-  --accent-wash: rgba(59, 91, 219, 0.09);
+  --accent-wash: rgba(0, 0, 0, 0.05);
 
-  --ok: #0f7a4a;
-  --warn: #8a5200;
-  --bad: #b3261e;
-  --neutral: #5a6270;
+  --ok: #067647;
+  --warn: #b54708;
+  --bad: #dc2626;
+  --neutral: #737373;
 
-  --wash-ok: rgba(15, 122, 74, 0.10);
-  --wash-warn: rgba(138, 82, 0, 0.10);
-  --wash-bad: rgba(179, 38, 30, 0.09);
-  --wash-neutral: rgba(90, 98, 112, 0.09);
+  --wash-ok: rgba(6, 118, 71, 0.08);
+  --wash-warn: rgba(181, 71, 8, 0.08);
+  --wash-bad: rgba(220, 38, 38, 0.07);
+  --wash-neutral: rgba(115, 115, 115, 0.08);
 
-  --prov-gemini: #1f66d0;
-  --prov-gemini-wash: rgba(31, 102, 208, 0.10);
-  --prov-elevenlabs: #8430c9;
-  --prov-elevenlabs-wash: rgba(132, 48, 201, 0.10);
+  /* provider identity: muted Vercel-style hues, always paired with the word */
+  --prov-gemini: #0070f3;
+  --prov-gemini-wash: rgba(0, 112, 243, 0.08);
+  --prov-elevenlabs: #7928ca;
+  --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
   --prov-whatstoken: #0a7d5a;
-  --prov-whatstoken-wash: rgba(10, 125, 90, 0.10);
-  --prov-custom: #3b5bdb;
-  --prov-custom-wash: rgba(59, 91, 219, 0.09);
+  --prov-whatstoken-wash: rgba(10, 125, 90, 0.08);
+  --prov-custom: #171717;
+  --prov-custom-wash: rgba(0, 0, 0, 0.05);
 
-  --rail-bg: #10141d;
-  --rail-bg-2: #171d29;
-  --rail-line: #262e3d;
-  --rail-text: #e9eef7;
-  --rail-muted: #8d97a8;
-  --rail-active: #1d2534;
+  /* top bar (the old rail, restyled) ----------------------------------- */
+  --rail-bg: #ffffff;
+  --rail-bg-2: #f5f5f5;
+  --rail-line: #eaeaea;
+  --rail-text: #171717;
+  --rail-muted: #737373;
+  --rail-active: #f5f5f5;
+
+  --sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --r-surface: 8px;
+  --r-ctl: 6px;
+  --r-pill: 999px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 16px;
+  --sp-4: 24px;
+  --sp-5: 48px;
+  --inset: 16px;
+
+  --tap: 32px;
+  --tap-sm: 28px;
+
+  --rail: 236px;
+  --page-max: 1200px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #000000;
+  --surface: #111111;
+  --surface-2: #1a1a1a;
+  --surface-3: #262626;
+  --line: #333333;
+  --line-2: #444444;
+
+  --text: #ededed;
+  --text-2: #a1a1a1;
+  --text-3: #737373;
+
+  --accent: #ffffff;
+  --accent-hover: #e5e5e5;
+  --accent-ink: #000000;
+  --accent-wash: rgba(255, 255, 255, 0.08);
+
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --neutral: #a1a1a1;
+
+  --wash-ok: rgba(74, 222, 128, 0.12);
+  --wash-warn: rgba(251, 191, 36, 0.12);
+  --wash-bad: rgba(248, 113, 113, 0.12);
+  --wash-neutral: rgba(161, 161, 161, 0.12);
+
+  --prov-gemini: #3291ff;
+  --prov-gemini-wash: rgba(50, 145, 255, 0.12);
+  --prov-elevenlabs: #a78bfa;
+  --prov-elevenlabs-wash: rgba(167, 139, 250, 0.12);
+  --prov-whatstoken: #34d399;
+  --prov-whatstoken-wash: rgba(52, 211, 153, 0.12);
+  --prov-custom: #ededed;
+  --prov-custom-wash: rgba(255, 255, 255, 0.08);
+
+  --rail-bg: #000000;
+  --rail-bg-2: #1a1a1a;
+  --rail-line: #333333;
+  --rail-text: #ededed;
+  --rail-muted: #a1a1a1;
+  --rail-active: #1a1a1a;
 }
 
 /* compact density: the same page, one notch tighter ---------------------- */
@@ -1611,6 +1642,150 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .page { max-width: none; padding: 0; }
   .panel, .figures { border-color: #bbb; }
 }
+
+/* Vercel dashboard restyle (total redesign) -------------------------------
+   Same DOM ids/classes, new layout: the rail becomes one black-on-white
+   top bar, panels become white cards, buttons/tables/forms follow the
+   Vercel dashboard vocabulary. This block sits last in BASE_CSS so it
+   wins over the earlier rules without renaming anything JS depends on. */
+
+/* top navigation bar (was the left rail) */
+.shell { display: block; }
+.rail {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; flex-direction: row; align-items: center; gap: 24px;
+  height: 56px; width: 100%; padding: 0 24px;
+  background: var(--rail-bg); color: var(--rail-text);
+  border-right: 0; border-bottom: 1px solid var(--rail-line);
+  overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+}
+.rail-brand { padding: 0; flex: none; }
+.rail-mark { background: var(--text); color: var(--bg); border-radius: 6px; }
+.rail-name b { font-size: 15px; }
+.rail-name span { display: none; }
+.rail-providers { display: none; }
+.rail-nav { flex-direction: row; gap: 4px; align-items: center; }
+.rail-group { flex-direction: row; align-items: center; gap: 4px; }
+.rail-label {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.rail-item {
+  border-left: 0; border-radius: 6px; min-height: 32px; height: 32px;
+  padding: 0 12px; font-size: 13.5px; color: var(--rail-muted);
+}
+.rail-item:hover { background: var(--rail-bg-2); }
+.rail-item[aria-current="page"] {
+  background: var(--rail-active); color: var(--rail-text);
+  border-left: 0; font-weight: 600;
+}
+.rail-item[aria-current="page"] svg { color: var(--rail-text); }
+.rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: 8px; flex: none; }
+.rail-state { padding: 0; }
+.rail-tools { padding: 0; }
+.rail-actions { padding: 0; }
+.menu-btn { display: none !important; }
+
+/* breadcrumb strip under the top bar + page headers */
+.canvas-head {
+  position: static; min-height: auto; padding: 20px 24px 0;
+  border-bottom: 0; background: transparent;
+}
+.canvas-crumb { font-size: 12px; }
+.canvas-crumb b { font-size: 12px; }
+.page { padding: 20px 24px 48px; }
+.eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-3);
+}
+.page-head { margin-bottom: 24px; align-items: flex-start; }
+.page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.page-lede { font-size: 14px; }
+
+/* white cards on the grey canvas */
+.panel {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.panel-head { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.panel-head h2, .panel-head h3 { font-size: 13px; font-weight: 600; }
+.panel-body { padding: 16px; }
+.panel-foot, .panel-note { border-top: 1px solid var(--line); }
+.kpi {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.fig-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+
+/* buttons: black primary, neutral secondary */
+.btn {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-ctl); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-weight: 500;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--line-2); }
+.btn-primary { background: #000; border-color: #000; color: #fff; }
+.btn-primary:hover { background: #333; border-color: #333; }
+:root[data-theme="dark"] .btn-primary { background: #fff; border-color: #fff; color: #000; }
+:root[data-theme="dark"] .btn-primary:hover { background: #e5e5e5; border-color: #e5e5e5; }
+
+/* forms */
+.input, .select, .textarea {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+.input:focus, .select:focus, .textarea:focus { border-color: var(--text); }
+
+/* tables: sticky header, row hover, mono ids */
+.table-wrap { overflow-x: auto; }
+.table th {
+  position: sticky; top: 0; z-index: 1; background: var(--surface);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-3);
+  border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.table td { border-bottom: 1px solid var(--surface-2); }
+.table tbody tr:hover { background: var(--bg); }
+.table .id-cell, .table td.mono, .key-text, .credential-value {
+  font-family: var(--mono); overflow-wrap: anywhere;
+}
+
+/* pills: status + provider, dot + word */
+.tag, .prov {
+  border-radius: var(--r-pill); padding: 2px 8px;
+  font-size: 11px; font-weight: 500;
+}
+.tag .dot, .prov .prov-dot { width: 6px; height: 6px; }
+
+/* masked credential on the key-detail page: never a full raw value */
+.credential-value { overflow-wrap: anywhere; word-break: break-all; }
+
+/* empty / loading / error states as centred white cards */
+.state {
+  background: var(--surface); border: 1px dashed var(--line-2);
+  border-radius: var(--r-surface); padding: 32px 16px; text-align: center;
+}
+
+/* dialogs + toasts: white cards, one shadow */
+.dialog, .toast {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* responsive: top bar wraps, nav scrolls, pages stack, tables keep folding */
+@media (max-width: 1023px) {
+  .rail { height: auto; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px; }
+  .rail-nav { order: 3; width: 100%; }
+  .rail-foot { margin-left: 0; }
+  .canvas-head { padding: 16px 16px 0; }
+  .page { padding: 16px; }
+}
+@media (max-width: 720px) {
+  .rail-brand { flex: 1 1 auto; }
+  .rail-state span { display: none; }
+  .page-title { font-size: 20px; }
+  .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
+}
 `;
 
 /* ---------- icons ---------- */
@@ -1843,7 +2018,7 @@ export function consolePage(o: PageOptions): string {
     '<meta name="color-scheme" content="light dark">\n' +
     /* The console is dark-first; the light theme is an explicit choice. The
        browser chrome follows whichever surface the operator is on. */
-    '<meta name="theme-color" content="#0b0e14">\n' +
+    '<meta name="theme-color" content="#fafafa">\n' +
     '<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n' +
     "<title>" +
     escapeHtml(o.title) +
@@ -2005,7 +2180,7 @@ export function loginPage(): string {
     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
     '<meta name="robots" content="noindex, nofollow">\n' +
     '<meta name="color-scheme" content="light dark">\n' +
-    '<meta name="theme-color" content="#0b0e14">\n' +
+    '<meta name="theme-color" content="#fafafa">\n' +
     '<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n' +
     "<title>Sign in · OmniProxy</title>\n" +
     '<link rel="icon" href="/favicon.ico" sizes="32x32">\n' +
@@ -2420,7 +2595,10 @@ export const CLIENT_JS = `
        an operator looks for, so each provider gets its own row. */
     providerPool: function (provider, snap) {
       snap = snap || {};
-      var p = provider === "elevenlabs" ? "elevenlabs" : "gemini";
+      /* Never collapse a provider: WhatsToken/custom rows used to be
+         labelled Gemini here. Every provider keeps its own tag; only a
+         missing value falls back to the generic custom tag. */
+      var p = provider || "custom";
       var ready = Number(snap.ready) || 0;
       var total = Number(snap.total) || 0;
       var parts = [
@@ -2775,13 +2953,12 @@ export const CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. Dark is the console default;
-       the light theme is an explicit choice. */
+    /* Theme and density. Both survive a reload. Light is the console default; dark is an explicit toggle. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
         if (set) return set;
-        return "dark";
+        return "light";
       },
       set: function (value) {
         document.documentElement.setAttribute("data-theme", value);

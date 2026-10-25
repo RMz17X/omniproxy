@@ -181,7 +181,18 @@ function jsonArgs(raw: string | undefined): Record<string, unknown> {
   }
 }
 
-function toGemini(body: OAIRequest) {
+/**
+ * Normalise a router-resolved model for the Gemini wire: strip a leading
+ * `models/` segment, then require a Gemini id. A non-Gemini model routed to
+ * this handler is a caller error, not a cue to silently substitute the
+ * default model (the old behaviour hid routing bugs behind wrong answers).
+ */
+function geminiModelOrNull(resolved: string): string | null {
+  const m = resolved.replace(/^models\//, "").trim();
+  return m.toLowerCase().startsWith("gemini") ? m : null;
+}
+
+function toGemini(body: OAIRequest, resolvedModel?: string) {
   const msgs = body.messages ?? [];
   const systemParts: { text: string }[] = [];
   const contents: { role: "user" | "model"; parts: Record<string, unknown>[] }[] = [];
@@ -228,12 +239,19 @@ function toGemini(body: OAIRequest) {
   }
 
   const wantsSearch = Boolean(body.web_search ?? body.search);
+  // When the router resolved the model, use it verbatim (after the
+  // `models/` strip in geminiModelOrNull, applied by the caller): re-deriving
+  // from the raw body turned `gemini/foo` into the invalid upstream URL
+  // `models/gemini/foo:generateContent` and replaced non-Gemini models with
+  // the default instead of refusing them.
   const model =
-    body.model && body.model.startsWith("gemini")
-      ? body.model
-      : wantsSearch
-        ? cfg.searchModel
-        : cfg.defaultModel;
+    resolvedModel !== undefined
+      ? resolvedModel.replace(/^models\//, "")
+      : body.model && body.model.startsWith("gemini")
+        ? body.model
+        : wantsSearch
+          ? cfg.searchModel
+          : cfg.defaultModel;
 
   const gen: Record<string, unknown> = {};
   if (typeof body.temperature === "number") gen.temperature = body.temperature;
@@ -288,7 +306,7 @@ const metaHeaders = (attempts: number, rotated: boolean): Record<string, string>
   "x-omniproxy-rotated": rotated ? "1" : "0",
 });
 
-export async function chatCompletions(req: Request): Promise<Response> {
+export async function chatCompletions(req: Request, resolvedModel?: string): Promise<Response> {
   let body: OAIRequest;
   try {
     body = (await req.json()) as OAIRequest;
@@ -298,8 +316,18 @@ export async function chatCompletions(req: Request): Promise<Response> {
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return err(400, "invalid_request_error", "`messages` must be a non-empty array.");
   }
+  // Refuse, don't substitute: a resolved non-Gemini model reaching this
+  // Gemini-only handler means the router or the client is wrong, and
+  // answering with a different model would be a silent wrong answer.
+  if (resolvedModel !== undefined && geminiModelOrNull(resolvedModel) === null) {
+    return err(
+      400,
+      "invalid_request_error",
+      `Model \`${resolvedModel}\` is not a Gemini model and cannot be served on the Gemini route.`,
+    );
+  }
 
-  const { model: requested, payload, wantsSearch } = toGemini(body);
+  const { model: requested, payload, wantsSearch } = toGemini(body, resolvedModel);
   const stream = Boolean(body.stream);
   const method = stream ? "streamGenerateContent" : "generateContent";
   const search = stream ? "?alt=sse" : "";
@@ -355,6 +383,17 @@ export async function chatCompletions(req: Request): Promise<Response> {
       return err(502, "upstream_error", "Upstream returned non-JSON.");
     }
     const cand = json.candidates?.[0];
+    // A safety-blocked prompt has no candidates (or a SAFETY finish reason
+    // with no content). Answering 200 with empty content and
+    // finish_reason "stop" hid the block from clients; return a filter
+    // signal instead.
+    if (
+      !json.candidates?.length ||
+      ((cand?.finishReason === "SAFETY" || cand?.finishReason === "PROHIBITED_CONTENT") &&
+        !cand?.content?.parts?.length)
+    ) {
+      return err(400, "content_filter", "Upstream blocked the prompt (safety filter).");
+    }
     const { text, grounding, toolCalls } = parseCandidate(cand);
     const usage = json.usageMetadata ?? {};
     // Gemini reports thinking tokens on a separate meter. OpenAI counts them
@@ -535,6 +574,37 @@ export async function chatCompletions(req: Request): Promise<Response> {
                   choices: [{ index: 0, delta: { content: tailParsed.text }, finish_reason: null }],
                 });
               }
+              // The tail frame's tool calls used to be dropped (only its
+              // text was emitted), so a call arriving in the final frame
+              // vanished and the stream closed with "stop". Emit them
+              // exactly like the main loop does, so the closing chunk
+              // correctly reports finish_reason "tool_calls".
+              for (const c of tailParsed.toolCalls) {
+                const index = toolCalls.length;
+                toolCalls.push(c);
+                send({
+                  id,
+                  object: "chat.completion.chunk",
+                  created,
+                  model,
+                  choices: [
+                    {
+                      index: 0,
+                      delta: {
+                        tool_calls: [
+                          {
+                            index,
+                            id: c.id,
+                            type: "function",
+                            function: { name: c.name, arguments: c.args },
+                          },
+                        ],
+                      },
+                      finish_reason: null,
+                    },
+                  ],
+                });
+              }
             } catch {
               /* a partial JSON tail is not a frame; ignore it */
             }
@@ -649,7 +719,7 @@ function base64Float32(values: number[]): string {
  * POST /v1/embeddings — one Gemini batchEmbedContents call per request, still
  * rotated like every other route (a 429 on the batch moves to the next key).
  */
-export async function embeddings(req: Request): Promise<Response> {
+export async function embeddings(req: Request, resolvedModel?: string): Promise<Response> {
   counters.embeddings++;
   let body: EmbeddingsRequest;
   try {
@@ -661,18 +731,31 @@ export async function embeddings(req: Request): Promise<Response> {
   if (texts.length === 0) {
     return err(400, "invalid_request_error", "`input` must be a string or an array of strings.");
   }
+  if (resolvedModel !== undefined) {
+    const m = resolvedModel.replace(/^models\//, "");
+    if (!(m.includes("embed") || m.toLowerCase().startsWith("gemini"))) {
+      return err(
+        400,
+        "invalid_request_error",
+        `Model \`${resolvedModel}\` is not an embeddings model and cannot be served on the Gemini embeddings route.`,
+      );
+    }
+  }
   const model =
-    body.model && (body.model.includes("embed") || body.model.startsWith("gemini"))
-      ? body.model
-      : cfg.defaultEmbedModel;
-  const gen: Record<string, unknown> = {};
-  if (typeof body.dimensions === "number") gen.outputDimensionality = body.dimensions;
+    resolvedModel !== undefined
+      ? resolvedModel.replace(/^models\//, "")
+      : body.model && (body.model.includes("embed") || body.model.startsWith("gemini"))
+        ? body.model
+        : cfg.defaultEmbedModel;
 
+  // outputDimensionality is a per-request field on batchEmbedContents, not
+  // a generationConfig field: putting it inside generationConfig meant
+  // Gemini silently ignored it and returned default-dimensional vectors.
   const payload = {
     requests: texts.map((text) => ({
       model: `models/${model}`,
       content: { parts: [{ text }] },
-      ...(Object.keys(gen).length ? { generationConfig: gen } : {}),
+      ...(typeof body.dimensions === "number" ? { outputDimensionality: body.dimensions } : {}),
     })),
   };
 
@@ -710,6 +793,15 @@ export async function embeddings(req: Request): Promise<Response> {
   const vectors = json.embeddings ?? (json.embedding ? [json.embedding] : []);
   if (vectors.length === 0) {
     return err(502, "upstream_error", "Upstream returned no embeddings.");
+  }
+  // Indices are assigned by return order, so a short reply would silently
+  // mislabel every vector after the gap. Refuse a count mismatch instead.
+  if (vectors.length !== texts.length) {
+    return err(
+      502,
+      "upstream_error",
+      `Upstream returned ${vectors.length} embedding(s) for ${texts.length} input(s).`,
+    );
   }
 
   const wantsBase64 = body.encoding_format === "base64";

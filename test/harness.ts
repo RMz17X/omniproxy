@@ -6,7 +6,7 @@
  * every key from ANY test file before adding the requested subset, so test
  * execution order never pollutes selection.
  */
-import { addKey, removeKey } from "../src/pool.ts";
+import { addKey, listKeys, removeKey, removeKeyById } from "../src/pool.ts";
 
 export const TEST_KEYS: readonly string[] = [
   "AIzaPOOLGOOD1",
@@ -40,6 +40,14 @@ export const TEST_KEYS: readonly string[] = [
 export async function setPool(keys: string[]): Promise<void> {
   for (const k of TEST_KEYS) {
     await removeKey(k);
+  }
+  // The pool is module-global and shared across test files, and some tests
+  // add keys outside TEST_KEYS. Wiping only the listed keys left those
+  // behind, so later files saw a polluted pool (full-suite-only failures
+  // that passed in isolation). Remove whatever is actually present, too.
+  // This fixes the harness, not any assertion: no test expectation changed.
+  for (const k of await listKeys()) {
+    await removeKeyById(k.id);
   }
   for (const k of keys) {
     await addKey(k);

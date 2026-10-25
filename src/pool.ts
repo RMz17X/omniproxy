@@ -15,6 +15,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { cfg } from "./config.ts";
 import { log } from "./log.ts";
 import { counters } from "./metrics.ts";
 import { dbEnabled } from "./db.ts";
@@ -457,10 +458,18 @@ export async function rawKeyById(id: string): Promise<string | null> {
 /* ---------- selection ---------- */
 
 /**
- * Pick the healthiest key: lowest failure count, then least-recently-used.
- * Restricting to ready keys makes pacing implicit — a key that just served
- * a request has lastUsed=now and loses every LRU comparison until its rate
- * window elapses, at which point it becomes the freshest candidate.
+ * A key may serve when nothing currently disqualifies it: not dead, not still
+ * unproven, past every known deadline, AND outside its per-key pacing window.
+ *
+ * Pacing is a hard gate, not an LRU preference: a key whose lastUsed is
+ * inside `cfg.rateWindowMs` is not selectable, even if it is the only key in
+ * the pool. A single-key pool therefore waits out the window (the execute
+ * wait loop uses `snapshot().soonestReadyMs`, which includes the pacing
+ * deadline, and the production MAX_WAIT_MS of 8000 exceeds the default
+ * 4000 ms window, so the request still succeeds, just paced). This is what
+ * makes KEY_RATE_WINDOW_MS a rate guarantee instead of a comment: LRU alone
+ * re-picks the lowest-failure key immediately, which is exactly how a
+ * single-key pool blew through the 15 RPM ceiling.
  */
 /**
  * A key may serve when nothing currently disqualifies it: not dead, not still
@@ -469,6 +478,7 @@ export async function rawKeyById(id: string): Promise<string | null> {
 function selectable(s: KeyState, t: number, model?: string, provider?: string): boolean {
   if (provider && (s.provider || "gemini") !== provider) return false;
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
+  if (s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) return false;
   // A per-model free-tier refusal disqualifies the pair only: another model
   // on the same credential is untouched, so the key stays in rotation.
   if (model && (s.modelRefusals[model] ?? 0) > t) return false;
@@ -818,7 +828,12 @@ export async function markHealthy(key: string, observedAt: number = now()): Prom
   st.failures = 0;
   st.cooldownUntil = 0;
   st.retryAfterAt = 0;
-  st.lastUsed = now();
+  // Deliberately NOT stamping lastUsed here: lastUsed means "last served a
+  // request", and a probe is not a served request. Stamping it started a
+  // pacing window on the key the probe just proved healthy, so "revives
+  // immediately" was false — pick() right after a probe returned null.
+  // The key keeps its previous served time (often old), which correctly
+  // makes a revived key an early LRU candidate.
   st.lastCheckedAt = Math.max(st.lastCheckedAt, observedAt);
   st.status = "ready";
   local.set(key, st);
@@ -1019,6 +1034,12 @@ export async function snapshot(): Promise<PoolSnapshot> {
       cooling++;
       ps.cooling++;
       soonest = Math.min(soonest, s.cooldownUntil - t);
+    } else if (s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) {
+      // Pacing window: not ready yet, but the wait loop must know when it
+      // opens, or it would report pool_exhausted instead of waiting it out.
+      cooling++;
+      ps.cooling++;
+      soonest = Math.min(soonest, s.lastUsed + cfg.rateWindowMs - t);
     } else {
       ready++;
       ps.ready++;

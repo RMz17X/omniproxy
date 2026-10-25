@@ -148,20 +148,23 @@ export function buildFaviconIco(deflate: (data: Uint8Array) => Uint8Array): Uint
     off += p.length;
   }
 
-  // ICONDIR (6) + ICONDIRENTRY (16) + PNG payload
+  // ICONDIR (6) + ICONDIRENTRY (16) + PNG payload. ICO is little-endian:
+  // DataView defaults to big-endian, so every field here passes `true`
+  // explicitly. (The PNG chunks above stay big-endian, as PNG requires —
+  // only this ICO header is little-endian.)
   const ico = new Uint8Array(22 + png.length);
   const iv = new DataView(ico.buffer);
-  iv.setUint16(0, 0); // reserved
-  iv.setUint16(2, 1); // type: icon
-  iv.setUint16(4, 1); // image count
+  iv.setUint16(0, 0, true); // reserved
+  iv.setUint16(2, 1, true); // type: icon
+  iv.setUint16(4, 1, true); // image count
   ico[6] = SIZE; // width (32)
   ico[7] = SIZE; // height (32)
   ico[8] = 0; // palette colours
   ico[9] = 0; // reserved
-  iv.setUint16(10, 1); // colour planes
-  iv.setUint16(12, 32); // bits per pixel
-  iv.setUint32(14, png.length); // payload size
-  iv.setUint32(18, 22); // payload offset
+  iv.setUint16(10, 1, true); // colour planes
+  iv.setUint16(12, 32, true); // bits per pixel
+  iv.setUint32(14, png.length, true); // payload size
+  iv.setUint32(18, 22, true); // payload offset
   ico.set(png, 22);
   return ico;
 }

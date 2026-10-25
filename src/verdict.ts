@@ -290,7 +290,11 @@ export function classifyResponse(
 
   if (status >= 200 && status < 300) return { verdict: "ok", ...none };
 
-  if (status === 401) return { verdict: "invalid", ...none };
+  // A bare 401 is not a dead credential on its own (project/model access
+  // refusals answer 401 too); only invalid-key text retires the key.
+  if (status === 401) {
+    return INVALID_KEY.test(body) ? { verdict: "invalid", ...none } : { verdict: "unexpected", ...none };
+  }
 
   if (status === 403) {
     return INVALID_KEY.test(body)
@@ -329,7 +333,8 @@ export function classifyResponse(
 /**
  * Classify an ElevenLabs response into the existing verdict taxonomy.
  *
- * `dead` ONLY for 401/403.
+ * `dead` ONLY for 401, and for 403 with invalid-key wording (a bare 403 is
+ * a permission/voice restriction, not a dead credential).
  * 429 enters quota state with reset time if available.
  * 200 proves key is alive and captures plan from subscription.tier.
  */
@@ -371,9 +376,17 @@ export function classifyElevenLabsResponse(
     return { verdict: "ok", quota: null, tierEvidence: evidence };
   }
 
-  // dead HANYA untuk 401/403
-  if (status === 401 || status === 403) {
+  // 401 is a dead credential for ElevenLabs; a 403 on its own is NOT — it
+  // is commonly a permission/voice restriction on a live key, and retiring
+  // on it burned healthy keys. Only 403 bodies carrying invalid-key wording
+  // retire.
+  if (status === 401) {
     return { verdict: "invalid", ...none };
+  }
+  if (status === 403) {
+    return /invalid|expired|revoked/i.test(body)
+      ? { verdict: "invalid", ...none }
+      : { verdict: "unexpected", ...none };
   }
 
   // 429 masuk quota state (bukan mati)
