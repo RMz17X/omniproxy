@@ -293,14 +293,14 @@ const KEYS_SCRIPT = `
     return "unverified";
   }
 
-  /* Browser locale on purpose: the operator reads the clock on this machine. */
+  /* Absolute times use the shared log stamp, so every page says the same thing. */
   function whenText(ms) {
     if (ms === null || ms === undefined || ms === "") return "";
     var n = Number(ms);
     if (!n || isNaN(n)) return "";
     var date = new Date(n);
     if (isNaN(date.getTime())) return "";
-    return date.toLocaleString();
+    return GX.fmt.stamp(n);
   }
 
   function quotaText(q) {
@@ -451,7 +451,7 @@ const KEYS_SCRIPT = `
     if (!el.newProviderHint) return;
     var id = el.newProvider ? el.newProvider.value : "";
     if (!id) {
-      el.newProviderHint.textContent = "Each key is matched to a provider by its format (AIza… Google, sk_… ElevenLabs, sk-… gateways).";
+      el.newProviderHint.textContent = "Each key is matched to a provider by its format (AIza… Google, sk_… ElevenLabs, sk-… OpenAI-compatible gateways).";
       return;
     }
     var hit = null;
@@ -1298,6 +1298,29 @@ const DETAIL_SCRIPT = `
   /* The plan vocabulary. TIERS and tierLabel live in the list page's script,
      and this is a separate IIFE that shares no scope with it, so the same
      table is baked in here. */
+
+  /* Same normalised status vocabulary as the list page (ready / cooling /
+     quota / dead / unverified): the detail page used to print the raw
+     backend string, so the same key read differently on the two pages. */
+  var DETAIL_STATUS_LABEL = { ready: "Ready", cooling: "Cooling", quota: "Quota exhausted", dead: "Dead", unverified: "Unverified" };
+  var DETAIL_STATUS_TONE = { ready: "ok", cooling: "accent", quota: "warn", dead: "bad", unverified: "neutral" };
+  function statusKindDetail(k) {
+    var status = String((k && k.status) || "").toLowerCase();
+    var quota = k && k.quota ? k.quota : null;
+    if (status.indexOf("cool") >= 0 || status.indexOf("wait") >= 0) return "cooling";
+    if (status.indexOf("quota") >= 0 || status.indexOf("exhaust") >= 0 ||
+        status.indexOf("429") >= 0 || status.indexOf("rate") >= 0 ||
+        status.indexOf("limit") >= 0) return "quota";
+    if (status.indexOf("dead") >= 0 || status.indexOf("invalid") >= 0 ||
+        status.indexOf("revoked") >= 0 || status.indexOf("denied") >= 0 ||
+        status.indexOf("reject") >= 0) return "dead";
+    if (status.indexOf("ready") >= 0 || status.indexOf("active") >= 0 || status === "ok") return "ready";
+    if (!status) return quota ? "quota" : "unverified";
+    if (status.indexOf("unverified") >= 0 || status.indexOf("unknown") >= 0) return "unverified";
+    if (quota && quota.resetAt && Number(quota.resetAt) > Date.now()) return "quota";
+    if (k && k.nextAccessAt && Number(k.nextAccessAt) > Date.now()) return "cooling";
+    return "unverified";
+  }
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
     { value: "free", label: "Free tier" },
@@ -1315,15 +1338,14 @@ const DETAIL_SCRIPT = `
      renderCredential so the probe handler can match that toast exactly. */
   var detailMasked = "";
 
-  /* Browser locale on purpose: the operator reads the clock on this machine.
-     Mirrors the list page's helpers so both pages say the same thing. */
+  /* Same shared log stamp as the list page. */
   function whenText(ms) {
     if (ms === null || ms === undefined || ms === "") return "";
     var n = Number(ms);
     if (!n || isNaN(n)) return "";
     var date = new Date(n);
     if (isNaN(date.getTime())) return "";
-    return date.toLocaleString();
+    return GX.fmt.stamp(n);
   }
 
   function quotaText(q) {
@@ -1418,12 +1440,13 @@ const DETAIL_SCRIPT = `
      record rather than as a dashboard. */
   function renderSummary(k) {
     el.summary.textContent = "";
+    var kind = statusKindDetail(k);
     var rows = [
-      ["Provider", k.provider || "gemini", ""],
+      ["Provider", GX.providerLabel(k.provider) || "-", ""],
       /* The list shows the plan label ("Pay as you go"); the detail page used
          to show the raw code ("paid") for the same key. One fact, one word. */
       ["Plan", tierLabel(k.plan || "") || k.plan || "-", k.plan === "free" ? "ok" : ""],
-      ["State", k.status || "-", k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"],
+      ["State", DETAIL_STATUS_LABEL[kind], DETAIL_STATUS_TONE[kind]],
       ["Enabled", k.enabled === false ? "no" : "yes", k.enabled === false ? "warn" : "ok"],
       ["Failures", k.failures, k.failures ? "warn" : ""],
       ["Invalidations", k.invalidations, k.invalidations ? "bad" : ""],
@@ -1523,7 +1546,7 @@ const DETAIL_SCRIPT = `
     /* The provider badge rides in the lede: which upstream pool this key
        belongs to is the first fact about it. */
     el.keyPath.textContent = "";
-    el.keyPath.appendChild(GX.providerTag(k.provider || "gemini"));
+    el.keyPath.appendChild(GX.providerTag(k.provider));
     el.keyPath.appendChild(document.createTextNode(" · id " + k.id));
     renderCredential(k);
     renderSummary(k);

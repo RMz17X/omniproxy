@@ -37,6 +37,8 @@ const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 export type StatsBucket = {
   key: string;
+  /** Most frequent recorded provider in the bucket ("" when no row recorded one). */
+  provider: string;
   requests: number;
   errors: number;
   rotated: number;
@@ -91,7 +93,7 @@ export type StatsSnapshot = {
   byModel: StatsBucket[];
   byKey: StatsBucket[];
   byRoute: StatsBucket[];
-  /** Requests split by pool (gemini / elevenlabs), derived from the model field. */
+  /** Requests split by pool, from the recorded provider (model-field fallback for legacy rows). */
   byProvider: StatsBucket[];
   /** Per-day provider counts for the dashboard bar chart. */
   byProviderDay: ProviderDay[];
@@ -129,12 +131,14 @@ const emptyTotals = (): StatsTotals => ({
 /** Mirror of ledger's internal bucketBy, on the StatsBucket shape. */
 function bucketRows(list: UsageRow[], keyOf: (r: UsageRow) => string): StatsBucket[] {
   const map = new Map<string, StatsBucket>();
+  const prov = new Map<string, Map<string, number>>();
   for (const r of list) {
     const k = keyOf(r) || "unknown";
     let acc = map.get(k);
     if (!acc) {
-      acc = { key: k, requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
+      acc = { key: k, provider: "", requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
       map.set(k, acc);
+      prov.set(k, new Map());
     }
     acc.requests++;
     if (!r.ok) acc.errors++;
@@ -144,9 +148,18 @@ function bucketRows(list: UsageRow[], keyOf: (r: UsageRow) => string): StatsBuck
     acc.totalTokens += r.totalTokens;
     acc.costUsd += r.costUsd ?? 0;
     acc.avgLatencyMs += r.latencyMs;
+    if (r.provider) {
+      const counts = prov.get(k);
+      if (counts) counts.set(r.provider, (counts.get(r.provider) || 0) + 1);
+    }
   }
   const out = [...map.values()];
-  for (const b of out) b.avgLatencyMs = b.requests ? Math.round(b.avgLatencyMs / b.requests) : 0;
+  for (const b of out) {
+    b.avgLatencyMs = b.requests ? Math.round(b.avgLatencyMs / b.requests) : 0;
+    let best = 0;
+    const counts = prov.get(b.key);
+    if (counts) counts.forEach((n, p) => { if (n > best) { best = n; b.provider = p; } });
+  }
   return out.sort((a, b) => b.requests - a.requests || b.totalTokens - a.totalTokens);
 }
 
@@ -259,12 +272,18 @@ const num = (v: number | string | null | undefined): number => {
 
 function dailyBucket(rows: DailyRow[], keyOf: (r: DailyRow) => string): StatsBucket[] {
   const map = new Map<string, StatsBucket>();
+  const prov = new Map<string, Map<string, number>>();
   for (const r of rows) {
     const k = keyOf(r) || "unknown";
     let acc = map.get(k);
     if (!acc) {
-      acc = { key: k, requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
+      acc = { key: k, provider: "", requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
       map.set(k, acc);
+      prov.set(k, new Map());
+    }
+    if (r.provider) {
+      const counts = prov.get(k);
+      if (counts) counts.set(r.provider, (counts.get(r.provider) || 0) + 1);
     }
     const requests = num(r.requests);
     acc.requests += requests;
@@ -279,7 +298,12 @@ function dailyBucket(rows: DailyRow[], keyOf: (r: DailyRow) => string): StatsBuc
     acc.avgLatencyMs += requests * num(r.p50_ms);
   }
   const out = [...map.values()];
-  for (const b of out) b.avgLatencyMs = b.requests ? Math.round(b.avgLatencyMs / b.requests) : 0;
+  for (const b of out) {
+    b.avgLatencyMs = b.requests ? Math.round(b.avgLatencyMs / b.requests) : 0;
+    let best = 0;
+    const counts = prov.get(b.key);
+    if (counts) counts.forEach((n, p) => { if (n > best) { best = n; b.provider = p; } });
+  }
   for (const b of out) b.costUsd = Number(b.costUsd.toFixed(6));
   return out.sort((a, b) => b.requests - a.requests);
 }

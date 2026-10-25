@@ -1902,7 +1902,6 @@ export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
 const SECTION_LABELS: Record<string, string> = {
   "/pengatur": "Overview",
   "/pengatur/logs": "Logs",
-  "/pengatur/usage": "Logs",
   "/pengatur/stats": "Statistics",
   "/pengatur/keys": "Keys",
   "/pengatur/providers": "Providers",
@@ -2279,7 +2278,7 @@ export function authGate(): string {
     icon("lock", "icon", 20) +
     "</span>" +
     "<h1>Admin token</h1>" +
-    '<p class="lede">This console reads the Gemini and ElevenLabs pools, the ledger and the settings of this deployment. The token stays in this browser.</p>' +
+    '<p class="lede">This console reads every provider pool, the ledger and the settings of this deployment. The token stays in this browser.</p>' +
     '<form id="gateForm" autocomplete="off" class="u-mt-5">' +
     '<label class="field" for="token">Deployment admin token</label>' +
     '<div class="row">' +
@@ -2317,9 +2316,10 @@ export function helpDialog(): string {
     ["rollup", "7d and 30d read the daily rollup, one row per day"],
     ["memory", "The pool and the ledger live in this process. A restart empties them"],
     ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
-    ["gemini", "The Google Generative Language pool. Chat, embeddings and every non-TTS route"],
+    ["gemini", "The Google Generative Language pool. Chat, TTS, image and embeddings"],
     ["elevenlabs", "The ElevenLabs pool. Text to speech and voices, routed by the model name on /v1/audio/speech"],
     ["whatstoken", "The WhatsToken pool. An OpenAI-compatible gateway fronted for the DeepSeek family only, on the chat route"],
+    ["custom", "An operator-added OpenAI-compatible upstream. Its id is its name, and it serves the routes its capabilities allow"],
     ["capability", "What a provider can serve: llm, tts, image, video or embeddings. A route refuses a provider without it"],
     ["provider/model", "Explicit routing: `whatstoken/deepseek-v4.1-flash-1017` names the pool AND the model. A bare id is resolved by catalog"],
     ["import", "Reading a provider's own /v1/models into the console, so its models can be picked instead of typed"],
@@ -2537,22 +2537,34 @@ export const CLIENT_JS = `
     /* Provider identity: the provider's colour AND its word. The colour is
        never the only signal, so a badge always names the provider it marks.
        Any id renders — a custom provider keeps its own id as the word. */
+    /* Canonical provider word: builtin ids render their registry label;
+       a custom provider keeps its own id as the word. */
+    providerLabel: function (provider) {
+      var p = String(provider || "");
+      if (p === "gemini") return "Gemini";
+      if (p === "elevenlabs") return "ElevenLabs";
+      if (p === "whatstoken") return "WhatsToken";
+      return p;
+    },
+
     providerTag: function (provider) {
-      var p = String(provider || "gemini");
-      return GX.el("span", { class: "prov", "data-p": p }, [
-        GX.el("span", { class: "prov-dot", "data-p": p }),
-        GX.el("span", { text: p })
+      var p = String(provider || "");
+      var shown = p || "unknown";
+      return GX.el("span", { class: "prov", "data-p": shown }, [
+        GX.el("span", { class: "prov-dot", "data-p": shown }),
+        GX.el("span", { text: p ? GX.providerLabel(p) : "Unknown" })
       ]);
     },
 
     providerDot: function (provider) {
-      var p = String(provider || "gemini");
-      return GX.el("span", { class: "prov-dot", "data-p": p, title: p });
+      var p = String(provider || "");
+      return GX.el("span", { class: "prov-dot", "data-p": p || "unknown", title: p ? GX.providerLabel(p) : "Unknown" });
     },
 
-    /* Which pool served a row. The ledger records the provider explicitly;
-       this is the fallback for rows written before that column existed, and
-       it understands the provider/model naming convention. */
+    /* Legacy fallback only: which pool served a row when the ledger row
+       carries no recorded provider. Call sites prefer the recorded
+       provider first; this heuristic defaults unmatched models to gemini,
+       so legacy WhatsToken/custom rows still land in the Gemini bucket. */
     providerFromModel: function (model) {
       var m = String(model || "");
       var slash = m.indexOf("/");

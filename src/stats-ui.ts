@@ -285,11 +285,11 @@ const STATS_SCRIPT = `
   function paint(d) {
     renderKpis(d);
     el.meta.textContent = "Source: " + sourceLabel(d.source) + ". " + (d.note || "");
-    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+    el.stamp.textContent = "updated " + GX.fmt.time(Date.now());
     fillHeat(d.heatmap);
     fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
-      { label: "provider", node: function (r) { return GX.providerTag(GX.providerFromModel(r.key)); } },
+      { label: "provider", node: function (r) { return GX.providerTag(r.provider || GX.providerFromModel(r.key)); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
@@ -298,6 +298,7 @@ const STATS_SCRIPT = `
     ]);
     fillBucket("byKey", "byKeyEmpty", "byKeyMeta", d.byKey, [
       { label: "key", value: function (r) { return r.key; } },
+      { label: "provider", node: function (r) { return GX.providerTag(r.provider); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "rot", value: function (r) { return GX.fmt.num(r.rotated); } },

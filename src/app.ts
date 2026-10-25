@@ -131,7 +131,7 @@ const SHELL_PATHS = [
   "/pengatur",
   "/pengatur/login",
   "/pengatur/models",
-  "/pengatur/usage",
+  "/pengatur/usage", // redirects to /pengatur/logs; kept public so the redirect works pre-auth
   "/pengatur/stats",
   "/pengatur/keys",
   "/pengatur/providers",
@@ -1560,13 +1560,16 @@ app.onError((e, c) => {
 });
 
 /** Usage console shell. Public like the other two; its data endpoints are not. */
-app.get("/pengatur/usage", (c) => c.html(USAGE_HTML));
+app.get("/pengatur/usage", (c) => {
+  const url = new URL(c.req.url);
+  return c.redirect("/pengatur/logs" + (url.search || ""), 302);
+});
 
 /**
  * Ledger snapshot. Paged and filtered server-side so the browser never
  * downloads the whole ring.
  */
-app.get("/pengatur/usage/data", (c) => {
+const usageDataHandler = (c: Context) => {
   const q = new URL(c.req.url).searchParams;
   const filter: RowFilter = {
     day: q.get("day") ?? undefined,
@@ -1578,10 +1581,12 @@ app.get("/pengatur/usage/data", (c) => {
   const page = Number(q.get("page") ?? 1) || 1;
   const pageSize = Number(q.get("pageSize") ?? 25) || 25;
   return c.json(usageOverview(page, pageSize, filter));
-});
+};
+app.get("/pengatur/logs/data", usageDataHandler);
+app.get("/pengatur/usage/data", usageDataHandler);
 
 /** Same filters as the console, one CSV file. */
-app.get("/pengatur/usage/export.csv", (c) => {
+const usageExportHandler = (c: Context) => {
   const q = new URL(c.req.url).searchParams;
   const filter: RowFilter = {
     day: q.get("day") ?? undefined,
@@ -1598,9 +1603,11 @@ app.get("/pengatur/usage/export.csv", (c) => {
       "content-disposition": `attachment; filename="omniproxy-usage-${new Date().toISOString().slice(0, 10)}.csv"`,
     },
   });
-});
+};
+app.get("/pengatur/logs/export.csv", usageExportHandler);
+app.get("/pengatur/usage/export.csv", usageExportHandler);
 
-/** Request-log console also answers on /pengatur/logs; same shell, same data. */
+/** Request-log console. The old /pengatur/usage shell redirects here; its data/export paths stay as aliases. */
 app.get("/pengatur/logs", (c) => c.html(USAGE_HTML));
 
 /** Settings console shell. Public like the other shells; its data routes are not. */

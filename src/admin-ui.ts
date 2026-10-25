@@ -81,7 +81,7 @@ const OVERVIEW_BODY = `
         <div id="providerDays"></div>
         <div class="bars u-mt-3" id="providerMix"></div>
         <div class="meta u-mt-3" id="providerTotal"></div>
-        <p class="hint u-mt-3">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
+        <p class="hint u-mt-3">Split by the provider recorded in the request ledger.</p>
       </div>
     </section>
 
@@ -93,7 +93,7 @@ const OVERVIEW_BODY = `
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
         <p class="hint u-mt-3" id="planPct"></p>
-        <p class="hint u-mt-3">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-3">Plans are declared by the operator: no provider reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
@@ -366,7 +366,7 @@ const OVERVIEW_SCRIPT = `
       return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
     });
     order.forEach(function (prov) {
-      el.providerMix.appendChild(GX.meter(prov, byProv[prov] || 0, total, provTone(prov)));
+      el.providerMix.appendChild(GX.meter(GX.providerLabel(prov), byProv[prov] || 0, total, provTone(prov)));
     });
     el.providerTotal.textContent = "Total " + GX.fmt.num(total) + " requests in the last 30 days";
 
@@ -383,7 +383,7 @@ const OVERVIEW_SCRIPT = `
     });
     var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day by provider" });
     Object.keys(byDay).sort().forEach(function (day) {
-      var col = GX.el("div", { class: "daybar", title: day + " · " + order.map(function (p) { return p + " " + (byDay[day][p] || 0); }).join(" · ") });
+      var col = GX.el("div", { class: "daybar", title: day + " · " + order.map(function (p) { return GX.providerLabel(p) + " " + (byDay[day][p] || 0); }).join(" · ") });
       order.forEach(function (p) {
         col.appendChild(GX.el("span", { class: provTone(p), style: "height:" + (maxDay ? (((byDay[day][p] || 0) / maxDay) * 100).toFixed(1) : 0) + "%" }));
       });
@@ -397,7 +397,7 @@ const OVERVIEW_SCRIPT = `
       var pct = total ? ((n / total) * 100).toFixed(1) : "0.0";
       legend.appendChild(GX.el("span", { class: "legend-item" }, [
         GX.el("span", { class: "dot " + provTone(p) }),
-        GX.el("span", { text: p }),
+        GX.el("span", { text: GX.providerLabel(p) }),
         GX.el("b", { text: GX.fmt.num(n) + " (" + pct + "%)" })
       ]));
     });
@@ -410,7 +410,7 @@ const OVERVIEW_SCRIPT = `
     var total = (t.free || 0) + (t.paid || 0) + (t.pro || 0) + (t.unknown || 0);
     el.planMix.appendChild(GX.meter("Free tier", t.free || 0, total, "ok"));
     el.planMix.appendChild(GX.meter("Pay as you go", t.paid || 0, total, "info"));
-    el.planMix.appendChild(GX.meter("AI Pro", t.pro || 0, total, "info"));
+    el.planMix.appendChild(GX.meter("AI Pro / Ultra", t.pro || 0, total, "info"));
     el.planMix.appendChild(GX.meter("Unspecified", t.unknown || 0, total, "warn"));
     /* Plans declared moved here from the pool hero: the count belongs with
        the mix it summarises. Meters carry no % text, so the shares are
@@ -424,7 +424,7 @@ const OVERVIEW_SCRIPT = `
     el.planPct.textContent = [
       ["Free tier", t.free || 0],
       ["Pay as you go", t.paid || 0],
-      ["AI Pro", t.pro || 0],
+      ["AI Pro / Ultra", t.pro || 0],
       ["Unspecified", t.unknown || 0]
     ].map(function (row) {
       return row[0] + " " + ((row[1] / total) * 100).toFixed(1) + "%";

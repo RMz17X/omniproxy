@@ -11771,7 +11771,6 @@ var NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 var SECTION_LABELS = {
   "/pengatur": "Overview",
   "/pengatur/logs": "Logs",
-  "/pengatur/usage": "Logs",
   "/pengatur/stats": "Statistics",
   "/pengatur/keys": "Keys",
   "/pengatur/providers": "Providers",
@@ -11893,7 +11892,7 @@ var LOGIN_JS = `
 })();
 `;
 function authGate() {
-  return '<section class="gate-wrap" id="gate"><div class="panel gate"><div class="card-body"><span class="gate-mark">' + icon("lock", "icon", 20) + '</span><h1>Admin token</h1><p class="lede">This console reads the Gemini and ElevenLabs pools, the ledger and the settings of this deployment. The token stays in this browser.</p><form id="gateForm" autocomplete="off" class="u-mt-5"><label class="field" for="token">Deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint u-mt-3">Sent only to this deployment, as a bearer token over HTTPS.</p></form><div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div></div></div></section>';
+  return '<section class="gate-wrap" id="gate"><div class="panel gate"><div class="card-body"><span class="gate-mark">' + icon("lock", "icon", 20) + '</span><h1>Admin token</h1><p class="lede">This console reads every provider pool, the ledger and the settings of this deployment. The token stays in this browser.</p><form id="gateForm" autocomplete="off" class="u-mt-5"><label class="field" for="token">Deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint u-mt-3">Sent only to this deployment, as a bearer token over HTTPS.</p></form><div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div></div></div></section>';
 }
 function helpDialog() {
   const keys = [
@@ -11915,9 +11914,10 @@ function helpDialog() {
     ["rollup", "7d and 30d read the daily rollup, one row per day"],
     ["memory", "The pool and the ledger live in this process. A restart empties them"],
     ["masked key", "The raw key never reaches the browser, only its masked form and its sha256 id"],
-    ["gemini", "The Google Generative Language pool. Chat, embeddings and every non-TTS route"],
+    ["gemini", "The Google Generative Language pool. Chat, TTS, image and embeddings"],
     ["elevenlabs", "The ElevenLabs pool. Text to speech and voices, routed by the model name on /v1/audio/speech"],
     ["whatstoken", "The WhatsToken pool. An OpenAI-compatible gateway fronted for the DeepSeek family only, on the chat route"],
+    ["custom", "An operator-added OpenAI-compatible upstream. Its id is its name, and it serves the routes its capabilities allow"],
     ["capability", "What a provider can serve: llm, tts, image, video or embeddings. A route refuses a provider without it"],
     ["provider/model", "Explicit routing: `whatstoken/deepseek-v4.1-flash-1017` names the pool AND the model. A bare id is resolved by catalog"],
     ["import", "Reading a provider's own /v1/models into the console, so its models can be picked instead of typed"],
@@ -12071,22 +12071,34 @@ var CLIENT_JS = `
     /* Provider identity: the provider's colour AND its word. The colour is
        never the only signal, so a badge always names the provider it marks.
        Any id renders \u2014 a custom provider keeps its own id as the word. */
+    /* Canonical provider word: builtin ids render their registry label;
+       a custom provider keeps its own id as the word. */
+    providerLabel: function (provider) {
+      var p = String(provider || "");
+      if (p === "gemini") return "Gemini";
+      if (p === "elevenlabs") return "ElevenLabs";
+      if (p === "whatstoken") return "WhatsToken";
+      return p;
+    },
+
     providerTag: function (provider) {
-      var p = String(provider || "gemini");
-      return GX.el("span", { class: "prov", "data-p": p }, [
-        GX.el("span", { class: "prov-dot", "data-p": p }),
-        GX.el("span", { text: p })
+      var p = String(provider || "");
+      var shown = p || "unknown";
+      return GX.el("span", { class: "prov", "data-p": shown }, [
+        GX.el("span", { class: "prov-dot", "data-p": shown }),
+        GX.el("span", { text: p ? GX.providerLabel(p) : "Unknown" })
       ]);
     },
 
     providerDot: function (provider) {
-      var p = String(provider || "gemini");
-      return GX.el("span", { class: "prov-dot", "data-p": p, title: p });
+      var p = String(provider || "");
+      return GX.el("span", { class: "prov-dot", "data-p": p || "unknown", title: p ? GX.providerLabel(p) : "Unknown" });
     },
 
-    /* Which pool served a row. The ledger records the provider explicitly;
-       this is the fallback for rows written before that column existed, and
-       it understands the provider/model naming convention. */
+    /* Legacy fallback only: which pool served a row when the ledger row
+       carries no recorded provider. Call sites prefer the recorded
+       provider first; this heuristic defaults unmatched models to gemini,
+       so legacy WhatsToken/custom rows still land in the Gemini bucket. */
     providerFromModel: function (model) {
       var m = String(model || "");
       var slash = m.indexOf("/");
@@ -12849,7 +12861,7 @@ var OVERVIEW_BODY = `
         <div id="providerDays"></div>
         <div class="bars u-mt-3" id="providerMix"></div>
         <div class="meta u-mt-3" id="providerTotal"></div>
-        <p class="hint u-mt-3">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
+        <p class="hint u-mt-3">Split by the provider recorded in the request ledger.</p>
       </div>
     </section>
 
@@ -12861,7 +12873,7 @@ var OVERVIEW_BODY = `
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
         <p class="hint u-mt-3" id="planPct"></p>
-        <p class="hint u-mt-3">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-3">Plans are declared by the operator: no provider reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
@@ -13133,7 +13145,7 @@ var OVERVIEW_SCRIPT = `
       return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
     });
     order.forEach(function (prov) {
-      el.providerMix.appendChild(GX.meter(prov, byProv[prov] || 0, total, provTone(prov)));
+      el.providerMix.appendChild(GX.meter(GX.providerLabel(prov), byProv[prov] || 0, total, provTone(prov)));
     });
     el.providerTotal.textContent = "Total " + GX.fmt.num(total) + " requests in the last 30 days";
 
@@ -13150,7 +13162,7 @@ var OVERVIEW_SCRIPT = `
     });
     var chart = GX.el("div", { class: "daybars", role: "img", "aria-label": "requests per day by provider" });
     Object.keys(byDay).sort().forEach(function (day) {
-      var col = GX.el("div", { class: "daybar", title: day + " \xB7 " + order.map(function (p) { return p + " " + (byDay[day][p] || 0); }).join(" \xB7 ") });
+      var col = GX.el("div", { class: "daybar", title: day + " \xB7 " + order.map(function (p) { return GX.providerLabel(p) + " " + (byDay[day][p] || 0); }).join(" \xB7 ") });
       order.forEach(function (p) {
         col.appendChild(GX.el("span", { class: provTone(p), style: "height:" + (maxDay ? (((byDay[day][p] || 0) / maxDay) * 100).toFixed(1) : 0) + "%" }));
       });
@@ -13164,7 +13176,7 @@ var OVERVIEW_SCRIPT = `
       var pct = total ? ((n / total) * 100).toFixed(1) : "0.0";
       legend.appendChild(GX.el("span", { class: "legend-item" }, [
         GX.el("span", { class: "dot " + provTone(p) }),
-        GX.el("span", { text: p }),
+        GX.el("span", { text: GX.providerLabel(p) }),
         GX.el("b", { text: GX.fmt.num(n) + " (" + pct + "%)" })
       ]));
     });
@@ -13177,7 +13189,7 @@ var OVERVIEW_SCRIPT = `
     var total = (t.free || 0) + (t.paid || 0) + (t.pro || 0) + (t.unknown || 0);
     el.planMix.appendChild(GX.meter("Free tier", t.free || 0, total, "ok"));
     el.planMix.appendChild(GX.meter("Pay as you go", t.paid || 0, total, "info"));
-    el.planMix.appendChild(GX.meter("AI Pro", t.pro || 0, total, "info"));
+    el.planMix.appendChild(GX.meter("AI Pro / Ultra", t.pro || 0, total, "info"));
     el.planMix.appendChild(GX.meter("Unspecified", t.unknown || 0, total, "warn"));
     /* Plans declared moved here from the pool hero: the count belongs with
        the mix it summarises. Meters carry no % text, so the shares are
@@ -13191,7 +13203,7 @@ var OVERVIEW_SCRIPT = `
     el.planPct.textContent = [
       ["Free tier", t.free || 0],
       ["Pay as you go", t.paid || 0],
-      ["AI Pro", t.pro || 0],
+      ["AI Pro / Ultra", t.pro || 0],
       ["Unspecified", t.unknown || 0]
     ].map(function (row) {
       return row[0] + " " + ((row[1] / total) * 100).toFixed(1) + "%";
@@ -13500,7 +13512,7 @@ var MODELS_BODY = `
     <div class="page-head-main">
       <span class="eyebrow">Catalog</span>
       <h1 class="page-title">Models &amp; Voices</h1>
-      <p class="page-lede">Unified inventory across providers. Gemini models and ElevenLabs voices/models in one place.</p>
+      <p class="page-lede">Unified inventory across providers: Gemini models, ElevenLabs voices, WhatsToken models and custom upstreams in one place.</p>
     </div>
     <div class="page-head-side">
       <span class="meta" id="asOf">-</span>
@@ -13561,7 +13573,7 @@ var MODELS_BODY = `
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
           <button type="button" data-tier="paid" aria-pressed="false">Pay as you go</button>
-          <button type="button" data-tier="pro" aria-pressed="false">AI Pro</button>
+          <button type="button" data-tier="pro" aria-pressed="false">AI Pro / Ultra</button>
           <button type="button" data-tier="any" aria-pressed="false">Everything</button>
         </div>
       </div>
@@ -13621,9 +13633,11 @@ var MODELS_SCRIPT = `
 
   var state = { models: [], census: {}, page: 1, size: 25, tier: "free", testing: {}, pendingProvider: "" };
 
+  /* Prices use the shared money format; null stays null so unpriced models
+     keep an empty cell instead of a dash. */
   function money(v) {
     if (v === null || v === undefined) return null;
-    return "$" + (v >= 1 ? v.toFixed(2) : v.toFixed(3));
+    return GX.fmt.money(v);
   }
 
   function tierMatches(m) {
@@ -13713,7 +13727,8 @@ var MODELS_SCRIPT = `
     }).forEach(function (p) {
       var opt = document.createElement("option");
       opt.value = p;
-      opt.textContent = p + (census[p] ? " (" + census[p] + ")" : "");
+      var lbl = GX.providerLabel(p);
+      opt.textContent = (lbl !== p ? lbl + " (" + p + ")" : p) + (census[p] ? " (" + census[p] + ")" : "");
       el.provider.appendChild(opt);
     });
     if (current && el.provider.querySelector('option[value="' + current + '"]')) el.provider.value = current;
@@ -13727,7 +13742,8 @@ var MODELS_SCRIPT = `
       if (!el.provider.querySelector('option[value="' + want + '"]')) {
         var extra = document.createElement("option");
         extra.value = want;
-        extra.textContent = want;
+        var wlbl = GX.providerLabel(want);
+        extra.textContent = wlbl !== want ? wlbl + " (" + want + ")" : want;
         el.provider.appendChild(extra);
       }
       el.provider.value = want;
@@ -13744,7 +13760,7 @@ var MODELS_SCRIPT = `
       if (a === b) return 0;
       return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
     }).forEach(function (p) {
-      el.kpis.appendChild(GX.kpi(p, GX.fmt.num(census[p] || 0), p + " models", provTone(p)));
+      el.kpis.appendChild(GX.kpi(GX.providerLabel(p), GX.fmt.num(census[p] || 0), p + " models", provTone(p)));
     });
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
@@ -13869,7 +13885,7 @@ var MODELS_SCRIPT = `
         btn.addEventListener("click", function () { testModel(m, btn, pv); });
         actions.appendChild(btn);
       } else {
-        actions.appendChild(GX.el("span", { class: "sub", text: (m.kind === "voice" || m.provider === "elevenlabs") ? "voices serve via /v1/audio/speech" : "" }));
+        actions.appendChild(GX.el("span", { class: "sub", text: (m.kind === "voice" || m.provider === "elevenlabs") ? "voices serve via /v1/audio/speech" : "probe supports Gemini text models only" }));
       }
       tr.appendChild(actions);
 
@@ -15397,16 +15413,33 @@ function sumRows(list3) {
 }
 function bucketBy(list3, keyOf) {
   const map = /* @__PURE__ */ new Map();
+  const prov = /* @__PURE__ */ new Map();
   for (const r of list3) {
     const k = keyOf(r) || "unknown";
     let acc = map.get(k);
     if (!acc) {
       acc = emptyTotals();
       map.set(k, acc);
+      prov.set(k, /* @__PURE__ */ new Map());
     }
     addInto(acc, r);
+    if (r.provider) {
+      const counts = prov.get(k);
+      if (counts) counts.set(r.provider, (counts.get(r.provider) || 0) + 1);
+    }
   }
-  return [...map.entries()].map(([key, acc]) => ({ key, ...finish(acc) })).sort((a2, b2) => b2.requests - a2.requests || b2.totalTokens - a2.totalTokens);
+  return [...map.entries()].map(([key, acc]) => {
+    let provider = "";
+    let best = 0;
+    const counts = prov.get(key);
+    if (counts) counts.forEach((n, p2) => {
+      if (n > best) {
+        best = n;
+        provider = p2;
+      }
+    });
+    return { key, provider, ...finish(acc) };
+  }).sort((a2, b2) => b2.requests - a2.requests || b2.totalTokens - a2.totalTokens);
 }
 var dayOf = (ts2) => new Date(ts2).toISOString().slice(0, 10);
 function filterRows(list3, f) {
@@ -17330,11 +17363,11 @@ var STATS_SCRIPT = `
   function paint(d) {
     renderKpis(d);
     el.meta.textContent = "Source: " + sourceLabel(d.source) + ". " + (d.note || "");
-    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
+    el.stamp.textContent = "updated " + GX.fmt.time(Date.now());
     fillHeat(d.heatmap);
     fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
-      { label: "provider", node: function (r) { return GX.providerTag(GX.providerFromModel(r.key)); } },
+      { label: "provider", node: function (r) { return GX.providerTag(r.provider || GX.providerFromModel(r.key)); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
@@ -17343,6 +17376,7 @@ var STATS_SCRIPT = `
     ]);
     fillBucket("byKey", "byKeyEmpty", "byKeyMeta", d.byKey, [
       { label: "key", value: function (r) { return r.key; } },
+      { label: "provider", node: function (r) { return GX.providerTag(r.provider); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "rot", value: function (r) { return GX.fmt.num(r.rotated); } },
@@ -17470,12 +17504,14 @@ var emptyTotals2 = () => ({
 });
 function bucketRows(list3, keyOf) {
   const map = /* @__PURE__ */ new Map();
+  const prov = /* @__PURE__ */ new Map();
   for (const r of list3) {
     const k = keyOf(r) || "unknown";
     let acc = map.get(k);
     if (!acc) {
-      acc = { key: k, requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
+      acc = { key: k, provider: "", requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
       map.set(k, acc);
+      prov.set(k, /* @__PURE__ */ new Map());
     }
     acc.requests++;
     if (!r.ok) acc.errors++;
@@ -17485,9 +17521,23 @@ function bucketRows(list3, keyOf) {
     acc.totalTokens += r.totalTokens;
     acc.costUsd += r.costUsd ?? 0;
     acc.avgLatencyMs += r.latencyMs;
+    if (r.provider) {
+      const counts = prov.get(k);
+      if (counts) counts.set(r.provider, (counts.get(r.provider) || 0) + 1);
+    }
   }
   const out = [...map.values()];
-  for (const b2 of out) b2.avgLatencyMs = b2.requests ? Math.round(b2.avgLatencyMs / b2.requests) : 0;
+  for (const b2 of out) {
+    b2.avgLatencyMs = b2.requests ? Math.round(b2.avgLatencyMs / b2.requests) : 0;
+    let best = 0;
+    const counts = prov.get(b2.key);
+    if (counts) counts.forEach((n, p2) => {
+      if (n > best) {
+        best = n;
+        b2.provider = p2;
+      }
+    });
+  }
   return out.sort((a2, b2) => b2.requests - a2.requests || b2.totalTokens - a2.totalTokens);
 }
 function providerDayFromRing(rows) {
@@ -17563,12 +17613,18 @@ var num2 = (v2) => {
 };
 function dailyBucket(rows, keyOf) {
   const map = /* @__PURE__ */ new Map();
+  const prov = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const k = keyOf(r) || "unknown";
     let acc = map.get(k);
     if (!acc) {
-      acc = { key: k, requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
+      acc = { key: k, provider: "", requests: 0, errors: 0, rotated: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, avgLatencyMs: 0 };
       map.set(k, acc);
+      prov.set(k, /* @__PURE__ */ new Map());
+    }
+    if (r.provider) {
+      const counts = prov.get(k);
+      if (counts) counts.set(r.provider, (counts.get(r.provider) || 0) + 1);
     }
     const requests = num2(r.requests);
     acc.requests += requests;
@@ -17581,7 +17637,17 @@ function dailyBucket(rows, keyOf) {
     acc.avgLatencyMs += requests * num2(r.p50_ms);
   }
   const out = [...map.values()];
-  for (const b2 of out) b2.avgLatencyMs = b2.requests ? Math.round(b2.avgLatencyMs / b2.requests) : 0;
+  for (const b2 of out) {
+    b2.avgLatencyMs = b2.requests ? Math.round(b2.avgLatencyMs / b2.requests) : 0;
+    let best = 0;
+    const counts = prov.get(b2.key);
+    if (counts) counts.forEach((n, p2) => {
+      if (n > best) {
+        best = n;
+        b2.provider = p2;
+      }
+    });
+  }
   for (const b2 of out) b2.costUsd = Number(b2.costUsd.toFixed(6));
   return out.sort((a2, b2) => b2.requests - a2.requests);
 }
@@ -18002,7 +18068,7 @@ var USAGE_SCRIPT = `
     for (var k in state.filter) {
       if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
     }
-    return "/pengatur/usage/data?" + q.join("&");
+    return "/pengatur/logs/data?" + q.join("&");
   }
 
   function filterQuery() {
@@ -18081,14 +18147,13 @@ var USAGE_SCRIPT = `
     if (!rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
-      GX.cell(tr, GX.fmt.date(r.ts) + " " + GX.fmt.clock(r.ts), "mono nowrap", "time");
+      GX.cell(tr, GX.fmt.stamp(r.ts), "mono nowrap", "time");
       GX.cell(tr, r.route, "mono", "route");
       GX.cell(tr, r.model || "-", "mono", "model");
-      /* The ledger has no provider column: ElevenLabs TTS is logged under
-         the elevenlabs model and everything else through the Gemini pool,
-         so the model name says which upstream served the row. */
+      /* The ledger records the provider; the model-name heuristic is only
+         the fallback for rows written before that column existed. */
       var provCell = GX.el("td", { "data-l": "provider" });
-      provCell.appendChild(GX.providerTag(GX.providerFromModel(r.model)));
+      provCell.appendChild(GX.providerTag(r.provider || GX.providerFromModel(r.model)));
       tr.appendChild(provCell);
       GX.cell(tr, r.keyMasked || "-", "mono", "key");
       var statusCell = GX.el("td", { "data-l": "status" });
@@ -18147,7 +18212,7 @@ var USAGE_SCRIPT = `
 
     renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
-      { label: "provider", node: function (b) { return GX.providerTag(GX.providerFromModel(b.key)); } },
+      { label: "provider", node: function (b) { return GX.providerTag(b.provider || GX.providerFromModel(b.key)); } },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "promptTokens", num: true, label: "prompt" },
@@ -18159,6 +18224,7 @@ var USAGE_SCRIPT = `
 
     renderBuckets(el.byKey, "byKeyEmpty", "byKeyMeta", data.byKey || [], [
       { k: "key", label: "key" },
+      { label: "provider", node: function (b) { return GX.providerTag(b.provider); } },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "rotated", num: true, label: "rot" },
@@ -18217,7 +18283,7 @@ var USAGE_SCRIPT = `
 
   function exportCsv() {
     GX.busy(el.csv, "Exporting\u2026");
-    GX.download("/pengatur/usage/export.csv" + filterQuery(), "omniproxy-usage.csv")
+    GX.download("/pengatur/logs/export.csv" + filterQuery(), "omniproxy-usage.csv")
       .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });
   }
@@ -18499,14 +18565,14 @@ var KEYS_SCRIPT = `
     return "unverified";
   }
 
-  /* Browser locale on purpose: the operator reads the clock on this machine. */
+  /* Absolute times use the shared log stamp, so every page says the same thing. */
   function whenText(ms) {
     if (ms === null || ms === undefined || ms === "") return "";
     var n = Number(ms);
     if (!n || isNaN(n)) return "";
     var date = new Date(n);
     if (isNaN(date.getTime())) return "";
-    return date.toLocaleString();
+    return GX.fmt.stamp(n);
   }
 
   function quotaText(q) {
@@ -18657,7 +18723,7 @@ var KEYS_SCRIPT = `
     if (!el.newProviderHint) return;
     var id = el.newProvider ? el.newProvider.value : "";
     if (!id) {
-      el.newProviderHint.textContent = "Each key is matched to a provider by its format (AIza\u2026 Google, sk_\u2026 ElevenLabs, sk-\u2026 gateways).";
+      el.newProviderHint.textContent = "Each key is matched to a provider by its format (AIza\u2026 Google, sk_\u2026 ElevenLabs, sk-\u2026 OpenAI-compatible gateways).";
       return;
     }
     var hit = null;
@@ -19500,6 +19566,29 @@ var DETAIL_SCRIPT = `
   /* The plan vocabulary. TIERS and tierLabel live in the list page's script,
      and this is a separate IIFE that shares no scope with it, so the same
      table is baked in here. */
+
+  /* Same normalised status vocabulary as the list page (ready / cooling /
+     quota / dead / unverified): the detail page used to print the raw
+     backend string, so the same key read differently on the two pages. */
+  var DETAIL_STATUS_LABEL = { ready: "Ready", cooling: "Cooling", quota: "Quota exhausted", dead: "Dead", unverified: "Unverified" };
+  var DETAIL_STATUS_TONE = { ready: "ok", cooling: "accent", quota: "warn", dead: "bad", unverified: "neutral" };
+  function statusKindDetail(k) {
+    var status = String((k && k.status) || "").toLowerCase();
+    var quota = k && k.quota ? k.quota : null;
+    if (status.indexOf("cool") >= 0 || status.indexOf("wait") >= 0) return "cooling";
+    if (status.indexOf("quota") >= 0 || status.indexOf("exhaust") >= 0 ||
+        status.indexOf("429") >= 0 || status.indexOf("rate") >= 0 ||
+        status.indexOf("limit") >= 0) return "quota";
+    if (status.indexOf("dead") >= 0 || status.indexOf("invalid") >= 0 ||
+        status.indexOf("revoked") >= 0 || status.indexOf("denied") >= 0 ||
+        status.indexOf("reject") >= 0) return "dead";
+    if (status.indexOf("ready") >= 0 || status.indexOf("active") >= 0 || status === "ok") return "ready";
+    if (!status) return quota ? "quota" : "unverified";
+    if (status.indexOf("unverified") >= 0 || status.indexOf("unknown") >= 0) return "unverified";
+    if (quota && quota.resetAt && Number(quota.resetAt) > Date.now()) return "quota";
+    if (k && k.nextAccessAt && Number(k.nextAccessAt) > Date.now()) return "cooling";
+    return "unverified";
+  }
   var TIERS = [
     { value: "unknown", label: "Unspecified" },
     { value: "free", label: "Free tier" },
@@ -19517,15 +19606,14 @@ var DETAIL_SCRIPT = `
      renderCredential so the probe handler can match that toast exactly. */
   var detailMasked = "";
 
-  /* Browser locale on purpose: the operator reads the clock on this machine.
-     Mirrors the list page's helpers so both pages say the same thing. */
+  /* Same shared log stamp as the list page. */
   function whenText(ms) {
     if (ms === null || ms === undefined || ms === "") return "";
     var n = Number(ms);
     if (!n || isNaN(n)) return "";
     var date = new Date(n);
     if (isNaN(date.getTime())) return "";
-    return date.toLocaleString();
+    return GX.fmt.stamp(n);
   }
 
   function quotaText(q) {
@@ -19620,12 +19708,13 @@ var DETAIL_SCRIPT = `
      record rather than as a dashboard. */
   function renderSummary(k) {
     el.summary.textContent = "";
+    var kind = statusKindDetail(k);
     var rows = [
-      ["Provider", k.provider || "gemini", ""],
+      ["Provider", GX.providerLabel(k.provider) || "-", ""],
       /* The list shows the plan label ("Pay as you go"); the detail page used
          to show the raw code ("paid") for the same key. One fact, one word. */
       ["Plan", tierLabel(k.plan || "") || k.plan || "-", k.plan === "free" ? "ok" : ""],
-      ["State", k.status || "-", k.status === "ready" ? "ok" : k.status === "cooling" ? "warn" : "bad"],
+      ["State", DETAIL_STATUS_LABEL[kind], DETAIL_STATUS_TONE[kind]],
       ["Enabled", k.enabled === false ? "no" : "yes", k.enabled === false ? "warn" : "ok"],
       ["Failures", k.failures, k.failures ? "warn" : ""],
       ["Invalidations", k.invalidations, k.invalidations ? "bad" : ""],
@@ -19725,7 +19814,7 @@ var DETAIL_SCRIPT = `
     /* The provider badge rides in the lede: which upstream pool this key
        belongs to is the first fact about it. */
     el.keyPath.textContent = "";
-    el.keyPath.appendChild(GX.providerTag(k.provider || "gemini"));
+    el.keyPath.appendChild(GX.providerTag(k.provider));
     el.keyPath.appendChild(document.createTextNode(" \xB7 id " + k.id));
     renderCredential(k);
     renderSummary(k);
@@ -20911,6 +21000,7 @@ var SHELL_PATHS = [
   "/pengatur/login",
   "/pengatur/models",
   "/pengatur/usage",
+  // redirects to /pengatur/logs; kept public so the redirect works pre-auth
   "/pengatur/stats",
   "/pengatur/keys",
   "/pengatur/providers",
@@ -21925,8 +22015,11 @@ app.onError((e, c) => {
   console.error("[omniproxy] unhandled:", e);
   return c.json({ error: { message: e.message } }, 500);
 });
-app.get("/pengatur/usage", (c) => c.html(USAGE_HTML));
-app.get("/pengatur/usage/data", (c) => {
+app.get("/pengatur/usage", (c) => {
+  const url = new URL(c.req.url);
+  return c.redirect("/pengatur/logs" + (url.search || ""), 302);
+});
+var usageDataHandler = (c) => {
   const q = new URL(c.req.url).searchParams;
   const filter = {
     day: q.get("day") ?? void 0,
@@ -21938,8 +22031,10 @@ app.get("/pengatur/usage/data", (c) => {
   const page = Number(q.get("page") ?? 1) || 1;
   const pageSize = Number(q.get("pageSize") ?? 25) || 25;
   return c.json(usageOverview(page, pageSize, filter));
-});
-app.get("/pengatur/usage/export.csv", (c) => {
+};
+app.get("/pengatur/logs/data", usageDataHandler);
+app.get("/pengatur/usage/data", usageDataHandler);
+var usageExportHandler = (c) => {
   const q = new URL(c.req.url).searchParams;
   const filter = {
     day: q.get("day") ?? void 0,
@@ -21956,7 +22051,9 @@ app.get("/pengatur/usage/export.csv", (c) => {
       "content-disposition": `attachment; filename="omniproxy-usage-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.csv"`
     }
   });
-});
+};
+app.get("/pengatur/logs/export.csv", usageExportHandler);
+app.get("/pengatur/usage/export.csv", usageExportHandler);
 app.get("/pengatur/logs", (c) => c.html(USAGE_HTML));
 app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
 app.get("/pengatur/settings/data", (c) => c.json(settingsView()));

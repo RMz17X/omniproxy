@@ -477,7 +477,7 @@ export type UsageTotals = {
   avgLatencyMs: number;
 };
 
-export type UsageBucket = UsageTotals & { key: string };
+export type UsageBucket = UsageTotals & { key: string; provider: string };
 
 export type UsageSnapshot = {
   mode: "memory";
@@ -540,17 +540,29 @@ export function sumRows(list: UsageRow[]): UsageTotals {
 
 function bucketBy(list: UsageRow[], keyOf: (r: UsageRow) => string): UsageBucket[] {
   const map = new Map<string, UsageTotals>();
+  const prov = new Map<string, Map<string, number>>();
   for (const r of list) {
     const k = keyOf(r) || "unknown";
     let acc = map.get(k);
     if (!acc) {
       acc = emptyTotals();
       map.set(k, acc);
+      prov.set(k, new Map());
     }
     addInto(acc, r);
+    if (r.provider) {
+      const counts = prov.get(k);
+      if (counts) counts.set(r.provider, (counts.get(r.provider) || 0) + 1);
+    }
   }
   return [...map.entries()]
-    .map(([key, acc]) => ({ key, ...finish(acc) }))
+    .map(([key, acc]) => {
+      let provider = "";
+      let best = 0;
+      const counts = prov.get(key);
+      if (counts) counts.forEach((n, p) => { if (n > best) { best = n; provider = p; } });
+      return { key, provider, ...finish(acc) };
+    })
     .sort((a, b) => b.requests - a.requests || b.totalTokens - a.totalTokens);
 }
 

@@ -1,9 +1,9 @@
 /**
- * Logs console, served at GET /pengatur/logs and GET /pengatur/usage.
+ * Logs console, served at GET /pengatur/logs (the old /pengatur/usage shell redirects there).
  *
  * The request ledger, read from the in-memory ring. The shell carries no
  * data: it asks for the admin token, stores it in localStorage, and reads
- * /pengatur/usage/data. The CSV export uses the same filters.
+ * /pengatur/logs/data. The CSV export uses the same filters; the old /pengatur/usage/data and export paths are kept as aliases.
  *
  * Layout: the totals first as figures, then the filters, then the four
  * breakdowns, then the request log itself. Every table gets the full width,
@@ -220,7 +220,7 @@ const USAGE_SCRIPT = `
     for (var k in state.filter) {
       if (state.filter[k]) q.push(k + "=" + encodeURIComponent(state.filter[k]));
     }
-    return "/pengatur/usage/data?" + q.join("&");
+    return "/pengatur/logs/data?" + q.join("&");
   }
 
   function filterQuery() {
@@ -299,14 +299,13 @@ const USAGE_SCRIPT = `
     if (!rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
-      GX.cell(tr, GX.fmt.date(r.ts) + " " + GX.fmt.clock(r.ts), "mono nowrap", "time");
+      GX.cell(tr, GX.fmt.stamp(r.ts), "mono nowrap", "time");
       GX.cell(tr, r.route, "mono", "route");
       GX.cell(tr, r.model || "-", "mono", "model");
-      /* The ledger has no provider column: ElevenLabs TTS is logged under
-         the elevenlabs model and everything else through the Gemini pool,
-         so the model name says which upstream served the row. */
+      /* The ledger records the provider; the model-name heuristic is only
+         the fallback for rows written before that column existed. */
       var provCell = GX.el("td", { "data-l": "provider" });
-      provCell.appendChild(GX.providerTag(GX.providerFromModel(r.model)));
+      provCell.appendChild(GX.providerTag(r.provider || GX.providerFromModel(r.model)));
       tr.appendChild(provCell);
       GX.cell(tr, r.keyMasked || "-", "mono", "key");
       var statusCell = GX.el("td", { "data-l": "status" });
@@ -365,7 +364,7 @@ const USAGE_SCRIPT = `
 
     renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
-      { label: "provider", node: function (b) { return GX.providerTag(GX.providerFromModel(b.key)); } },
+      { label: "provider", node: function (b) { return GX.providerTag(b.provider || GX.providerFromModel(b.key)); } },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "promptTokens", num: true, label: "prompt" },
@@ -377,6 +376,7 @@ const USAGE_SCRIPT = `
 
     renderBuckets(el.byKey, "byKeyEmpty", "byKeyMeta", data.byKey || [], [
       { k: "key", label: "key" },
+      { label: "provider", node: function (b) { return GX.providerTag(b.provider); } },
       { k: "requests", num: true, label: "req" },
       { k: "errors", num: true, label: "err" },
       { k: "rotated", num: true, label: "rot" },
@@ -435,7 +435,7 @@ const USAGE_SCRIPT = `
 
   function exportCsv() {
     GX.busy(el.csv, "Exporting…");
-    GX.download("/pengatur/usage/export.csv" + filterQuery(), "omniproxy-usage.csv")
+    GX.download("/pengatur/logs/export.csv" + filterQuery(), "omniproxy-usage.csv")
       .catch(function (err) { GX.say(el.err, err.message, "err"); })
       .then(function () { GX.idle(el.csv); });
   }

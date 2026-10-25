@@ -1,12 +1,12 @@
 /**
  * Models console, served at GET /pengatur/models.
  *
- * Live Gemini model inventory with pricing, a free tier verdict and a real
- * per model probe.
+ * Live multi-provider model inventory with pricing, a free tier verdict and
+ * a per model probe.
  *
  * Nothing is hardcoded in the client: /pengatur/models/list returns the live
- * list fetched from the Generative Language API, and every Test button
- * performs an actual generateContent call against the selected model.
+ * list from every provider in the registry, and a Test button on a Gemini
+ * text row performs an actual generateContent call against that model.
  */
 
 import { consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
@@ -18,7 +18,7 @@ const MODELS_BODY = `
     <div class="page-head-main">
       <span class="eyebrow">Catalog</span>
       <h1 class="page-title">Models &amp; Voices</h1>
-      <p class="page-lede">Unified inventory across providers. Gemini models and ElevenLabs voices/models in one place.</p>
+      <p class="page-lede">Unified inventory across providers: Gemini models, ElevenLabs voices, WhatsToken models and custom upstreams in one place.</p>
     </div>
     <div class="page-head-side">
       <span class="meta" id="asOf">-</span>
@@ -79,7 +79,7 @@ const MODELS_BODY = `
         <div class="seg" id="tier" role="group" aria-label="Billing plan">
           <button type="button" data-tier="free" aria-pressed="true">Free tier</button>
           <button type="button" data-tier="paid" aria-pressed="false">Pay as you go</button>
-          <button type="button" data-tier="pro" aria-pressed="false">AI Pro</button>
+          <button type="button" data-tier="pro" aria-pressed="false">AI Pro / Ultra</button>
           <button type="button" data-tier="any" aria-pressed="false">Everything</button>
         </div>
       </div>
@@ -140,9 +140,11 @@ const MODELS_SCRIPT = `
 
   var state = { models: [], census: {}, page: 1, size: 25, tier: "free", testing: {}, pendingProvider: "" };
 
+  /* Prices use the shared money format; null stays null so unpriced models
+     keep an empty cell instead of a dash. */
   function money(v) {
     if (v === null || v === undefined) return null;
-    return "$" + (v >= 1 ? v.toFixed(2) : v.toFixed(3));
+    return GX.fmt.money(v);
   }
 
   function tierMatches(m) {
@@ -232,7 +234,8 @@ const MODELS_SCRIPT = `
     }).forEach(function (p) {
       var opt = document.createElement("option");
       opt.value = p;
-      opt.textContent = p + (census[p] ? " (" + census[p] + ")" : "");
+      var lbl = GX.providerLabel(p);
+      opt.textContent = (lbl !== p ? lbl + " (" + p + ")" : p) + (census[p] ? " (" + census[p] + ")" : "");
       el.provider.appendChild(opt);
     });
     if (current && el.provider.querySelector('option[value="' + current + '"]')) el.provider.value = current;
@@ -246,7 +249,8 @@ const MODELS_SCRIPT = `
       if (!el.provider.querySelector('option[value="' + want + '"]')) {
         var extra = document.createElement("option");
         extra.value = want;
-        extra.textContent = want;
+        var wlbl = GX.providerLabel(want);
+        extra.textContent = wlbl !== want ? wlbl + " (" + want + ")" : want;
         el.provider.appendChild(extra);
       }
       el.provider.value = want;
@@ -263,7 +267,7 @@ const MODELS_SCRIPT = `
       if (a === b) return 0;
       return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
     }).forEach(function (p) {
-      el.kpis.appendChild(GX.kpi(p, GX.fmt.num(census[p] || 0), p + " models", provTone(p)));
+      el.kpis.appendChild(GX.kpi(GX.providerLabel(p), GX.fmt.num(census[p] || 0), p + " models", provTone(p)));
     });
     el.kpis.appendChild(GX.kpi("Free tier", GX.fmt.num(state.models.filter(function (m) { return m.free === true; }).length), "usable without billing", "ok"));
     el.kpis.appendChild(GX.kpi("Paid only", GX.fmt.num(state.models.filter(function (m) { return m.free === false; }).length), "need billing enabled", "warn"));
@@ -388,7 +392,7 @@ const MODELS_SCRIPT = `
         btn.addEventListener("click", function () { testModel(m, btn, pv); });
         actions.appendChild(btn);
       } else {
-        actions.appendChild(GX.el("span", { class: "sub", text: (m.kind === "voice" || m.provider === "elevenlabs") ? "voices serve via /v1/audio/speech" : "" }));
+        actions.appendChild(GX.el("span", { class: "sub", text: (m.kind === "voice" || m.provider === "elevenlabs") ? "voices serve via /v1/audio/speech" : "probe supports Gemini text models only" }));
       }
       tr.appendChild(actions);
 
