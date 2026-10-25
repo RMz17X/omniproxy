@@ -9,9 +9,10 @@
  *
  * The shell carries no data: the browser pastes the admin token once, then
  * reads /pengatur/providers/list and writes through POST/PATCH/DELETE on the
- * shell path. Builtin providers (gemini, elevenlabs, whatstoken) are
+ * shell path. Builtin providers (gemini, elevenlabs) are
  * code-owned: the console may toggle them and curate their model list, never
- * redefine their dialect.
+ * redefine their dialect. Every other provider, WhatsToken included, is an
+ * operator-added upstream that can be deleted once its keys are removed.
  */
 
 import { confirmDialog, consolePage, icon, noticeBand, stateBlock } from "./ui.ts";
@@ -107,13 +108,14 @@ ${confirmDialog()}
     <div class="panel-body">
       <div class="toolbar">
         <div class="grow">
-          <label class="field" for="pId">Id</label>
-          <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
-          <p class="hint u-mt-1">Lowercase letters, digits and dashes. Used as the <code>provider/</code> route prefix.</p>
-        </div>
-        <div class="grow">
           <label class="field" for="pLabel">Label</label>
           <input id="pLabel" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="My Gateway">
+          <p class="hint u-mt-1">Display name shown in tables and badges.</p>
+        </div>
+        <div class="grow">
+          <label class="field" for="pId">Id</label>
+          <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
+          <p class="hint u-mt-1">Alias used as the <code>provider/</code> route prefix. Lowercase letters, digits and dashes.</p>
         </div>
       </div>
       <div class="u-mt-3">
@@ -136,7 +138,7 @@ ${confirmDialog()}
               "</span></label>",
           ).join("")}
         </div>
-        <p class="hint u-mt-2">A route refuses a provider without the capability it needs. An LLM-only gateway never answers TTS.</p>
+        <p class="hint u-mt-2">A route refuses a provider without the capability it needs. An LLM-only gateway never answers TTS. Chat includes tool calls.</p>
       </fieldset>
       <div class="u-mt-3">
         <label class="field" for="pKeyPattern">Key format <span class="hint">(optional)</span></label>

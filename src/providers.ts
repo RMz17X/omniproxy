@@ -7,7 +7,7 @@
  *
  * Two kinds of entry live in one registry:
  *
- *   builtin  gemini, elevenlabs, whatstoken — shipped in code, never deleted,
+ *   builtin  gemini, elevenlabs — shipped in code, never deleted,
  *            only toggled or given a model list by the operator.
  *   custom   added through the console (POST /pengatur/providers) or, without a
  *            database, held in process memory. An id, a base URL, a capability
@@ -84,8 +84,9 @@ const ELEVENLABS_KEY_SOURCE = "^sk_[a-fA-F0-9]{40,64}$";
 
 /**
  * Builtin entries. `baseUrl: ""` means "resolve dynamically" — see
- * baseUrlOf(). The whatstoken base is overridable by env so a mirror or a
- * self-hosted gateway can be pointed at without a code change.
+ * baseUrlOf(). A former builtin, WhatsToken, is deliberately NOT here:
+ * it is an ordinary OpenAI-compatible gateway, so operators add it through
+ * the console like any other upstream and may delete it again.
  */
 const BUILTIN: Provider[] = [
   {
@@ -111,29 +112,6 @@ const BUILTIN: Provider[] = [
     builtin: true,
     enabled: true,
     note: "Text to speech and voices, routed by model name on /v1/audio/speech.",
-  },
-  {
-    id: "whatstoken",
-    label: "WhatsToken",
-    baseUrl: process.env.WHATSTOKEN_BASE_URL?.trim() || "https://www.whatstoken.ai/v1",
-    // Deliberately scoped to the DeepSeek family: the gateway hosts a hundred
-    // other models, but this deployment fronts it for DeepSeek only, so the
-    // capability set and the declared list both say so. A route outside llm is
-    // refused with a pointer to the providers that do serve it.
-    capabilities: ["llm"],
-    wire: "openai",
-    keyPattern: "^sk-[A-Za-z0-9_-]{16,}$",
-    models: [
-      "deepseek-v4.1-flash-1017",
-      "deepseek-v4.1-flash-1017-special",
-      "deepseek-v4-1-flash",
-      "deepseek-v4-flash-ga",
-      "deepseek-v4-pro-0813",
-      "deepseek-v4-pro-ga-260813",
-    ],
-    builtin: true,
-    enabled: true,
-    note: "DeepSeek models through the WhatsToken gateway. Chat only.",
   },
 ];
 

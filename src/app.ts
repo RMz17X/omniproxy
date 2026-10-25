@@ -537,7 +537,7 @@ app.get("/pengatur/models/list", async (c) => {
     : [];
 
   // Every OpenAI-wire provider contributes its own catalog, so the console
-  // shows whatstoken (and any custom gateway) next to gemini and elevenlabs.
+  // shows custom gateways next to gemini and elevenlabs.
   const wire = await openaiWireRows(new URL(c.req.url).searchParams.get("refresh") === "1");
 
   const models = [...gemini.models, ...eleven, ...voices, ...wire.rows];

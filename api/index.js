@@ -6187,29 +6187,6 @@ var init_providers = __esm({
         builtin: true,
         enabled: true,
         note: "Text to speech and voices, routed by model name on /v1/audio/speech."
-      },
-      {
-        id: "whatstoken",
-        label: "WhatsToken",
-        baseUrl: process.env.WHATSTOKEN_BASE_URL?.trim() || "https://www.whatstoken.ai/v1",
-        // Deliberately scoped to the DeepSeek family: the gateway hosts a hundred
-        // other models, but this deployment fronts it for DeepSeek only, so the
-        // capability set and the declared list both say so. A route outside llm is
-        // refused with a pointer to the providers that do serve it.
-        capabilities: ["llm"],
-        wire: "openai",
-        keyPattern: "^sk-[A-Za-z0-9_-]{16,}$",
-        models: [
-          "deepseek-v4.1-flash-1017",
-          "deepseek-v4.1-flash-1017-special",
-          "deepseek-v4-1-flash",
-          "deepseek-v4-flash-ga",
-          "deepseek-v4-pro-0813",
-          "deepseek-v4-pro-ga-260813"
-        ],
-        builtin: true,
-        enabled: true,
-        note: "DeepSeek models through the WhatsToken gateway. Chat only."
       }
     ];
     isCapability = (v2) => CAPABILITIES.includes(v2);
@@ -20027,13 +20004,14 @@ ${confirmDialog()}
     <div class="panel-body">
       <div class="toolbar">
         <div class="grow">
-          <label class="field" for="pId">Id</label>
-          <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
-          <p class="hint u-mt-1">Lowercase letters, digits and dashes. Used as the <code>provider/</code> route prefix.</p>
-        </div>
-        <div class="grow">
           <label class="field" for="pLabel">Label</label>
           <input id="pLabel" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="My Gateway">
+          <p class="hint u-mt-1">Display name shown in tables and badges.</p>
+        </div>
+        <div class="grow">
+          <label class="field" for="pId">Id</label>
+          <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
+          <p class="hint u-mt-1">Alias used as the <code>provider/</code> route prefix. Lowercase letters, digits and dashes.</p>
         </div>
       </div>
       <div class="u-mt-3">
@@ -20047,7 +20025,7 @@ ${confirmDialog()}
   (c) => '<label class="switch" for="pCap-' + c + '"><input id="pCap-' + c + '" type="checkbox" value="' + c + '"><span>' + c + "</span></label>"
 ).join("")}
         </div>
-        <p class="hint u-mt-2">A route refuses a provider without the capability it needs. An LLM-only gateway never answers TTS.</p>
+        <p class="hint u-mt-2">A route refuses a provider without the capability it needs. An LLM-only gateway never answers TTS. Chat includes tool calls.</p>
       </fieldset>
       <div class="u-mt-3">
         <label class="field" for="pKeyPattern">Key format <span class="hint">(optional)</span></label>

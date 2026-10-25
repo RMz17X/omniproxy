@@ -117,7 +117,7 @@ alter table key_material add column if not exists provider text not null default
 -- Provider registry. A provider is an upstream the gateway can serve: where
 -- its API lives, what it can do (llm / tts / image / video / embeddings),
 -- which wire dialect it speaks, and how its keys are shaped. Builtin rows
--- (gemini / elevenlabs / whatstoken) are code-owned: the row only carries
+-- (gemini / elevenlabs) are code-owned: the row only carries
 -- operator state (enabled flag, imported model list). Custom rows carry the
 -- full definition added through the console.
 create table if not exists providers (
@@ -140,9 +140,16 @@ create table if not exists providers (
 insert into providers (id, label, base_url, capabilities, wire, key_pattern, models, enabled, builtin, note)
 values
   ('gemini', 'Gemini', '', array['llm','tts','image','embeddings'], 'gemini', '^AIza[0-9A-Za-z_-]{20,}$', '{}', true, true, 'Google Generative Language. Chat, TTS, image and embeddings.'),
-  ('elevenlabs', 'ElevenLabs', '', array['tts'], 'elevenlabs', '^sk_[a-fA-F0-9]{40,64}$', '{}', true, true, 'Text to speech and voices, routed by model name on /v1/audio/speech.'),
-  ('whatstoken', 'WhatsToken', 'https://www.whatstoken.ai/v1', array['llm'], 'openai', '^sk-[A-Za-z0-9_-]{16,}$', array['deepseek-v4.1-flash-1017','deepseek-v4.1-flash-1017-special','deepseek-v4-1-flash','deepseek-v4-flash-ga','deepseek-v4-pro-0813','deepseek-v4-pro-ga-260813'], true, true, 'DeepSeek models through the WhatsToken gateway. Chat only.')
+  ('elevenlabs', 'ElevenLabs', '', array['tts'], 'elevenlabs', '^sk_[a-fA-F0-9]{40,64}$', '{}', true, true, 'Text to speech and voices, routed by model name on /v1/audio/speech.')
 on conflict (id) do nothing;
+
+-- Demotion: WhatsToken is no longer a protected builtin (the protected
+-- defaults are gemini and elevenlabs only). An existing row keeps everything
+-- the operator owns — label, base URL, capabilities, models, enabled flag,
+-- note — and only loses the builtin flag, so the provider stays routable
+-- and becomes deletable (deletion is still refused while pooled keys point
+-- at it). Idempotent: re-running it changes nothing once the flag is false.
+update providers set builtin = false where id = 'whatstoken';
 
 -- One-time corrections for rows seeded before the host was verified and the
 -- scope narrowed to DeepSeek. The URL fix is unconditional; the model list is
