@@ -107,21 +107,31 @@ container di-recreate. Rollback: `hajimi-king:0.0.2-prebugfix`.
 | K-1 | sebagian | Log hanya menampilkan prefiks token (`redact()`); **rotasi token tetap wajib** karena nilai lama sudah tertulis di log |
 | K-2 | fixed | `threading.Lock` (bukan busy-wait), network di luar lock, satu batch per tick, backoff 60s→30m per queue, log per-key hanya attempt pertama & resolving, `difference_update` (key yang masuk saat request berjalan tidak hilang), `logger.error(exc_info=)` yang memicu TypeError diperbaiki |
 | K-3 | fixed (8 window) | `QUERY_ROTATION` menambahkan satu qualifier per loop (`path:src`, `path:app`, `path:config`, `path:deploy`, `path:lib`, `path:scripts`, `path:docker`, lalu kembali ke tanpa qualifier). Tiap qualifier = window 1.000 hasil sendiri, jadi permukaan yang bisa dijangkau naik ~8× sebelum mentok lagi |
-| K-4 | fixed, menunggu deploy receiver | harvester mengirim `{cooldowns: {key: epoch_ms}}` (dari `retryDelay` Gemini / 60 s ElevenLabs), checkpoint menyimpannya, receiver memarkir key saat ingest lewat `upsertKey` (satu statement, tidak balapan dengan insert). Receiver lama mengabaikan field ini |
-| K-5 | siap, menunggu deploy + rotasi | receiver menerima `INGEST_TOKEN` (hanya `POST /pengatur/keys`). Cutover ada di §6 — belum dijalankan karena butuh deploy Vercel |
+| K-4 | fixed + live | harvester mengirim `{cooldowns: {key: epoch_ms}}` (dari `retryDelay` Gemini / 60 s ElevenLabs), checkpoint menyimpannya, receiver memarkir key saat ingest lewat `upsertKey` (satu statement, tidak balapan dengan insert). Receiver lama mengabaikan field ini |
+| K-5 | sebagian (ingest terpisah live) | `INGEST_TOKEN` diset di Vercel + dideploy; harvester memakai token itu sekarang. **`ADMIN_TOKEN` masih 9 karakter** — rotasi belum dilakukan karena memutus sesi konsol yang sedang dipakai |
 | K-6 | fixed | probe lewat `ProxyHandler`, `os.environ['grpc_proxy']` dihapus, fallback SDK dihapus (probe REST satu-satunya validator) |
 | K-7 | fixed | SHA ditulis append-only (delta), `checkpoint.json` atomik, `_save_lock`, reload checkpoint yang terbuang dihapus, slicing prefiks nama file diperbaiki |
 | K-8 | sebagian | log per-item skip turun ke DEBUG, backoff error loop utama; metrik belum ada |
 
-## 6. Cutover K-5 (belum dijalankan)
+## 6. Status deploy (2026-10-25 12:53 WIB)
 
-Butuh deploy Vercel; jangan mengubah `.env` harvester lebih dulu atau ingest berhenti sampai deploy selesai.
+- Deploy produksi `omniproxy-osjpvsgmi` → alias `https://omniproxy.vercel.app`, Ready 19 s.
+- Verifikasi live:
+  - `POST /pengatur/keys` key sintetis + `cooldowns` → `added:1, parked:1`; baris pool menunjukkan
+    `cooldownLeftMs` ≈ 598.000 dan `nextAccessAt` terisi (key lalu dihapus, `total` kembali 280).
+  - Payload lama tanpa `cooldowns` tetap diterima (`added:0` untuk key yang sudah ada).
+  - Token ingest: `POST` → 400 (lolos auth, body kosong), `DELETE` → 401, `GET /pengatur/keys/list` → 401.
+  - Token admin lama: `GET /pengatur/keys/list` → 200.
+  - Harvester memakai token ingest 64 karakter dan endpoint menerimanya.
+- Catatan deploy: Vercel menolak build dengan alasan *"commit author doesn't have permission to create
+  deployments"*. Author yang diizinkan: `ErNor <rickiar@hijitoko.com>`. `AGENTS.md` menulis
+  `rickiar@hijotoko.com` (typo satu huruf) — commit dengan email itu selalu **Blocked**.
 
-1. Generate dua token: `openssl rand -hex 32` (admin) dan sekali lagi (ingest).
-2. Set di environment Vercel: `ADMIN_TOKEN=<baru>`, `INGEST_TOKEN=<ingest>`.
-3. Deploy receiver.
-4. Baru update `.env` harvester: `GEMINI_BALANCER_AUTH=<ingest>`, lalu restart container.
-5. Verifikasi: `GET /pengatur/keys/list` dengan token admin baru → 200; `POST /pengatur/keys` dengan token ingest → 200;
-   `DELETE /pengatur/keys` dengan token ingest → 401.
+## 7. Sisa tindakan operator
+
+1. Rotasi `ADMIN_TOKEN` jadi ≥32 karakter acak (`openssl rand -hex 32`), set di Vercel, deploy, lalu masuk
+   ulang ke konsol dengan token baru.
+2. Rotasi 2 token GitHub yang nilainya sudah telanjur tertulis di log lama harvester.
+
 
 
