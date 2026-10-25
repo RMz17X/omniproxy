@@ -15,6 +15,7 @@
 import { cfg } from "./config.ts";
 import { log } from "./log.ts";
 import { counters } from "./metrics.ts";
+import { rotationCap } from "./settings-store.ts";
 import {
   mark429,
   markInvalid,
@@ -185,6 +186,10 @@ export async function execute(
 ): Promise<ExecResult> {
   const tried = new Set<string>();
   const deadline = Date.now() + cfg.maxWaitMs;
+  // Read once per request: the operator can change the cap from the console
+  // while requests are in flight, and a single rotation run must not switch
+  // limits halfway through.
+  const maxAttempts = await rotationCap();
   /** keys that answered zero-quota on this model (project-shaped refusal) */
   const quotaRefused = new Set<string>();
   /** keys that answered "no allowance for this model", scoped to the model */
@@ -301,7 +306,7 @@ export async function execute(
       rotated = true;
       counters.rotations++;
     }
-    if (attempts >= cfg.maxAttempts) {
+    if (attempts >= maxAttempts) {
       counters.poolExhausted++;
       return {
         response: jsonError(429, "max_attempts", "Every key attempt failed."),
@@ -371,7 +376,7 @@ export async function execute(
       // Never throw to the generic 500 handler: a network failure is a
       // gateway answer (the key was already parked above), so return it in
       // the same jsonError shape as every other rotation outcome.
-      if (attempts >= cfg.maxAttempts) {
+      if (attempts >= maxAttempts) {
         return {
           response: jsonError(
             502,
@@ -408,7 +413,7 @@ export async function execute(
           model: scopeModel,
           retryAfterMs: quota.retryAfterMs,
         });
-        if (attempts >= cfg.maxAttempts) {
+        if (attempts >= maxAttempts) {
           return {
             response: rebuild(res, body),
             key: st.key,
@@ -432,7 +437,7 @@ export async function execute(
         } else {
           log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
         }
-        if (attempts >= cfg.maxAttempts) {
+        if (attempts >= maxAttempts) {
           return {
             response: rebuild(res, body),
             key: st.key,
@@ -447,7 +452,7 @@ export async function execute(
       const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
       await mark429(st.key, Math.max(cfg.cooldownMs, cd));
       log("info", "key.cooldown", { path, key: maskKey(st.key), status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
-      if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+      if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
 
@@ -463,7 +468,7 @@ export async function execute(
         // invalid-key text retires (the branch above).
         await markSoftError(st.key, cfg.serverErrCooldownMs);
         log("warn", "key.auth_cooldown", { path, key: maskKey(st.key), status });
-        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       } else if (isQuotaText(body)) {
         const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
@@ -479,7 +484,7 @@ export async function execute(
             model: scopeModel,
             retryAfterMs: quota.retryAfterMs,
           });
-          if (attempts >= cfg.maxAttempts) {
+          if (attempts >= maxAttempts) {
             return {
               response: rebuild(res, body),
               key: st.key,
@@ -498,7 +503,7 @@ export async function execute(
           } else {
             log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
           }
-          if (attempts >= cfg.maxAttempts) {
+          if (attempts >= maxAttempts) {
             return {
               response: rebuild(res, body),
               key: st.key,
@@ -517,7 +522,7 @@ export async function execute(
         // Genuine authorisation failure for the caller, not a key problem.
         return { response: rebuild(res, body), key: st.key, attempts, rotated };
       }
-      if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+      if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
 
@@ -526,7 +531,7 @@ export async function execute(
       if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
         log("warn", "key.invalid", { path, key: maskKey(st.key), status, first: claimed });
-        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       }
       if (isModelUnavailable(body)) {
@@ -548,7 +553,7 @@ export async function execute(
       }
       await markSoftError(st.key, cfg.serverErrCooldownMs);
       log("warn", "key.soft_error", { path, key: maskKey(st.key), status, attempt: attempts });
-      if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+      if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
 

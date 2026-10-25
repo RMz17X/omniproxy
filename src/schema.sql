@@ -114,6 +114,16 @@ create table if not exists key_material (
 -- the right provider before the `keys` identity overlay lands.
 alter table key_material add column if not exists provider text not null default 'gemini';
 
+-- Operator-tunable gateway settings, one row per knob. The matching env var
+-- stays the default; a row here overrides it at runtime, so the console can
+-- change a value without a redeploy. Currently holds `max_key_attempts`
+-- (how many keys one request may rotate through).
+create table if not exists gateway_settings (
+  key        text primary key,
+  value      text not null,
+  updated_at timestamptz not null default now()
+);
+
 -- Provider registry. A provider is an upstream the gateway can serve: where
 -- its API lives, what it can do (llm / tts / image / video / embeddings),
 -- which wire dialect it speaks, and how its keys are shaped. Builtin rows

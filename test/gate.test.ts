@@ -49,7 +49,9 @@ test("an authorised add reports added and durable", async () => {
       "content-type": "application/json",
       authorization: `Bearer ${TOKEN}`,
     },
-    body: JSON.stringify({ keys: ["AIzaGATE1"] }),
+    // Shape-valid (AIza + 20+) and mock-upstream-clean, so the ingest gate's
+    // probe verdicts it alive and the key is admitted.
+    body: JSON.stringify({ keys: ["AIzaGATE1234567890123456"] }),
   });
   expect(res.status).toBe(200);
   const body = (await res.json()) as { added: number; durable: unknown };

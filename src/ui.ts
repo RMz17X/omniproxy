@@ -640,6 +640,23 @@ body[data-gate="locked"] .app { display: none; }
 .mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .num { text-align: right; }
 
+/* Console inline editor (the settings rotation cap): a number field and its
+   save button on one row, matching the panel rhythm. */
+.inline-form { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.text-input {
+  min-height: var(--tap-sm);
+  padding: 0 var(--sp-2);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-surface);
+  min-width: 0;
+  width: 6rem;
+}
+.text-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .check { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: 12.5px; color: var(--text-2); cursor: pointer; }
 .check input[type="checkbox"] {
   appearance: none;

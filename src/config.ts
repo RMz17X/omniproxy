@@ -40,7 +40,9 @@ export const cfg = {
   /** cooldown applied on 5xx */
   serverErrCooldownMs: num(process.env.KEY_5XX_COOLDOWN_MS, 15_000),
   /** max key attempts per request before giving up */
-  maxAttempts: num(process.env.MAX_ATTEMPTS, 6),
+  // 10 per operator policy: a 429 must rotate to another still-valid key, and
+  // the console can override this at runtime (see settings-store.ts).
+  maxAttempts: num(process.env.MAX_ATTEMPTS, 10),
   /** how long to wait for a busy pool before 429-ing the client */
   maxWaitMs: num(process.env.MAX_WAIT_MS, 8_000),
   /** hard ceiling for one upstream attempt; also the client-disconnect bound */

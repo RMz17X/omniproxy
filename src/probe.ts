@@ -456,3 +456,47 @@ export async function probeTier(rawKey: string, timeoutMs = TIMEOUT_MS): Promise
 
   return last;
 }
+/* ---------- ingest gate ---------- */
+
+/** One incoming key's probe verdict, as the ingest gate needs it. */
+export type IngestVerdict = {
+  key: string;
+  provider: string;
+  status: ProbeStatus;
+  /** upstream-requested wait in ms; 0 when the answer carried no hint */
+  retryAfterMs: number;
+  message: string;
+};
+
+/**
+ * Probe a batch of incoming keys for the ingest gate.
+ *
+ * The pool admits only credentials the upstream confirms: `invalid` and
+ * `zero_quota` are refusals, `rate_limited` is an admission parked until the
+ * window the upstream reported, and everything else (`ok`, `server_error`,
+ * `network_error`, `unexpected`) is an admission — a transport failure says
+ * nothing about the credential, and refusing on it would drop healthy keys
+ * whenever the upstream hiccups. The recheck loop verdicts those later.
+ *
+ * Probes run with a small concurrency cap: a harvester batch of a hundred
+ * keys must not open a hundred sockets at once, and must not serialise into
+ * minutes either.
+ */
+export async function verifyIngestKeys(
+  keys: { key: string; provider: string }[],
+  opts: { concurrency?: number } = {},
+): Promise<IngestVerdict[]> {
+  const limit = Math.max(1, Math.floor(opts.concurrency ?? 8));
+  const out: IngestVerdict[] = [];
+  for (let i = 0; i < keys.length; i += limit) {
+    const slice = keys.slice(i, i + limit);
+    const batch = await Promise.all(
+      slice.map(async ({ key, provider }) => {
+        const r = await probeKey(key, undefined, provider);
+        return { key, provider, status: r.status, retryAfterMs: r.retryAfterMs, message: r.message };
+      }),
+    );
+    out.push(...batch);
+  }
+  return out;
+}

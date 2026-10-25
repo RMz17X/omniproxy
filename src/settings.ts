@@ -9,11 +9,13 @@
  *      string is reduced to the region host suffix, which is not a secret and
  *      is the only part an operator needs to confirm which database is live.
  *
- * The page is read-only on purpose: cooldowns and tokens are deploy-time
- * values on the host, so the UI must not pretend it can rotate them.
+ * Everything except the rotation cap is read-only: cooldowns and tokens are
+ * deploy-time values on the host, so the UI must not pretend it can rotate
+ * them. The rotation cap lives in `gateway_settings` and is editable.
  */
 
 import { cfg } from "./config.ts";
+import { rotationSetting } from "./settings-store.ts";
 
 /** One expected env name and whether the process sees it. */
 export type EnvFlag = { name: string; state: "set" | "unset" };
@@ -35,6 +37,18 @@ export type SettingsView = {
     maxAttempts: number;
     maxWaitMs: number;
     upstreamTimeoutMs: number;
+  };
+  /**
+   * The one knob the console can change at runtime: how many keys a single
+   * request may rotate through. `stored` distinguishes an operator override
+   * from the env default so the page can say which is in force.
+   */
+  rotation: {
+    maxKeyAttempts: number;
+    envDefault: number;
+    stored: boolean;
+    min: number;
+    max: number;
   };
   ledger: {
     flushMs: number;
@@ -89,7 +103,7 @@ const FLAG_ENVS = [
 ] as const;
 
 const NOTES =
-  "Cooldown values and tokens are deploy-time settings: change them in the host environment, then redeploy. This page is read-only.";
+  "The rotation cap is editable here and takes effect immediately; every other value on this page is deploy-time: change it in the host environment, then redeploy. Token values are never shown.";
 
 /**
  * Reduce a Postgres URI to its region host suffix.
@@ -114,7 +128,7 @@ export function regionHostSuffix(dsn: string): string {
 }
 
 /** Build the effective configuration. Pure except for `process.env` reads. */
-export function settingsView(): SettingsView {
+export async function settingsView(): Promise<SettingsView> {
   const flags: EnvFlag[] = [...TOKEN_ENVS, ...FLAG_ENVS].map((name) => {
     const raw = process.env[name];
     return { name, state: raw && raw.trim() !== "" ? "set" : "unset" };
@@ -138,6 +152,7 @@ export function settingsView(): SettingsView {
       maxWaitMs: cfg.maxWaitMs,
       upstreamTimeoutMs: cfg.upstreamTimeoutMs,
     },
+    rotation: await rotationSetting(),
     ledger: {
       flushMs: cfg.ledgerFlushMs,
       maxRows: cfg.ledgerMaxRows,

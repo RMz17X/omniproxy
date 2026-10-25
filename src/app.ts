@@ -20,7 +20,7 @@ import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
 import { catalogModels, discoveryDebug, listLiveModels, pricingMeta, testModel } from "./models.ts";
-import { probeKey, probeTier, type ProbeResult } from "./probe.ts";
+import { probeKey, probeTier, verifyIngestKeys, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
 import { bodyJson } from "./body.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
@@ -65,6 +65,12 @@ import { PROVIDERS_HTML } from "./providers-ui.ts";
 import { loadKeys, purgedIds, purgeDead, restoreKeys } from "./keys-repo.ts";
 import { SETTINGS_HTML } from "./settings-ui.ts";
 import { settingsView } from "./settings.ts";
+import {
+  MAX_ATTEMPTS_KEY,
+  MAX_ATTEMPTS_RANGE,
+  rotationSetting,
+  setSetting,
+} from "./settings-store.ts";
 import { AUDIT_HTML } from "./audit-ui.ts";
 import { LOGIN_HTML } from "./ui.ts";
 import { breakerOpen, dbEnabled, sql } from "./db.ts";
@@ -1007,12 +1013,35 @@ app.post("/pengatur/keys", async (c) => {
     else accepted.push({ key: clean[i], provider });
   }
 
+  /* Liveness gate: every admitted key must prove it is alive and holds quota.
+     A dead or zero-quota credential is refused here instead of poisoning the
+     pool; a throttled one is admitted parked until the window the upstream
+     reported (a 429 with quota left is an acceptable key); a key the probe
+     could not classify is admitted unjudged — the recheck loop and live
+     traffic will verdict it, and refusing on a transport failure would drop
+     healthy keys whenever the upstream hiccups. */
+  const verdicts = await verifyIngestKeys(accepted);
+  const byKey = new Map(verdicts.map((v) => [v.key, v]));
+  const probed = { ok: 0, rateLimited: 0, inconclusive: 0, refused: 0 };
+
   const ids: string[] = [];
   const addedByProvider: Record<string, number> = {};
   let added = 0;
   let parked = 0;
   for (const { key, provider } of accepted) {
-    const until = cooldownFor(key);
+    const v = byKey.get(key);
+    if (v) {
+      if (v.status === "ok") probed.ok++;
+      else if (v.status === "rate_limited") probed.rateLimited++;
+      else if (v.status === "invalid" || v.status === "zero_quota") {
+        probed.refused++;
+        rejected.push({ id: keyId(key), provider, reason: `${v.status}: ${v.message}` });
+        continue;
+      } else probed.inconclusive++;
+    }
+    // The later of the sender's declared park and the probe's own window.
+    let until = cooldownFor(key);
+    if (v?.status === "rate_limited") until = Math.max(until, Date.now() + v.retryAfterMs);
     if (await addKey(key, provider, until)) {
       added++;
       if (until > Date.now()) parked++;
@@ -1031,6 +1060,7 @@ app.post("/pengatur/keys", async (c) => {
       providers: addedByProvider,
       rejected: rejected.length,
       rejectedIds: rejected.map((r) => r.id),
+      probed,
     },
   });
   const durable = keyMaterialDurable();
@@ -1043,6 +1073,7 @@ app.post("/pengatur/keys", async (c) => {
     added,
     parked,
     rejected,
+    probed,
     ids,
     durable,
     providers: addedByProvider,
@@ -1795,11 +1826,41 @@ app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
  * Effective configuration. Built from an explicit allowlist inside
  * `settingsView`, so a newly added secret can never leak by accident.
  */
-app.get("/pengatur/settings/data", (c) => c.json(settingsView()));
+app.get("/pengatur/settings/data", async (c) => c.json(await settingsView()));
+
+/**
+ * Save the rotation cap — the one knob the console may change at runtime.
+ *
+ * Admin-gated by the `/pengatur/*` middleware (a POST is never a shell read)
+ * and audited, because it decides how many keys a single request may burn.
+ * The value is clamped to the range the store enforces, so a typo cannot
+ * stall every request behind a hundred upstream attempts.
+ */
+app.post("/pengatur/settings/rotation", async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { maxKeyAttempts?: unknown } | null;
+  const n = Number(body?.maxKeyAttempts);
+  if (!Number.isFinite(n) || n < MAX_ATTEMPTS_RANGE.min || n > MAX_ATTEMPTS_RANGE.max) {
+    return c.json(
+      {
+        error: {
+          message: `maxKeyAttempts must be a number between ${MAX_ATTEMPTS_RANGE.min} and ${MAX_ATTEMPTS_RANGE.max}.`,
+        },
+      },
+      400,
+    );
+  }
+  const value = Math.round(n);
+  await setSetting(MAX_ATTEMPTS_KEY, String(value));
+  await auditRecordNow("settings.rotation", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { maxKeyAttempts: value },
+  });
+  return c.json({ ok: true, rotation: await rotationSetting() });
+});
 
 /** The same object as a file. Zero secrets by construction; recorded in audit. */
 app.get("/pengatur/settings/export", async (c) => {
-  const view = settingsView();
+  const view = await settingsView();
   await auditRecordNow("settings.export", {
     actor: actorFrom(c.req.header("user-agent")),
     detail: { envFlags: view.env.length },

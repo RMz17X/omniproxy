@@ -1,13 +1,15 @@
 /**
  * Settings console, served at GET /pengatur/settings.
  *
- * Read only by design: cooldowns and tokens are deploy time values on the
- * host, so the page reports them and says so, and never renders a token
- * value, only set or unset. The shell carries no data; it reads
- * /pengatur/settings/data with the pasted admin token.
+ * One knob is editable at runtime — the key rotation cap — because the
+ * operator asked for it in the web UI; everything else (cooldowns, tokens,
+ * timeouts) is a deploy-time value on the host, so the page reports those and
+ * says so, and never renders a token value, only set or unset. The shell
+ * carries no data; it reads /pengatur/settings/data with the pasted admin
+ * token.
  *
- * Layout: the counts first, then the configuration groups side by side, then
- * the environment table and the caveat line.
+ * Layout: the counts first, then the configuration groups side by side, the
+ * rotation editor, then the environment table and the caveat line.
  */
 
 import { consolePage, icon, noticeBand } from "./ui.ts";
@@ -19,7 +21,7 @@ const SETTINGS_BODY = `
     <div class="page-head-main">
       <span class="eyebrow">Govern</span>
       <h1 class="page-title">Settings</h1>
-      <p class="page-lede">The effective configuration of this deployment. Read only.</p>
+      <p class="page-lede">The effective configuration of this deployment. The rotation cap is editable; the rest is deploy-time.</p>
     </div>
   </header>
 
@@ -43,6 +45,25 @@ const SETTINGS_BODY = `
       <div class="panel-body"><dl class="defs" id="ledger"></dl></div>
     </section>
   </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Key rotation</h2>
+      <span class="meta" id="rotationMeta"></span>
+    </div>
+    <div class="panel-body">
+      <p class="hint">
+        How many keys one request may try before the pool gives up. A 429 rotates to the next
+        still-valid key and parks the throttled one until its rate-limit window ends, so a
+        bigger cap survives more simultaneous throttles at the cost of more upstream calls.
+      </p>
+      <div class="inline-form u-mt-2">
+        <input class="text-input" id="rotationCap" type="number" min="1" max="50" step="1" inputmode="numeric" aria-label="Max key rotation" />
+        <button id="rotationSave" class="btn btn-sm btn-primary" type="button">Save</button>
+      </div>
+      <div id="rotationMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
+    </div>
+  </section>
 
   <section class="panel">
     <div class="panel-head">
@@ -80,6 +101,10 @@ const SETTINGS_SCRIPT = `
     envTable: document.getElementById("envTable"),
     note: document.getElementById("note"),
     msg: document.getElementById("msg"),
+    rotationCap: document.getElementById("rotationCap"),
+    rotationSave: document.getElementById("rotationSave"),
+    rotationMeta: document.getElementById("rotationMeta"),
+    rotationMsg: document.getElementById("rotationMsg"),
     refresh: document.getElementById("refreshBtn"),
     exportBtn: document.getElementById("exportBtn")
   };
@@ -113,11 +138,24 @@ const SETTINGS_SCRIPT = `
     });
   }
 
+  function rotationMeta(r) {
+    el.rotationMeta.textContent = r.stored
+      ? "operator override (env default " + r.envDefault + ")"
+      : "env default " + r.envDefault;
+  }
+
   function render(d) {
     var nDefaults = defs(el.defaults, d.defaults);
     var nLimits = defs(el.limits, d.limits);
     var nLedger = defs(el.ledger, d.ledger);
     renderEnv(d.env);
+
+    if (d.rotation) {
+      el.rotationCap.value = String(d.rotation.maxKeyAttempts);
+      el.rotationCap.min = String(d.rotation.min);
+      el.rotationCap.max = String(d.rotation.max);
+      rotationMeta(d.rotation);
+    }
 
     el.kpis.textContent = "";
     el.kpis.appendChild(GX.kpi("Defaults", String(nDefaults), "model, voice and search model"));
@@ -150,6 +188,17 @@ const SETTINGS_SCRIPT = `
   }
 
   el.refresh.addEventListener("click", function () { reload(); });
+  el.rotationSave.addEventListener("click", function () {
+    var n = Number(el.rotationCap.value);
+    GX.busy(el.rotationSave, "Saving…");
+    GX.api("/pengatur/settings/rotation", { method: "POST", body: { maxKeyAttempts: n } })
+      .then(function (r) {
+        rotationMeta(r.rotation);
+        GX.say(el.rotationMsg, "Rotation cap set to " + r.rotation.maxKeyAttempts + ".", "ok");
+      })
+      .catch(function (err) { GX.say(el.rotationMsg, err.message, "err"); })
+      .then(function () { GX.idle(el.rotationSave); });
+  });
   el.exportBtn.addEventListener("click", function () {
     GX.busy(el.exportBtn, "Exporting…");
     GX.download("/pengatur/settings/export", "omniproxy-config.json")
