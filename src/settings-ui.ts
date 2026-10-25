@@ -21,10 +21,6 @@ const SETTINGS_BODY = `
       <h1 class="page-title">Settings</h1>
       <p class="page-lede">The effective configuration of this deployment. Read only.</p>
     </div>
-    <div class="page-head-side">
-      <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
-      <button id="exportBtn" class="btn btn-sm" type="button">${icon("download")}Export</button>
-    </div>
   </header>
 
   ${noticeBand()}
@@ -149,6 +145,7 @@ const SETTINGS_SCRIPT = `
           throw err;
         }
         GX.say(el.msg, err.message, "err");
+        el.console.hidden = false;
       });
   }
 

@@ -138,7 +138,7 @@ const MODELS_SCRIPT = `
     any: "Showing every model Google returns, regardless of billing."
   };
 
-  var state = { models: [], census: {}, page: 1, size: 25, tier: "free", testing: {} };
+  var state = { models: [], census: {}, page: 1, size: 25, tier: "free", testing: {}, pendingProvider: "" };
 
   function money(v) {
     if (v === null || v === undefined) return null;
@@ -158,6 +158,7 @@ const MODELS_SCRIPT = `
       kind: el.kind.value,
       provider: el.provider.value,
       tier: state.tier,
+      size: state.size !== 25 ? state.size : "",
       page: state.page > 1 ? state.page : ""
     });
   }
@@ -166,12 +167,27 @@ const MODELS_SCRIPT = `
     var params = GX.url.read();
     if (params.q) el.q.value = params.q;
     if (params.kind) el.kind.value = params.kind;
-    /* Any provider the catalog actually returned is a valid filter value,
-       so a custom provider survives a reload the same way gemini does. */
-    if (params.provider && el.provider.querySelector('option[value="' + params.provider + '"]')) {
-      el.provider.value = params.provider;
+    /* The provider filter only holds the hardcoded options until the census
+       arrives, so validation waits for it: the wanted value is parked here
+       and applied by syncProviderFilter once the catalog answers. A provider
+       the census never names still gets its own option, so the table filters
+       to zero rows instead of crashing or silently dropping the filter. */
+    if (params.provider) {
+      state.pendingProvider = params.provider;
+      if (el.provider.querySelector('option[value="' + params.provider + '"]')) {
+        el.provider.value = params.provider;
+      }
     }
     if (params.tier && TIER_LABELS[params.tier]) state.tier = params.tier;
+    /* Per-page persists the same way Keys does; an unknown size is ignored
+       rather than leaving the select blank. */
+    if (params.size) {
+      var sizeOpt = null;
+      Array.prototype.forEach.call(el.size.options, function (o) {
+        if (o.value === params.size || o.text === params.size) sizeOpt = o;
+      });
+      if (sizeOpt) { el.size.value = sizeOpt.value; state.size = Number(sizeOpt.value) || 25; }
+    }
     state.page = Number(params.page) || 1;
   }
 
@@ -220,6 +236,21 @@ const MODELS_SCRIPT = `
       el.provider.appendChild(opt);
     });
     if (current && el.provider.querySelector('option[value="' + current + '"]')) el.provider.value = current;
+    /* A provider parked by readUrl before the census arrived: if the census
+       names it, it is already an option above; if not, it still gets an
+       option of its own, so the filter holds and the table shows zero rows
+       instead of silently reverting to "all". */
+    if (state.pendingProvider) {
+      var want = state.pendingProvider;
+      state.pendingProvider = "";
+      if (!el.provider.querySelector('option[value="' + want + '"]')) {
+        var extra = document.createElement("option");
+        extra.value = want;
+        extra.textContent = want;
+        el.provider.appendChild(extra);
+      }
+      el.provider.value = want;
+    }
   }
 
   function renderKpis(shown, census) {
@@ -466,7 +497,7 @@ const MODELS_SCRIPT = `
         } else {
           GX.say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "" : "err");
         }
-        renderKpis(0, state.census);
+        renderKpis(visible().length, state.census);
       })
       .catch(function (err) {
         node.textContent = "error";
@@ -480,6 +511,7 @@ const MODELS_SCRIPT = `
   el.size.addEventListener("change", function () {
     state.size = Number(el.size.value) || 25;
     state.page = 1;
+    writeUrl();
     render();
   });
   el.q.addEventListener("input", GX.debounce(function () {

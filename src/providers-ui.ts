@@ -199,7 +199,7 @@ const PROVIDERS_SCRIPT = `
 
   function tableHead() {
     var tr = GX.el("tr");
-    ["Provider", "Wire", "Capabilities", "Keys", "Models", "State", ""].forEach(function (h) {
+    ["Provider", "Base URL", "Capabilities", "Keys", "Models", "State", ""].forEach(function (h) {
       tr.appendChild(GX.el("th", { text: h }));
     });
     return tr;
@@ -236,18 +236,36 @@ const PROVIDERS_SCRIPT = `
       ]);
       tr.appendChild(prov);
 
-      tr.appendChild(GX.el("td", {}, [GX.el("span", { class: "mono", text: p.wire })]));
+      /* Base URL is the column; Wire rides under it as a subline, so the
+         Provider column keeps its shape and no other column moves. The URL
+         itself is mono and truncated with the table's own .sub ellipsis;
+         the full URL stays in the title. */
+      var urlCell = GX.el("td", { "data-l": "base url" });
+      var urlText = GX.el("div", { class: "sub mono", style: "max-width: 280px", text: p.baseUrl || "-" });
+      urlText.title = p.baseUrl || "";
+      urlCell.appendChild(urlText);
+      urlCell.appendChild(GX.el("div", { class: "sub", text: p.wire }));
+      tr.appendChild(urlCell);
 
       var caps = GX.el("td");
       (p.capabilities || []).forEach(function (c) { caps.appendChild(capTag(c)); });
       if (!(p.capabilities || []).length) caps.appendChild(GX.el("span", { class: "sub", text: "none" }));
       tr.appendChild(caps);
 
-      tr.appendChild(GX.el("td", {
-        class: "u-tnum",
+      var keysCell = GX.el("td", { class: "u-tnum" });
+      keysCell.appendChild(GX.el("a", {
+        class: "link",
+        href: "/pengatur/keys?provider=" + encodeURIComponent(p.id),
         text: (p.ready || 0) + "/" + (p.keys || 0)
       }));
-      tr.appendChild(GX.el("td", { class: "u-tnum", text: String((p.models || []).length) }));
+      tr.appendChild(keysCell);
+      var modelsCell = GX.el("td", { class: "u-tnum" });
+      modelsCell.appendChild(GX.el("a", {
+        class: "link",
+        href: "/pengatur/models?provider=" + encodeURIComponent(p.id),
+        text: String((p.models || []).length)
+      }));
+      tr.appendChild(modelsCell);
       tr.appendChild(GX.el("td", {}, [
         p.enabled ? GX.tag("enabled", "ok") : GX.tag("disabled", "warn")
       ]));

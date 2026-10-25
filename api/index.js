@@ -12772,38 +12772,43 @@ var OVERVIEW_BODY = `
       <h1 class="page-title">Overview</h1>
       <p class="page-lede">Whether the pool can serve right now, what is blocking it, and what the traffic is doing.</p>
     </div>
-    <div class="page-head-side">
-      <label class="check"><input id="auto" type="checkbox" checked> Refresh every 15s</label>
-      <span class="meta" id="updated">-</span>
-    </div>
   </header>
 
-  <div class="split">
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Pool health</h2>
-        <span class="meta" id="healthMeta">-</span>
+  <section class="panel">
+    <div class="panel-body">
+      <div class="row">
+        <strong id="verdictText">-</strong>
+        <span class="meta" id="verdictState">-</span>
+        <span class="spacer"></span>
+        <label class="check"><input id="auto" type="checkbox" checked> Refresh every 15s</label>
+        <span class="meta" id="updated">-</span>
       </div>
-      <div class="panel-body">
-        <div id="poolBar" class="u-mb-3"></div>
-        <div class="figures" id="facts"></div>
-        <div id="providerPools" class="u-mt-3"></div>
-        <div class="row u-mt-3" id="chips"></div>
-      </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Needs attention</h2>
-        <span class="meta" id="attnMeta">-</span>
-      </div>
-      <div class="feed" id="attn"></div>
-      <div class="panel-foot">
-        <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
-        <span class="meta" id="testAllNote">one live call per key, four at a time</span>
-      </div>
-    </section>
-  </div>
+  <section class="panel u-mt-4">
+    <div class="panel-head">
+      <h2>Needs attention</h2>
+      <span class="meta" id="attnMeta">-</span>
+    </div>
+    <div class="feed" id="attn"></div>
+    <div class="panel-foot" id="attnFoot">
+      <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
+      <span class="meta" id="testAllNote">one live call per key, four at a time</span>
+    </div>
+  </section>
+
+  <section class="panel u-mt-4">
+    <div class="panel-head">
+      <h2>Pool health</h2>
+      <span class="meta" id="healthMeta">-</span>
+    </div>
+    <div class="panel-body">
+      <div id="poolBar" class="u-mb-3"></div>
+      <div class="figures" id="facts"></div>
+      <div id="providerPools" class="u-mt-3"></div>
+    </div>
+  </section>
 
   <section class="zone">
     <div class="panel">
@@ -12820,12 +12825,13 @@ var OVERVIEW_BODY = `
   <div class="split u-mt-4">
     <section class="panel">
       <div class="panel-head">
-        <h2>Requests by provider</h2>
+        <h2>Traffic trend</h2>
         <span class="meta">daily, WIB</span>
       </div>
       <div class="panel-body">
-        <div class="bars" id="providerMix"></div>
-        <div id="providerDays" class="u-mt-3"></div>
+        <div id="providerDays"></div>
+        <div class="bars u-mt-3" id="providerMix"></div>
+        <div class="meta u-mt-3" id="providerTotal"></div>
         <p class="hint u-mt-3">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
       </div>
     </section>
@@ -12833,10 +12839,11 @@ var OVERVIEW_BODY = `
     <section class="panel">
       <div class="panel-head">
         <h2>Plan mix</h2>
-        <span class="meta">declared per key</span>
+        <span class="meta" id="planDeclared">-</span>
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
+        <p class="hint u-mt-3" id="planPct"></p>
         <p class="hint u-mt-3">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
@@ -12849,13 +12856,22 @@ var OVERVIEW_BODY = `
     </div>
     <div class="feed" id="activity"></div>
   </section>
-</div>
 
-${confirmDialog()}
+  <section class="panel u-mt-4">
+    <div class="panel-body">
+      <div class="row">
+        <button id="addBtnFoot" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add keys</button>
+        <a class="btn btn-sm" href="/pengatur/keys">View keys</a>
+        <button id="testAllBtnFoot" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
+        <span class="meta" id="testAllNoteFoot">one live call per key, four at a time</span>
+      </div>
+    </div>
+  </section>
+</div>
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="panel-head">
+    <div class="card-head">
       <h2 id="addTitle">Add keys</h2>
       <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
@@ -12879,11 +12895,13 @@ var OVERVIEW_SCRIPT = `
   var el = {
     console: document.getElementById("console"),
     updated: document.getElementById("updated"),
+    verdictText: document.getElementById("verdictText"),
+    verdictState: document.getElementById("verdictState"),
     facts: document.getElementById("facts"),
-    chips: document.getElementById("chips"),
     healthMeta: document.getElementById("healthMeta"),
     attn: document.getElementById("attn"),
     attnMeta: document.getElementById("attnMeta"),
+    attnFoot: document.getElementById("attnFoot"),
     testAllBtn: document.getElementById("testAllBtn"),
     auto: document.getElementById("auto"),
     testAllNote: document.getElementById("testAllNote"),
@@ -12893,13 +12911,19 @@ var OVERVIEW_SCRIPT = `
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
     addBtn: document.getElementById("addBtn"),
+    addBtnFoot: document.getElementById("addBtnFoot"),
+    testAllBtnFoot: document.getElementById("testAllBtnFoot"),
+    testAllNoteFoot: document.getElementById("testAllNoteFoot"),
     refreshBtn: document.getElementById("refreshBtn"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
     planMix: document.getElementById("planMix"),
+    planDeclared: document.getElementById("planDeclared"),
+    planPct: document.getElementById("planPct"),
     providerMix: document.getElementById("providerMix"),
     providerDays: document.getElementById("providerDays"),
+    providerTotal: document.getElementById("providerTotal"),
     providerPools: document.getElementById("providerPools"),
     activity: document.getElementById("activity")
   };
@@ -12912,8 +12936,6 @@ var OVERVIEW_SCRIPT = `
   }
 
   function renderHero(pool, tiers, stats) {
-    var declared = (tiers ? (tiers.free || 0) + (tiers.paid || 0) + (tiers.pro || 0) : 0);
-
     if (el.poolBar) {
       el.poolBar.textContent = "";
       el.poolBar.appendChild(GX.poolBar([
@@ -12927,17 +12949,18 @@ var OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Ready now", String(pool.ready), pool.total ? "of " + pool.total + " in the pool" : "the pool is empty", pool.ready ? "ok" : "bad"));
     el.facts.appendChild(GX.stat("Cooling", String(pool.cooling), pool.cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", pool.cooling ? "warn" : ""));
     el.facts.appendChild(GX.stat("Dead", String(pool.dead), pool.dead ? "revoked or out of quota" : "none retired", pool.dead ? "bad" : ""));
-    el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
-    el.chips.textContent = "";
-    /* The per-provider ready/total chips moved into the provider pool rows
-       above; this row carries the cross-provider facts only. */
-    if (stats) {
-      el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
-      el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
-      el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
-    }
-    el.healthMeta.textContent = pool.degraded ? "degraded" : "";
+    /* The verdict strip and the pool panel read the same census: the strip
+       is the one-line verdict, healthMeta is the always-on pool status. */
+    var ready = pool.ready || 0;
+    var cooling = pool.cooling || 0;
+    var dead = pool.dead || 0;
+    var total = pool.total || 0;
+    el.verdictText.textContent = "Ready " + ready + "/" + total + " \xB7 " + cooling + " cooling \xB7 " + dead + " dead";
+    el.verdictState.textContent = pool.degraded ? "Degraded" : "Ready";
+    el.healthMeta.textContent = pool.degraded
+      ? "Degraded \xB7 " + dead + " dead \xB7 " + cooling + " cooling"
+      : "Ready";
 
     /* Per-provider pool health. A multi-provider gateway is only as healthy
        as its weakest pool, so each provider gets its own bar and count. */
@@ -13010,11 +13033,15 @@ var OVERVIEW_SCRIPT = `
     }
 
     el.attn.textContent = "";
-    el.attnMeta.textContent = items.length ? items.length + (items.length === 1 ? " item" : " items") : "nothing";
-    if (!items.length) {
-      el.attn.appendChild(GX.state("empty", "Nothing needs attention", "Every key is ready and every plan is declared."));
-      return;
-    }
+    /* Empty means one line: the header meta carries the all-clear and the
+       feed plus the foot collapse away. Test all stays reachable from the
+       footer actions row, so collapsing the foot here loses no action. */
+    el.attnMeta.textContent = items.length
+      ? items.length + (items.length === 1 ? " item" : " items")
+      : "Nothing needs attention \u2014 every key is ready and every plan is declared.";
+    el.attn.hidden = !items.length;
+    el.attnFoot.hidden = !items.length;
+    if (!items.length) return;
     items.forEach(function (item) {
       /* "info" is a runtime tone with no CSS variable of its own; the dot
          reads it as the accent colour. */
@@ -13038,6 +13065,7 @@ var OVERVIEW_SCRIPT = `
       el.kpis.appendChild(GX.kpi("Errors", "-", "statistics unavailable"));
       el.kpis.appendChild(GX.kpi("Tokens", "-", "statistics unavailable"));
       el.kpis.appendChild(GX.kpi("Estimated cost", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("p95", "-", "statistics unavailable"));
       return;
     }
     var t = stats.totals || {};
@@ -13048,6 +13076,9 @@ var OVERVIEW_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(errors), share));
     el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt, output and cached"));
     el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
+    /* p95 moved here from the pool chips: latency belongs with the traffic
+       figures, not with the pool census. */
+    el.kpis.appendChild(GX.kpi("p95", GX.fmt.num(t.p95Ms) + " ms", "95th percentile response time"));
   }
 
   /* Provider split: aggregate meters + one stacked bar per WIB day. Each
@@ -13067,6 +13098,7 @@ var OVERVIEW_SCRIPT = `
     el.providerDays.textContent = "";
     if (!stats) {
       el.providerMix.appendChild(GX.state("empty", "Statistics unavailable", "The stats endpoint did not answer."));
+      el.providerTotal.textContent = "";
       return;
     }
     var buckets = stats.byProvider || [];
@@ -13074,6 +13106,7 @@ var OVERVIEW_SCRIPT = `
     buckets.forEach(function (b) { total += b.requests; });
     if (!total) {
       el.providerMix.appendChild(GX.state("empty", "No traffic in this range", "Nothing was routed in the last 30 days."));
+      el.providerTotal.textContent = "Total 0 requests in the last 30 days";
       return;
     }
     var byProv = {};
@@ -13085,6 +13118,7 @@ var OVERVIEW_SCRIPT = `
     order.forEach(function (prov) {
       el.providerMix.appendChild(GX.meter(prov, byProv[prov] || 0, total, provTone(prov)));
     });
+    el.providerTotal.textContent = "Total " + GX.fmt.num(total) + " requests in the last 30 days";
 
     var days = stats.byProviderDay || [];
     if (!days.length) return;
@@ -13109,10 +13143,12 @@ var OVERVIEW_SCRIPT = `
     el.providerDays.appendChild(chart);
     var legend = GX.el("div", { class: "legend" });
     order.forEach(function (p) {
+      var n = byProv[p] || 0;
+      var pct = total ? ((n / total) * 100).toFixed(1) : "0.0";
       legend.appendChild(GX.el("span", { class: "legend-item" }, [
         GX.el("span", { class: "dot " + provTone(p) }),
         GX.el("span", { text: p }),
-        GX.el("b", { text: GX.fmt.num(byProv[p] || 0) })
+        GX.el("b", { text: GX.fmt.num(n) + " (" + pct + "%)" })
       ]));
     });
     el.providerDays.appendChild(legend);
@@ -13126,6 +13162,23 @@ var OVERVIEW_SCRIPT = `
     el.planMix.appendChild(GX.meter("Pay as you go", t.paid || 0, total, "info"));
     el.planMix.appendChild(GX.meter("AI Pro", t.pro || 0, total, "info"));
     el.planMix.appendChild(GX.meter("Unspecified", t.unknown || 0, total, "warn"));
+    /* Plans declared moved here from the pool hero: the count belongs with
+       the mix it summarises. Meters carry no % text, so the shares are
+       written out in full below them. */
+    var declared = (t.free || 0) + (t.paid || 0) + (t.pro || 0);
+    el.planDeclared.textContent = total ? declared + " of " + total + " keys declared" : "the pool is empty";
+    if (!total) {
+      el.planPct.textContent = "No keys in the pool";
+      return;
+    }
+    el.planPct.textContent = [
+      ["Free tier", t.free || 0],
+      ["Pay as you go", t.paid || 0],
+      ["AI Pro", t.pro || 0],
+      ["Unspecified", t.unknown || 0]
+    ].map(function (row) {
+      return row[0] + " " + ((row[1] / total) * 100).toFixed(1) + "%";
+    }).join(" \xB7 ");
   }
 
   function renderActivity(payload) {
@@ -13141,14 +13194,19 @@ var OVERVIEW_SCRIPT = `
       el.activity.appendChild(GX.el("div", { class: "feed-item" }, [
         GX.el("span", { class: "act", text: r.action }),
         GX.el("span", { class: "what", text: what }),
-        GX.el("time", { text: GX.fmt.time(r.ts) })
+        /* Same actor row the audit page uses: a time-only stamp hid which
+           day a cross-day event happened on, so the full stamp lands here. */
+        GX.el("span", { class: "what meta", text: r.actor ? "by " + r.actor : "by unknown actor" }),
+        GX.el("time", { text: GX.fmt.stamp(r.ts) })
       ]));
     });
   }
 
-  function testAll() {
-    GX.busy(el.testAllBtn, "Testing\u2026");
-    el.testAllNote.textContent = "one live call per key, four at a time";
+  function testAll(btn, note) {
+    btn = btn || el.testAllBtn;
+    note = note || el.testAllNote;
+    GX.busy(btn, "Testing\u2026");
+    note.textContent = "one live call per key, four at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         var results = data.results || [];
@@ -13160,8 +13218,8 @@ var OVERVIEW_SCRIPT = `
         GX.notice("Test all failed: " + err.message, "err");
       })
       .then(function () {
-        GX.idle(el.testAllBtn);
-        el.testAllNote.textContent = "one live call per key, four at a time";
+        GX.idle(btn);
+        note.textContent = "one live call per key, four at a time";
       });
   }
 
@@ -13239,11 +13297,14 @@ var OVERVIEW_SCRIPT = `
     if (state.timer) { state.timer(); state.timer = null; }
   }
 
-  el.addBtn.addEventListener("click", function () {
+  function openAdd() {
     GX.say(el.addMsg, "");
     GX.openDialog(el.addDialog);
     if (el.newKeys) el.newKeys.focus();
-  });
+  }
+
+  el.addBtn.addEventListener("click", openAdd);
+  el.addBtnFoot.addEventListener("click", openAdd);
   el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
@@ -13251,7 +13312,16 @@ var OVERVIEW_SCRIPT = `
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
   });
-  el.testAllBtn.addEventListener("click", testAll);
+  el.testAllBtn.addEventListener("click", function () { testAll(); });
+  el.testAllBtnFoot.addEventListener("click", function () {
+    GX.confirm({
+      title: "Test all live keys?",
+      message: "One live call per key, four at a time.",
+      confirmLabel: "Test all live keys"
+    }).then(function (ok) {
+      if (ok) testAll(el.testAllBtnFoot, el.testAllNoteFoot);
+    });
+  });
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
   });
@@ -13532,7 +13602,7 @@ var MODELS_SCRIPT = `
     any: "Showing every model Google returns, regardless of billing."
   };
 
-  var state = { models: [], census: {}, page: 1, size: 25, tier: "free", testing: {} };
+  var state = { models: [], census: {}, page: 1, size: 25, tier: "free", testing: {}, pendingProvider: "" };
 
   function money(v) {
     if (v === null || v === undefined) return null;
@@ -13552,6 +13622,7 @@ var MODELS_SCRIPT = `
       kind: el.kind.value,
       provider: el.provider.value,
       tier: state.tier,
+      size: state.size !== 25 ? state.size : "",
       page: state.page > 1 ? state.page : ""
     });
   }
@@ -13560,12 +13631,27 @@ var MODELS_SCRIPT = `
     var params = GX.url.read();
     if (params.q) el.q.value = params.q;
     if (params.kind) el.kind.value = params.kind;
-    /* Any provider the catalog actually returned is a valid filter value,
-       so a custom provider survives a reload the same way gemini does. */
-    if (params.provider && el.provider.querySelector('option[value="' + params.provider + '"]')) {
-      el.provider.value = params.provider;
+    /* The provider filter only holds the hardcoded options until the census
+       arrives, so validation waits for it: the wanted value is parked here
+       and applied by syncProviderFilter once the catalog answers. A provider
+       the census never names still gets its own option, so the table filters
+       to zero rows instead of crashing or silently dropping the filter. */
+    if (params.provider) {
+      state.pendingProvider = params.provider;
+      if (el.provider.querySelector('option[value="' + params.provider + '"]')) {
+        el.provider.value = params.provider;
+      }
     }
     if (params.tier && TIER_LABELS[params.tier]) state.tier = params.tier;
+    /* Per-page persists the same way Keys does; an unknown size is ignored
+       rather than leaving the select blank. */
+    if (params.size) {
+      var sizeOpt = null;
+      Array.prototype.forEach.call(el.size.options, function (o) {
+        if (o.value === params.size || o.text === params.size) sizeOpt = o;
+      });
+      if (sizeOpt) { el.size.value = sizeOpt.value; state.size = Number(sizeOpt.value) || 25; }
+    }
     state.page = Number(params.page) || 1;
   }
 
@@ -13614,6 +13700,21 @@ var MODELS_SCRIPT = `
       el.provider.appendChild(opt);
     });
     if (current && el.provider.querySelector('option[value="' + current + '"]')) el.provider.value = current;
+    /* A provider parked by readUrl before the census arrived: if the census
+       names it, it is already an option above; if not, it still gets an
+       option of its own, so the filter holds and the table shows zero rows
+       instead of silently reverting to "all". */
+    if (state.pendingProvider) {
+      var want = state.pendingProvider;
+      state.pendingProvider = "";
+      if (!el.provider.querySelector('option[value="' + want + '"]')) {
+        var extra = document.createElement("option");
+        extra.value = want;
+        extra.textContent = want;
+        el.provider.appendChild(extra);
+      }
+      el.provider.value = want;
+    }
   }
 
   function renderKpis(shown, census) {
@@ -13860,7 +13961,7 @@ var MODELS_SCRIPT = `
         } else {
           GX.say(el.rowMsg, m.id + " -> " + r.status + " (HTTP " + r.httpStatus + "): " + r.message, r.status === "rate_limited" ? "" : "err");
         }
-        renderKpis(0, state.census);
+        renderKpis(visible().length, state.census);
       })
       .catch(function (err) {
         node.textContent = "error";
@@ -13874,6 +13975,7 @@ var MODELS_SCRIPT = `
   el.size.addEventListener("change", function () {
     state.size = Number(el.size.value) || 25;
     state.page = 1;
+    writeUrl();
     render();
   });
   el.q.addEventListener("input", GX.debounce(function () {
@@ -16949,12 +17051,77 @@ var STATS_BODY = `
     </div>
     <div class="page-head-side">
       <div class="seg" id="range" role="group" aria-label="Time range"></div>
+      <span class="meta" id="stamp">-</span>
     </div>
   </header>
 
   <div id="dataErr" class="notice u-mb-3" role="status" aria-live="polite"></div>
 
   <div class="figures" id="kpis"></div>
+
+  <div class="zone">
+    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">where the traffic went in this range</span></div>
+
+    <div class="grid grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By model</h2>
+          <span class="meta" id="byModelMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byModel">
+            <thead><tr><th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Total tokens</th><th class="num">Estimated cost</th><th class="num">Avg ms</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byModelEmpty"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By key</h2>
+          <span class="meta" id="byKeyMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byKey">
+            <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Total tokens</th><th class="num">Estimated cost</th><th class="num">Avg ms</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byKeyEmpty"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid grid-2 u-mt-3">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By route</h2>
+          <span class="meta" id="byRouteMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byRoute">
+            <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Total tokens</th><th class="num">Estimated cost</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byRouteEmpty"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By status</h2>
+          <span class="meta" id="byStatusMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byStatus">
+            <thead><tr><th>Status</th><th class="num">Req</th><th class="num">%</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byStatusEmpty"></div>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <section class="panel u-mt-4">
     <div class="panel-head">
@@ -16977,70 +17144,6 @@ var STATS_BODY = `
       <div id="heatEmpty"></div>
     </div>
   </section>
-
-  <div class="zone">
-    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">where the traffic went in this range</span></div>
-
-    <div class="grid grid-2">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By model</h2>
-          <span class="meta" id="byModelMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byModel">
-            <thead><tr><th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byModelEmpty"></div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By key</h2>
-          <span class="meta" id="byKeyMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byKey">
-            <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byKeyEmpty"></div>
-        </div>
-      </section>
-    </div>
-
-    <div class="grid grid-2 u-mt-3">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By route</h2>
-          <span class="meta" id="byRouteMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byRoute">
-            <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byRouteEmpty"></div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By status</h2>
-          <span class="meta" id="byStatusMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byStatus">
-            <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byStatusEmpty"></div>
-        </div>
-      </section>
-    </div>
-  </div>
 </div>
 `;
 var STATS_SCRIPT = `
@@ -17055,7 +17158,9 @@ var STATS_SCRIPT = `
     heatNote: document.getElementById("heatNote"),
     heatEmpty: document.getElementById("heatEmpty"),
     heatValues: document.getElementById("heatValues"),
-    err: document.getElementById("dataErr")
+    err: document.getElementById("dataErr"),
+    refresh: document.getElementById("refreshBtn"),
+    stamp: document.getElementById("stamp")
   };
 
   var RANGES = [
@@ -17068,14 +17173,25 @@ var STATS_SCRIPT = `
   var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   var state = { range: "24h" };
 
+  /* Range to source, from stats.ts: 1h/24h come from raw request events
+     (or the in-memory ring when no database is configured), 7d/30d from
+     the usage_daily rollup. The old fallback labelled every non-ring
+     source "usage_daily rollup", which mislabelled the event ranges. */
+  function sourceLabel(source) {
+    if (source === "ring") return "in-memory ring";
+    if (source === "usage_events") return "request events";
+    if (source === "usage_daily") return "usage_daily rollup";
+    return source || "unknown";
+  }
+
   function renderKpis(d) {
     var t = d.totals || {};
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), d.source === "ring" ? "in-memory ring" : "usage_daily rollup"));
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), sourceLabel(d.source)));
     el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic in range", t.errors ? "bad" : "ok"));
     el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
     el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt and completion"));
-    el.kpis.appendChild(GX.kpi("Cost", GX.fmt.money(t.costUsd), "in this window"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "in this window"));
     el.kpis.appendChild(GX.kpi("Projected", GX.fmt.money(d.projectedMonthlyUsd), "per 30 days"));
   }
 
@@ -17110,7 +17226,7 @@ var STATS_SCRIPT = `
     });
   }
 
-  function fillStatus(rows) {
+  function fillStatus(rows, total) {
     var table = document.getElementById("byStatus");
     var body = table.querySelector("tbody");
     body.textContent = "";
@@ -17127,6 +17243,7 @@ var STATS_SCRIPT = `
       var tr = GX.el("tr");
       GX.cell(tr, r.key, "", "status");
       GX.cell(tr, GX.fmt.num(r.requests), "num", "requests");
+      GX.cell(tr, total ? ((r.requests / total) * 100).toFixed(1) + "%" : "-", "num", "%");
       body.appendChild(tr);
     });
   }
@@ -17195,15 +17312,16 @@ var STATS_SCRIPT = `
 
   function paint(d) {
     renderKpis(d);
-    el.meta.textContent = (d.source === "ring" ? "Source: in-memory ring. " : "Source: usage_daily. ") + (d.note || "");
+    el.meta.textContent = "Source: " + sourceLabel(d.source) + ". " + (d.note || "");
+    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
     fillHeat(d.heatmap);
     fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
       { label: "provider", node: function (r) { return GX.providerTag(GX.providerFromModel(r.key)); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
-      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
+      { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
+      { label: "estimated cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
       { label: "ms", value: function (r) { return GX.fmt.num(r.avgLatencyMs); } }
     ]);
     fillBucket("byKey", "byKeyEmpty", "byKeyMeta", d.byKey, [
@@ -17211,17 +17329,18 @@ var STATS_SCRIPT = `
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "rot", value: function (r) { return GX.fmt.num(r.rotated); } },
-      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
-      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
+      { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
+      { label: "estimated cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
+      { label: "ms", value: function (r) { return GX.fmt.num(r.avgLatencyMs); } }
     ]);
     fillBucket("byRoute", "byRouteEmpty", "byRouteMeta", d.byRoute, [
       { label: "route", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
-      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
+      { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
+      { label: "estimated cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
-    fillStatus(d.byStatus);
+    fillStatus(d.byStatus, (d.totals || {}).requests || 0);
   }
 
   function load() {
@@ -17279,6 +17398,8 @@ var STATS_SCRIPT = `
     el.heat.classList.toggle("values", el.heatValues.checked);
   });
 
+  el.refresh.addEventListener("click", function () { reload(); });
+
   buildRange();
   GX.shortcuts({ refresh: "refreshBtn" });
   GX.gate({
@@ -17293,6 +17414,7 @@ var STATS_SCRIPT = `
 var STATS_HTML = consolePage({
   title: "Statistics",
   active: "/pengatur/stats",
+  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
   body: STATS_BODY,
   script: STATS_SCRIPT
 });
@@ -17693,6 +17815,10 @@ var USAGE_BODY = `
           <select id="fKey" class="select"><option value="">all</option></select>
         </div>
         <div class="grow">
+          <label class="field" for="fRoute">Route</label>
+          <select id="fRoute" class="select"><option value="">all</option></select>
+        </div>
+        <div class="grow">
           <label class="field" for="fStatus">Status</label>
           <select id="fStatus" class="select">
             <option value="">all</option>
@@ -17730,7 +17856,7 @@ var USAGE_BODY = `
   </section>
 
   <div class="zone">
-    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">same filter, three groupings</span></div>
+    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">same filter, four groupings</span></div>
     <div class="grid grid-2">
       <section class="panel">
         <div class="panel-head">
@@ -17780,6 +17906,22 @@ var USAGE_BODY = `
         <div id="byDayEmpty"></div>
       </div>
     </section>
+
+    <section class="panel u-mt-3">
+      <div class="panel-head">
+        <h2>By route</h2>
+        <span class="meta" id="byRouteMeta"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="byRoute">
+          <thead><tr>
+            <th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="byRouteEmpty"></div>
+      </div>
+    </section>
   </div>
 </div>
 `;
@@ -17794,15 +17936,18 @@ var USAGE_SCRIPT = `
     fDay: document.getElementById("fDay"),
     fModel: document.getElementById("fModel"),
     fKey: document.getElementById("fKey"),
+    fRoute: document.getElementById("fRoute"),
     fStatus: document.getElementById("fStatus"),
     apply: document.getElementById("apply"),
     reset: document.getElementById("reset"),
     byModel: document.getElementById("byModel"),
     byKey: document.getElementById("byKey"),
     byDay: document.getElementById("byDay"),
+    byRoute: document.getElementById("byRoute"),
     byModelMeta: document.getElementById("byModelMeta"),
     byKeyMeta: document.getElementById("byKeyMeta"),
     byDayMeta: document.getElementById("byDayMeta"),
+    byRouteMeta: document.getElementById("byRouteMeta"),
     log: document.getElementById("log"),
     logMeta: document.getElementById("logMeta"),
     pager: document.getElementById("pager"),
@@ -17812,13 +17957,14 @@ var USAGE_SCRIPT = `
     err: document.getElementById("err")
   };
 
-  var state = { page: 1, size: 25, filter: { day: "", model: "", key: "", status: "" }, timer: null };
+  var state = { page: 1, size: 25, filter: { day: "", model: "", key: "", route: "", status: "" }, timer: null };
 
   function writeUrl() {
     GX.url.write({
       day: state.filter.day,
       model: state.filter.model,
       key: state.filter.key,
+      route: state.filter.route,
       status: state.filter.status,
       page: state.page > 1 ? state.page : ""
     });
@@ -17829,6 +17975,7 @@ var USAGE_SCRIPT = `
     state.filter.day = params.day || "";
     state.filter.model = params.model || "";
     state.filter.key = params.key || "";
+    state.filter.route = params.route || "";
     state.filter.status = params.status || "";
     state.page = Number(params.page) || 1;
   }
@@ -17866,12 +18013,13 @@ var USAGE_SCRIPT = `
   function renderKpis(data) {
     var t = data.totals || {};
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), data.mode + " ring, capacity " + GX.fmt.num(data.capacity)));
     el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic yet", t.errors ? "bad" : "ok"));
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), data.mode + " ring, capacity " + GX.fmt.num(data.capacity)));
     el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
+    el.kpis.appendChild(GX.kpi("Latency", GX.fmt.num(t.avgLatencyMs) + " ms", "average per request"));
     el.kpis.appendChild(GX.kpi("Prompt tokens", GX.fmt.compact(t.promptTokens), "input side"));
     el.kpis.appendChild(GX.kpi("Output tokens", GX.fmt.compact(t.completionTokens), "completion side"));
-    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "avg " + GX.fmt.num(t.avgLatencyMs) + " ms per request"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "in this view"));
   }
 
   function renderBuckets(table, emptyId, metaId, buckets, cols) {
@@ -17916,7 +18064,7 @@ var USAGE_SCRIPT = `
     if (!rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
-      GX.cell(tr, GX.fmt.clock(r.ts), "mono nowrap", "time");
+      GX.cell(tr, GX.fmt.date(r.ts) + " " + GX.fmt.clock(r.ts), "mono nowrap", "time");
       GX.cell(tr, r.route, "mono", "route");
       GX.cell(tr, r.model || "-", "mono", "model");
       /* The ledger has no provider column: ElevenLabs TTS is logged under
@@ -17978,6 +18126,7 @@ var USAGE_SCRIPT = `
     fillSelect(el.fDay, data.byDay);
     fillSelect(el.fModel, data.byModel);
     fillSelect(el.fKey, data.byKey);
+    fillSelect(el.fRoute, data.byRoute);
 
     renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
@@ -18011,6 +18160,17 @@ var USAGE_SCRIPT = `
       { k: "costUsd", num: true, fmt: GX.fmt.money, label: "cost" }
     ]);
 
+    renderBuckets(el.byRoute, "byRouteEmpty", "byRouteMeta", data.byRoute || [], [
+      { k: "key", label: "route" },
+      { k: "requests", num: true, label: "req" },
+      { k: "errors", num: true, label: "err" },
+      { k: "rotated", num: true, label: "rot" },
+      { k: "promptTokens", num: true, label: "prompt" },
+      { k: "completionTokens", num: true, label: "output" },
+      { k: "costUsd", num: true, fmt: GX.fmt.money, label: "cost" },
+      { k: "avgLatencyMs", num: true, label: "ms" }
+    ]);
+
     renderLog(data.rows || []);
     renderPager(data);
     el.logMeta.textContent = (data.rows || []).length + " rows on this page";
@@ -18030,6 +18190,7 @@ var USAGE_SCRIPT = `
           throw err;
         }
         GX.say(el.err, err.message, "err");
+        el.console.hidden = false;
       });
   }
 
@@ -18048,16 +18209,18 @@ var USAGE_SCRIPT = `
     state.filter.day = el.fDay.value;
     state.filter.model = el.fModel.value;
     state.filter.key = el.fKey.value;
+    state.filter.route = el.fRoute.value;
     state.filter.status = el.fStatus.value;
     state.page = 1;
     writeUrl();
     load();
   });
   el.reset.addEventListener("click", function () {
-    state.filter = { day: "", model: "", key: "", status: "" };
+    state.filter = { day: "", model: "", key: "", route: "", status: "" };
     el.fDay.value = "";
     el.fModel.value = "";
     el.fKey.value = "";
+    el.fRoute.value = "";
     el.fStatus.value = "";
     state.page = 1;
     writeUrl();
@@ -18073,11 +18236,12 @@ var USAGE_SCRIPT = `
   GX.shortcuts({
     refresh: "refreshBtn",
     onEscape: function () {
-      if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.status) return;
-      state.filter = { day: "", model: "", key: "", status: "" };
+      if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.route && !state.filter.status) return;
+      state.filter = { day: "", model: "", key: "", route: "", status: "" };
       el.fDay.value = "";
       el.fModel.value = "";
       el.fKey.value = "";
+      el.fRoute.value = "";
       el.fStatus.value = "";
       state.page = 1;
       writeUrl();
@@ -18246,6 +18410,7 @@ var KEYS_SCRIPT = `
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
     testAllBtn: document.getElementById("testAllBtn"),
+    purgeDeadBtn: document.getElementById("purgeDeadBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     auto: document.getElementById("auto"),
     bulkBar: document.getElementById("bulkBar"),
@@ -18557,6 +18722,9 @@ var KEYS_SCRIPT = `
 
   function renderKpis(pool) {
     el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
+    el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
+    el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
     el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "shared by every instance"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
@@ -18581,9 +18749,6 @@ var KEYS_SCRIPT = `
       var snap = byProvider[p] || {};
       el.kpis.appendChild(GX.kpi(label(p), GX.fmt.num(snap.total || 0), (snap.ready || 0) + " ready", tone(p)));
     });
-    el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
-    el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
-    el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
   }
 
   function tableHead() {
@@ -18940,20 +19105,27 @@ var KEYS_SCRIPT = `
   }
 
   function purgeDead() {
-    GX.busy(el.purgeDeadBtn, "Purging\u2026");
-    GX.api("/pengatur/keys/purge-dead", { method: "POST" })
-      .then(function () {
-        /* The recheck timer now keeps the live pool healthy; this button only
-           removes credentials that can never serve (invalid/leaked), so a dead
-           row stops inflating the count. quota_exhausted keys stay - they are
-           live and come back when the project gets an allocation. */
-        GX.notice("Purged dead keys (invalid/leaked). Live keys untouched.", "ok");
-        return reload();
-      })
-      .catch(function (err) {
-        GX.notice("Purge failed: " + err.message, "err");
-      })
-      .then(function () { GX.idle(el.purgeDeadBtn); });
+    GX.confirm({
+      title: "Purge dead keys?",
+      message: "Delete every retired key (invalid or leaked). Quota-exhausted keys are live and stay.",
+      confirmLabel: "Purge dead keys"
+    }).then(function (ok) {
+      if (!ok) return;
+      GX.busy(el.purgeDeadBtn, "Purging\u2026");
+      GX.api("/pengatur/keys/purge-dead", { method: "POST" })
+        .then(function () {
+          /* The recheck timer now keeps the live pool healthy; this button only
+             removes credentials that can never serve (invalid/leaked), so a dead
+             row stops inflating the count. quota_exhausted keys stay - they are
+             live and come back when the project gets an allocation. */
+          GX.notice("Purged dead keys (invalid/leaked). Live keys untouched.", "ok");
+          return reload();
+        })
+        .catch(function (err) {
+          GX.notice("Purge failed: " + err.message, "err");
+        })
+        .then(function () { GX.idle(el.purgeDeadBtn); });
+    });
   }
 
   function testAll() {
@@ -19148,6 +19320,7 @@ var KEYS_SCRIPT = `
   });
   el.refreshBtn.addEventListener("click", function () { reload(); });
   el.testAllBtn.addEventListener("click", testAll);
+  if (el.purgeDeadBtn) el.purgeDeadBtn.addEventListener("click", purgeDead);
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
   });
@@ -19248,7 +19421,6 @@ var DETAIL_BODY = `
         <code class="credential-value" id="keyRaw">\u2026</code>
         <button class="btn btn-sm" id="keyCopy" type="button">${icon("copy")}Copy</button>
       </div>
-      <p class="hint u-mt-3" id="keyMaskedNote">Masked form: -</p>
     </div>
   </section>
 
@@ -19260,14 +19432,6 @@ var DETAIL_BODY = `
     <div class="panel-body">
       <dl class="defs" id="summary"></dl>
     </div>
-  </section>
-
-  <section class="panel u-mt-4" id="eventsPanel">
-    <div class="panel-head">
-      <h2>Cooldown timeline</h2>
-      <span class="meta" id="cooldownNote"></span>
-    </div>
-    <div id="eventsFeed" class="feed"></div>
   </section>
 
   <section class="panel u-mt-4" id="dailyPanel" hidden>
@@ -19299,6 +19463,14 @@ var DETAIL_BODY = `
     </div>
   </section>
 
+  <section class="panel u-mt-4" id="eventsPanel">
+    <div class="panel-head">
+      <h2>Cooldown timeline</h2>
+      <span class="meta" id="cooldownNote"></span>
+    </div>
+    <div id="eventsFeed" class="feed"></div>
+  </section>
+
   <p class="hint u-mt-3" id="noHistory"></p>
 </div>
 `;
@@ -19323,6 +19495,74 @@ var DETAIL_SCRIPT = `
     return value;
   }
 
+  /* The masked form of the key on screen, for the probe toast. The list
+     page's toast prefixes the same masked form; this page keeps it from
+     renderCredential so the probe handler can match that toast exactly. */
+  var detailMasked = "";
+
+  /* Browser locale on purpose: the operator reads the clock on this machine.
+     Mirrors the list page's helpers so both pages say the same thing. */
+  function whenText(ms) {
+    if (ms === null || ms === undefined || ms === "") return "";
+    var n = Number(ms);
+    if (!n || isNaN(n)) return "";
+    var date = new Date(n);
+    if (isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+  }
+
+  function quotaText(q) {
+    if (!q) return "";
+    var parts = [];
+    if (q.metric) parts.push(q.metric);
+    var cap = "";
+    if (q.limitValue) cap = q.limitValue + (q.window ? "/" + q.window : "");
+    else if (q.window) cap = q.window;
+    if (cap) parts.push(cap);
+    if (q.consumer) parts.push("consumer " + q.consumer);
+    var reset = whenText(q.resetAt);
+    if (reset) parts.push("resets " + reset);
+    else if (q.retryAfterMs) parts.push("retry in " + GX.fmt.left(q.retryAfterMs));
+    else if (q.freeTier) parts.push("free tier");
+    return parts.join(" \xB7 ");
+  }
+
+  /* What the upstream actually answered, not what the console wishes it said.
+     Same parts, same order as the list page's probe toast: verdict, quota,
+     next access, plan. */
+  function testSummary(data) {
+    var parts = [];
+    if (data.httpStatus) parts.push("HTTP " + data.httpStatus);
+    if (data.verdict || data.status) parts.push(data.verdict || data.status);
+    var quota = quotaText(data.quota);
+    if (quota) parts.push(quota);
+    var next = whenText(data.nextAccessAt);
+    if (next) parts.push("next access " + next);
+    else if (data.retryAfterMs) parts.push("retry in " + GX.fmt.left(data.retryAfterMs));
+    var evidence = data.tierEvidence || null;
+    if (evidence && evidence.tier) {
+      parts.push("plan " + tierLabel(evidence.tier) + (evidence.source ? " via " + evidence.source : ""));
+    } else if (data.plan) {
+      parts.push("plan " + tierLabel(data.plan));
+    }
+    if (data.message) parts.push(data.message);
+    if (data.error) parts.push("error: " + data.error);
+    if (!parts.length) parts.push("no answer from upstream");
+    return (detailMasked ? detailMasked + ": " : "") + parts.join(" \xB7 ");
+  }
+
+  /* Relative cooldown plus the absolute reset moment beside it. The detail
+     endpoint carries both: cooldownLeftMs (the wait) and cooldownUntil (the
+     instant). With no live cooldown the row keeps its old single value. */
+  function cooldownText(k) {
+    var rel = GX.fmt.left(k.cooldownLeftMs);
+    if (k.cooldownLeftMs && k.cooldownUntil) {
+      var abs = whenText(k.cooldownUntil);
+      if (abs) return rel + " \xB7 until " + abs;
+    }
+    return rel;
+  }
+
   var el = {
     console: document.getElementById("console"),
     detailValidate: document.getElementById("detailValidate"),
@@ -19332,7 +19572,6 @@ var DETAIL_SCRIPT = `
     keyRaw: document.getElementById("keyRaw"),
     keyCopy: document.getElementById("keyCopy"),
     keyMaskNote: document.getElementById("keyMaskNote"),
-    keyMaskedNote: document.getElementById("keyMaskedNote"),
     summary: document.getElementById("summary"),
     stateNote: document.getElementById("stateNote"),
     dailyNote: document.getElementById("dailyNote"),
@@ -19354,7 +19593,7 @@ var DETAIL_SCRIPT = `
     el.keyRaw.textContent = k.masked || k.key || "-";
     el.keyRaw.title = "";
     el.keyMaskNote.textContent = "masked only";
-    el.keyMaskedNote.textContent = "Masked form: " + (k.masked || k.key || "-");
+    detailMasked = k.masked || k.key || "";
     el.keyCopy.disabled = false;
     el.keyCopy.onclick = function () { GX.copy(k.masked || k.key || "", "Masked key"); };
   }
@@ -19374,7 +19613,7 @@ var DETAIL_SCRIPT = `
       ["Failures", k.failures, k.failures ? "warn" : ""],
       ["Invalidations", k.invalidations, k.invalidations ? "bad" : ""],
       ["Last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never", ""],
-      ["Cooldown left", GX.fmt.left(k.cooldownLeftMs), k.cooldownLeftMs ? "warn" : ""]
+      ["Cooldown left", cooldownText(k), k.cooldownLeftMs ? "warn" : ""]
     ];
     rows.forEach(function (r) {
       el.summary.appendChild(GX.el("div", { class: "def" }, [
@@ -19423,8 +19662,17 @@ var DETAIL_SCRIPT = `
   function renderEvents(events) {
     el.eventsFeed.textContent = "";
     el.cooldownNote.textContent = events.length ? events.length + " events" : "";
-    el.eventsPanel.hidden = !events.length;
-    if (!events.length) return;
+    /* The timeline is the last panel and it always renders: when it used to
+       appear and disappear, every panel below it (none now, but Daily and
+       Recent sat after it) shifted. An empty feed states that instead. */
+    if (!events.length) {
+      el.eventsFeed.appendChild(GX.state(
+        "empty",
+        "No cooldown events",
+        "No cooldown events recorded for this key yet."
+      ));
+      return;
+    }
     events.forEach(function (e) {
       el.eventsFeed.appendChild(GX.el("div", { class: "feed-item" }, [
         GX.el("span", { class: "act", text: String(e.status) }),
@@ -19467,12 +19715,11 @@ var DETAIL_SCRIPT = `
     renderDaily(d.daily || []);
     renderEvents(d.events || []);
     renderRecent(d.recent || []);
-    /* Three panels that hold no data are three panels of dead space. Say so in
-       one line instead. */
+    /* Daily and Recent still hide when empty; the timeline above now carries
+       its own empty state, so it leaves this one-line note. */
     var empty = [];
     if (!(d.daily || []).length) empty.push("daily rollup");
     if (!(d.recent || []).length) empty.push("request ring");
-    if (!(d.events || []).length) empty.push("cooldown events");
     el.noHistory.textContent = empty.length
       ? "No " + empty.join(", ") + " recorded for this key yet."
       : "";
@@ -19539,8 +19786,16 @@ var DETAIL_SCRIPT = `
   el.detailTest.addEventListener("click", function () {
     GX.busy(el.detailTest);
     post("/pengatur/keys/test", { id: keyId })
-      .then(function () {
-        GX.notice("Probe finished.", "ok");
+      .then(function (data) {
+        /* Same toast as the list page's probe: verdict, quota, next access,
+           plan. The tone follows the same rule the list uses, read off the
+           verdict vocabulary (invalid/dead -> err, ok/ready -> ok). */
+        data = data || {};
+        var v = String(data.verdict || data.status || "").toLowerCase();
+        var tone = data.error || v.indexOf("invalid") >= 0 || v.indexOf("dead") >= 0 || v.indexOf("revoked") >= 0
+          ? "err"
+          : (v.indexOf("ok") >= 0 || v.indexOf("ready") >= 0 ? "ok" : "warn");
+        GX.toast(testSummary(data), tone);
         return refresh();
       })
       .catch(function (err) { GX.notice("Probe failed: " + err.message, "err"); })
@@ -19748,7 +20003,7 @@ var PROVIDERS_SCRIPT = `
 
   function tableHead() {
     var tr = GX.el("tr");
-    ["Provider", "Wire", "Capabilities", "Keys", "Models", "State", ""].forEach(function (h) {
+    ["Provider", "Base URL", "Capabilities", "Keys", "Models", "State", ""].forEach(function (h) {
       tr.appendChild(GX.el("th", { text: h }));
     });
     return tr;
@@ -19785,18 +20040,36 @@ var PROVIDERS_SCRIPT = `
       ]);
       tr.appendChild(prov);
 
-      tr.appendChild(GX.el("td", {}, [GX.el("span", { class: "mono", text: p.wire })]));
+      /* Base URL is the column; Wire rides under it as a subline, so the
+         Provider column keeps its shape and no other column moves. The URL
+         itself is mono and truncated with the table's own .sub ellipsis;
+         the full URL stays in the title. */
+      var urlCell = GX.el("td", { "data-l": "base url" });
+      var urlText = GX.el("div", { class: "sub mono", style: "max-width: 280px", text: p.baseUrl || "-" });
+      urlText.title = p.baseUrl || "";
+      urlCell.appendChild(urlText);
+      urlCell.appendChild(GX.el("div", { class: "sub", text: p.wire }));
+      tr.appendChild(urlCell);
 
       var caps = GX.el("td");
       (p.capabilities || []).forEach(function (c) { caps.appendChild(capTag(c)); });
       if (!(p.capabilities || []).length) caps.appendChild(GX.el("span", { class: "sub", text: "none" }));
       tr.appendChild(caps);
 
-      tr.appendChild(GX.el("td", {
-        class: "u-tnum",
+      var keysCell = GX.el("td", { class: "u-tnum" });
+      keysCell.appendChild(GX.el("a", {
+        class: "link",
+        href: "/pengatur/keys?provider=" + encodeURIComponent(p.id),
         text: (p.ready || 0) + "/" + (p.keys || 0)
       }));
-      tr.appendChild(GX.el("td", { class: "u-tnum", text: String((p.models || []).length) }));
+      tr.appendChild(keysCell);
+      var modelsCell = GX.el("td", { class: "u-tnum" });
+      modelsCell.appendChild(GX.el("a", {
+        class: "link",
+        href: "/pengatur/models?provider=" + encodeURIComponent(p.id),
+        text: String((p.models || []).length)
+      }));
+      tr.appendChild(modelsCell);
       tr.appendChild(GX.el("td", {}, [
         p.enabled ? GX.tag("enabled", "ok") : GX.tag("disabled", "warn")
       ]));
@@ -20020,10 +20293,6 @@ var SETTINGS_BODY = `
       <h1 class="page-title">Settings</h1>
       <p class="page-lede">The effective configuration of this deployment. Read only.</p>
     </div>
-    <div class="page-head-side">
-      <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
-      <button id="exportBtn" class="btn btn-sm" type="button">${icon("download")}Export</button>
-    </div>
   </header>
 
   ${noticeBand()}
@@ -20147,6 +20416,7 @@ var SETTINGS_SCRIPT = `
           throw err;
         }
         GX.say(el.msg, err.message, "err");
+        el.console.hidden = false;
       });
   }
 
@@ -20384,9 +20654,8 @@ var AUDIT_SCRIPT = `
     rows.forEach(function (r) { kinds[r.action] = true; });
 
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "in this view"));
+    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "capped at " + el.limit.value + " \u2014 more may exist"));
     el.kpis.appendChild(GX.kpi("Kinds", GX.fmt.num(Object.keys(kinds).length), "distinct action names"));
-    el.kpis.appendChild(GX.kpi("Window", el.since.value ? "since " + el.since.value.replace("T", " ") : "all time", el.action.value.trim() ? "action " + el.action.value.trim() : "every action"));
     /* sWindow in the header and trailMeta in the panel both said "100
        recorded" / "100 entries" - the same number twice. The header keeps the
        window (what the filters say); the panel keeps the count. */

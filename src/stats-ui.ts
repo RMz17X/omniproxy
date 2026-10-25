@@ -6,7 +6,7 @@
  * /pengatur/stats/data with the admin token it holds in localStorage.
  *
  * Layout: the range control in the page header, the totals as figures, then
- * the heatmap with its legend and peak line, then the breakdowns.
+ * the breakdowns, then the heatmap with its legend and peak line.
  */
 
 import { consolePage, icon, stateBlock, noticeBand } from "./ui.ts";
@@ -22,12 +22,77 @@ const STATS_BODY = `
     </div>
     <div class="page-head-side">
       <div class="seg" id="range" role="group" aria-label="Time range"></div>
+      <span class="meta" id="stamp">-</span>
     </div>
   </header>
 
   <div id="dataErr" class="notice u-mb-3" role="status" aria-live="polite"></div>
 
   <div class="figures" id="kpis"></div>
+
+  <div class="zone">
+    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">where the traffic went in this range</span></div>
+
+    <div class="grid grid-2">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By model</h2>
+          <span class="meta" id="byModelMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byModel">
+            <thead><tr><th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Total tokens</th><th class="num">Estimated cost</th><th class="num">Avg ms</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byModelEmpty"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By key</h2>
+          <span class="meta" id="byKeyMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byKey">
+            <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Total tokens</th><th class="num">Estimated cost</th><th class="num">Avg ms</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byKeyEmpty"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="grid grid-2 u-mt-3">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By route</h2>
+          <span class="meta" id="byRouteMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byRoute">
+            <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Total tokens</th><th class="num">Estimated cost</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byRouteEmpty"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>By status</h2>
+          <span class="meta" id="byStatusMeta"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="byStatus">
+            <thead><tr><th>Status</th><th class="num">Req</th><th class="num">%</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div id="byStatusEmpty"></div>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <section class="panel u-mt-4">
     <div class="panel-head">
@@ -50,70 +115,6 @@ const STATS_BODY = `
       <div id="heatEmpty"></div>
     </div>
   </section>
-
-  <div class="zone">
-    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">where the traffic went in this range</span></div>
-
-    <div class="grid grid-2">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By model</h2>
-          <span class="meta" id="byModelMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byModel">
-            <thead><tr><th>Model</th><th>Provider</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th><th class="num">Avg ms</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byModelEmpty"></div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By key</h2>
-          <span class="meta" id="byKeyMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byKey">
-            <thead><tr><th>Key id</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byKeyEmpty"></div>
-        </div>
-      </section>
-    </div>
-
-    <div class="grid grid-2 u-mt-3">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By route</h2>
-          <span class="meta" id="byRouteMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byRoute">
-            <thead><tr><th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byRouteEmpty"></div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>By status</h2>
-          <span class="meta" id="byStatusMeta"></span>
-        </div>
-        <div class="table-wrap">
-          <table class="table" id="byStatus">
-            <thead><tr><th>Status</th><th class="num">Req</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div id="byStatusEmpty"></div>
-        </div>
-      </section>
-    </div>
-  </div>
 </div>
 `;
 
@@ -129,7 +130,9 @@ const STATS_SCRIPT = `
     heatNote: document.getElementById("heatNote"),
     heatEmpty: document.getElementById("heatEmpty"),
     heatValues: document.getElementById("heatValues"),
-    err: document.getElementById("dataErr")
+    err: document.getElementById("dataErr"),
+    refresh: document.getElementById("refreshBtn"),
+    stamp: document.getElementById("stamp")
   };
 
   var RANGES = [
@@ -142,14 +145,25 @@ const STATS_SCRIPT = `
   var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   var state = { range: "24h" };
 
+  /* Range to source, from stats.ts: 1h/24h come from raw request events
+     (or the in-memory ring when no database is configured), 7d/30d from
+     the usage_daily rollup. The old fallback labelled every non-ring
+     source "usage_daily rollup", which mislabelled the event ranges. */
+  function sourceLabel(source) {
+    if (source === "ring") return "in-memory ring";
+    if (source === "usage_events") return "request events";
+    if (source === "usage_daily") return "usage_daily rollup";
+    return source || "unknown";
+  }
+
   function renderKpis(d) {
     var t = d.totals || {};
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), d.source === "ring" ? "in-memory ring" : "usage_daily rollup"));
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), sourceLabel(d.source)));
     el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic in range", t.errors ? "bad" : "ok"));
     el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
     el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt and completion"));
-    el.kpis.appendChild(GX.kpi("Cost", GX.fmt.money(t.costUsd), "in this window"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "in this window"));
     el.kpis.appendChild(GX.kpi("Projected", GX.fmt.money(d.projectedMonthlyUsd), "per 30 days"));
   }
 
@@ -184,7 +198,7 @@ const STATS_SCRIPT = `
     });
   }
 
-  function fillStatus(rows) {
+  function fillStatus(rows, total) {
     var table = document.getElementById("byStatus");
     var body = table.querySelector("tbody");
     body.textContent = "";
@@ -201,6 +215,7 @@ const STATS_SCRIPT = `
       var tr = GX.el("tr");
       GX.cell(tr, r.key, "", "status");
       GX.cell(tr, GX.fmt.num(r.requests), "num", "requests");
+      GX.cell(tr, total ? ((r.requests / total) * 100).toFixed(1) + "%" : "-", "num", "%");
       body.appendChild(tr);
     });
   }
@@ -269,15 +284,16 @@ const STATS_SCRIPT = `
 
   function paint(d) {
     renderKpis(d);
-    el.meta.textContent = (d.source === "ring" ? "Source: in-memory ring. " : "Source: usage_daily. ") + (d.note || "");
+    el.meta.textContent = "Source: " + sourceLabel(d.source) + ". " + (d.note || "");
+    el.stamp.textContent = "updated " + new Date().toLocaleTimeString("en-GB", { hour12: false });
     fillHeat(d.heatmap);
     fillBucket("byModel", "byModelEmpty", "byModelMeta", d.byModel, [
       { label: "model", value: function (r) { return r.key; } },
       { label: "provider", node: function (r) { return GX.providerTag(GX.providerFromModel(r.key)); } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
-      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
+      { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
+      { label: "estimated cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
       { label: "ms", value: function (r) { return GX.fmt.num(r.avgLatencyMs); } }
     ]);
     fillBucket("byKey", "byKeyEmpty", "byKeyMeta", d.byKey, [
@@ -285,17 +301,18 @@ const STATS_SCRIPT = `
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
       { label: "rot", value: function (r) { return GX.fmt.num(r.rotated); } },
-      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
-      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
+      { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
+      { label: "estimated cost", value: function (r) { return GX.fmt.money(r.costUsd); } },
+      { label: "ms", value: function (r) { return GX.fmt.num(r.avgLatencyMs); } }
     ]);
     fillBucket("byRoute", "byRouteEmpty", "byRouteMeta", d.byRoute, [
       { label: "route", value: function (r) { return r.key; } },
       { label: "req", value: function (r) { return GX.fmt.num(r.requests); } },
       { label: "err", value: function (r) { return GX.fmt.num(r.errors); } },
-      { label: "tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
-      { label: "cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
+      { label: "total tokens", value: function (r) { return GX.fmt.compact(r.totalTokens); } },
+      { label: "estimated cost", value: function (r) { return GX.fmt.money(r.costUsd); } }
     ]);
-    fillStatus(d.byStatus);
+    fillStatus(d.byStatus, (d.totals || {}).requests || 0);
   }
 
   function load() {
@@ -353,6 +370,8 @@ const STATS_SCRIPT = `
     el.heat.classList.toggle("values", el.heatValues.checked);
   });
 
+  el.refresh.addEventListener("click", function () { reload(); });
+
   buildRange();
   GX.shortcuts({ refresh: "refreshBtn" });
   GX.gate({
@@ -368,6 +387,10 @@ const STATS_SCRIPT = `
 export const STATS_HTML = consolePage({
   title: "Statistics",
   active: "/pengatur/stats",
+  actions:
+    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
+    icon("refresh") +
+    "Refresh</button>",
   body: STATS_BODY,
   script: STATS_SCRIPT,
 });

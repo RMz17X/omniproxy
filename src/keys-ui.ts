@@ -221,6 +221,7 @@ const KEYS_SCRIPT = `
     keySize: document.getElementById("keySize"),
     keyPager: document.getElementById("keyPager"),
     testAllBtn: document.getElementById("testAllBtn"),
+    purgeDeadBtn: document.getElementById("purgeDeadBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     auto: document.getElementById("auto"),
     bulkBar: document.getElementById("bulkBar"),
@@ -532,6 +533,9 @@ const KEYS_SCRIPT = `
 
   function renderKpis(pool) {
     el.kpis.textContent = "";
+    el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
+    el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
+    el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
     el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "shared by every instance"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
@@ -556,9 +560,6 @@ const KEYS_SCRIPT = `
       var snap = byProvider[p] || {};
       el.kpis.appendChild(GX.kpi(label(p), GX.fmt.num(snap.total || 0), (snap.ready || 0) + " ready", tone(p)));
     });
-    el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
-    el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
-    el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
   }
 
   function tableHead() {
@@ -915,20 +916,27 @@ const KEYS_SCRIPT = `
   }
 
   function purgeDead() {
-    GX.busy(el.purgeDeadBtn, "Purging…");
-    GX.api("/pengatur/keys/purge-dead", { method: "POST" })
-      .then(function () {
-        /* The recheck timer now keeps the live pool healthy; this button only
-           removes credentials that can never serve (invalid/leaked), so a dead
-           row stops inflating the count. quota_exhausted keys stay - they are
-           live and come back when the project gets an allocation. */
-        GX.notice("Purged dead keys (invalid/leaked). Live keys untouched.", "ok");
-        return reload();
-      })
-      .catch(function (err) {
-        GX.notice("Purge failed: " + err.message, "err");
-      })
-      .then(function () { GX.idle(el.purgeDeadBtn); });
+    GX.confirm({
+      title: "Purge dead keys?",
+      message: "Delete every retired key (invalid or leaked). Quota-exhausted keys are live and stay.",
+      confirmLabel: "Purge dead keys"
+    }).then(function (ok) {
+      if (!ok) return;
+      GX.busy(el.purgeDeadBtn, "Purging…");
+      GX.api("/pengatur/keys/purge-dead", { method: "POST" })
+        .then(function () {
+          /* The recheck timer now keeps the live pool healthy; this button only
+             removes credentials that can never serve (invalid/leaked), so a dead
+             row stops inflating the count. quota_exhausted keys stay - they are
+             live and come back when the project gets an allocation. */
+          GX.notice("Purged dead keys (invalid/leaked). Live keys untouched.", "ok");
+          return reload();
+        })
+        .catch(function (err) {
+          GX.notice("Purge failed: " + err.message, "err");
+        })
+        .then(function () { GX.idle(el.purgeDeadBtn); });
+    });
   }
 
   function testAll() {
@@ -1123,6 +1131,7 @@ const KEYS_SCRIPT = `
   });
   el.refreshBtn.addEventListener("click", function () { reload(); });
   el.testAllBtn.addEventListener("click", testAll);
+  if (el.purgeDeadBtn) el.purgeDeadBtn.addEventListener("click", purgeDead);
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
   });
@@ -1226,7 +1235,6 @@ const DETAIL_BODY = `
         <code class="credential-value" id="keyRaw">…</code>
         <button class="btn btn-sm" id="keyCopy" type="button">${icon("copy")}Copy</button>
       </div>
-      <p class="hint u-mt-3" id="keyMaskedNote">Masked form: -</p>
     </div>
   </section>
 
@@ -1238,14 +1246,6 @@ const DETAIL_BODY = `
     <div class="panel-body">
       <dl class="defs" id="summary"></dl>
     </div>
-  </section>
-
-  <section class="panel u-mt-4" id="eventsPanel">
-    <div class="panel-head">
-      <h2>Cooldown timeline</h2>
-      <span class="meta" id="cooldownNote"></span>
-    </div>
-    <div id="eventsFeed" class="feed"></div>
   </section>
 
   <section class="panel u-mt-4" id="dailyPanel" hidden>
@@ -1277,6 +1277,14 @@ const DETAIL_BODY = `
     </div>
   </section>
 
+  <section class="panel u-mt-4" id="eventsPanel">
+    <div class="panel-head">
+      <h2>Cooldown timeline</h2>
+      <span class="meta" id="cooldownNote"></span>
+    </div>
+    <div id="eventsFeed" class="feed"></div>
+  </section>
+
   <p class="hint u-mt-3" id="noHistory"></p>
 </div>
 `;
@@ -1302,6 +1310,74 @@ const DETAIL_SCRIPT = `
     return value;
   }
 
+  /* The masked form of the key on screen, for the probe toast. The list
+     page's toast prefixes the same masked form; this page keeps it from
+     renderCredential so the probe handler can match that toast exactly. */
+  var detailMasked = "";
+
+  /* Browser locale on purpose: the operator reads the clock on this machine.
+     Mirrors the list page's helpers so both pages say the same thing. */
+  function whenText(ms) {
+    if (ms === null || ms === undefined || ms === "") return "";
+    var n = Number(ms);
+    if (!n || isNaN(n)) return "";
+    var date = new Date(n);
+    if (isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+  }
+
+  function quotaText(q) {
+    if (!q) return "";
+    var parts = [];
+    if (q.metric) parts.push(q.metric);
+    var cap = "";
+    if (q.limitValue) cap = q.limitValue + (q.window ? "/" + q.window : "");
+    else if (q.window) cap = q.window;
+    if (cap) parts.push(cap);
+    if (q.consumer) parts.push("consumer " + q.consumer);
+    var reset = whenText(q.resetAt);
+    if (reset) parts.push("resets " + reset);
+    else if (q.retryAfterMs) parts.push("retry in " + GX.fmt.left(q.retryAfterMs));
+    else if (q.freeTier) parts.push("free tier");
+    return parts.join(" · ");
+  }
+
+  /* What the upstream actually answered, not what the console wishes it said.
+     Same parts, same order as the list page's probe toast: verdict, quota,
+     next access, plan. */
+  function testSummary(data) {
+    var parts = [];
+    if (data.httpStatus) parts.push("HTTP " + data.httpStatus);
+    if (data.verdict || data.status) parts.push(data.verdict || data.status);
+    var quota = quotaText(data.quota);
+    if (quota) parts.push(quota);
+    var next = whenText(data.nextAccessAt);
+    if (next) parts.push("next access " + next);
+    else if (data.retryAfterMs) parts.push("retry in " + GX.fmt.left(data.retryAfterMs));
+    var evidence = data.tierEvidence || null;
+    if (evidence && evidence.tier) {
+      parts.push("plan " + tierLabel(evidence.tier) + (evidence.source ? " via " + evidence.source : ""));
+    } else if (data.plan) {
+      parts.push("plan " + tierLabel(data.plan));
+    }
+    if (data.message) parts.push(data.message);
+    if (data.error) parts.push("error: " + data.error);
+    if (!parts.length) parts.push("no answer from upstream");
+    return (detailMasked ? detailMasked + ": " : "") + parts.join(" · ");
+  }
+
+  /* Relative cooldown plus the absolute reset moment beside it. The detail
+     endpoint carries both: cooldownLeftMs (the wait) and cooldownUntil (the
+     instant). With no live cooldown the row keeps its old single value. */
+  function cooldownText(k) {
+    var rel = GX.fmt.left(k.cooldownLeftMs);
+    if (k.cooldownLeftMs && k.cooldownUntil) {
+      var abs = whenText(k.cooldownUntil);
+      if (abs) return rel + " · until " + abs;
+    }
+    return rel;
+  }
+
   var el = {
     console: document.getElementById("console"),
     detailValidate: document.getElementById("detailValidate"),
@@ -1311,7 +1387,6 @@ const DETAIL_SCRIPT = `
     keyRaw: document.getElementById("keyRaw"),
     keyCopy: document.getElementById("keyCopy"),
     keyMaskNote: document.getElementById("keyMaskNote"),
-    keyMaskedNote: document.getElementById("keyMaskedNote"),
     summary: document.getElementById("summary"),
     stateNote: document.getElementById("stateNote"),
     dailyNote: document.getElementById("dailyNote"),
@@ -1333,7 +1408,7 @@ const DETAIL_SCRIPT = `
     el.keyRaw.textContent = k.masked || k.key || "-";
     el.keyRaw.title = "";
     el.keyMaskNote.textContent = "masked only";
-    el.keyMaskedNote.textContent = "Masked form: " + (k.masked || k.key || "-");
+    detailMasked = k.masked || k.key || "";
     el.keyCopy.disabled = false;
     el.keyCopy.onclick = function () { GX.copy(k.masked || k.key || "", "Masked key"); };
   }
@@ -1353,7 +1428,7 @@ const DETAIL_SCRIPT = `
       ["Failures", k.failures, k.failures ? "warn" : ""],
       ["Invalidations", k.invalidations, k.invalidations ? "bad" : ""],
       ["Last used", k.lastUsed ? GX.fmt.age(k.lastUsed) : "never", ""],
-      ["Cooldown left", GX.fmt.left(k.cooldownLeftMs), k.cooldownLeftMs ? "warn" : ""]
+      ["Cooldown left", cooldownText(k), k.cooldownLeftMs ? "warn" : ""]
     ];
     rows.forEach(function (r) {
       el.summary.appendChild(GX.el("div", { class: "def" }, [
@@ -1402,8 +1477,17 @@ const DETAIL_SCRIPT = `
   function renderEvents(events) {
     el.eventsFeed.textContent = "";
     el.cooldownNote.textContent = events.length ? events.length + " events" : "";
-    el.eventsPanel.hidden = !events.length;
-    if (!events.length) return;
+    /* The timeline is the last panel and it always renders: when it used to
+       appear and disappear, every panel below it (none now, but Daily and
+       Recent sat after it) shifted. An empty feed states that instead. */
+    if (!events.length) {
+      el.eventsFeed.appendChild(GX.state(
+        "empty",
+        "No cooldown events",
+        "No cooldown events recorded for this key yet."
+      ));
+      return;
+    }
     events.forEach(function (e) {
       el.eventsFeed.appendChild(GX.el("div", { class: "feed-item" }, [
         GX.el("span", { class: "act", text: String(e.status) }),
@@ -1446,12 +1530,11 @@ const DETAIL_SCRIPT = `
     renderDaily(d.daily || []);
     renderEvents(d.events || []);
     renderRecent(d.recent || []);
-    /* Three panels that hold no data are three panels of dead space. Say so in
-       one line instead. */
+    /* Daily and Recent still hide when empty; the timeline above now carries
+       its own empty state, so it leaves this one-line note. */
     var empty = [];
     if (!(d.daily || []).length) empty.push("daily rollup");
     if (!(d.recent || []).length) empty.push("request ring");
-    if (!(d.events || []).length) empty.push("cooldown events");
     el.noHistory.textContent = empty.length
       ? "No " + empty.join(", ") + " recorded for this key yet."
       : "";
@@ -1518,8 +1601,16 @@ const DETAIL_SCRIPT = `
   el.detailTest.addEventListener("click", function () {
     GX.busy(el.detailTest);
     post("/pengatur/keys/test", { id: keyId })
-      .then(function () {
-        GX.notice("Probe finished.", "ok");
+      .then(function (data) {
+        /* Same toast as the list page's probe: verdict, quota, next access,
+           plan. The tone follows the same rule the list uses, read off the
+           verdict vocabulary (invalid/dead -> err, ok/ready -> ok). */
+        data = data || {};
+        var v = String(data.verdict || data.status || "").toLowerCase();
+        var tone = data.error || v.indexOf("invalid") >= 0 || v.indexOf("dead") >= 0 || v.indexOf("revoked") >= 0
+          ? "err"
+          : (v.indexOf("ok") >= 0 || v.indexOf("ready") >= 0 ? "ok" : "warn");
+        GX.toast(testSummary(data), tone);
         return refresh();
       })
       .catch(function (err) { GX.notice("Probe failed: " + err.message, "err"); })

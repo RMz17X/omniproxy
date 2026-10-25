@@ -11,7 +11,7 @@
  * so the browser never holds a raw credential.
  */
 
-import { confirmDialog, consolePage, icon, noticeBand } from "./ui.ts";
+import { consolePage, icon, noticeBand } from "./ui.ts";
 
 const OVERVIEW_BODY = `
 
@@ -21,38 +21,43 @@ const OVERVIEW_BODY = `
       <h1 class="page-title">Overview</h1>
       <p class="page-lede">Whether the pool can serve right now, what is blocking it, and what the traffic is doing.</p>
     </div>
-    <div class="page-head-side">
-      <label class="check"><input id="auto" type="checkbox" checked> Refresh every 15s</label>
-      <span class="meta" id="updated">-</span>
-    </div>
   </header>
 
-  <div class="split">
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Pool health</h2>
-        <span class="meta" id="healthMeta">-</span>
+  <section class="panel">
+    <div class="panel-body">
+      <div class="row">
+        <strong id="verdictText">-</strong>
+        <span class="meta" id="verdictState">-</span>
+        <span class="spacer"></span>
+        <label class="check"><input id="auto" type="checkbox" checked> Refresh every 15s</label>
+        <span class="meta" id="updated">-</span>
       </div>
-      <div class="panel-body">
-        <div id="poolBar" class="u-mb-3"></div>
-        <div class="figures" id="facts"></div>
-        <div id="providerPools" class="u-mt-3"></div>
-        <div class="row u-mt-3" id="chips"></div>
-      </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Needs attention</h2>
-        <span class="meta" id="attnMeta">-</span>
-      </div>
-      <div class="feed" id="attn"></div>
-      <div class="panel-foot">
-        <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
-        <span class="meta" id="testAllNote">one live call per key, four at a time</span>
-      </div>
-    </section>
-  </div>
+  <section class="panel u-mt-4">
+    <div class="panel-head">
+      <h2>Needs attention</h2>
+      <span class="meta" id="attnMeta">-</span>
+    </div>
+    <div class="feed" id="attn"></div>
+    <div class="panel-foot" id="attnFoot">
+      <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
+      <span class="meta" id="testAllNote">one live call per key, four at a time</span>
+    </div>
+  </section>
+
+  <section class="panel u-mt-4">
+    <div class="panel-head">
+      <h2>Pool health</h2>
+      <span class="meta" id="healthMeta">-</span>
+    </div>
+    <div class="panel-body">
+      <div id="poolBar" class="u-mb-3"></div>
+      <div class="figures" id="facts"></div>
+      <div id="providerPools" class="u-mt-3"></div>
+    </div>
+  </section>
 
   <section class="zone">
     <div class="panel">
@@ -69,12 +74,13 @@ const OVERVIEW_BODY = `
   <div class="split u-mt-4">
     <section class="panel">
       <div class="panel-head">
-        <h2>Requests by provider</h2>
+        <h2>Traffic trend</h2>
         <span class="meta">daily, WIB</span>
       </div>
       <div class="panel-body">
-        <div class="bars" id="providerMix"></div>
-        <div id="providerDays" class="u-mt-3"></div>
+        <div id="providerDays"></div>
+        <div class="bars u-mt-3" id="providerMix"></div>
+        <div class="meta u-mt-3" id="providerTotal"></div>
         <p class="hint u-mt-3">Split derived from the ledger model field: ElevenLabs TTS is logged as "elevenlabs", everything else is the Gemini pool.</p>
       </div>
     </section>
@@ -82,10 +88,11 @@ const OVERVIEW_BODY = `
     <section class="panel">
       <div class="panel-head">
         <h2>Plan mix</h2>
-        <span class="meta">declared per key</span>
+        <span class="meta" id="planDeclared">-</span>
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
+        <p class="hint u-mt-3" id="planPct"></p>
         <p class="hint u-mt-3">Plans are a Gemini pool concept: ElevenLabs keys have no upstream plan to declare. Google never reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
@@ -98,13 +105,22 @@ const OVERVIEW_BODY = `
     </div>
     <div class="feed" id="activity"></div>
   </section>
-</div>
 
-${confirmDialog()}
+  <section class="panel u-mt-4">
+    <div class="panel-body">
+      <div class="row">
+        <button id="addBtnFoot" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add keys</button>
+        <a class="btn btn-sm" href="/pengatur/keys">View keys</a>
+        <button id="testAllBtnFoot" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
+        <span class="meta" id="testAllNoteFoot">one live call per key, four at a time</span>
+      </div>
+    </div>
+  </section>
+</div>
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="panel-head">
+    <div class="card-head">
       <h2 id="addTitle">Add keys</h2>
       <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
@@ -129,11 +145,13 @@ const OVERVIEW_SCRIPT = `
   var el = {
     console: document.getElementById("console"),
     updated: document.getElementById("updated"),
+    verdictText: document.getElementById("verdictText"),
+    verdictState: document.getElementById("verdictState"),
     facts: document.getElementById("facts"),
-    chips: document.getElementById("chips"),
     healthMeta: document.getElementById("healthMeta"),
     attn: document.getElementById("attn"),
     attnMeta: document.getElementById("attnMeta"),
+    attnFoot: document.getElementById("attnFoot"),
     testAllBtn: document.getElementById("testAllBtn"),
     auto: document.getElementById("auto"),
     testAllNote: document.getElementById("testAllNote"),
@@ -143,13 +161,19 @@ const OVERVIEW_SCRIPT = `
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
     addBtn: document.getElementById("addBtn"),
+    addBtnFoot: document.getElementById("addBtnFoot"),
+    testAllBtnFoot: document.getElementById("testAllBtnFoot"),
+    testAllNoteFoot: document.getElementById("testAllNoteFoot"),
     refreshBtn: document.getElementById("refreshBtn"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
     planMix: document.getElementById("planMix"),
+    planDeclared: document.getElementById("planDeclared"),
+    planPct: document.getElementById("planPct"),
     providerMix: document.getElementById("providerMix"),
     providerDays: document.getElementById("providerDays"),
+    providerTotal: document.getElementById("providerTotal"),
     providerPools: document.getElementById("providerPools"),
     activity: document.getElementById("activity")
   };
@@ -162,8 +186,6 @@ const OVERVIEW_SCRIPT = `
   }
 
   function renderHero(pool, tiers, stats) {
-    var declared = (tiers ? (tiers.free || 0) + (tiers.paid || 0) + (tiers.pro || 0) : 0);
-
     if (el.poolBar) {
       el.poolBar.textContent = "";
       el.poolBar.appendChild(GX.poolBar([
@@ -177,17 +199,18 @@ const OVERVIEW_SCRIPT = `
     el.facts.appendChild(GX.stat("Ready now", String(pool.ready), pool.total ? "of " + pool.total + " in the pool" : "the pool is empty", pool.ready ? "ok" : "bad"));
     el.facts.appendChild(GX.stat("Cooling", String(pool.cooling), pool.cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", pool.cooling ? "warn" : ""));
     el.facts.appendChild(GX.stat("Dead", String(pool.dead), pool.dead ? "revoked or out of quota" : "none retired", pool.dead ? "bad" : ""));
-    el.facts.appendChild(GX.stat("Plans declared", String(declared), pool.total ? "of " + pool.total + " keys" : "the pool is empty"));
 
-    el.chips.textContent = "";
-    /* The per-provider ready/total chips moved into the provider pool rows
-       above; this row carries the cross-provider facts only. */
-    if (stats) {
-      el.chips.appendChild(GX.chip("p95", GX.fmt.num(stats.totals.p95Ms) + " ms"));
-      el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
-      el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
-    }
-    el.healthMeta.textContent = pool.degraded ? "degraded" : "";
+    /* The verdict strip and the pool panel read the same census: the strip
+       is the one-line verdict, healthMeta is the always-on pool status. */
+    var ready = pool.ready || 0;
+    var cooling = pool.cooling || 0;
+    var dead = pool.dead || 0;
+    var total = pool.total || 0;
+    el.verdictText.textContent = "Ready " + ready + "/" + total + " · " + cooling + " cooling · " + dead + " dead";
+    el.verdictState.textContent = pool.degraded ? "Degraded" : "Ready";
+    el.healthMeta.textContent = pool.degraded
+      ? "Degraded · " + dead + " dead · " + cooling + " cooling"
+      : "Ready";
 
     /* Per-provider pool health. A multi-provider gateway is only as healthy
        as its weakest pool, so each provider gets its own bar and count. */
@@ -260,11 +283,15 @@ const OVERVIEW_SCRIPT = `
     }
 
     el.attn.textContent = "";
-    el.attnMeta.textContent = items.length ? items.length + (items.length === 1 ? " item" : " items") : "nothing";
-    if (!items.length) {
-      el.attn.appendChild(GX.state("empty", "Nothing needs attention", "Every key is ready and every plan is declared."));
-      return;
-    }
+    /* Empty means one line: the header meta carries the all-clear and the
+       feed plus the foot collapse away. Test all stays reachable from the
+       footer actions row, so collapsing the foot here loses no action. */
+    el.attnMeta.textContent = items.length
+      ? items.length + (items.length === 1 ? " item" : " items")
+      : "Nothing needs attention — every key is ready and every plan is declared.";
+    el.attn.hidden = !items.length;
+    el.attnFoot.hidden = !items.length;
+    if (!items.length) return;
     items.forEach(function (item) {
       /* "info" is a runtime tone with no CSS variable of its own; the dot
          reads it as the accent colour. */
@@ -288,6 +315,7 @@ const OVERVIEW_SCRIPT = `
       el.kpis.appendChild(GX.kpi("Errors", "-", "statistics unavailable"));
       el.kpis.appendChild(GX.kpi("Tokens", "-", "statistics unavailable"));
       el.kpis.appendChild(GX.kpi("Estimated cost", "-", "statistics unavailable"));
+      el.kpis.appendChild(GX.kpi("p95", "-", "statistics unavailable"));
       return;
     }
     var t = stats.totals || {};
@@ -298,6 +326,9 @@ const OVERVIEW_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(errors), share));
     el.kpis.appendChild(GX.kpi("Tokens", GX.fmt.compact(t.totalTokens), "prompt, output and cached"));
     el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "projected " + GX.fmt.money(stats.projectedMonthlyUsd) + " per 30 days"));
+    /* p95 moved here from the pool chips: latency belongs with the traffic
+       figures, not with the pool census. */
+    el.kpis.appendChild(GX.kpi("p95", GX.fmt.num(t.p95Ms) + " ms", "95th percentile response time"));
   }
 
   /* Provider split: aggregate meters + one stacked bar per WIB day. Each
@@ -317,6 +348,7 @@ const OVERVIEW_SCRIPT = `
     el.providerDays.textContent = "";
     if (!stats) {
       el.providerMix.appendChild(GX.state("empty", "Statistics unavailable", "The stats endpoint did not answer."));
+      el.providerTotal.textContent = "";
       return;
     }
     var buckets = stats.byProvider || [];
@@ -324,6 +356,7 @@ const OVERVIEW_SCRIPT = `
     buckets.forEach(function (b) { total += b.requests; });
     if (!total) {
       el.providerMix.appendChild(GX.state("empty", "No traffic in this range", "Nothing was routed in the last 30 days."));
+      el.providerTotal.textContent = "Total 0 requests in the last 30 days";
       return;
     }
     var byProv = {};
@@ -335,6 +368,7 @@ const OVERVIEW_SCRIPT = `
     order.forEach(function (prov) {
       el.providerMix.appendChild(GX.meter(prov, byProv[prov] || 0, total, provTone(prov)));
     });
+    el.providerTotal.textContent = "Total " + GX.fmt.num(total) + " requests in the last 30 days";
 
     var days = stats.byProviderDay || [];
     if (!days.length) return;
@@ -359,10 +393,12 @@ const OVERVIEW_SCRIPT = `
     el.providerDays.appendChild(chart);
     var legend = GX.el("div", { class: "legend" });
     order.forEach(function (p) {
+      var n = byProv[p] || 0;
+      var pct = total ? ((n / total) * 100).toFixed(1) : "0.0";
       legend.appendChild(GX.el("span", { class: "legend-item" }, [
         GX.el("span", { class: "dot " + provTone(p) }),
         GX.el("span", { text: p }),
-        GX.el("b", { text: GX.fmt.num(byProv[p] || 0) })
+        GX.el("b", { text: GX.fmt.num(n) + " (" + pct + "%)" })
       ]));
     });
     el.providerDays.appendChild(legend);
@@ -376,6 +412,23 @@ const OVERVIEW_SCRIPT = `
     el.planMix.appendChild(GX.meter("Pay as you go", t.paid || 0, total, "info"));
     el.planMix.appendChild(GX.meter("AI Pro", t.pro || 0, total, "info"));
     el.planMix.appendChild(GX.meter("Unspecified", t.unknown || 0, total, "warn"));
+    /* Plans declared moved here from the pool hero: the count belongs with
+       the mix it summarises. Meters carry no % text, so the shares are
+       written out in full below them. */
+    var declared = (t.free || 0) + (t.paid || 0) + (t.pro || 0);
+    el.planDeclared.textContent = total ? declared + " of " + total + " keys declared" : "the pool is empty";
+    if (!total) {
+      el.planPct.textContent = "No keys in the pool";
+      return;
+    }
+    el.planPct.textContent = [
+      ["Free tier", t.free || 0],
+      ["Pay as you go", t.paid || 0],
+      ["AI Pro", t.pro || 0],
+      ["Unspecified", t.unknown || 0]
+    ].map(function (row) {
+      return row[0] + " " + ((row[1] / total) * 100).toFixed(1) + "%";
+    }).join(" · ");
   }
 
   function renderActivity(payload) {
@@ -391,14 +444,19 @@ const OVERVIEW_SCRIPT = `
       el.activity.appendChild(GX.el("div", { class: "feed-item" }, [
         GX.el("span", { class: "act", text: r.action }),
         GX.el("span", { class: "what", text: what }),
-        GX.el("time", { text: GX.fmt.time(r.ts) })
+        /* Same actor row the audit page uses: a time-only stamp hid which
+           day a cross-day event happened on, so the full stamp lands here. */
+        GX.el("span", { class: "what meta", text: r.actor ? "by " + r.actor : "by unknown actor" }),
+        GX.el("time", { text: GX.fmt.stamp(r.ts) })
       ]));
     });
   }
 
-  function testAll() {
-    GX.busy(el.testAllBtn, "Testing…");
-    el.testAllNote.textContent = "one live call per key, four at a time";
+  function testAll(btn, note) {
+    btn = btn || el.testAllBtn;
+    note = note || el.testAllNote;
+    GX.busy(btn, "Testing…");
+    note.textContent = "one live call per key, four at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         var results = data.results || [];
@@ -410,8 +468,8 @@ const OVERVIEW_SCRIPT = `
         GX.notice("Test all failed: " + err.message, "err");
       })
       .then(function () {
-        GX.idle(el.testAllBtn);
-        el.testAllNote.textContent = "one live call per key, four at a time";
+        GX.idle(btn);
+        note.textContent = "one live call per key, four at a time";
       });
   }
 
@@ -489,11 +547,14 @@ const OVERVIEW_SCRIPT = `
     if (state.timer) { state.timer(); state.timer = null; }
   }
 
-  el.addBtn.addEventListener("click", function () {
+  function openAdd() {
     GX.say(el.addMsg, "");
     GX.openDialog(el.addDialog);
     if (el.newKeys) el.newKeys.focus();
-  });
+  }
+
+  el.addBtn.addEventListener("click", openAdd);
+  el.addBtnFoot.addEventListener("click", openAdd);
   el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
@@ -501,7 +562,16 @@ const OVERVIEW_SCRIPT = `
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
   });
-  el.testAllBtn.addEventListener("click", testAll);
+  el.testAllBtn.addEventListener("click", function () { testAll(); });
+  el.testAllBtnFoot.addEventListener("click", function () {
+    GX.confirm({
+      title: "Test all live keys?",
+      message: "One live call per key, four at a time.",
+      confirmLabel: "Test all live keys"
+    }).then(function (ok) {
+      if (ok) testAll(el.testAllBtnFoot, el.testAllNoteFoot);
+    });
+  });
   el.auto.addEventListener("change", function () {
     if (el.auto.checked) startAuto(); else stopAuto();
   });

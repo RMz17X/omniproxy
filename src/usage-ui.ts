@@ -5,7 +5,7 @@
  * data: it asks for the admin token, stores it in localStorage, and reads
  * /pengatur/usage/data. The CSV export uses the same filters.
  *
- * Layout: the totals first as figures, then the filters, then the three
+ * Layout: the totals first as figures, then the filters, then the four
  * breakdowns, then the request log itself. Every table gets the full width,
  * because a report that scrolls sideways is a report nobody reads.
  */
@@ -49,6 +49,10 @@ const USAGE_BODY = `
           <select id="fKey" class="select"><option value="">all</option></select>
         </div>
         <div class="grow">
+          <label class="field" for="fRoute">Route</label>
+          <select id="fRoute" class="select"><option value="">all</option></select>
+        </div>
+        <div class="grow">
           <label class="field" for="fStatus">Status</label>
           <select id="fStatus" class="select">
             <option value="">all</option>
@@ -86,7 +90,7 @@ const USAGE_BODY = `
   </section>
 
   <div class="zone">
-    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">same filter, three groupings</span></div>
+    <div class="zone-head"><h2>Breakdowns</h2><span class="meta">same filter, four groupings</span></div>
     <div class="grid grid-2">
       <section class="panel">
         <div class="panel-head">
@@ -136,6 +140,22 @@ const USAGE_BODY = `
         <div id="byDayEmpty"></div>
       </div>
     </section>
+
+    <section class="panel u-mt-3">
+      <div class="panel-head">
+        <h2>By route</h2>
+        <span class="meta" id="byRouteMeta"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="table" id="byRoute">
+          <thead><tr>
+            <th>Route</th><th class="num">Req</th><th class="num">Err</th><th class="num">Rot</th><th class="num">Prompt</th><th class="num">Output</th><th class="num">Cost</th><th class="num">Avg ms</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="byRouteEmpty"></div>
+      </div>
+    </section>
   </div>
 </div>
 `;
@@ -151,15 +171,18 @@ const USAGE_SCRIPT = `
     fDay: document.getElementById("fDay"),
     fModel: document.getElementById("fModel"),
     fKey: document.getElementById("fKey"),
+    fRoute: document.getElementById("fRoute"),
     fStatus: document.getElementById("fStatus"),
     apply: document.getElementById("apply"),
     reset: document.getElementById("reset"),
     byModel: document.getElementById("byModel"),
     byKey: document.getElementById("byKey"),
     byDay: document.getElementById("byDay"),
+    byRoute: document.getElementById("byRoute"),
     byModelMeta: document.getElementById("byModelMeta"),
     byKeyMeta: document.getElementById("byKeyMeta"),
     byDayMeta: document.getElementById("byDayMeta"),
+    byRouteMeta: document.getElementById("byRouteMeta"),
     log: document.getElementById("log"),
     logMeta: document.getElementById("logMeta"),
     pager: document.getElementById("pager"),
@@ -169,13 +192,14 @@ const USAGE_SCRIPT = `
     err: document.getElementById("err")
   };
 
-  var state = { page: 1, size: 25, filter: { day: "", model: "", key: "", status: "" }, timer: null };
+  var state = { page: 1, size: 25, filter: { day: "", model: "", key: "", route: "", status: "" }, timer: null };
 
   function writeUrl() {
     GX.url.write({
       day: state.filter.day,
       model: state.filter.model,
       key: state.filter.key,
+      route: state.filter.route,
       status: state.filter.status,
       page: state.page > 1 ? state.page : ""
     });
@@ -186,6 +210,7 @@ const USAGE_SCRIPT = `
     state.filter.day = params.day || "";
     state.filter.model = params.model || "";
     state.filter.key = params.key || "";
+    state.filter.route = params.route || "";
     state.filter.status = params.status || "";
     state.page = Number(params.page) || 1;
   }
@@ -223,12 +248,13 @@ const USAGE_SCRIPT = `
   function renderKpis(data) {
     var t = data.totals || {};
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), data.mode + " ring, capacity " + GX.fmt.num(data.capacity)));
     el.kpis.appendChild(GX.kpi("Errors", GX.fmt.num(t.errors), t.requests ? ((t.errors / t.requests) * 100).toFixed(1) + "% of traffic" : "no traffic yet", t.errors ? "bad" : "ok"));
+    el.kpis.appendChild(GX.kpi("Requests", GX.fmt.num(t.requests), data.mode + " ring, capacity " + GX.fmt.num(data.capacity)));
     el.kpis.appendChild(GX.kpi("Rotated", GX.fmt.num(t.rotated), "keys handed over"));
+    el.kpis.appendChild(GX.kpi("Latency", GX.fmt.num(t.avgLatencyMs) + " ms", "average per request"));
     el.kpis.appendChild(GX.kpi("Prompt tokens", GX.fmt.compact(t.promptTokens), "input side"));
     el.kpis.appendChild(GX.kpi("Output tokens", GX.fmt.compact(t.completionTokens), "completion side"));
-    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "avg " + GX.fmt.num(t.avgLatencyMs) + " ms per request"));
+    el.kpis.appendChild(GX.kpi("Estimated cost", GX.fmt.money(t.costUsd), "in this view"));
   }
 
   function renderBuckets(table, emptyId, metaId, buckets, cols) {
@@ -273,7 +299,7 @@ const USAGE_SCRIPT = `
     if (!rows.length) return;
     rows.forEach(function (r) {
       var tr = GX.el("tr");
-      GX.cell(tr, GX.fmt.clock(r.ts), "mono nowrap", "time");
+      GX.cell(tr, GX.fmt.date(r.ts) + " " + GX.fmt.clock(r.ts), "mono nowrap", "time");
       GX.cell(tr, r.route, "mono", "route");
       GX.cell(tr, r.model || "-", "mono", "model");
       /* The ledger has no provider column: ElevenLabs TTS is logged under
@@ -335,6 +361,7 @@ const USAGE_SCRIPT = `
     fillSelect(el.fDay, data.byDay);
     fillSelect(el.fModel, data.byModel);
     fillSelect(el.fKey, data.byKey);
+    fillSelect(el.fRoute, data.byRoute);
 
     renderBuckets(el.byModel, "byModelEmpty", "byModelMeta", data.byModel || [], [
       { k: "key", label: "model" },
@@ -368,6 +395,17 @@ const USAGE_SCRIPT = `
       { k: "costUsd", num: true, fmt: GX.fmt.money, label: "cost" }
     ]);
 
+    renderBuckets(el.byRoute, "byRouteEmpty", "byRouteMeta", data.byRoute || [], [
+      { k: "key", label: "route" },
+      { k: "requests", num: true, label: "req" },
+      { k: "errors", num: true, label: "err" },
+      { k: "rotated", num: true, label: "rot" },
+      { k: "promptTokens", num: true, label: "prompt" },
+      { k: "completionTokens", num: true, label: "output" },
+      { k: "costUsd", num: true, fmt: GX.fmt.money, label: "cost" },
+      { k: "avgLatencyMs", num: true, label: "ms" }
+    ]);
+
     renderLog(data.rows || []);
     renderPager(data);
     el.logMeta.textContent = (data.rows || []).length + " rows on this page";
@@ -387,6 +425,7 @@ const USAGE_SCRIPT = `
           throw err;
         }
         GX.say(el.err, err.message, "err");
+        el.console.hidden = false;
       });
   }
 
@@ -405,16 +444,18 @@ const USAGE_SCRIPT = `
     state.filter.day = el.fDay.value;
     state.filter.model = el.fModel.value;
     state.filter.key = el.fKey.value;
+    state.filter.route = el.fRoute.value;
     state.filter.status = el.fStatus.value;
     state.page = 1;
     writeUrl();
     load();
   });
   el.reset.addEventListener("click", function () {
-    state.filter = { day: "", model: "", key: "", status: "" };
+    state.filter = { day: "", model: "", key: "", route: "", status: "" };
     el.fDay.value = "";
     el.fModel.value = "";
     el.fKey.value = "";
+    el.fRoute.value = "";
     el.fStatus.value = "";
     state.page = 1;
     writeUrl();
@@ -430,11 +471,12 @@ const USAGE_SCRIPT = `
   GX.shortcuts({
     refresh: "refreshBtn",
     onEscape: function () {
-      if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.status) return;
-      state.filter = { day: "", model: "", key: "", status: "" };
+      if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.route && !state.filter.status) return;
+      state.filter = { day: "", model: "", key: "", route: "", status: "" };
       el.fDay.value = "";
       el.fModel.value = "";
       el.fKey.value = "";
+      el.fRoute.value = "";
       el.fStatus.value = "";
       state.page = 1;
       writeUrl();
