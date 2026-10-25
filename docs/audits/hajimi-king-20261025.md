@@ -172,6 +172,13 @@ Verifikasi live (deploy `4f5b598`, alias `omniproxy.vercel.app`):
 - `purge-dead`: 1 baris dihapus (`droppedFromPool:1`), `keys` dan `key_material` bersih untuk id itu.
   Pool setelah purge: 281 total / 281 ready / 0 dead; ElevenLabs 48 ready / 0 dead.
 
+Catatan penting soal `purge-dead`: ia hanya mengosongkan `local` milik instance yang melayani request.
+Instance hangat lain masih memegang baris itu di memori dan terus menampilkannya di `/pengatur/keys/list`
+(`total` 283, `dead` 1, `retiredReason` kosong) meski Postgres sudah bersih — diverifikasi: `keys` 0 baris,
+`key_material` 0 baris untuk id tersebut. Baris hantu hilang setelah deploy ulang (instance baru hydrate
+dari DB): `282 total / 282 ready / 0 dead`, ElevenLabs 49 ready. Tidak ada risiko servis: key mati tidak
+pernah dipilih, dan `backfillMaterial()` melewati key `invalid` sehingga tidak bisa menulis ulang material.
+
 
 
 
