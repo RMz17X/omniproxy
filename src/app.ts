@@ -22,6 +22,7 @@ import { MODELS_HTML } from "./models-ui.ts";
 import { catalogModels, discoveryDebug, listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey, probeTier, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
+import { bodyJson } from "./body.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { listElevenLabsInventory, serveElevenLabs } from "./tts.ts";
 import { chatCompletions, embeddings, geminiModelRows } from "./openai.ts";
@@ -281,12 +282,11 @@ app.get("/pengatur/status", async (c) => {
 
 /** Peek the OpenAI-compatible body without consuming the downstream handler's stream. */
 async function peekModel(req: Request): Promise<string> {
-  try {
-    const parsed = JSON.parse(await req.clone().text()) as { model?: unknown };
-    return typeof parsed.model === "string" ? parsed.model : "";
-  } catch {
-    return "";
-  }
+  // The body is buffered once (see body.ts) and shared with the handler: the
+  // old `req.clone().text()` + handler re-read deadlocked every POST route on
+  // Vercel's Node runtime.
+  const parsed = await bodyJson<{ model?: unknown }>(req);
+  return typeof parsed?.model === "string" ? parsed.model : "";
 }
 
 type RoutePick =

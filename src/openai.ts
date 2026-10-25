@@ -8,6 +8,7 @@
  */
 
 import { cfg } from "./config.ts";
+import { bodyText } from "./body.ts";
 import { counters } from "./metrics.ts";
 import { execute, executeWithFallback, modelChain } from "./upstream.ts";
 import { finalizeStream, noteUsage } from "./ledger.ts";
@@ -309,7 +310,7 @@ const metaHeaders = (attempts: number, rotated: boolean): Record<string, string>
 export async function chatCompletions(req: Request, resolvedModel?: string): Promise<Response> {
   let body: OAIRequest;
   try {
-    body = (await req.json()) as OAIRequest;
+    body = JSON.parse(await bodyText(req)) as OAIRequest;
   } catch {
     return err(400, "invalid_request_error", "Body must be JSON.");
   }
@@ -723,7 +724,7 @@ export async function embeddings(req: Request, resolvedModel?: string): Promise<
   counters.embeddings++;
   let body: EmbeddingsRequest;
   try {
-    body = (await req.json()) as EmbeddingsRequest;
+    body = JSON.parse(await bodyText(req)) as EmbeddingsRequest;
   } catch {
     return err(400, "invalid_request_error", "Body must be JSON.");
   }

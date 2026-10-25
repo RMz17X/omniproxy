@@ -3,7 +3,9 @@
  */
 
 import { cfg } from "./config.ts";
-import { pick, rawKeyById } from "./pool.ts";
+import { bodyText } from "./body.ts";
+import { mark429, markInvalid, pick, rawKeyById } from "./pool.ts";
+import { parseRetryAfter } from "./upstream.ts";
 import { noteUsage } from "./ledger.ts";
 import { classifyElevenLabsResponse } from "./verdict.ts";
 import type { ProbeResult } from "./probe.ts";
@@ -170,27 +172,12 @@ function toElevenLabsBody(bodyText: string): string {
  * the path, a query parameter, or the body.
  */
 export async function serveElevenLabs(req: Request, key?: string): Promise<Response> {
-  let rawKey = key ? (await rawKeyById(key)) || key : undefined;
-  if (!rawKey) {
-    const st = await pick(new Set(), undefined, "elevenlabs");
-    if (st) {
-      rawKey = (await rawKeyById(st.key)) || st.key;
-    }
-  }
-
-  if (!rawKey) {
-    return new Response(JSON.stringify({ error: { message: "No available ElevenLabs API keys in pool." } }), {
-      status: 503,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const bodyText = hasBody ? await req.text() : "";
+  const raw = hasBody ? await bodyText(req) : "";
 
   let voiceId = "21m00Tcm4TlvDq8ikWAM";
   try {
-    const parsed = JSON.parse(bodyText);
+    const parsed = JSON.parse(raw);
     if (typeof parsed.voice_id === "string" && parsed.voice_id) voiceId = parsed.voice_id;
     else if (typeof parsed.voice === "string" && parsed.voice) voiceId = parsed.voice;
   } catch {}
@@ -202,35 +189,73 @@ export async function serveElevenLabs(req: Request, key?: string): Promise<Respo
   else if (url.searchParams.get("voice")) voiceId = url.searchParams.get("voice")!;
 
   const upstreamUrl = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}${url.search}`;
+  const payload = toElevenLabsBody(raw);
 
-  const res = await fetch(upstreamUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "xi-api-key": rawKey,
-    },
-    body: toElevenLabsBody(bodyText),
-    signal: req.signal,
-  });
+  // Rotate like every other route: a throttled ElevenLabs key hands the
+  // request to the next live key instead of failing the client, and a
+  // revoked one leaves the pool. `execute()` cannot serve this wire (the
+  // credential rides `xi-api-key`, not a bearer), so the loop lives here
+  // with the same verdict vocabulary.
+  const tried = new Set<string>();
+  const deadline = Date.now() + cfg.maxWaitMs;
+  let attempts = 0;
 
-  noteUsage(req, {
-    model: "elevenlabs",
-    provider: "elevenlabs",
-    keyRaw: rawKey,
-    attempts: 1,
-    rotated: false,
-    errorCode: res.ok ? null : `http_${res.status}`,
-  });
+  for (;;) {
+    let rawKey = key && !tried.has(key) ? (await rawKeyById(key)) || key : undefined;
+    if (!rawKey) {
+      const st = await pick(tried, undefined, "elevenlabs");
+      if (st) rawKey = (await rawKeyById(st.key)) || st.key;
+    }
+    if (!rawKey) {
+      return new Response(JSON.stringify({ error: { message: "No available ElevenLabs API keys in pool." } }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    tried.add(rawKey);
+    attempts++;
 
-  const respHeaders = new Headers(res.headers);
-  respHeaders.delete("content-encoding");
-  respHeaders.delete("content-length");
-  respHeaders.delete("transfer-encoding");
+    const res = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "xi-api-key": rawKey,
+      },
+      body: payload,
+      // A stalled upstream must not hold the invocation: the caller's own
+      // disconnect still wins, the gateway timeout is the backstop.
+      signal: AbortSignal.any([req.signal, AbortSignal.timeout(cfg.upstreamTimeoutMs)]),
+    });
 
-  return new Response(res.body, {
-    status: res.status,
-    headers: respHeaders,
-  });
+    if (res.status === 429 && attempts < 3 && Date.now() < deadline) {
+      const body = await res.text().catch(() => "");
+      await mark429(rawKey, Math.max(cfg.cooldownMs, parseRetryAfter(res, body) ?? 0));
+      continue;
+    }
+    if (res.status === 401 && attempts < 3 && Date.now() < deadline) {
+      await markInvalid(rawKey);
+      continue;
+    }
+
+    noteUsage(req, {
+      model: "elevenlabs",
+      provider: "elevenlabs",
+      keyRaw: rawKey,
+      attempts,
+      rotated: attempts > 1,
+      errorCode: res.ok ? null : `http_${res.status}`,
+    });
+
+    const respHeaders = new Headers(res.headers);
+    respHeaders.delete("content-encoding");
+    respHeaders.delete("content-length");
+    respHeaders.delete("transfer-encoding");
+
+    return new Response(res.body, {
+      status: res.status,
+      headers: respHeaders,
+    });
+  }
 }
 
 /* ---------- live inventory ---------- */

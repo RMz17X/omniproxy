@@ -8,6 +8,7 @@
  */
 
 import { cfg, VOICE_MAP } from "./config.ts";
+import { bodyText } from "./body.ts";
 import { execute } from "./upstream.ts";
 import { noteUsage } from "./ledger.ts";
 
@@ -87,7 +88,7 @@ type SpeechBody = {
 export async function speech(req: Request, resolvedModel?: string): Promise<Response> {
   let body: SpeechBody;
   try {
-    body = (await req.json()) as SpeechBody;
+    body = JSON.parse(await bodyText(req)) as SpeechBody;
   } catch {
     return badRequest("Body must be JSON.");
   }

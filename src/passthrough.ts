@@ -15,6 +15,7 @@
  */
 
 import { execute } from "./upstream.ts";
+import { bodyText } from "./body.ts";
 import { finalizeStream, noteUsage } from "./ledger.ts";
 import { baseUrlOf, type Provider } from "./providers.ts";
 
@@ -45,13 +46,13 @@ export async function openaiWire(
   signal?: AbortSignal,
 ): Promise<Response> {
   const base = baseUrlOf(provider);
-  const bodyText = req.method === "GET" || req.method === "HEAD" ? "" : await req.text();
+  const raw = req.method === "GET" || req.method === "HEAD" ? "" : await bodyText(req);
 
   // Rewrite only the model field; every other field crosses untouched.
-  let body = bodyText;
+  let body = raw;
   let stream = false;
   try {
-    const parsed = JSON.parse(bodyText) as Record<string, unknown>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (parsed && typeof parsed === "object") {
       if (model) parsed.model = model;
       stream = Boolean(parsed.stream);
