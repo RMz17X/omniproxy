@@ -200,7 +200,7 @@ export async function backfillMaterial(): Promise<number> {
     if (st.invalid) continue;
     const id = keyId(raw);
     if (have.has(id)) continue;
-    await saveMaterialNow(id, raw);
+    await saveMaterialNow(id, raw, st.provider);
     written++;
   }
   if (written) log("info", "key_material.backfilled", { written });

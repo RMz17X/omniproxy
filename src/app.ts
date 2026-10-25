@@ -32,6 +32,7 @@ import {
   CAPABILITY_LABEL,
   detectProvider,
   getProvider,
+  keyShapeError,
   providerViews,
   providersWith,
   registerProvider,
@@ -889,32 +890,57 @@ app.post("/pengatur/keys", async (c) => {
   };
 
   const named = typeof body.provider === "string" ? body.provider.trim() : "";
-  if (named && !(await getProvider(named))) {
+  const namedProvider = named ? await getProvider(named) : null;
+  if (named && !namedProvider) {
     return c.json({ error: { message: `Unknown provider \`${named}\`.` } }, 400);
   }
   /* No provider named: each key is matched to a provider by its format
-     (`sk-…` gateways, `sk_<hex>` ElevenLabs, `AIza…` Google). A format
+     (`sk-…` gateways, `sk_<hex>` ElevenLabs, `AIza…`/`AQ.…` Google). A format
      nothing recognises keeps the historical gemini default. */
-  const registry = named ? [] : await allProviders();
+  const registry = await allProviders();
   const perKey = clean.map((k) => named || detectProvider(k, registry) || "gemini");
+  const byId = new Map(registry.map((p) => [p.id, p]));
+  if (namedProvider) byId.set(namedProvider.id, namedProvider);
+
+  /* Shape is checked before admission: a key of the wrong length can never
+     serve, so accepting it would only create a pool row that dies on its first
+     probe. Rejected keys are reported, not fatal — a 4xx here makes the sender
+     retry the whole batch forever. */
+  const rejected: { id: string; provider: string; reason: string }[] = [];
+  const accepted: { key: string; provider: string }[] = [];
+  for (let i = 0; i < clean.length; i++) {
+    const provider = perKey[i];
+    const p = byId.get(provider);
+    const why = p ? keyShapeError(clean[i], p) : null;
+    if (why) rejected.push({ id: keyId(clean[i]), provider, reason: why });
+    else accepted.push({ key: clean[i], provider });
+  }
 
   const ids: string[] = [];
   const addedByProvider: Record<string, number> = {};
   let added = 0;
   let parked = 0;
-  for (let i = 0; i < clean.length; i++) {
-    const until = cooldownFor(clean[i]);
-    if (await addKey(clean[i], perKey[i], until)) {
+  for (const { key, provider } of accepted) {
+    const until = cooldownFor(key);
+    if (await addKey(key, provider, until)) {
       added++;
       if (until > Date.now()) parked++;
-      ids.push(keyId(clean[i]));
-      addedByProvider[perKey[i]] = (addedByProvider[perKey[i]] ?? 0) + 1;
+      ids.push(keyId(key));
+      addedByProvider[provider] = (addedByProvider[provider] ?? 0) + 1;
     }
   }
   await auditRecordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
-    detail: { received: clean.length, added, parked, provider: named || "auto", providers: addedByProvider },
+    detail: {
+      received: clean.length,
+      added,
+      parked,
+      provider: named || "auto",
+      providers: addedByProvider,
+      rejected: rejected.length,
+      rejectedIds: rejected.map((r) => r.id),
+    },
   });
   const durable = keyMaterialDurable();
   const warning = durable
@@ -925,6 +951,7 @@ app.post("/pengatur/keys", async (c) => {
     received: clean.length,
     added,
     parked,
+    rejected,
     ids,
     durable,
     providers: addedByProvider,

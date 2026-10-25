@@ -80,7 +80,13 @@ export type Provider = {
 
 /* ---------- builtins ---------- */
 
-const ELEVENLABS_KEY_SOURCE = "^sk_[a-fA-F0-9]{40,64}$";
+/**
+ * ElevenLabs issues exactly 51 characters: `sk_` plus 48 hex. A looser bound
+ * accepted truncated keys harvested from repositories (`sk_` + 40 hex), which
+ * then only failed on their first upstream probe — one wasted request per
+ * malformed key, and a dead row in the pool.
+ */
+const ELEVENLABS_KEY_SOURCE = "^sk_[a-fA-F0-9]{48}$";
 
 /**
  * Builtin entries. `baseUrl: ""` means "resolve dynamically" — see
@@ -95,7 +101,10 @@ const BUILTIN: Provider[] = [
     baseUrl: "",
     capabilities: ["llm", "tts", "image", "embeddings"],
     wire: "gemini",
-    keyPattern: "^AIza[0-9A-Za-z_-]{20,}$",
+    /* Two live formats: the classic `AIza…` key and the newer `AQ.…` key AI
+       Studio issues today (53 chars). Both answer generateContent; a pattern
+       that only knew the first left 62 working keys undetectable. */
+    keyPattern: "^(?:AIza[0-9A-Za-z_-]{20,}|AQ\\.[0-9A-Za-z_-]{20,})$",
     models: [],
     builtin: true,
     enabled: true,
@@ -468,6 +477,28 @@ export function detectProvider(key: string, providers: Provider[]): string | nul
     if (re.test(k)) return p.id;
   }
   return null;
+}
+
+/**
+ * Why `key` cannot belong to `provider`, or null when its shape fits.
+ *
+ * The ingest endpoint admits keys before any upstream probe, so a malformed
+ * credential used to become a pool row and only died on its first request —
+ * the sender saw `added: 1`, the pool gained a key that never worked. Providers
+ * without a pattern (operator-defined gateways) are never judged here: their
+ * format is not ours to know.
+ */
+export function keyShapeError(key: string, provider: Provider): string | null {
+  if (!provider.keyPattern) return null;
+  const k = (key ?? "").trim();
+  if (!k) return "is empty";
+  try {
+    if (new RegExp(provider.keyPattern).test(k)) return null;
+  } catch {
+    // A pattern the registry cannot compile must not block ingest.
+    return null;
+  }
+  return `does not match the \`${provider.id}\` key format`;
 }
 
 /* ---------- model routing ---------- */
