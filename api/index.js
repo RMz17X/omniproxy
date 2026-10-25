@@ -6238,21 +6238,6 @@ var init_providers = __esm({
         note: "OpenAI-compatible inference on wafer-scale hardware."
       },
       {
-        id: "mistral",
-        label: "Mistral",
-        baseUrl: "https://api.mistral.ai/v1",
-        capabilities: ["llm", "embeddings"],
-        wire: "openai",
-        /* Deliberately no keyPattern: a Mistral key is 32 base62 characters with
-           no prefix, which is indistinguishable from any other random token. A
-           pattern here would claim unrelated strings, so these keys are only ever
-           accepted when the caller names the provider. */
-        models: [],
-        builtin: true,
-        enabled: true,
-        note: "OpenAI-compatible chat and embeddings. Keys carry no prefix."
-      },
-      {
         id: "openrouter",
         label: "OpenRouter",
         baseUrl: "https://openrouter.ai/api/v1",
@@ -12206,7 +12191,6 @@ var CLIENT_JS = `
       if (p === "whatstoken") return "WhatsToken";
       if (p === "groq") return "Groq";
       if (p === "cerebras") return "Cerebras";
-      if (p === "mistral") return "Mistral";
       if (p === "openrouter") return "OpenRouter";
       return p;
     },
