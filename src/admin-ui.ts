@@ -68,7 +68,7 @@ const OVERVIEW_BODY = `
     </div>
   </section>
 
-  <div class="split">
+  <div class="split u-mt-4">
     <section class="panel">
       <div class="panel-head">
         <h2>Requests by provider</h2>
@@ -93,7 +93,7 @@ const OVERVIEW_BODY = `
     </section>
   </div>
 
-  <section class="panel">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Recent activity</h2>
       <a class="meta" href="/pengatur/audit">audit log</a>

@@ -88,7 +88,7 @@ const MODELS_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-3">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Unified catalog</h2>
       <span class="meta" id="listMeta"></span>

@@ -1231,7 +1231,7 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-3">
+  <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>State</h2>
       <span class="meta" id="stateNote"></span>
@@ -1241,7 +1241,7 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-3" id="eventsPanel">
+  <section class="panel u-mt-4" id="eventsPanel">
     <div class="panel-head">
       <h2>Cooldown timeline</h2>
       <span class="meta" id="cooldownNote"></span>
@@ -1249,7 +1249,7 @@ const DETAIL_BODY = `
     <div id="eventsFeed" class="feed"></div>
   </section>
 
-  <section class="panel u-mt-3" id="dailyPanel" hidden>
+  <section class="panel u-mt-4" id="dailyPanel" hidden>
     <div class="panel-head">
       <h2>Daily requests</h2>
       <span class="meta" id="dailyNote"></span>
@@ -1265,7 +1265,7 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-3" id="recentPanel" hidden>
+  <section class="panel u-mt-4" id="recentPanel" hidden>
     <div class="panel-head">
       <h2>Recent requests</h2>
       <span class="meta" id="recentNote"></span>
