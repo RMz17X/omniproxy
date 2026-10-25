@@ -12816,15 +12816,13 @@ var OVERVIEW_BODY = `
     </div>
   </section>
 
-  <section class="zone">
-    <div class="panel">
-      <div class="panel-head">
-        <h2>Last 30 days</h2>
-        <span class="meta">from the request ledger</span>
-      </div>
-      <div class="panel-body">
-        <div class="figures" id="kpis"></div>
-      </div>
+  <section class="panel u-mt-4">
+    <div class="panel-head">
+      <h2>Last 30 days</h2>
+      <span class="meta">from the request ledger</span>
+    </div>
+    <div class="panel-body">
+      <div class="figures" id="kpis"></div>
     </div>
   </section>
 
@@ -12837,8 +12835,8 @@ var OVERVIEW_BODY = `
       <div class="panel-body">
         <div id="providerDays"></div>
         <div class="bars u-mt-3" id="providerMix"></div>
-        <div class="meta u-mt-3" id="providerTotal"></div>
-        <p class="hint u-mt-3">Split by the provider recorded in the request ledger.</p>
+        <div class="meta u-mt-2" id="providerTotal"></div>
+        <p class="hint u-mt-2">Split by the provider recorded in the request ledger.</p>
       </div>
     </section>
 
@@ -12849,8 +12847,8 @@ var OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
-        <p class="hint u-mt-3" id="planPct"></p>
-        <p class="hint u-mt-3">Plans are declared by the operator: no provider reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-2" id="planPct"></p>
+        <p class="hint u-mt-2">Plans are declared by the operator: no provider reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
@@ -13562,7 +13560,6 @@ var MODELS_BODY = `
   <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Unified catalog</h2>
-      <span class="meta" id="listMeta"></span>
     </div>
     <div id="body" class="table-wrap">${stateBlock("loading", "Loading catalog\u2026")}</div>
     <div class="panel-foot">
@@ -13589,7 +13586,6 @@ var MODELS_SCRIPT = `
     reloadBtn: document.getElementById("reloadBtn"),
     body: document.getElementById("body"),
     pager: document.getElementById("pager"),
-    listMeta: document.getElementById("listMeta"),
     msg: document.getElementById("msg"),
     rowMsg: document.getElementById("rowMsg")
   };
@@ -13772,11 +13768,6 @@ var MODELS_SCRIPT = `
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
     renderKpis(rows.length, state.census);
-    /* The only filtered count in the panel head, and it says so. The KPI strip
-       above carries catalog facts plus a "Showing" figure, so no two numbers
-       answer the same question. */
-    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model matches" : " models match") +
-      " the filters" + (state.models.length !== rows.length ? " (of " + state.models.length + ")" : "");
 
     if (!rows.length) {
       el.body.textContent = "";
@@ -18836,17 +18827,6 @@ var KEYS_SCRIPT = `
 
   function drawTable() {
     var filtered = visibleKeys();
-    /* "shown" claimed every matching key while the pager renders one page.
-       Say how many match, and let the pager state the visible range. */
-    /* "N in pool" claimed the enrolled total while the pager renders one page,
-       and it counted the dead rows that are hidden. Split the three numbers:
-       enrolled, retired, and what actually matches right now. */
-    var retired = 0;
-    state.keys.forEach(function (k) { if (statusKind(k) === "dead") retired++; });
-    var hiddenNote = !state.status && retired ? ", " + retired + " dead hidden" : "";
-    el.listMeta.textContent = state.keys.length + " in pool" + hiddenNote + ", " + filtered.length +
-      (filtered.length === 1 ? " matches" : " match") +
-      (state.status || state.query || state.provider ? " these filters" : "");
 
     if (!filtered.length) {
       el.keysBody.textContent = "";

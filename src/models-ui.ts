@@ -91,7 +91,6 @@ const MODELS_BODY = `
   <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Unified catalog</h2>
-      <span class="meta" id="listMeta"></span>
     </div>
     <div id="body" class="table-wrap">${stateBlock("loading", "Loading catalog…")}</div>
     <div class="panel-foot">
@@ -119,7 +118,6 @@ const MODELS_SCRIPT = `
     reloadBtn: document.getElementById("reloadBtn"),
     body: document.getElementById("body"),
     pager: document.getElementById("pager"),
-    listMeta: document.getElementById("listMeta"),
     msg: document.getElementById("msg"),
     rowMsg: document.getElementById("rowMsg")
   };
@@ -302,11 +300,6 @@ const MODELS_SCRIPT = `
     var slice = rows.slice((state.page - 1) * state.size, state.page * state.size);
 
     renderKpis(rows.length, state.census);
-    /* The only filtered count in the panel head, and it says so. The KPI strip
-       above carries catalog facts plus a "Showing" figure, so no two numbers
-       answer the same question. */
-    el.listMeta.textContent = rows.length + (rows.length === 1 ? " model matches" : " models match") +
-      " the filters" + (state.models.length !== rows.length ? " (of " + state.models.length + ")" : "");
 
     if (!rows.length) {
       el.body.textContent = "";

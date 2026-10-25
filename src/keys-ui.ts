@@ -587,17 +587,6 @@ const KEYS_SCRIPT = `
 
   function drawTable() {
     var filtered = visibleKeys();
-    /* "shown" claimed every matching key while the pager renders one page.
-       Say how many match, and let the pager state the visible range. */
-    /* "N in pool" claimed the enrolled total while the pager renders one page,
-       and it counted the dead rows that are hidden. Split the three numbers:
-       enrolled, retired, and what actually matches right now. */
-    var retired = 0;
-    state.keys.forEach(function (k) { if (statusKind(k) === "dead") retired++; });
-    var hiddenNote = !state.status && retired ? ", " + retired + " dead hidden" : "";
-    el.listMeta.textContent = state.keys.length + " in pool" + hiddenNote + ", " + filtered.length +
-      (filtered.length === 1 ? " matches" : " match") +
-      (state.status || state.query || state.provider ? " these filters" : "");
 
     if (!filtered.length) {
       el.keysBody.textContent = "";

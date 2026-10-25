@@ -59,15 +59,13 @@ const OVERVIEW_BODY = `
     </div>
   </section>
 
-  <section class="zone">
-    <div class="panel">
-      <div class="panel-head">
-        <h2>Last 30 days</h2>
-        <span class="meta">from the request ledger</span>
-      </div>
-      <div class="panel-body">
-        <div class="figures" id="kpis"></div>
-      </div>
+  <section class="panel u-mt-4">
+    <div class="panel-head">
+      <h2>Last 30 days</h2>
+      <span class="meta">from the request ledger</span>
+    </div>
+    <div class="panel-body">
+      <div class="figures" id="kpis"></div>
     </div>
   </section>
 
@@ -80,8 +78,8 @@ const OVERVIEW_BODY = `
       <div class="panel-body">
         <div id="providerDays"></div>
         <div class="bars u-mt-3" id="providerMix"></div>
-        <div class="meta u-mt-3" id="providerTotal"></div>
-        <p class="hint u-mt-3">Split by the provider recorded in the request ledger.</p>
+        <div class="meta u-mt-2" id="providerTotal"></div>
+        <p class="hint u-mt-2">Split by the provider recorded in the request ledger.</p>
       </div>
     </section>
 
@@ -92,8 +90,8 @@ const OVERVIEW_BODY = `
       </div>
       <div class="panel-body">
         <div class="bars" id="planMix"></div>
-        <p class="hint u-mt-3" id="planPct"></p>
-        <p class="hint u-mt-3">Plans are declared by the operator: no provider reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
+        <p class="hint u-mt-2" id="planPct"></p>
+        <p class="hint u-mt-2">Plans are declared by the operator: no provider reports a project plan over the API, so declare it on the Keys page; the models page prices a test run against it.</p>
       </div>
     </section>
   </div>
