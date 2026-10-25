@@ -494,20 +494,22 @@ body[data-gate="locked"] .app { display: none; }
 
 /* figures ---------------------------------------------------------------- */
 
+/* A KPI row is a grid of separate cards, never one full-width strip with
+   dividers: the overview reads like a dashboard, and every figure carries its
+   own surface so it can be compared at a glance. */
 .figures {
   display: grid;
+  gap: var(--sp-3);
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-surface);
-  overflow: hidden;
+  min-width: 0;
 }
 .fig {
   padding: var(--sp-3);
-  border-left: 1px solid var(--line);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-surface);
   min-width: 0;
 }
-.fig:first-child { border-left: 0; }
 .fig-label { display: block; font-size: 11px; font-weight: 620; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-3); }
 .fig-value {
   display: block;
@@ -1522,13 +1524,48 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 /* gate ------------------------------------------------------------------- */
 
-.gate-wrap { display: grid; place-items: center; min-height: 62dvh; }
-.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-4) var(--inset); }
-.login-page .gate-wrap { min-height: 0; }
-.gate { width: min(440px, 100%); }
-.gate-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--text); color: var(--bg); margin-bottom: var(--sp-4); }
-.gate h1 { font-size: 22px; letter-spacing: -0.03em; }
-.gate .lede { margin-top: 6px; color: var(--text-2); font-size: 13.5px; }
+.gate-wrap { display: grid; place-items: center; min-height: 62dvh; padding: var(--sp-4) 0; }
+.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-5) var(--inset); }
+.login-page .gate-wrap { min-height: 0; padding: 0; }
+.gate { width: min(400px, 100%); }
+/* brand above the card: the mark plus the wordmark, centred as one unit */
+.gate-brand { display: flex; align-items: center; justify-content: center; gap: var(--sp-2h); margin-bottom: var(--sp-4); }
+.gate-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--text); color: var(--bg); flex: none; }
+.gate-word { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+.gate-word b { font-size: 16px; font-weight: 660; letter-spacing: -0.02em; }
+.gate-word span { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+/* the sign-in card: title, one line of intent, the token field, the action */
+.gate-card { padding: var(--sp-4); }
+.gate-title { font-size: 19px; letter-spacing: -0.02em; font-weight: 640; }
+.gate-lede { margin-top: var(--sp-1); color: var(--text-2); font-size: 13px; line-height: 1.55; }
+.gate-form { margin-top: var(--sp-4); }
+.gate-field { position: relative; display: flex; }
+.gate-field .input { width: 100%; padding-right: 40px; }
+.gate-toggle {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  display: grid; place-items: center; width: 28px; height: 28px;
+  border: 0; border-radius: var(--r-ctl); background: transparent;
+  color: var(--text-3); cursor: pointer;
+}
+.gate-toggle:hover { color: var(--text); background: var(--surface-2); }
+.gate-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* the pools this gateway fronts, named under a hairline: the console is
+   multi-provider, and the sign-in page says so before any token is typed */
+.gate-foot {
+  display: flex; align-items: center; gap: var(--sp-2h); flex-wrap: wrap;
+  margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--line);
+  font-size: 11.5px; color: var(--text-3);
+}
+.gate-foot .rail-prov { font-size: 11.5px; }
+.gate-foot .gate-foot-note { margin-left: auto; }
+
+/* verdict strip: the overview's one-line answer, with a live status dot ----- */
+
+.verdict { display: flex; align-items: center; gap: var(--sp-2h); flex-wrap: wrap; }
+.verdict-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ok); }
+.verdict-dot[data-tone="warn"] { background: var(--warn); }
+.verdict-dot[data-tone="bad"] { background: var(--bad); }
+.verdict strong { font-size: 14px; font-weight: 620; }
 
 /* hero ------------------------------------------------------------------- */
 
@@ -1578,9 +1615,6 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .page { padding: var(--sp-4) var(--sp-3); }
   .grid-3, .grid-2 { grid-template-columns: minmax(0, 1fr); }
   .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fig:nth-child(odd) { border-left: 0; }
-  .fig { border-top: 1px solid var(--line); }
-  .fig:nth-child(-n + 2) { border-top: 0; }
 }
 
 @media (max-width: 720px) {
@@ -1626,8 +1660,6 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 @media (max-width: 400px) {
   .figures { grid-template-columns: minmax(0, 1fr); }
-  .fig, .fig:nth-child(odd), .fig:nth-child(-n + 2) { border-left: 0; border-top: 1px solid var(--line); }
-  .fig:first-child { border-top: 0; }
   .toolbar .grow { flex-basis: 100%; }
 }
 
@@ -1655,7 +1687,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .rail, .canvas-head, .toasts, .menu-btn { display: none; }
   .shell { display: block; }
   .page { max-width: none; padding: 0; }
-  .panel, .figures { border-color: #bbb; }
+  .panel, .fig { border-color: #bbb; }
 }
 
 /* Vercel dashboard restyle (total redesign) -------------------------------
@@ -1726,11 +1758,17 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .panel-head h2, .panel-head h3 { font-size: 13px; font-weight: 600; }
 .panel-body { padding: var(--inset); }
 .panel-foot, .panel-note { border-top: 1px solid var(--line); }
-.kpi {
+.kpi, .fig {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .fig-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+
+/* one vertical rhythm for every page: the direct sections of the console
+   stack at exactly 24px, so no page can drift into 16px here and 32px there.
+   The id selector wins over the u-mt-* utilities by design — the rhythm is
+   a property of the layout, not of whichever class a section happens to carry. */
+#console > * + * { margin-top: var(--sp-4); }
 
 /* buttons: black primary, neutral secondary */
 .btn {
@@ -1848,6 +1886,8 @@ const ICON_PATHS: Record<string, string> = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   alert: '<path d="M12 4l9 16H3l9-16z"/><path d="M12 10v4M12 17h.01"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 118 0v3"/>',
+  eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M3 3l18 18M10.6 5.2A9.9 9.9 0 0112 5c6.4 0 10 7 10 7a17.6 17.6 0 01-2.4 3.3M6.5 6.6A17.3 17.3 0 002 12s3.6 7 10 7c1.6 0 3-.4 4.2-1M9.9 9.9a3 3 0 004.2 4.2"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/>',
 };
 
@@ -2225,7 +2265,10 @@ const LOGIN_JS = `
   var input = document.getElementById("token");
   var button = document.getElementById("connect");
   var msg = document.getElementById("gateMsg");
+  var toggle = document.getElementById("tokenToggle");
   var STORE = "omniproxy.admin.token";
+  var EYE = ${JSON.stringify(icon("eye", "icon", 15))};
+  var EYE_OFF = ${JSON.stringify(icon("eyeOff", "icon", 15))};
 
   function next() {
     var n = new URLSearchParams(location.search).get("next");
@@ -2242,6 +2285,20 @@ const LOGIN_JS = `
   try { if (localStorage.getItem(STORE)) { location.replace(next()); return; } } catch (e) {}
 
   if (!form) return;
+
+  /* Show/hide the token: a pasted token is impossible to proofread as dots,
+     and a mistyped character otherwise only surfaces as a rejected sign-in. */
+  if (toggle && input) {
+    toggle.addEventListener("click", function () {
+      var hidden = input.type === "password";
+      input.type = hidden ? "text" : "password";
+      toggle.innerHTML = hidden ? EYE_OFF : EYE;
+      toggle.setAttribute("aria-pressed", hidden ? "true" : "false");
+      toggle.setAttribute("aria-label", hidden ? "Hide the token" : "Show the token");
+      input.focus();
+    });
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var value = input ? input.value.trim() : "";
@@ -2268,26 +2325,42 @@ const LOGIN_JS = `
 /**
  * The admin token gate. Every console page opens with the same panel so the
  * operator always knows what the console wants and where the token goes.
+ *
+ * Layout: the brand sits above the card as its own unit, the card carries the
+ * intent line, the token field (with a show/hide toggle), the full-width
+ * action, and a hairline footer naming the pools this gateway fronts — so a
+ * pre-auth page still states what the deployment is.
  */
 export function authGate(): string {
   return (
     '<section class="gate-wrap" id="gate">' +
-    '<div class="panel gate">' +
-    '<div class="card-body">' +
+    '<div class="gate">' +
+    '<div class="gate-brand">' +
     '<span class="gate-mark">' +
-    icon("lock", "icon", 20) +
+    icon("command", "icon", 18) +
     "</span>" +
-    "<h1>Admin token</h1>" +
-    '<p class="lede">This console reads every provider pool, the ledger and the settings of this deployment. The token stays in this browser.</p>' +
-    '<form id="gateForm" autocomplete="off" class="u-mt-5">' +
-    '<label class="field" for="token">Deployment admin token</label>' +
-    '<div class="row">' +
-    '<div class="grow"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"></div>' +
-    '<button id="connect" class="btn btn-primary" type="submit">Connect</button>' +
+    '<span class="gate-word"><b>OmniProxy</b><span>Gateway console</span></span>' +
     "</div>" +
-    '<p class="hint u-mt-3">Sent only to this deployment, as a bearer token over HTTPS.</p>' +
-    "</form>" +
+    '<div class="panel gate-card">' +
+    '<h1 class="gate-title">Sign in</h1>' +
+    '<p class="gate-lede">This console reads every provider pool, the ledger and the settings of this deployment. The token stays in this browser.</p>' +
+    '<form id="gateForm" autocomplete="off" class="gate-form">' +
+    '<label class="field" for="token">Deployment admin token</label>' +
+    '<div class="gate-field">' +
+    '<input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off">' +
+    '<button id="tokenToggle" class="gate-toggle" type="button" aria-label="Show the token" aria-pressed="false">' +
+    icon("eye", "icon", 15) +
+    "</button>" +
+    "</div>" +
+    '<button id="connect" class="btn btn-primary btn-block u-mt-3" type="submit">Connect</button>' +
     '<div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div>' +
+    "</form>" +
+    '<div class="gate-foot">' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span>' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span>' +
+    '<span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span>' +
+    '<span class="gate-foot-note">plus custom upstreams</span>' +
+    "</div>" +
     "</div></div></section>"
   );
 }

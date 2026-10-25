@@ -237,7 +237,7 @@ var init_metrics = __esm({
   }
 });
 
-// node_modules/@neondatabase/serverless/index.mjs
+// ../../node_modules/@neondatabase/serverless/index.mjs
 function Ma(r) {
   return 0;
 }
@@ -661,7 +661,7 @@ function $l(r) {
 }
 var Po, Ie, Ro, Lo, Bo, Fo, Mo, a, V, T, se, Dn, we, O, E, Wn, jn, oi, b, x, v, p, y, h, ve, Ii, Ti, _i, A, pe, Ge, tr, rr, Fi, ki, Qi, Ni, zi, Yi, ts, ns, Je, _t, os, M, et, as, lr, fr, tt, rt, nt, ju, it, xs, yr, mr, gr, wr, br, ec, xr, vs, Sr, vr, Ss, _s, Ps, Ls, Bs, wc, Fs, Ms, ks, Ir, Lt, Ws, Gs, ln, Vs, Ks, Ys, eo, vn, to, ro, An, uo, fo, ho, Il, po, yo, wo, So, Mn, ot, da, pa, ya, ai, ma, ga, ui, wa, ba, xa, ci, va, Yt, dt, pt, Sa, li, je, yt, Zt, xe, mt, He, Jt, $e, wt, N, hi, _a, Ta, vt, ds, ps, ls, Co, Ao, On, ut, _o, Qn, ct, To, export_DatabaseError, export_defaults, export_escapeIdentifier, export_escapeLiteral, export_types;
 var init_serverless = __esm({
-  "node_modules/@neondatabase/serverless/index.mjs"() {
+  "../../node_modules/@neondatabase/serverless/index.mjs"() {
     Po = Object.create;
     Ie = Object.defineProperty;
     Ro = Object.getOwnPropertyDescriptor;
@@ -6854,15 +6854,15 @@ var init_pool = __esm({
   }
 });
 
-// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+// ../../node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
 var X_ALREADY_SENT = "x-hono-already-sent";
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 import { STATUS_CODES, ServerResponse, createServer } from "node:http";
 import { Http2ServerRequest, constants } from "node:http2";
 import { Readable } from "node:stream";
 
-// node_modules/hono/dist/helper/websocket/index.js
+// ../../node_modules/hono/dist/helper/websocket/index.js
 var defineWebSocketHelper = (handler2) => {
   return (...args) => {
     if (typeof args[0] === "function") {
@@ -6883,7 +6883,7 @@ var defineWebSocketHelper = (handler2) => {
   };
 };
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 var RequestError = class extends Error {
   constructor(message, options) {
     super(message, options);
@@ -8050,15 +8050,15 @@ var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
   return new Response();
 });
 
-// node_modules/hono/dist/request/constants.js
+// ../../node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = Symbol();
 
-// node_modules/hono/dist/utils/buffer.js
+// ../../node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType2) => {
   return new Response(arrayBuffer, { headers: { "Content-Type": contentType2.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase()) } }).formData();
 };
 
-// node_modules/hono/dist/utils/body.js
+// ../../node_modules/hono/dist/utils/body.js
 var MAX_NESTED_OBJECTS = 1e4;
 var isRawRequest = (request) => "headers" in request;
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
@@ -8122,7 +8122,7 @@ var throwNestingLimitExceeded = () => {
   throw new Error("Nesting limit exceeded");
 };
 
-// node_modules/hono/dist/utils/url.js
+// ../../node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split("/");
   if (paths[0] === "") paths.shift();
@@ -8293,7 +8293,7 @@ var getQueryParams = (url, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// node_modules/hono/dist/request.js
+// ../../node_modules/hono/dist/request.js
 var HonoRequest = class {
   /**
   * `.raw` can get the raw Request object.
@@ -8563,7 +8563,7 @@ var HonoRequest = class {
   }
 };
 
-// node_modules/hono/dist/utils/html.js
+// ../../node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -8593,7 +8593,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   else return resStr;
 };
 
-// node_modules/hono/dist/context.js
+// ../../node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType2, headers) => {
   return {
@@ -8971,7 +8971,7 @@ var Context = class {
   };
 };
 
-// node_modules/hono/dist/compose.js
+// ../../node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -9002,7 +9002,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// node_modules/hono/dist/router.js
+// ../../node_modules/hono/dist/router.js
 var METHODS = [
   "get",
   "post",
@@ -9016,10 +9016,10 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 var UnsupportedPathError = class extends Error {
 };
 
-// node_modules/hono/dist/utils/constants.js
+// ../../node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
-// node_modules/hono/dist/hono-base.js
+// ../../node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -9360,10 +9360,10 @@ var Hono = class Hono2 {
   };
 };
 
-// node_modules/hono/dist/router/utils.js
+// ../../node_modules/hono/dist/router/utils.js
 var createNullObject = () => /* @__PURE__ */ Object.create(null);
 
-// node_modules/hono/dist/router/reg-exp-router/matcher.js
+// ../../node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -9380,7 +9380,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// node_modules/hono/dist/router/reg-exp-router/node.js
+// ../../node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
 var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
 var PATH_ERROR = Symbol();
@@ -9461,7 +9461,7 @@ var Node = class Node2 {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/trie.js
+// ../../node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -9526,7 +9526,7 @@ var Trie = class {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/router.js
+// ../../node_modules/hono/dist/router/reg-exp-router/router.js
 var wildcardRegExpCache = createNullObject();
 function buildWildcardRegExp(path) {
   return wildcardRegExpCache[path] ??= new RegExp(`^${path.replace(/\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g, (match2, metaChar) => metaChar ? `\\${metaChar}` : match2 === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match2 === "*" ? ".*" : `/:${LABEL_REG_EXP_STR}`)}$`);
@@ -9620,7 +9620,7 @@ var RegExpRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/smart-router/router.js
+// ../../node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = "SmartRouter";
   #routers = [];
@@ -9667,7 +9667,7 @@ var SmartRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/node.js
+// ../../node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = createNullObject();
 var order = 0;
 var Node3 = class Node4 {
@@ -9797,7 +9797,7 @@ var Node3 = class Node4 {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/router.js
+// ../../node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = "TrieRouter";
   #node = new Node3();
@@ -9809,7 +9809,7 @@ var TrieRouter = class {
   }
 };
 
-// node_modules/hono/dist/hono.js
+// ../../node_modules/hono/dist/hono.js
 var Hono3 = class extends Hono {
   /**
   * Creates an instance of the Hono class.
@@ -9822,7 +9822,7 @@ var Hono3 = class extends Hono {
   }
 };
 
-// node_modules/hono/dist/middleware/cors/index.js
+// ../../node_modules/hono/dist/middleware/cors/index.js
 var cors = (options) => {
   const opts = {
     origin: "*",
@@ -10374,20 +10374,22 @@ body[data-gate="locked"] .app { display: none; }
 
 /* figures ---------------------------------------------------------------- */
 
+/* A KPI row is a grid of separate cards, never one full-width strip with
+   dividers: the overview reads like a dashboard, and every figure carries its
+   own surface so it can be compared at a glance. */
 .figures {
   display: grid;
+  gap: var(--sp-3);
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-surface);
-  overflow: hidden;
+  min-width: 0;
 }
 .fig {
   padding: var(--sp-3);
-  border-left: 1px solid var(--line);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-surface);
   min-width: 0;
 }
-.fig:first-child { border-left: 0; }
 .fig-label { display: block; font-size: 11px; font-weight: 620; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-3); }
 .fig-value {
   display: block;
@@ -11402,13 +11404,48 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 /* gate ------------------------------------------------------------------- */
 
-.gate-wrap { display: grid; place-items: center; min-height: 62dvh; }
-.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-4) var(--inset); }
-.login-page .gate-wrap { min-height: 0; }
-.gate { width: min(440px, 100%); }
-.gate-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--text); color: var(--bg); margin-bottom: var(--sp-4); }
-.gate h1 { font-size: 22px; letter-spacing: -0.03em; }
-.gate .lede { margin-top: 6px; color: var(--text-2); font-size: 13.5px; }
+.gate-wrap { display: grid; place-items: center; min-height: 62dvh; padding: var(--sp-4) 0; }
+.login-page { display: grid; place-items: center; min-height: 100dvh; padding: var(--sp-5) var(--inset); }
+.login-page .gate-wrap { min-height: 0; padding: 0; }
+.gate { width: min(400px, 100%); }
+/* brand above the card: the mark plus the wordmark, centred as one unit */
+.gate-brand { display: flex; align-items: center; justify-content: center; gap: var(--sp-2h); margin-bottom: var(--sp-4); }
+.gate-mark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--text); color: var(--bg); flex: none; }
+.gate-word { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+.gate-word b { font-size: 16px; font-weight: 660; letter-spacing: -0.02em; }
+.gate-word span { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
+/* the sign-in card: title, one line of intent, the token field, the action */
+.gate-card { padding: var(--sp-4); }
+.gate-title { font-size: 19px; letter-spacing: -0.02em; font-weight: 640; }
+.gate-lede { margin-top: var(--sp-1); color: var(--text-2); font-size: 13px; line-height: 1.55; }
+.gate-form { margin-top: var(--sp-4); }
+.gate-field { position: relative; display: flex; }
+.gate-field .input { width: 100%; padding-right: 40px; }
+.gate-toggle {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  display: grid; place-items: center; width: 28px; height: 28px;
+  border: 0; border-radius: var(--r-ctl); background: transparent;
+  color: var(--text-3); cursor: pointer;
+}
+.gate-toggle:hover { color: var(--text); background: var(--surface-2); }
+.gate-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* the pools this gateway fronts, named under a hairline: the console is
+   multi-provider, and the sign-in page says so before any token is typed */
+.gate-foot {
+  display: flex; align-items: center; gap: var(--sp-2h); flex-wrap: wrap;
+  margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--line);
+  font-size: 11.5px; color: var(--text-3);
+}
+.gate-foot .rail-prov { font-size: 11.5px; }
+.gate-foot .gate-foot-note { margin-left: auto; }
+
+/* verdict strip: the overview's one-line answer, with a live status dot ----- */
+
+.verdict { display: flex; align-items: center; gap: var(--sp-2h); flex-wrap: wrap; }
+.verdict-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ok); }
+.verdict-dot[data-tone="warn"] { background: var(--warn); }
+.verdict-dot[data-tone="bad"] { background: var(--bad); }
+.verdict strong { font-size: 14px; font-weight: 620; }
 
 /* hero ------------------------------------------------------------------- */
 
@@ -11458,9 +11495,6 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .page { padding: var(--sp-4) var(--sp-3); }
   .grid-3, .grid-2 { grid-template-columns: minmax(0, 1fr); }
   .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fig:nth-child(odd) { border-left: 0; }
-  .fig { border-top: 1px solid var(--line); }
-  .fig:nth-child(-n + 2) { border-top: 0; }
 }
 
 @media (max-width: 720px) {
@@ -11506,8 +11540,6 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 @media (max-width: 400px) {
   .figures { grid-template-columns: minmax(0, 1fr); }
-  .fig, .fig:nth-child(odd), .fig:nth-child(-n + 2) { border-left: 0; border-top: 1px solid var(--line); }
-  .fig:first-child { border-top: 0; }
   .toolbar .grow { flex-basis: 100%; }
 }
 
@@ -11535,7 +11567,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .rail, .canvas-head, .toasts, .menu-btn { display: none; }
   .shell { display: block; }
   .page { max-width: none; padding: 0; }
-  .panel, .figures { border-color: #bbb; }
+  .panel, .fig { border-color: #bbb; }
 }
 
 /* Vercel dashboard restyle (total redesign) -------------------------------
@@ -11606,11 +11638,17 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .panel-head h2, .panel-head h3 { font-size: 13px; font-weight: 600; }
 .panel-body { padding: var(--inset); }
 .panel-foot, .panel-note { border-top: 1px solid var(--line); }
-.kpi {
+.kpi, .fig {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .fig-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+
+/* one vertical rhythm for every page: the direct sections of the console
+   stack at exactly 24px, so no page can drift into 16px here and 32px there.
+   The id selector wins over the u-mt-* utilities by design \u2014 the rhythm is
+   a property of the layout, not of whichever class a section happens to carry. */
+#console > * + * { margin-top: var(--sp-4); }
 
 /* buttons: black primary, neutral secondary */
 .btn {
@@ -11725,6 +11763,8 @@ var ICON_PATHS = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   alert: '<path d="M12 4l9 16H3l9-16z"/><path d="M12 10v4M12 17h.01"/>',
   lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 118 0v3"/>',
+  eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M3 3l18 18M10.6 5.2A9.9 9.9 0 0112 5c6.4 0 10 7 10 7a17.6 17.6 0 01-2.4 3.3M6.5 6.6A17.3 17.3 0 002 12s3.6 7 10 7c1.6 0 3-.4 4.2-1M9.9 9.9a3 3 0 004.2 4.2"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/>'
 };
 function icon(name, cls = "icon", size = 16) {
@@ -11841,7 +11881,10 @@ var LOGIN_JS = `
   var input = document.getElementById("token");
   var button = document.getElementById("connect");
   var msg = document.getElementById("gateMsg");
+  var toggle = document.getElementById("tokenToggle");
   var STORE = "omniproxy.admin.token";
+  var EYE = ${JSON.stringify(icon("eye", "icon", 15))};
+  var EYE_OFF = ${JSON.stringify(icon("eyeOff", "icon", 15))};
 
   function next() {
     var n = new URLSearchParams(location.search).get("next");
@@ -11858,6 +11901,20 @@ var LOGIN_JS = `
   try { if (localStorage.getItem(STORE)) { location.replace(next()); return; } } catch (e) {}
 
   if (!form) return;
+
+  /* Show/hide the token: a pasted token is impossible to proofread as dots,
+     and a mistyped character otherwise only surfaces as a rejected sign-in. */
+  if (toggle && input) {
+    toggle.addEventListener("click", function () {
+      var hidden = input.type === "password";
+      input.type = hidden ? "text" : "password";
+      toggle.innerHTML = hidden ? EYE_OFF : EYE;
+      toggle.setAttribute("aria-pressed", hidden ? "true" : "false");
+      toggle.setAttribute("aria-label", hidden ? "Hide the token" : "Show the token");
+      input.focus();
+    });
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var value = input ? input.value.trim() : "";
@@ -11881,7 +11938,7 @@ var LOGIN_JS = `
 })();
 `;
 function authGate() {
-  return '<section class="gate-wrap" id="gate"><div class="panel gate"><div class="card-body"><span class="gate-mark">' + icon("lock", "icon", 20) + '</span><h1>Admin token</h1><p class="lede">This console reads every provider pool, the ledger and the settings of this deployment. The token stays in this browser.</p><form id="gateForm" autocomplete="off" class="u-mt-5"><label class="field" for="token">Deployment admin token</label><div class="row"><div class="grow"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"></div><button id="connect" class="btn btn-primary" type="submit">Connect</button></div><p class="hint u-mt-3">Sent only to this deployment, as a bearer token over HTTPS.</p></form><div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div></div></div></section>';
+  return '<section class="gate-wrap" id="gate"><div class="gate"><div class="gate-brand"><span class="gate-mark">' + icon("command", "icon", 18) + '</span><span class="gate-word"><b>OmniProxy</b><span>Gateway console</span></span></div><div class="panel gate-card"><h1 class="gate-title">Sign in</h1><p class="gate-lede">This console reads every provider pool, the ledger and the settings of this deployment. The token stays in this browser.</p><form id="gateForm" autocomplete="off" class="gate-form"><label class="field" for="token">Deployment admin token</label><div class="gate-field"><input id="token" class="input mono" type="password" spellcheck="false" placeholder="ADMIN_TOKEN" autocomplete="off"><button id="tokenToggle" class="gate-toggle" type="button" aria-label="Show the token" aria-pressed="false">' + icon("eye", "icon", 15) + '</button></div><button id="connect" class="btn btn-primary btn-block u-mt-3" type="submit">Connect</button><div id="gateMsg" class="hint u-mt-3" role="status" aria-live="polite"></div></form><div class="gate-foot"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span><span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span><span class="gate-foot-note">plus custom upstreams</span></div></div></div></section>';
 }
 function helpDialog() {
   const keys = [
@@ -12794,7 +12851,8 @@ var OVERVIEW_BODY = `
 
   <section class="panel">
     <div class="panel-body">
-      <div class="row">
+      <div class="verdict">
+        <span class="verdict-dot" id="verdictDot" data-tone="ok"></span>
         <strong id="verdictText">-</strong>
         <span class="meta" id="verdictState">-</span>
         <span class="spacer"></span>
@@ -12804,7 +12862,11 @@ var OVERVIEW_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <div class="figures" id="poolKpis"></div>
+
+  <div class="figures" id="kpis"></div>
+
+  <section class="panel">
     <div class="panel-head">
       <h2>Needs attention</h2>
       <span class="meta" id="attnMeta">-</span>
@@ -12816,29 +12878,18 @@ var OVERVIEW_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
     <div class="panel-head">
       <h2>Pool health</h2>
       <span class="meta" id="healthMeta">-</span>
     </div>
     <div class="panel-body">
       <div id="poolBar" class="u-mb-3"></div>
-      <div class="figures" id="facts"></div>
       <div id="providerPools" class="u-mt-3"></div>
     </div>
   </section>
 
-  <section class="panel u-mt-4">
-    <div class="panel-head">
-      <h2>Last 30 days</h2>
-      <span class="meta">from the request ledger</span>
-    </div>
-    <div class="panel-body">
-      <div class="figures" id="kpis"></div>
-    </div>
-  </section>
-
-  <div class="split u-mt-4">
+  <div class="split">
     <section class="panel">
       <div class="panel-head">
         <h2>Traffic trend</h2>
@@ -12865,7 +12916,7 @@ var OVERVIEW_BODY = `
     </section>
   </div>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
     <div class="panel-head">
       <h2>Recent activity</h2>
       <a class="meta" href="/pengatur/audit">audit log</a>
@@ -12873,7 +12924,7 @@ var OVERVIEW_BODY = `
     <div class="feed" id="activity"></div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
     <div class="panel-body">
       <div class="row">
         <button id="addBtnFoot" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add keys</button>
@@ -12913,7 +12964,8 @@ var OVERVIEW_SCRIPT = `
     updated: document.getElementById("updated"),
     verdictText: document.getElementById("verdictText"),
     verdictState: document.getElementById("verdictState"),
-    facts: document.getElementById("facts"),
+    verdictDot: document.getElementById("verdictDot"),
+    poolKpis: document.getElementById("poolKpis"),
     healthMeta: document.getElementById("healthMeta"),
     attn: document.getElementById("attn"),
     attnMeta: document.getElementById("attnMeta"),
@@ -12961,19 +13013,15 @@ var OVERVIEW_SCRIPT = `
       ]));
     }
 
-    el.facts.textContent = "";
-    el.facts.appendChild(GX.stat("Ready now", String(pool.ready), pool.total ? "of " + pool.total + " in the pool" : "the pool is empty", pool.ready ? "ok" : "bad"));
-    el.facts.appendChild(GX.stat("Cooling", String(pool.cooling), pool.cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", pool.cooling ? "warn" : ""));
-    el.facts.appendChild(GX.stat("Dead", String(pool.dead), pool.dead ? "revoked or out of quota" : "none retired", pool.dead ? "bad" : ""));
-
-    /* The verdict strip and the pool panel read the same census: the strip
-       is the one-line verdict, healthMeta is the always-on pool status. */
+    /* The verdict strip is the one-line answer: dot tone, counts, state word.
+       The pool KPI cards below carry the same census as figures. */
     var ready = pool.ready || 0;
     var cooling = pool.cooling || 0;
     var dead = pool.dead || 0;
     var total = pool.total || 0;
     el.verdictText.textContent = "Ready " + ready + "/" + total + " \xB7 " + cooling + " cooling \xB7 " + dead + " dead";
     el.verdictState.textContent = pool.degraded ? "Degraded" : "Ready";
+    el.verdictDot.setAttribute("data-tone", dead > 0 ? "bad" : cooling > 0 ? "warn" : "ok");
     el.healthMeta.textContent = pool.degraded
       ? "Degraded \xB7 " + dead + " dead \xB7 " + cooling + " cooling"
       : "Ready";
@@ -12989,6 +13037,28 @@ var OVERVIEW_SCRIPT = `
     provNames.forEach(function (prov) {
       el.providerPools.appendChild(GX.providerPool(prov, byProvider[prov]));
     });
+  }
+
+  /* The pool as a row of figure cards: the census an operator checks first,
+     each number on its own surface instead of one full-width strip. */
+  function renderPoolKpis(pool, tiers) {
+    el.poolKpis.textContent = "";
+    var ready = pool.ready || 0;
+    var cooling = pool.cooling || 0;
+    var dead = pool.dead || 0;
+    var total = pool.total || 0;
+    el.poolKpis.appendChild(GX.stat("Ready now", String(ready), total ? "of " + total + " in the pool" : "the pool is empty", ready ? "ok" : "bad"));
+    el.poolKpis.appendChild(GX.stat("Cooling", String(cooling), cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", cooling ? "warn" : ""));
+    el.poolKpis.appendChild(GX.stat("Dead", String(dead), dead ? "revoked or out of quota" : "none retired", dead ? "bad" : ""));
+    var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
+    var declared = (t.free || 0) + (t.paid || 0) + (t.pro || 0);
+    var keys = declared + (t.unknown || 0);
+    el.poolKpis.appendChild(GX.stat(
+      "Plans declared",
+      declared + "/" + keys,
+      t.unknown ? t.unknown + " without a plan" : "every key declares a plan",
+      t.unknown ? "warn" : "ok"
+    ));
   }
 
   function renderAttention(pool, tiers) {
@@ -13272,6 +13342,7 @@ var OVERVIEW_SCRIPT = `
       var pool = res[0].pool || {};
       state.tiers = res[0].tiers;
       renderHero(pool, state.tiers, res[1]);
+      renderPoolKpis(pool, state.tiers);
       renderAttention(pool, state.tiers);
       renderKpis(res[1]);
       renderProviderMix(res[1]);

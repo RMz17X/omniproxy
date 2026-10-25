@@ -25,7 +25,8 @@ const OVERVIEW_BODY = `
 
   <section class="panel">
     <div class="panel-body">
-      <div class="row">
+      <div class="verdict">
+        <span class="verdict-dot" id="verdictDot" data-tone="ok"></span>
         <strong id="verdictText">-</strong>
         <span class="meta" id="verdictState">-</span>
         <span class="spacer"></span>
@@ -35,7 +36,11 @@ const OVERVIEW_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <div class="figures" id="poolKpis"></div>
+
+  <div class="figures" id="kpis"></div>
+
+  <section class="panel">
     <div class="panel-head">
       <h2>Needs attention</h2>
       <span class="meta" id="attnMeta">-</span>
@@ -47,29 +52,18 @@ const OVERVIEW_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
     <div class="panel-head">
       <h2>Pool health</h2>
       <span class="meta" id="healthMeta">-</span>
     </div>
     <div class="panel-body">
       <div id="poolBar" class="u-mb-3"></div>
-      <div class="figures" id="facts"></div>
       <div id="providerPools" class="u-mt-3"></div>
     </div>
   </section>
 
-  <section class="panel u-mt-4">
-    <div class="panel-head">
-      <h2>Last 30 days</h2>
-      <span class="meta">from the request ledger</span>
-    </div>
-    <div class="panel-body">
-      <div class="figures" id="kpis"></div>
-    </div>
-  </section>
-
-  <div class="split u-mt-4">
+  <div class="split">
     <section class="panel">
       <div class="panel-head">
         <h2>Traffic trend</h2>
@@ -96,7 +90,7 @@ const OVERVIEW_BODY = `
     </section>
   </div>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
     <div class="panel-head">
       <h2>Recent activity</h2>
       <a class="meta" href="/pengatur/audit">audit log</a>
@@ -104,7 +98,7 @@ const OVERVIEW_BODY = `
     <div class="feed" id="activity"></div>
   </section>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
     <div class="panel-body">
       <div class="row">
         <button id="addBtnFoot" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add keys</button>
@@ -145,7 +139,8 @@ const OVERVIEW_SCRIPT = `
     updated: document.getElementById("updated"),
     verdictText: document.getElementById("verdictText"),
     verdictState: document.getElementById("verdictState"),
-    facts: document.getElementById("facts"),
+    verdictDot: document.getElementById("verdictDot"),
+    poolKpis: document.getElementById("poolKpis"),
     healthMeta: document.getElementById("healthMeta"),
     attn: document.getElementById("attn"),
     attnMeta: document.getElementById("attnMeta"),
@@ -193,19 +188,15 @@ const OVERVIEW_SCRIPT = `
       ]));
     }
 
-    el.facts.textContent = "";
-    el.facts.appendChild(GX.stat("Ready now", String(pool.ready), pool.total ? "of " + pool.total + " in the pool" : "the pool is empty", pool.ready ? "ok" : "bad"));
-    el.facts.appendChild(GX.stat("Cooling", String(pool.cooling), pool.cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", pool.cooling ? "warn" : ""));
-    el.facts.appendChild(GX.stat("Dead", String(pool.dead), pool.dead ? "revoked or out of quota" : "none retired", pool.dead ? "bad" : ""));
-
-    /* The verdict strip and the pool panel read the same census: the strip
-       is the one-line verdict, healthMeta is the always-on pool status. */
+    /* The verdict strip is the one-line answer: dot tone, counts, state word.
+       The pool KPI cards below carry the same census as figures. */
     var ready = pool.ready || 0;
     var cooling = pool.cooling || 0;
     var dead = pool.dead || 0;
     var total = pool.total || 0;
     el.verdictText.textContent = "Ready " + ready + "/" + total + " · " + cooling + " cooling · " + dead + " dead";
     el.verdictState.textContent = pool.degraded ? "Degraded" : "Ready";
+    el.verdictDot.setAttribute("data-tone", dead > 0 ? "bad" : cooling > 0 ? "warn" : "ok");
     el.healthMeta.textContent = pool.degraded
       ? "Degraded · " + dead + " dead · " + cooling + " cooling"
       : "Ready";
@@ -221,6 +212,28 @@ const OVERVIEW_SCRIPT = `
     provNames.forEach(function (prov) {
       el.providerPools.appendChild(GX.providerPool(prov, byProvider[prov]));
     });
+  }
+
+  /* The pool as a row of figure cards: the census an operator checks first,
+     each number on its own surface instead of one full-width strip. */
+  function renderPoolKpis(pool, tiers) {
+    el.poolKpis.textContent = "";
+    var ready = pool.ready || 0;
+    var cooling = pool.cooling || 0;
+    var dead = pool.dead || 0;
+    var total = pool.total || 0;
+    el.poolKpis.appendChild(GX.stat("Ready now", String(ready), total ? "of " + total + " in the pool" : "the pool is empty", ready ? "ok" : "bad"));
+    el.poolKpis.appendChild(GX.stat("Cooling", String(cooling), cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", cooling ? "warn" : ""));
+    el.poolKpis.appendChild(GX.stat("Dead", String(dead), dead ? "revoked or out of quota" : "none retired", dead ? "bad" : ""));
+    var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
+    var declared = (t.free || 0) + (t.paid || 0) + (t.pro || 0);
+    var keys = declared + (t.unknown || 0);
+    el.poolKpis.appendChild(GX.stat(
+      "Plans declared",
+      declared + "/" + keys,
+      t.unknown ? t.unknown + " without a plan" : "every key declares a plan",
+      t.unknown ? "warn" : "ok"
+    ));
   }
 
   function renderAttention(pool, tiers) {
@@ -504,6 +517,7 @@ const OVERVIEW_SCRIPT = `
       var pool = res[0].pool || {};
       state.tiers = res[0].tiers;
       renderHero(pool, state.tiers, res[1]);
+      renderPoolKpis(pool, state.tiers);
       renderAttention(pool, state.tiers);
       renderKpis(res[1]);
       renderProviderMix(res[1]);
