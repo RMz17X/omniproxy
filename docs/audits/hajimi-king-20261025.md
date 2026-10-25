@@ -138,6 +138,41 @@ container di-recreate. Rollback: `hajimi-king:0.0.2-prebugfix`.
 Verifikasi 2026-10-25 13:06 WIB: `hijinet77` → 200, token 64-hex sebelumnya → 401,
 `INGEST_TOKEN` tetap terbatas pada `POST /pengatur/keys` (DELETE dan GET list → 401).
 
+## 8. Key ElevenLabs mati — akar masalah & perbaikan (2026-10-25 19:5x WIB)
+
+Satu-satunya baris `dead` di pool: `149c131e4985` / `sk_012…4567`.
+
+- Panjang raw key **43** karakter; ElevenLabs menuntut **51** (`sk_` + 48 hex). Probe langsung:
+  `400 invalid_api_key_length`. Jadi ini placeholder/typo, bukan kredensial yang kehabisan kuota.
+- Riwayat: `keys.add` 09:04 WIB, `keys.delete` 09:05, `keys.add` lagi 09:13, retire `invalid` 09:36
+  (2026-10-24). Actor ketiganya `curl/8.22.0` — bukan harvester (hash-nya tidak ada di 65 key `sk_`
+  pada `data/`).
+- `cooldownLeftMs ≈ 9,0e15` hanya `Number.MAX_SAFE_INTEGER` yang dipasang `hydrate()` untuk setiap
+  baris `status=dead`; artinya "tidak akan pernah dipilih".
+
+Akar masalah: `POST /pengatur/keys` menerima key **sebelum** ada probe apa pun, jadi key cacat masuk
+pool, dilaporkan `added:1` ke pengirim, lalu mati pada request pertama.
+
+Perbaikan:
+
+| Area | Perubahan |
+|---|---|
+| `src/providers.ts` | pola ElevenLabs `^sk_[a-fA-F0-9]{48}$` (51 char). Pola Gemini juga menerima format baru `AQ.…` (53 char) yang sudah dipakai 62 key di pool tapi tidak bisa dikenali `detectProvider` |
+| `src/providers.ts` | `keyShapeError(key, provider)` — satu tempat yang menjawab "bentuk key ini cocok untuk provider itu?"; provider tanpa pola tidak pernah dihakimi |
+| `src/app.ts` | ingest memisahkan `accepted`/`rejected`; respons membawa `rejected[]`, audit mencatat `rejectedIds`, status tetap **200** supaya pengirim tidak mengulang batch buruk selamanya |
+| `src/pool.ts` | `backfillMaterial()` memanggil `saveMaterialNow(id, raw)` tanpa provider → seluruh 47 baris ElevenLabs tersimpan sebagai `gemini` di `key_material`. Sekarang memakai `st.provider`; 47 baris lama diperbaiki lewat `update ... from keys` |
+| harvester | regex `sk_[a-f0-9]{40,64}` → `{48}`; batas lama mencocokkan key terpotong dan membakar satu probe per key |
+
+Verifikasi live (deploy `4f5b598`, alias `omniproxy.vercel.app`):
+
+- `sk_` + 40 hex (43 char) → `200 {added:0, rejected:[{reason:"does not match the `elevenlabs` key format"}]}`,
+  diuji dari host dan dari dalam container harvester.
+- key 51 char yang sah → `added:1, rejected:[]`.
+- key `AQ.…` (53 char) tanpa `provider` → dikenali gemini, tidak ditolak.
+- `purge-dead`: 1 baris dihapus (`droppedFromPool:1`), `keys` dan `key_material` bersih untuk id itu.
+  Pool setelah purge: 281 total / 281 ready / 0 dead; ElevenLabs 48 ready / 0 dead.
+
+
 
 
 
