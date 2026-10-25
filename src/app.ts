@@ -24,7 +24,7 @@ import { probeKey, probeTier, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
 import { bodyJson } from "./body.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
-import { listElevenLabsInventory, serveElevenLabs } from "./tts.ts";
+import { listElevenLabsInventory, serveElevenLabs, type ElevenLabsModel, type ElevenLabsVoice } from "./tts.ts";
 import { chatCompletions, embeddings, geminiModelRows } from "./openai.ts";
 import { openaiModelList, openaiWire } from "./passthrough.ts";
 import {
@@ -467,6 +467,28 @@ app.get("/v1/models", async (c) => {
     );
   }
 
+  /* ElevenLabs TTS models, from the same live inventory the console's models
+     page reads — one source of truth, so the public list and the console can
+     never disagree. A voice is picked in the request body, not here; these
+     rows are models. An empty pool contributes nothing, exactly like every
+     other provider. */
+  try {
+    const { inv } = await elevenLabsInventoryCached();
+    const list = (inv?.models ?? []).filter((m) => m.can_do_text_to_speech !== false);
+    census.elevenlabs = list.length;
+    rows.push(
+      ...list.map((m) => ({
+        id: `elevenlabs/${m.model_id}`,
+        object: "model",
+        created: 1700000000,
+        owned_by: "elevenlabs",
+        display_name: m.name ?? m.model_id,
+      })),
+    );
+  } catch {
+    census.elevenlabs = 0;
+  }
+
   if (rows.length === 0) {
     return c.json({ error: { message: "No provider can list models right now." } }, 503);
   }
@@ -707,29 +729,39 @@ async function openaiWireRows(force: boolean): Promise<{
  * pool, which the console renders as a section with no rows.
  */
 const ELEVENLABS_CACHE_MS = 600_000;
-let elevenLabsCache: { at: number; voices: unknown[]; models: unknown[] } | null = null;
+let elevenLabsCache: { at: number; voices: ElevenLabsVoice[]; models: ElevenLabsModel[] } | null = null;
+
+/**
+ * The shared ElevenLabs inventory read: the console's
+ * /pengatur/elevenlabs/list route and the public /v1/models union both answer
+ * from here, so one upstream call serves both and the two lists can never
+ * drift apart. `cached` reports whether the answer came from the cache, which
+ * the console surfaces verbatim.
+ */
+async function elevenLabsInventoryCached(
+  force = false,
+): Promise<{ cached: boolean; inv: { voices: ElevenLabsVoice[]; models: ElevenLabsModel[] } | null }> {
+  if (!force && elevenLabsCache && Date.now() - elevenLabsCache.at < ELEVENLABS_CACHE_MS) {
+    return { cached: true, inv: { voices: elevenLabsCache.voices, models: elevenLabsCache.models } };
+  }
+  const fresh = await listElevenLabsInventory();
+  if (!fresh) return { cached: false, inv: null };
+  elevenLabsCache = { at: Date.now(), voices: fresh.voices, models: fresh.models };
+  return { cached: false, inv: fresh };
+}
 
 app.get("/pengatur/elevenlabs/list", async (c) => {
   const force = new URL(c.req.url).searchParams.get("refresh") === "1";
-  if (!force && elevenLabsCache && Date.now() - elevenLabsCache.at < ELEVENLABS_CACHE_MS) {
-    return c.json({
-      ok: true,
-      cached: true,
-      voices: elevenLabsCache.voices,
-      models: elevenLabsCache.models,
-    });
-  }
-  const inv = await listElevenLabsInventory();
+  const { cached, inv } = await elevenLabsInventoryCached(force);
   if (!inv) {
     return c.json(
       { ok: false, error: "No available ElevenLabs API keys in pool.", voices: [], models: [] },
       503,
     );
   }
-  elevenLabsCache = { at: Date.now(), voices: inv.voices, models: inv.models };
   return c.json({
     ok: true,
-    cached: false,
+    cached,
     voices: inv.voices,
     models: inv.models,
   });
