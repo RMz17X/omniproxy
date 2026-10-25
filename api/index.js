@@ -8,10 +8,10 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// src/config.ts
+// .worktrees/console-card-spacing/src/config.ts
 var num, list, cfg, VOICE_MAP;
 var init_config = __esm({
-  "src/config.ts"() {
+  ".worktrees/console-card-spacing/src/config.ts"() {
     "use strict";
     num = (v2, d) => {
       const n = Number(v2);
@@ -180,7 +180,7 @@ var init_config = __esm({
   }
 });
 
-// src/log.ts
+// .worktrees/console-card-spacing/src/log.ts
 function log(level, event, fields = {}) {
   if (LEVELS[level] < threshold) return;
   const line = JSON.stringify({
@@ -195,7 +195,7 @@ function log(level, event, fields = {}) {
 }
 var LEVELS, threshold, KEY_SHAPED, scrub;
 var init_log = __esm({
-  "src/log.ts"() {
+  ".worktrees/console-card-spacing/src/log.ts"() {
     "use strict";
     LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
     threshold = LEVELS[process.env.LOG_LEVEL ?? "info"] ?? LEVELS.info;
@@ -213,10 +213,10 @@ var init_log = __esm({
   }
 });
 
-// src/metrics.ts
+// .worktrees/console-card-spacing/src/metrics.ts
 var startedAt, counters;
 var init_metrics = __esm({
-  "src/metrics.ts"() {
+  ".worktrees/console-card-spacing/src/metrics.ts"() {
     "use strict";
     startedAt = Date.now();
     counters = {
@@ -5530,7 +5530,7 @@ var init_serverless = __esm({
   }
 });
 
-// src/db.ts
+// .worktrees/console-card-spacing/src/db.ts
 function dbEnabled() {
   return client !== null || runner !== null;
 }
@@ -5580,7 +5580,7 @@ function sqlLater(query, params = []) {
 }
 var TRIP_AT, OPEN_MS, DSN_SHAPED, client, runner, failStreak, openUntil, probing;
 var init_db = __esm({
-  "src/db.ts"() {
+  ".worktrees/console-card-spacing/src/db.ts"() {
     "use strict";
     init_serverless();
     init_config();
@@ -5596,7 +5596,7 @@ var init_db = __esm({
   }
 });
 
-// src/keys-repo.ts
+// .worktrees/console-card-spacing/src/keys-repo.ts
 function toJson(v2) {
   if (v2 === null || v2 === void 0) return null;
   if (typeof v2 === "string") {
@@ -5762,7 +5762,7 @@ async function deleteKey(id) {
 }
 var isTier, STATUSES, isStatus, toEpoch, toIdentity, deadline;
 var init_keys_repo = __esm({
-  "src/keys-repo.ts"() {
+  ".worktrees/console-card-spacing/src/keys-repo.ts"() {
     "use strict";
     init_db();
     isTier = (v2) => v2 === "free" || v2 === "paid" || v2 === "pro";
@@ -5805,7 +5805,7 @@ var init_keys_repo = __esm({
   }
 });
 
-// src/key-material.ts
+// .worktrees/console-card-spacing/src/key-material.ts
 function materialEnabled() {
   return dbEnabled();
 }
@@ -5854,14 +5854,14 @@ function deleteMaterial(id) {
   sqlLater(`delete from key_material where id = $1`, [id]);
 }
 var init_key_material = __esm({
-  "src/key-material.ts"() {
+  ".worktrees/console-card-spacing/src/key-material.ts"() {
     "use strict";
     init_db();
     init_log();
   }
 });
 
-// src/providers.ts
+// .worktrees/console-card-spacing/src/providers.ts
 function builtinProviders() {
   return BUILTIN.map((p2) => ({ ...p2, capabilities: [...p2.capabilities], models: [...p2.models] }));
 }
@@ -6168,7 +6168,7 @@ async function providerViews() {
 }
 var CAPABILITIES, CAPABILITY_LABEL, ELEVENLABS_KEY_SOURCE, BUILTIN, isCapability, isWire, toStringArray, toProvider, registry, registryLoadedAt, REGISTRY_TTL_MS, customStore, ID_RE, ELEVENLABS_MODEL_RE, catalogCache, CATALOG_TTL_MS;
 var init_providers = __esm({
-  "src/providers.ts"() {
+  ".worktrees/console-card-spacing/src/providers.ts"() {
     "use strict";
     init_config();
     init_db();
@@ -6247,7 +6247,7 @@ var init_providers = __esm({
   }
 });
 
-// src/pool.ts
+// .worktrees/console-card-spacing/src/pool.ts
 var pool_exports = {};
 __export(pool_exports, {
   KEY_TIERS: () => KEY_TIERS,
@@ -6826,7 +6826,7 @@ async function snapshot() {
 }
 var storageMode, KEY_TIERS, local, now, blank, outranked, HYDRATE_REFRESH_MS, lastHydrateAt, hydrating, planOf;
 var init_pool = __esm({
-  "src/pool.ts"() {
+  ".worktrees/console-card-spacing/src/pool.ts"() {
     "use strict";
     init_config();
     init_log();
@@ -9904,11 +9904,11 @@ var cors = (options) => {
   };
 };
 
-// src/app.ts
+// .worktrees/console-card-spacing/src/app.ts
 init_config();
 init_pool();
 
-// src/ui.ts
+// .worktrees/console-card-spacing/src/ui.ts
 var BASE_CSS = `
 :root {
   color-scheme: light;
@@ -10763,13 +10763,14 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 /* Seven items in three columns leave the last row with one item and two empty
    cells. Auto-fit lets the grid choose the column count from the available
    width, so the final row either fills or carries an even remainder. */
-.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); column-gap: var(--sp-3); gap: 0; }
+/* Definition lists (settings): one column of label/value rows. The old
+   auto-fit grid turned a three-key group into three cramped columns inside a
+   half-width card; a stacked list reads at any card width. */
+.defs { display: grid; grid-template-columns: minmax(0, 1fr); }
 .def { display: flex; align-items: baseline; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--line); min-width: 0; }
 .def:first-child { border-top: 0; padding-top: 0; }
 .def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
 .def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
-@media (max-width: 900px) { .defs { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { .defs { grid-template-columns: 1fr; } }
 
 /* The key column carries a 39-character mono value and a copy button. Without a
    width the cell demanded its full natural size and pushed the table into
@@ -11125,12 +11126,14 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* Attention items live inside a .feed but are links with two text lines and
    a CTA. Without this block the browser stacks title, detail and "Open" as
-   bare inline text with zero spacing. */
+   bare inline text with zero spacing. The 16px side inset matches every other
+   row surface in the console: flush-to-the-edge rows read as unstyled markup,
+   and the hairline below still spans the full card width. */
 .attn-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2) 0;
+  padding: var(--sp-2h) var(--inset);
   border-bottom: 1px solid var(--line);
   text-decoration: none;
   min-width: 0;
@@ -11153,7 +11156,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    nowrap + ellipsis on .what, and 99 of 100 rows were clipped - the worst lost
    275px, which is the entire tail of the detail ("applied quota_exhausted",
    the model, the counters). The action and the time stay on the first line;
-   the target and detail get their own full-width line and wrap. */
+   the target and detail get their own full-width line and wrap. The 16px side
+   inset matches every other row surface: flush rows read as unstyled markup. */
 .feed-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -11163,7 +11167,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
     "who  who  who";
   align-items: baseline;
   gap: var(--sp-1) var(--sp-2);
-  padding: var(--sp-2) 0;
+  padding: var(--sp-2h) var(--inset);
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   min-width: 0;
@@ -11585,46 +11589,55 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 }
 
 /* Vercel dashboard restyle (total redesign) -------------------------------
-   Same DOM ids/classes, new layout: the rail becomes one black-on-white
-   top bar, panels become white cards, buttons/tables/forms follow the
-   Vercel dashboard vocabulary. This block sits last in BASE_CSS so it
-   wins over the earlier rules without renaming anything JS depends on. */
+   Same DOM ids/classes, new layout: the rail is a proper dashboard sidebar
+   again \u2014 vertical, grouped, with the provider strip visible \u2014 panels are
+   white cards, buttons/tables/forms follow the Vercel dashboard vocabulary.
+   Below 1023px the sidebar steps aside for the drawer and the menu button.
+   This block sits last in BASE_CSS so it wins over the earlier rules without
+   renaming anything JS depends on. */
 
-/* top navigation bar (was the left rail) */
-.shell { display: block; }
+/* sidebar navigation */
+.shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); min-height: 100dvh; }
 .rail {
   position: sticky; top: 0; z-index: 40;
-  display: flex; flex-direction: row; align-items: center; gap: var(--sp-4);
-  height: 56px; width: 100%; padding: 0 var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+  height: 100dvh; padding: var(--sp-3);
   background: var(--rail-bg); color: var(--rail-text);
-  border-right: 0; border-bottom: 1px solid var(--rail-line);
-  overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+  border-right: 1px solid var(--rail-line);
+  overflow-y: auto;
 }
-.rail-brand { padding: 0; flex: none; }
-.rail-mark { background: var(--text); color: var(--bg); border-radius: 6px; }
-.rail-name b { font-size: 15px; }
-.rail-name span { display: none; }
-.rail .rail-providers { display: none; }
-.rail-nav { flex-direction: row; gap: var(--sp-1); align-items: center; }
-.rail-group { flex-direction: row; align-items: center; gap: var(--sp-1); }
+.rail-brand { padding: var(--sp-1) var(--sp-2); min-height: var(--tap); }
+.rail-mark { background: var(--text); color: var(--bg); border-radius: 8px; }
+.rail-name b { font-size: 15px; font-weight: 660; letter-spacing: -0.02em; }
+.rail-name span {
+  display: block; font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--rail-muted);
+}
+/* the provider strip returns: a multi-provider gateway names the pools it
+   fronts in the sidebar, before any data loads */
+.rail .rail-providers { display: flex; }
+.rail-nav { flex-direction: column; gap: var(--sp-3); }
+.rail-group { flex-direction: column; gap: var(--sp-1); }
+/* group labels are visible again: the sidebar is tall enough for them, and
+   Observe / Operate / System is the map of the console */
 .rail-label {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  position: static; width: auto; height: auto; padding: 0 var(--sp-2) var(--sp-1);
+  margin: 0; overflow: visible; clip: auto; white-space: normal; border: 0;
 }
 .rail-item {
-  border-left: 0; border-radius: 6px; min-height: 32px; height: 32px;
-  padding: 0 var(--sp-2h); font-size: 13.5px; color: var(--rail-muted);
+  border-left: 0; border-radius: 7px; min-height: var(--tap); height: auto;
+  padding: 0 var(--sp-2h); font-size: 13.5px; font-weight: 520; color: var(--rail-muted);
 }
-.rail-item:hover { background: var(--rail-bg-2); }
+.rail-item:hover { background: var(--rail-bg-2); color: var(--rail-text); }
 .rail-item[aria-current="page"] {
   background: var(--rail-active); color: var(--rail-text);
   border-left: 0; font-weight: 600;
 }
-.rail-item[aria-current="page"] svg { color: var(--rail-text); }
-.rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: var(--sp-2); flex: none; }
-.rail-state { padding: 0; }
-.rail-tools { padding: 0; }
-.rail-actions { padding: 0; }
+.rail-item[aria-current="page"] svg { color: var(--text); }
+.rail-foot { margin-top: auto; margin-left: 0; flex-direction: column; align-items: stretch; gap: var(--sp-2); flex: none; }
+.rail-state { padding: var(--sp-1) var(--sp-2); }
+.rail-tools { padding: var(--sp-1) var(--sp-2) 0; }
+.rail-actions { padding: var(--sp-1) var(--sp-2) 0; }
 .menu-btn { display: none !important; }
 
 /* breadcrumb strip under the top bar + page headers */
@@ -11719,27 +11732,24 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   border-radius: var(--r-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-/* responsive: top bar wraps, nav scrolls, pages stack, tables keep folding */
-@media (max-width: 1023px) {
-  .rail { height: auto; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) var(--sp-3); }
-  .rail-nav { order: 3; width: 100%; }
-  .rail-foot { margin-left: 0; }
+/* responsive: the sidebar steps aside for the drawer below 1023px \u2014 the menu
+   button returns, the drawer stacks the same sections vertically with the
+   same aria-current marker, and the canvas takes the full width */
+@media screen and (max-width: 1023px) {
+  .shell { display: block; }
+  .rail { display: none; }
   .canvas-head { padding: var(--sp-3) var(--sp-3) 0; }
   .page { padding: var(--sp-3); }
 }
-@media (max-width: 720px) {
-  .rail-brand { flex: 1 1 auto; }
-  .rail-state span { display: none; }
+@media screen and (max-width: 720px) {
   .page-title { font-size: 20px; }
   .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* drawer navigation (revived): the top bar keeps hiding its own provider
-   strip and the menu button on desktop; at <=1023px the button returns and
-   the drawer stacks the same sections vertically, with the same
-   aria-current marker the top bar uses. The drawer strip itself is NOT
-   hidden here: scoping the restyle hide to .rail leaves the base column
-   style in place for it. */
+/* drawer navigation: below 1023px the menu button opens this panel, which
+   stacks the same sections vertically with the same aria-current marker the
+   sidebar uses. The drawer strip is NOT hidden here: scoping the restyle
+   hide to .rail leaves the base column style in place for it. */
 .drawer .rail-nav { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
 .drawer .rail-group { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
 .drawer .rail-item { width: 100%; }
@@ -12383,14 +12393,14 @@ var CLIENT_JS = `
     },
 
 
-    /* The drawer strip names the builtin providers server-side; custom ones
-       only exist once the registry answers, so they are appended here after
-       the token is accepted. Idempotent: a provider already on the strip is
-       never duplicated. The top-bar strip is intentionally NOT filled: the
-       restyle hides it at every width, so filling it would only grow a
-       hidden DOM subtree. */
+    /* The rail and drawer strips name the builtin providers server-side;
+       custom ones only exist once the registry answers, so they are appended
+       here after the token is accepted. Idempotent: a provider already on a
+       strip is never duplicated. */
     railProviders: function (providers) {
-      ["drawerProviders"].forEach(function (mountId) {
+      /* Both strips: the sidebar's and the drawer's. They name the same
+         pools, so a custom provider appears wherever the nav appears. */
+      ["railProviders", "drawerProviders"].forEach(function (mountId) {
         var mount = document.getElementById(mountId);
         if (!mount) return;
         (providers || []).forEach(function (p) {
@@ -12852,7 +12862,7 @@ var CLIENT_JS = `
 `;
 var LOGIN_HTML = loginPage();
 
-// src/admin-ui.ts
+// .worktrees/console-card-spacing/src/admin-ui.ts
 var OVERVIEW_BODY = `
 
 <div id="console" hidden>
@@ -13133,15 +13143,26 @@ var OVERVIEW_SCRIPT = `
     }
 
     el.attn.textContent = "";
-    /* Empty means one line: the header meta carries the all-clear and the
-       feed plus the foot collapse away. Test all stays reachable from the
+    /* The head meta counts the items; the feed keeps its rows in both states.
+       An all-clear panel is one row, not a header with a floating hairline
+       and 16px of empty card below it \u2014 the spacing stays identical whether
+       the pool needs attention or not. Test all stays reachable from the
        footer actions row, so collapsing the foot here loses no action. */
     el.attnMeta.textContent = items.length
       ? items.length + (items.length === 1 ? " item" : " items")
-      : "Nothing needs attention \u2014 every key is ready and every plan is declared.";
-    el.attn.hidden = !items.length;
+      : "all clear";
+    el.attn.hidden = false;
     el.attnFoot.hidden = !items.length;
-    if (!items.length) return;
+    if (!items.length) {
+      el.attn.appendChild(GX.el("div", { class: "attn-item" }, [
+        GX.el("span", { class: "dot", style: "background:var(--ok)" }),
+        GX.el("span", null, [
+          GX.el("span", { class: "t", text: "Nothing needs attention" }),
+          GX.el("span", { class: "d", text: "Every key is ready and every plan is declared." })
+        ])
+      ]));
+      return;
+    }
     items.forEach(function (item) {
       /* "info" is a runtime tone with no CSS variable of its own; the dot
          reads it as the accent colour. */
@@ -13446,7 +13467,7 @@ var ADMIN_HTML = consolePage({
   script: OVERVIEW_SCRIPT
 });
 
-// src/favicon.ts
+// .worktrees/console-card-spacing/src/favicon.ts
 var TILE = "#0a0c0f";
 var ACCENT = "#4fb0c4";
 var FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Key rotator">
@@ -13576,7 +13597,7 @@ function buildFaviconIco(deflate) {
   return ico;
 }
 
-// src/models-ui.ts
+// .worktrees/console-card-spacing/src/models-ui.ts
 var MODELS_BODY = `
 
 <div id="console" hidden>
@@ -14136,11 +14157,11 @@ var MODELS_HTML = consolePage({
   script: MODELS_SCRIPT
 });
 
-// src/models.ts
+// .worktrees/console-card-spacing/src/models.ts
 init_config();
 init_pool();
 
-// src/models-catalog.ts
+// .worktrees/console-card-spacing/src/models-catalog.ts
 var PRICING_AS_OF = "2026-10-19";
 var CATALOG = [
   { "id": "gemini-4-argon", "name": "Gemini 4 Argon", "kind": "text", "free": false, "freeLabel": "Not available", "inUsd": 2, "outUsd": 10, "inRaw": "$2.00 through November 30, 2026. | $4.00 starting December 1, 2026.", "outRaw": "$10.00 through November 30, 2026. | $20.00 starting December 1, 2026." },
@@ -14182,13 +14203,13 @@ function catalogFor(id) {
   return BY_ID.get(id.replace(/^models\//, "")) ?? null;
 }
 
-// src/upstream.ts
+// .worktrees/console-card-spacing/src/upstream.ts
 init_config();
 init_log();
 init_metrics();
 init_pool();
 
-// src/verdict.ts
+// .worktrees/console-card-spacing/src/verdict.ts
 var asObject = (v2) => typeof v2 === "object" && v2 !== null && !Array.isArray(v2) ? v2 : null;
 var asString = (v2) => typeof v2 === "string" && v2.length > 0 ? v2 : null;
 function parseBody2(body) {
@@ -14422,7 +14443,7 @@ function classifyElevenLabsResponse(status, body, headers) {
   return { verdict: "unexpected", ...none };
 }
 
-// src/upstream.ts
+// .worktrees/console-card-spacing/src/upstream.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function parseRetryAfter(res, body) {
   const structured = retryDelayMs(body);
@@ -14901,7 +14922,7 @@ async function executeWithFallback(models, build, signal) {
   return { ...last, model: lastModel };
 }
 
-// src/models.ts
+// .worktrees/console-card-spacing/src/models.ts
 init_log();
 var CACHE_MS = Number(process.env.MODELS_CACHE_MS ?? 3e5);
 var TIMEOUT_MS = Number(process.env.MODELS_TIMEOUT_MS ?? 1e4);
@@ -15176,14 +15197,14 @@ function pricingMeta() {
   return { asOf: PRICING_AS_OF, entries: CATALOG.length };
 }
 
-// src/probe.ts
+// .worktrees/console-card-spacing/src/probe.ts
 init_config();
 
-// src/tts.ts
+// .worktrees/console-card-spacing/src/tts.ts
 init_config();
 init_pool();
 
-// src/ledger.ts
+// .worktrees/console-card-spacing/src/ledger.ts
 init_config();
 init_db();
 init_log();
@@ -15579,7 +15600,7 @@ function toCsv(list3) {
   return lines.join("\n") + "\n";
 }
 
-// src/tts.ts
+// .worktrees/console-card-spacing/src/tts.ts
 var ELEVENLABS_KEY_REGEX = /^sk_[a-fA-F0-9]{40,64}$/;
 function isValidElevenLabsKey(key) {
   return ELEVENLABS_KEY_REGEX.test((key ?? "").trim());
@@ -15750,7 +15771,7 @@ async function listElevenLabsInventory() {
   };
 }
 
-// src/probe.ts
+// .worktrees/console-card-spacing/src/probe.ts
 init_providers();
 var TIMEOUT_MS3 = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
 var MAX_TOKENS = 64;
@@ -16031,10 +16052,10 @@ async function probeTier(rawKey, timeoutMs = TIMEOUT_MS3) {
   return last;
 }
 
-// src/app.ts
+// .worktrees/console-card-spacing/src/app.ts
 import { deflateSync } from "node:zlib";
 
-// src/gemini.ts
+// .worktrees/console-card-spacing/src/gemini.ts
 init_config();
 var up = () => cfg.upstream.replace(/\/$/, "");
 async function geminiPassthrough(req, path) {
@@ -16182,7 +16203,7 @@ function badRequest(message) {
   return Response.json({ error: { code: "bad_request", message } }, { status: 400 });
 }
 
-// src/openai.ts
+// .worktrees/console-card-spacing/src/openai.ts
 init_config();
 init_metrics();
 var up2 = () => cfg.upstream.replace(/\/$/, "");
@@ -16829,7 +16850,7 @@ function err(status, type, message) {
   return Response.json({ error: { type, message } }, { status });
 }
 
-// src/passthrough.ts
+// .worktrees/console-card-spacing/src/passthrough.ts
 init_providers();
 var PATHS = {
   chat: "/chat/completions",
@@ -16985,10 +17006,10 @@ async function openaiModelList(provider, rawKey) {
   }
 }
 
-// src/app.ts
+// .worktrees/console-card-spacing/src/app.ts
 init_providers();
 
-// src/rollup.ts
+// .worktrees/console-card-spacing/src/rollup.ts
 init_config();
 init_db();
 var WIB_OFFSET_MS = 7 * 60 * 60 * 1e3;
@@ -17079,7 +17100,7 @@ function defaultDay(now2 = Date.now()) {
   return yesterdayWib(now2);
 }
 
-// src/audit.ts
+// .worktrees/console-card-spacing/src/audit.ts
 init_db();
 var KEY_SHAPED3 = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/g;
 var DETAIL_MAX = 2e3;
@@ -17151,10 +17172,10 @@ async function list2(filter = {}) {
   };
 }
 
-// src/app.ts
+// .worktrees/console-card-spacing/src/app.ts
 init_log();
 
-// src/stats-ui.ts
+// .worktrees/console-card-spacing/src/stats-ui.ts
 var STATS_BODY = `
 
 <div id="console" hidden>
@@ -17535,7 +17556,7 @@ var STATS_HTML = consolePage({
   script: STATS_SCRIPT
 });
 
-// src/stats.ts
+// .worktrees/console-card-spacing/src/stats.ts
 init_db();
 init_config();
 var STATS_RANGES = ["1h", "24h", "7d", "30d"];
@@ -17925,7 +17946,7 @@ async function statsSnapshot(range, now2 = Date.now()) {
   return statsFromDaily(range, now2);
 }
 
-// src/usage-ui.ts
+// .worktrees/console-card-spacing/src/usage-ui.ts
 var USAGE_BODY = `
 
 <div id="console" hidden>
@@ -18413,7 +18434,7 @@ var USAGE_HTML = consolePage({
   script: USAGE_SCRIPT
 });
 
-// src/keys-ui.ts
+// .worktrees/console-card-spacing/src/keys-ui.ts
 var KEYS_BODY = `
 
 <div id="console" hidden>
@@ -20010,7 +20031,7 @@ var KEY_DETAIL_HTML = consolePage({
   script: DETAIL_SCRIPT
 });
 
-// src/providers-ui.ts
+// .worktrees/console-card-spacing/src/providers-ui.ts
 var CAPABILITY_OPTIONS = ["llm", "tts", "image", "video", "embeddings"];
 var PROVIDERS_BODY = `
 
@@ -20554,10 +20575,10 @@ var PROVIDERS_HTML = consolePage({
   script: PROVIDERS_SCRIPT
 });
 
-// src/app.ts
+// .worktrees/console-card-spacing/src/app.ts
 init_keys_repo();
 
-// src/settings-ui.ts
+// .worktrees/console-card-spacing/src/settings-ui.ts
 var SETTINGS_BODY = `
 
 <div id="console" hidden>
@@ -20573,7 +20594,7 @@ var SETTINGS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <div class="grid grid-2 u-mt-4">
+  <div class="grid grid-3">
     <section class="panel">
       <div class="panel-head"><h2>Defaults</h2></div>
       <div class="panel-body"><dl class="defs" id="defaults"></dl></div>
@@ -20583,31 +20604,27 @@ var SETTINGS_BODY = `
       <div class="panel-head"><h2>Limits</h2></div>
       <div class="panel-body"><dl class="defs" id="limits"></dl></div>
     </section>
-  </div>
 
-  <div class="grid grid-2 u-mt-3">
     <section class="panel">
       <div class="panel-head"><h2>Ledger</h2></div>
-      <div class="panel-body">
-        <dl class="defs" id="ledger"></dl>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Environment</h2>
-        <span class="meta">values are never shown</span>
-      </div>
-      <div class="table-wrap scroll-y">
-        <table class="table" id="envTable">
-          <thead><tr><th>Name</th><th>State</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <div class="panel-body"><dl class="defs" id="ledger"></dl></div>
     </section>
   </div>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Environment</h2>
+      <span class="meta">values are never shown</span>
+    </div>
+    <div class="table-wrap scroll-y">
+      <table class="table" id="envTable">
+        <thead><tr><th>Name</th><th>State</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
     <div class="panel-head"><h2>Caveats</h2></div>
     <div class="panel-body">
       <p class="hint" id="note"></p>
@@ -20718,7 +20735,7 @@ var SETTINGS_HTML = consolePage({
   script: SETTINGS_SCRIPT
 });
 
-// src/settings.ts
+// .worktrees/console-card-spacing/src/settings.ts
 init_config();
 var TOKEN_ENVS = ["ADMIN_TOKEN", "CLIENT_TOKEN", "ROLLUP_TOKEN", "GEMINI_API_KEYS", "WHATSTOKEN_API_KEYS"];
 var FLAG_ENVS = [
@@ -20794,7 +20811,7 @@ function settingsView() {
   };
 }
 
-// src/audit-ui.ts
+// .worktrees/console-card-spacing/src/audit-ui.ts
 var AUDIT_BODY = `
 
 <div id="console" hidden>
@@ -21017,7 +21034,7 @@ var AUDIT_HTML = consolePage({
   script: AUDIT_SCRIPT
 });
 
-// src/app.ts
+// .worktrees/console-card-spacing/src/app.ts
 init_db();
 var app = new Hono3();
 app.use("*", cors());
@@ -22172,7 +22189,7 @@ app.get("/pengatur/audit/data", async (c) => {
 });
 var app_default = app;
 
-// serverless/index.ts
+// .worktrees/console-card-spacing/serverless/index.ts
 init_pool();
 var hydrated = null;
 function ensureHydrated() {

@@ -294,15 +294,26 @@ const OVERVIEW_SCRIPT = `
     }
 
     el.attn.textContent = "";
-    /* Empty means one line: the header meta carries the all-clear and the
-       feed plus the foot collapse away. Test all stays reachable from the
+    /* The head meta counts the items; the feed keeps its rows in both states.
+       An all-clear panel is one row, not a header with a floating hairline
+       and 16px of empty card below it — the spacing stays identical whether
+       the pool needs attention or not. Test all stays reachable from the
        footer actions row, so collapsing the foot here loses no action. */
     el.attnMeta.textContent = items.length
       ? items.length + (items.length === 1 ? " item" : " items")
-      : "Nothing needs attention — every key is ready and every plan is declared.";
-    el.attn.hidden = !items.length;
+      : "all clear";
+    el.attn.hidden = false;
     el.attnFoot.hidden = !items.length;
-    if (!items.length) return;
+    if (!items.length) {
+      el.attn.appendChild(GX.el("div", { class: "attn-item" }, [
+        GX.el("span", { class: "dot", style: "background:var(--ok)" }),
+        GX.el("span", null, [
+          GX.el("span", { class: "t", text: "Nothing needs attention" }),
+          GX.el("span", { class: "d", text: "Every key is ready and every plan is declared." })
+        ])
+      ]));
+      return;
+    }
     items.forEach(function (item) {
       /* "info" is a runtime tone with no CSS variable of its own; the dot
          reads it as the accent colour. */

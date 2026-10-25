@@ -869,13 +869,14 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 /* Seven items in three columns leave the last row with one item and two empty
    cells. Auto-fit lets the grid choose the column count from the available
    width, so the final row either fills or carries an even remainder. */
-.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); column-gap: var(--sp-3); gap: 0; }
+/* Definition lists (settings): one column of label/value rows. The old
+   auto-fit grid turned a three-key group into three cramped columns inside a
+   half-width card; a stacked list reads at any card width. */
+.defs { display: grid; grid-template-columns: minmax(0, 1fr); }
 .def { display: flex; align-items: baseline; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--line); min-width: 0; }
 .def:first-child { border-top: 0; padding-top: 0; }
 .def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
 .def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
-@media (max-width: 900px) { .defs { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { .defs { grid-template-columns: 1fr; } }
 
 /* The key column carries a 39-character mono value and a copy button. Without a
    width the cell demanded its full natural size and pushed the table into
@@ -1231,12 +1232,14 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* Attention items live inside a .feed but are links with two text lines and
    a CTA. Without this block the browser stacks title, detail and "Open" as
-   bare inline text with zero spacing. */
+   bare inline text with zero spacing. The 16px side inset matches every other
+   row surface in the console: flush-to-the-edge rows read as unstyled markup,
+   and the hairline below still spans the full card width. */
 .attn-item {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2) 0;
+  padding: var(--sp-2h) var(--inset);
   border-bottom: 1px solid var(--line);
   text-decoration: none;
   min-width: 0;
@@ -1259,7 +1262,8 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
    nowrap + ellipsis on .what, and 99 of 100 rows were clipped - the worst lost
    275px, which is the entire tail of the detail ("applied quota_exhausted",
    the model, the counters). The action and the time stay on the first line;
-   the target and detail get their own full-width line and wrap. */
+   the target and detail get their own full-width line and wrap. The 16px side
+   inset matches every other row surface: flush rows read as unstyled markup. */
 .feed-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
@@ -1269,7 +1273,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
     "who  who  who";
   align-items: baseline;
   gap: var(--sp-1) var(--sp-2);
-  padding: var(--sp-2) 0;
+  padding: var(--sp-2h) var(--inset);
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
   min-width: 0;
@@ -1691,46 +1695,55 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 }
 
 /* Vercel dashboard restyle (total redesign) -------------------------------
-   Same DOM ids/classes, new layout: the rail becomes one black-on-white
-   top bar, panels become white cards, buttons/tables/forms follow the
-   Vercel dashboard vocabulary. This block sits last in BASE_CSS so it
-   wins over the earlier rules without renaming anything JS depends on. */
+   Same DOM ids/classes, new layout: the rail is a proper dashboard sidebar
+   again — vertical, grouped, with the provider strip visible — panels are
+   white cards, buttons/tables/forms follow the Vercel dashboard vocabulary.
+   Below 1023px the sidebar steps aside for the drawer and the menu button.
+   This block sits last in BASE_CSS so it wins over the earlier rules without
+   renaming anything JS depends on. */
 
-/* top navigation bar (was the left rail) */
-.shell { display: block; }
+/* sidebar navigation */
+.shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); min-height: 100dvh; }
 .rail {
   position: sticky; top: 0; z-index: 40;
-  display: flex; flex-direction: row; align-items: center; gap: var(--sp-4);
-  height: 56px; width: 100%; padding: 0 var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+  height: 100dvh; padding: var(--sp-3);
   background: var(--rail-bg); color: var(--rail-text);
-  border-right: 0; border-bottom: 1px solid var(--rail-line);
-  overflow-x: auto; overflow-y: hidden; white-space: nowrap;
+  border-right: 1px solid var(--rail-line);
+  overflow-y: auto;
 }
-.rail-brand { padding: 0; flex: none; }
-.rail-mark { background: var(--text); color: var(--bg); border-radius: 6px; }
-.rail-name b { font-size: 15px; }
-.rail-name span { display: none; }
-.rail .rail-providers { display: none; }
-.rail-nav { flex-direction: row; gap: var(--sp-1); align-items: center; }
-.rail-group { flex-direction: row; align-items: center; gap: var(--sp-1); }
+.rail-brand { padding: var(--sp-1) var(--sp-2); min-height: var(--tap); }
+.rail-mark { background: var(--text); color: var(--bg); border-radius: 8px; }
+.rail-name b { font-size: 15px; font-weight: 660; letter-spacing: -0.02em; }
+.rail-name span {
+  display: block; font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--rail-muted);
+}
+/* the provider strip returns: a multi-provider gateway names the pools it
+   fronts in the sidebar, before any data loads */
+.rail .rail-providers { display: flex; }
+.rail-nav { flex-direction: column; gap: var(--sp-3); }
+.rail-group { flex-direction: column; gap: var(--sp-1); }
+/* group labels are visible again: the sidebar is tall enough for them, and
+   Observe / Operate / System is the map of the console */
 .rail-label {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  position: static; width: auto; height: auto; padding: 0 var(--sp-2) var(--sp-1);
+  margin: 0; overflow: visible; clip: auto; white-space: normal; border: 0;
 }
 .rail-item {
-  border-left: 0; border-radius: 6px; min-height: 32px; height: 32px;
-  padding: 0 var(--sp-2h); font-size: 13.5px; color: var(--rail-muted);
+  border-left: 0; border-radius: 7px; min-height: var(--tap); height: auto;
+  padding: 0 var(--sp-2h); font-size: 13.5px; font-weight: 520; color: var(--rail-muted);
 }
-.rail-item:hover { background: var(--rail-bg-2); }
+.rail-item:hover { background: var(--rail-bg-2); color: var(--rail-text); }
 .rail-item[aria-current="page"] {
   background: var(--rail-active); color: var(--rail-text);
   border-left: 0; font-weight: 600;
 }
-.rail-item[aria-current="page"] svg { color: var(--rail-text); }
-.rail-foot { margin-top: 0; margin-left: auto; flex-direction: row; align-items: center; gap: var(--sp-2); flex: none; }
-.rail-state { padding: 0; }
-.rail-tools { padding: 0; }
-.rail-actions { padding: 0; }
+.rail-item[aria-current="page"] svg { color: var(--text); }
+.rail-foot { margin-top: auto; margin-left: 0; flex-direction: column; align-items: stretch; gap: var(--sp-2); flex: none; }
+.rail-state { padding: var(--sp-1) var(--sp-2); }
+.rail-tools { padding: var(--sp-1) var(--sp-2) 0; }
+.rail-actions { padding: var(--sp-1) var(--sp-2) 0; }
 .menu-btn { display: none !important; }
 
 /* breadcrumb strip under the top bar + page headers */
@@ -1825,27 +1838,24 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   border-radius: var(--r-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-/* responsive: top bar wraps, nav scrolls, pages stack, tables keep folding */
-@media (max-width: 1023px) {
-  .rail { height: auto; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) var(--sp-3); }
-  .rail-nav { order: 3; width: 100%; }
-  .rail-foot { margin-left: 0; }
+/* responsive: the sidebar steps aside for the drawer below 1023px — the menu
+   button returns, the drawer stacks the same sections vertically with the
+   same aria-current marker, and the canvas takes the full width */
+@media screen and (max-width: 1023px) {
+  .shell { display: block; }
+  .rail { display: none; }
   .canvas-head { padding: var(--sp-3) var(--sp-3) 0; }
   .page { padding: var(--sp-3); }
 }
-@media (max-width: 720px) {
-  .rail-brand { flex: 1 1 auto; }
-  .rail-state span { display: none; }
+@media screen and (max-width: 720px) {
   .page-title { font-size: 20px; }
   .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* drawer navigation (revived): the top bar keeps hiding its own provider
-   strip and the menu button on desktop; at <=1023px the button returns and
-   the drawer stacks the same sections vertically, with the same
-   aria-current marker the top bar uses. The drawer strip itself is NOT
-   hidden here: scoping the restyle hide to .rail leaves the base column
-   style in place for it. */
+/* drawer navigation: below 1023px the menu button opens this panel, which
+   stacks the same sections vertically with the same aria-current marker the
+   sidebar uses. The drawer strip is NOT hidden here: scoping the restyle
+   hide to .rail leaves the base column style in place for it. */
 .drawer .rail-nav { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
 .drawer .rail-group { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
 .drawer .rail-item { width: 100%; }
@@ -2862,14 +2872,14 @@ export const CLIENT_JS = `
     },
 
 
-    /* The drawer strip names the builtin providers server-side; custom ones
-       only exist once the registry answers, so they are appended here after
-       the token is accepted. Idempotent: a provider already on the strip is
-       never duplicated. The top-bar strip is intentionally NOT filled: the
-       restyle hides it at every width, so filling it would only grow a
-       hidden DOM subtree. */
+    /* The rail and drawer strips name the builtin providers server-side;
+       custom ones only exist once the registry answers, so they are appended
+       here after the token is accepted. Idempotent: a provider already on a
+       strip is never duplicated. */
     railProviders: function (providers) {
-      ["drawerProviders"].forEach(function (mountId) {
+      /* Both strips: the sidebar's and the drawer's. They name the same
+         pools, so a custom provider appears wherever the nav appears. */
+      ["railProviders", "drawerProviders"].forEach(function (mountId) {
         var mount = document.getElementById(mountId);
         if (!mount) return;
         (providers || []).forEach(function (p) {

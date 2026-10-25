@@ -27,7 +27,7 @@ const SETTINGS_BODY = `
 
   <div class="figures" id="kpis"></div>
 
-  <div class="grid grid-2 u-mt-4">
+  <div class="grid grid-3">
     <section class="panel">
       <div class="panel-head"><h2>Defaults</h2></div>
       <div class="panel-body"><dl class="defs" id="defaults"></dl></div>
@@ -37,31 +37,27 @@ const SETTINGS_BODY = `
       <div class="panel-head"><h2>Limits</h2></div>
       <div class="panel-body"><dl class="defs" id="limits"></dl></div>
     </section>
-  </div>
 
-  <div class="grid grid-2 u-mt-3">
     <section class="panel">
       <div class="panel-head"><h2>Ledger</h2></div>
-      <div class="panel-body">
-        <dl class="defs" id="ledger"></dl>
-      </div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Environment</h2>
-        <span class="meta">values are never shown</span>
-      </div>
-      <div class="table-wrap scroll-y">
-        <table class="table" id="envTable">
-          <thead><tr><th>Name</th><th>State</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <div class="panel-body"><dl class="defs" id="ledger"></dl></div>
     </section>
   </div>
 
-  <section class="panel u-mt-4">
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Environment</h2>
+      <span class="meta">values are never shown</span>
+    </div>
+    <div class="table-wrap scroll-y">
+      <table class="table" id="envTable">
+        <thead><tr><th>Name</th><th>State</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
     <div class="panel-head"><h2>Caveats</h2></div>
     <div class="panel-body">
       <p class="hint" id="note"></p>
