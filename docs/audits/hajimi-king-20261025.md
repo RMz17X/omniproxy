@@ -108,7 +108,7 @@ container di-recreate. Rollback: `hajimi-king:0.0.2-prebugfix`.
 | K-2 | fixed | `threading.Lock` (bukan busy-wait), network di luar lock, satu batch per tick, backoff 60s→30m per queue, log per-key hanya attempt pertama & resolving, `difference_update` (key yang masuk saat request berjalan tidak hilang), `logger.error(exc_info=)` yang memicu TypeError diperbaiki |
 | K-3 | fixed (8 window) | `QUERY_ROTATION` menambahkan satu qualifier per loop (`path:src`, `path:app`, `path:config`, `path:deploy`, `path:lib`, `path:scripts`, `path:docker`, lalu kembali ke tanpa qualifier). Tiap qualifier = window 1.000 hasil sendiri, jadi permukaan yang bisa dijangkau naik ~8× sebelum mentok lagi |
 | K-4 | fixed + live | harvester mengirim `{cooldowns: {key: epoch_ms}}` (dari `retryDelay` Gemini / 60 s ElevenLabs), checkpoint menyimpannya, receiver memarkir key saat ingest lewat `upsertKey` (satu statement, tidak balapan dengan insert). Receiver lama mengabaikan field ini |
-| K-5 | sebagian (ingest terpisah live) | `INGEST_TOKEN` diset di Vercel + dideploy; harvester memakai token itu sekarang. **`ADMIN_TOKEN` masih 9 karakter** — rotasi belum dilakukan karena memutus sesi konsol yang sedang dipakai |
+| K-5 | fixed | `INGEST_TOKEN` (64 hex, hanya `POST /pengatur/keys`) untuk harvester; `ADMIN_TOKEN` dirotasi ke 64 hex pada 2026-10-25 13:03 WIB dan dideploy. Token lama (9 karakter) sekarang 401 |
 | K-6 | fixed | probe lewat `ProxyHandler`, `os.environ['grpc_proxy']` dihapus, fallback SDK dihapus (probe REST satu-satunya validator) |
 | K-7 | fixed | SHA ditulis append-only (delta), `checkpoint.json` atomik, `_save_lock`, reload checkpoint yang terbuang dihapus, slicing prefiks nama file diperbaiki |
 | K-8 | sebagian | log per-item skip turun ke DEBUG, backoff error loop utama; metrik belum ada |
@@ -129,9 +129,13 @@ container di-recreate. Rollback: `hajimi-king:0.0.2-prebugfix`.
 
 ## 7. Sisa tindakan operator
 
-1. Rotasi `ADMIN_TOKEN` jadi ≥32 karakter acak (`openssl rand -hex 32`), set di Vercel, deploy, lalu masuk
-   ulang ke konsol dengan token baru.
-2. Rotasi 2 token GitHub yang nilainya sudah telanjur tertulis di log lama harvester.
+1. Rotasi 2 token GitHub yang nilainya sudah telanjur tertulis di log lama harvester.
+2. Masuk ulang ke konsol `/pengatur` dengan token admin baru — token disimpan di
+   `~/.omniproxy-admin-token` (mode 600) pada `agent-x` dan `agent-server`.
+
+Rotasi `ADMIN_TOKEN` selesai 2026-10-25 13:03 WIB: token lama (9 karakter) → 401, token baru → 200,
+`INGEST_TOKEN` tetap terbatas pada `POST /pengatur/keys` (DELETE dan GET list → 401).
+
 
 
 
