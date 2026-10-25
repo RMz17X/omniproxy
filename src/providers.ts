@@ -122,6 +122,62 @@ const BUILTIN: Provider[] = [
     enabled: true,
     note: "Text to speech and voices, routed by model name on /v1/audio/speech.",
   },
+  {
+    id: "groq",
+    label: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    capabilities: ["llm"],
+    wire: "openai",
+    /* `gsk_` plus 52 alphanumerics today. The prefix is distinctive, so the
+       bounds stay loose: a stricter length would reject a real key the day
+       Groq changes it, and nothing else in the registry uses `gsk_`. */
+    keyPattern: "^gsk_[A-Za-z0-9]{40,64}$",
+    models: [],
+    builtin: true,
+    enabled: true,
+    note: "OpenAI-compatible chat completions. Fast, rate-limited per key.",
+  },
+  {
+    id: "cerebras",
+    label: "Cerebras",
+    baseUrl: "https://api.cerebras.ai/v1",
+    capabilities: ["llm"],
+    wire: "openai",
+    keyPattern: "^csk-[A-Za-z0-9]{32,64}$",
+    models: [],
+    builtin: true,
+    enabled: true,
+    note: "OpenAI-compatible inference on wafer-scale hardware.",
+  },
+  {
+    id: "mistral",
+    label: "Mistral",
+    baseUrl: "https://api.mistral.ai/v1",
+    capabilities: ["llm", "embeddings"],
+    wire: "openai",
+    /* Deliberately no keyPattern: a Mistral key is 32 base62 characters with
+       no prefix, which is indistinguishable from any other random token. A
+       pattern here would claim unrelated strings, so these keys are only ever
+       accepted when the caller names the provider. */
+    models: [],
+    builtin: true,
+    enabled: true,
+    note: "OpenAI-compatible chat and embeddings. Keys carry no prefix.",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    capabilities: ["llm"],
+    wire: "openai",
+    /* Longer than the generic `sk-…` gateway pattern, so detection prefers
+       this provider for `sk-or-v1-…` keys (longest pattern wins). */
+    keyPattern: "^sk-or-v1-[A-Za-z0-9]{48,80}$",
+    models: [],
+    builtin: true,
+    enabled: true,
+    note: "OpenAI-compatible gateway; model ids carry the upstream vendor.",
+  },
 ];
 
 /** The builtin registry, in display order. No database needed. */

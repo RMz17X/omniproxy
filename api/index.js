@@ -8,10 +8,10 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// .worktrees/console-card-spacing/src/config.ts
+// src/config.ts
 var num, list, cfg, VOICE_MAP;
 var init_config = __esm({
-  ".worktrees/console-card-spacing/src/config.ts"() {
+  "src/config.ts"() {
     "use strict";
     num = (v2, d) => {
       const n = Number(v2);
@@ -180,7 +180,7 @@ var init_config = __esm({
   }
 });
 
-// .worktrees/console-card-spacing/src/log.ts
+// src/log.ts
 function log(level, event, fields = {}) {
   if (LEVELS[level] < threshold) return;
   const line = JSON.stringify({
@@ -195,7 +195,7 @@ function log(level, event, fields = {}) {
 }
 var LEVELS, threshold, KEY_SHAPED, scrub;
 var init_log = __esm({
-  ".worktrees/console-card-spacing/src/log.ts"() {
+  "src/log.ts"() {
     "use strict";
     LEVELS = { debug: 10, info: 20, warn: 30, error: 40 };
     threshold = LEVELS[process.env.LOG_LEVEL ?? "info"] ?? LEVELS.info;
@@ -213,10 +213,10 @@ var init_log = __esm({
   }
 });
 
-// .worktrees/console-card-spacing/src/metrics.ts
+// src/metrics.ts
 var startedAt, counters;
 var init_metrics = __esm({
-  ".worktrees/console-card-spacing/src/metrics.ts"() {
+  "src/metrics.ts"() {
     "use strict";
     startedAt = Date.now();
     counters = {
@@ -5530,7 +5530,7 @@ var init_serverless = __esm({
   }
 });
 
-// .worktrees/console-card-spacing/src/db.ts
+// src/db.ts
 function dbEnabled() {
   return client !== null || runner !== null;
 }
@@ -5580,7 +5580,7 @@ function sqlLater(query, params = []) {
 }
 var TRIP_AT, OPEN_MS, DSN_SHAPED, client, runner, failStreak, openUntil, probing;
 var init_db = __esm({
-  ".worktrees/console-card-spacing/src/db.ts"() {
+  "src/db.ts"() {
     "use strict";
     init_serverless();
     init_config();
@@ -5596,7 +5596,7 @@ var init_db = __esm({
   }
 });
 
-// .worktrees/console-card-spacing/src/keys-repo.ts
+// src/keys-repo.ts
 function toJson(v2) {
   if (v2 === null || v2 === void 0) return null;
   if (typeof v2 === "string") {
@@ -5762,7 +5762,7 @@ async function deleteKey(id) {
 }
 var isTier, STATUSES, isStatus, toEpoch, toIdentity, deadline;
 var init_keys_repo = __esm({
-  ".worktrees/console-card-spacing/src/keys-repo.ts"() {
+  "src/keys-repo.ts"() {
     "use strict";
     init_db();
     isTier = (v2) => v2 === "free" || v2 === "paid" || v2 === "pro";
@@ -5805,7 +5805,7 @@ var init_keys_repo = __esm({
   }
 });
 
-// .worktrees/console-card-spacing/src/key-material.ts
+// src/key-material.ts
 function materialEnabled() {
   return dbEnabled();
 }
@@ -5854,14 +5854,14 @@ function deleteMaterial(id) {
   sqlLater(`delete from key_material where id = $1`, [id]);
 }
 var init_key_material = __esm({
-  ".worktrees/console-card-spacing/src/key-material.ts"() {
+  "src/key-material.ts"() {
     "use strict";
     init_db();
     init_log();
   }
 });
 
-// .worktrees/console-card-spacing/src/providers.ts
+// src/providers.ts
 function builtinProviders() {
   return BUILTIN.map((p2) => ({ ...p2, capabilities: [...p2.capabilities], models: [...p2.models] }));
 }
@@ -6168,7 +6168,7 @@ async function providerViews() {
 }
 var CAPABILITIES, CAPABILITY_LABEL, ELEVENLABS_KEY_SOURCE, BUILTIN, isCapability, isWire, toStringArray, toProvider, registry, registryLoadedAt, REGISTRY_TTL_MS, customStore, ID_RE, ELEVENLABS_MODEL_RE, catalogCache, CATALOG_TTL_MS;
 var init_providers = __esm({
-  ".worktrees/console-card-spacing/src/providers.ts"() {
+  "src/providers.ts"() {
     "use strict";
     init_config();
     init_db();
@@ -6209,6 +6209,62 @@ var init_providers = __esm({
         builtin: true,
         enabled: true,
         note: "Text to speech and voices, routed by model name on /v1/audio/speech."
+      },
+      {
+        id: "groq",
+        label: "Groq",
+        baseUrl: "https://api.groq.com/openai/v1",
+        capabilities: ["llm"],
+        wire: "openai",
+        /* `gsk_` plus 52 alphanumerics today. The prefix is distinctive, so the
+           bounds stay loose: a stricter length would reject a real key the day
+           Groq changes it, and nothing else in the registry uses `gsk_`. */
+        keyPattern: "^gsk_[A-Za-z0-9]{40,64}$",
+        models: [],
+        builtin: true,
+        enabled: true,
+        note: "OpenAI-compatible chat completions. Fast, rate-limited per key."
+      },
+      {
+        id: "cerebras",
+        label: "Cerebras",
+        baseUrl: "https://api.cerebras.ai/v1",
+        capabilities: ["llm"],
+        wire: "openai",
+        keyPattern: "^csk-[A-Za-z0-9]{32,64}$",
+        models: [],
+        builtin: true,
+        enabled: true,
+        note: "OpenAI-compatible inference on wafer-scale hardware."
+      },
+      {
+        id: "mistral",
+        label: "Mistral",
+        baseUrl: "https://api.mistral.ai/v1",
+        capabilities: ["llm", "embeddings"],
+        wire: "openai",
+        /* Deliberately no keyPattern: a Mistral key is 32 base62 characters with
+           no prefix, which is indistinguishable from any other random token. A
+           pattern here would claim unrelated strings, so these keys are only ever
+           accepted when the caller names the provider. */
+        models: [],
+        builtin: true,
+        enabled: true,
+        note: "OpenAI-compatible chat and embeddings. Keys carry no prefix."
+      },
+      {
+        id: "openrouter",
+        label: "OpenRouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        capabilities: ["llm"],
+        wire: "openai",
+        /* Longer than the generic `sk-…` gateway pattern, so detection prefers
+           this provider for `sk-or-v1-…` keys (longest pattern wins). */
+        keyPattern: "^sk-or-v1-[A-Za-z0-9]{48,80}$",
+        models: [],
+        builtin: true,
+        enabled: true,
+        note: "OpenAI-compatible gateway; model ids carry the upstream vendor."
       }
     ];
     isCapability = (v2) => CAPABILITIES.includes(v2);
@@ -6247,7 +6303,7 @@ var init_providers = __esm({
   }
 });
 
-// .worktrees/console-card-spacing/src/pool.ts
+// src/pool.ts
 var pool_exports = {};
 __export(pool_exports, {
   KEY_TIERS: () => KEY_TIERS,
@@ -6826,7 +6882,7 @@ async function snapshot() {
 }
 var storageMode, KEY_TIERS, local, now, blank, outranked, HYDRATE_REFRESH_MS, lastHydrateAt, hydrating, planOf;
 var init_pool = __esm({
-  ".worktrees/console-card-spacing/src/pool.ts"() {
+  "src/pool.ts"() {
     "use strict";
     init_config();
     init_log();
@@ -9904,11 +9960,11 @@ var cors = (options) => {
   };
 };
 
-// .worktrees/console-card-spacing/src/app.ts
+// src/app.ts
 init_config();
 init_pool();
 
-// .worktrees/console-card-spacing/src/ui.ts
+// src/ui.ts
 var BASE_CSS = `
 :root {
   color-scheme: light;
@@ -12148,6 +12204,10 @@ var CLIENT_JS = `
       if (p === "gemini") return "Gemini";
       if (p === "elevenlabs") return "ElevenLabs";
       if (p === "whatstoken") return "WhatsToken";
+      if (p === "groq") return "Groq";
+      if (p === "cerebras") return "Cerebras";
+      if (p === "mistral") return "Mistral";
+      if (p === "openrouter") return "OpenRouter";
       return p;
     },
 
@@ -12862,7 +12922,7 @@ var CLIENT_JS = `
 `;
 var LOGIN_HTML = loginPage();
 
-// .worktrees/console-card-spacing/src/admin-ui.ts
+// src/admin-ui.ts
 var OVERVIEW_BODY = `
 
 <div id="console" hidden>
@@ -13467,7 +13527,7 @@ var ADMIN_HTML = consolePage({
   script: OVERVIEW_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/favicon.ts
+// src/favicon.ts
 var TILE = "#0a0c0f";
 var ACCENT = "#4fb0c4";
 var FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Key rotator">
@@ -13597,7 +13657,7 @@ function buildFaviconIco(deflate) {
   return ico;
 }
 
-// .worktrees/console-card-spacing/src/models-ui.ts
+// src/models-ui.ts
 var MODELS_BODY = `
 
 <div id="console" hidden>
@@ -14157,11 +14217,11 @@ var MODELS_HTML = consolePage({
   script: MODELS_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/models.ts
+// src/models.ts
 init_config();
 init_pool();
 
-// .worktrees/console-card-spacing/src/models-catalog.ts
+// src/models-catalog.ts
 var PRICING_AS_OF = "2026-10-19";
 var CATALOG = [
   { "id": "gemini-4-argon", "name": "Gemini 4 Argon", "kind": "text", "free": false, "freeLabel": "Not available", "inUsd": 2, "outUsd": 10, "inRaw": "$2.00 through November 30, 2026. | $4.00 starting December 1, 2026.", "outRaw": "$10.00 through November 30, 2026. | $20.00 starting December 1, 2026." },
@@ -14203,13 +14263,13 @@ function catalogFor(id) {
   return BY_ID.get(id.replace(/^models\//, "")) ?? null;
 }
 
-// .worktrees/console-card-spacing/src/upstream.ts
+// src/upstream.ts
 init_config();
 init_log();
 init_metrics();
 init_pool();
 
-// .worktrees/console-card-spacing/src/verdict.ts
+// src/verdict.ts
 var asObject = (v2) => typeof v2 === "object" && v2 !== null && !Array.isArray(v2) ? v2 : null;
 var asString = (v2) => typeof v2 === "string" && v2.length > 0 ? v2 : null;
 function parseBody2(body) {
@@ -14443,7 +14503,7 @@ function classifyElevenLabsResponse(status, body, headers) {
   return { verdict: "unexpected", ...none };
 }
 
-// .worktrees/console-card-spacing/src/upstream.ts
+// src/upstream.ts
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function parseRetryAfter(res, body) {
   const structured = retryDelayMs(body);
@@ -14922,7 +14982,7 @@ async function executeWithFallback(models, build, signal) {
   return { ...last, model: lastModel };
 }
 
-// .worktrees/console-card-spacing/src/models.ts
+// src/models.ts
 init_log();
 var CACHE_MS = Number(process.env.MODELS_CACHE_MS ?? 3e5);
 var TIMEOUT_MS = Number(process.env.MODELS_TIMEOUT_MS ?? 1e4);
@@ -15197,14 +15257,14 @@ function pricingMeta() {
   return { asOf: PRICING_AS_OF, entries: CATALOG.length };
 }
 
-// .worktrees/console-card-spacing/src/probe.ts
+// src/probe.ts
 init_config();
 
-// .worktrees/console-card-spacing/src/tts.ts
+// src/tts.ts
 init_config();
 init_pool();
 
-// .worktrees/console-card-spacing/src/ledger.ts
+// src/ledger.ts
 init_config();
 init_db();
 init_log();
@@ -15600,7 +15660,7 @@ function toCsv(list3) {
   return lines.join("\n") + "\n";
 }
 
-// .worktrees/console-card-spacing/src/tts.ts
+// src/tts.ts
 var ELEVENLABS_KEY_REGEX = /^sk_[a-fA-F0-9]{40,64}$/;
 function isValidElevenLabsKey(key) {
   return ELEVENLABS_KEY_REGEX.test((key ?? "").trim());
@@ -15771,7 +15831,7 @@ async function listElevenLabsInventory() {
   };
 }
 
-// .worktrees/console-card-spacing/src/probe.ts
+// src/probe.ts
 init_providers();
 var TIMEOUT_MS3 = Number(process.env.PROBE_TIMEOUT_MS ?? 8e3);
 var MAX_TOKENS = 64;
@@ -16052,10 +16112,10 @@ async function probeTier(rawKey, timeoutMs = TIMEOUT_MS3) {
   return last;
 }
 
-// .worktrees/console-card-spacing/src/app.ts
+// src/app.ts
 import { deflateSync } from "node:zlib";
 
-// .worktrees/console-card-spacing/src/gemini.ts
+// src/gemini.ts
 init_config();
 var up = () => cfg.upstream.replace(/\/$/, "");
 async function geminiPassthrough(req, path) {
@@ -16203,7 +16263,7 @@ function badRequest(message) {
   return Response.json({ error: { code: "bad_request", message } }, { status: 400 });
 }
 
-// .worktrees/console-card-spacing/src/openai.ts
+// src/openai.ts
 init_config();
 init_metrics();
 var up2 = () => cfg.upstream.replace(/\/$/, "");
@@ -16850,7 +16910,7 @@ function err(status, type, message) {
   return Response.json({ error: { type, message } }, { status });
 }
 
-// .worktrees/console-card-spacing/src/passthrough.ts
+// src/passthrough.ts
 init_providers();
 var PATHS = {
   chat: "/chat/completions",
@@ -17006,10 +17066,10 @@ async function openaiModelList(provider, rawKey) {
   }
 }
 
-// .worktrees/console-card-spacing/src/app.ts
+// src/app.ts
 init_providers();
 
-// .worktrees/console-card-spacing/src/rollup.ts
+// src/rollup.ts
 init_config();
 init_db();
 var WIB_OFFSET_MS = 7 * 60 * 60 * 1e3;
@@ -17100,7 +17160,7 @@ function defaultDay(now2 = Date.now()) {
   return yesterdayWib(now2);
 }
 
-// .worktrees/console-card-spacing/src/audit.ts
+// src/audit.ts
 init_db();
 var KEY_SHAPED3 = /AIza[0-9A-Za-z_-]{10,}|ya29\.[0-9A-Za-z._-]{10,}/g;
 var DETAIL_MAX = 2e3;
@@ -17172,10 +17232,10 @@ async function list2(filter = {}) {
   };
 }
 
-// .worktrees/console-card-spacing/src/app.ts
+// src/app.ts
 init_log();
 
-// .worktrees/console-card-spacing/src/stats-ui.ts
+// src/stats-ui.ts
 var STATS_BODY = `
 
 <div id="console" hidden>
@@ -17556,7 +17616,7 @@ var STATS_HTML = consolePage({
   script: STATS_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/stats.ts
+// src/stats.ts
 init_db();
 init_config();
 var STATS_RANGES = ["1h", "24h", "7d", "30d"];
@@ -17946,7 +18006,7 @@ async function statsSnapshot(range, now2 = Date.now()) {
   return statsFromDaily(range, now2);
 }
 
-// .worktrees/console-card-spacing/src/usage-ui.ts
+// src/usage-ui.ts
 var USAGE_BODY = `
 
 <div id="console" hidden>
@@ -18434,7 +18494,7 @@ var USAGE_HTML = consolePage({
   script: USAGE_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/keys-ui.ts
+// src/keys-ui.ts
 var KEYS_BODY = `
 
 <div id="console" hidden>
@@ -20031,7 +20091,7 @@ var KEY_DETAIL_HTML = consolePage({
   script: DETAIL_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/providers-ui.ts
+// src/providers-ui.ts
 var CAPABILITY_OPTIONS = ["llm", "tts", "image", "video", "embeddings"];
 var PROVIDERS_BODY = `
 
@@ -20575,10 +20635,10 @@ var PROVIDERS_HTML = consolePage({
   script: PROVIDERS_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/app.ts
+// src/app.ts
 init_keys_repo();
 
-// .worktrees/console-card-spacing/src/settings-ui.ts
+// src/settings-ui.ts
 var SETTINGS_BODY = `
 
 <div id="console" hidden>
@@ -20735,7 +20795,7 @@ var SETTINGS_HTML = consolePage({
   script: SETTINGS_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/settings.ts
+// src/settings.ts
 init_config();
 var TOKEN_ENVS = ["ADMIN_TOKEN", "CLIENT_TOKEN", "ROLLUP_TOKEN", "GEMINI_API_KEYS", "WHATSTOKEN_API_KEYS"];
 var FLAG_ENVS = [
@@ -20811,7 +20871,7 @@ function settingsView() {
   };
 }
 
-// .worktrees/console-card-spacing/src/audit-ui.ts
+// src/audit-ui.ts
 var AUDIT_BODY = `
 
 <div id="console" hidden>
@@ -21034,7 +21094,7 @@ var AUDIT_HTML = consolePage({
   script: AUDIT_SCRIPT
 });
 
-// .worktrees/console-card-spacing/src/app.ts
+// src/app.ts
 init_db();
 var app = new Hono3();
 app.use("*", cors());
@@ -22189,7 +22249,7 @@ app.get("/pengatur/audit/data", async (c) => {
 });
 var app_default = app;
 
-// .worktrees/console-card-spacing/serverless/index.ts
+// serverless/index.ts
 init_pool();
 var hydrated = null;
 function ensureHydrated() {

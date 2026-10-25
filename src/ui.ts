@@ -2627,6 +2627,10 @@ export const CLIENT_JS = `
       if (p === "gemini") return "Gemini";
       if (p === "elevenlabs") return "ElevenLabs";
       if (p === "whatstoken") return "WhatsToken";
+      if (p === "groq") return "Groq";
+      if (p === "cerebras") return "Cerebras";
+      if (p === "mistral") return "Mistral";
+      if (p === "openrouter") return "OpenRouter";
       return p;
     },
 

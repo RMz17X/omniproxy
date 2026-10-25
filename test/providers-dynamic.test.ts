@@ -24,13 +24,20 @@ async function freshIds(): Promise<string[]> {
   return (await allProviders(true)).map((p) => p.id);
 }
 
-test("only gemini and elevenlabs are protected builtins", () => {
-  expect(builtinProviders().map((p) => p.id)).toEqual(["gemini", "elevenlabs"]);
+test("the builtin registry is protected", () => {
+  expect(builtinProviders().map((p) => p.id)).toEqual([
+    "gemini",
+    "elevenlabs",
+    "groq",
+    "cerebras",
+    "mistral",
+    "openrouter",
+  ]);
   expect(builtinProviders().every((p) => p.builtin)).toBe(true);
 });
 
 test("a fresh registry holds only the protected defaults", async () => {
-  expect(await freshIds()).toEqual(["gemini", "elevenlabs"]);
+  expect(await freshIds()).toEqual(["gemini", "elevenlabs", "groq", "cerebras", "mistral", "openrouter"]);
 });
 
 test("builtin ids still cannot be redefined", async () => {
@@ -72,7 +79,7 @@ test("removal is refused while keys are attached, then succeeds", async () => {
   const removed = await removeProvider("whatstoken");
   expect(removed.ok).toBe(true);
   expect(await getProvider("whatstoken")).toBeNull();
-  expect(await freshIds()).toEqual(["gemini", "elevenlabs"]);
+  expect(await freshIds()).toEqual(["gemini", "elevenlabs", "groq", "cerebras", "mistral", "openrouter"]);
 });
 
 test("protected defaults still cannot be removed", async () => {
