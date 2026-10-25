@@ -227,12 +227,12 @@ export function readyCount(): number {
 }
 
 /** Push the identity half of a key record to the repository. */
-function persistIdentity(st: KeyState): void {
+function persistIdentity(st: KeyState, cooldownUntil: number = 0): void {
   const id = keyId(st.key);
   const masked = maskKey(st.key);
   const plan = st.tier;
   const provider = st.provider;
-  later(() => repo.upsertKey({ id, masked, plan, provider }));
+  later(() => repo.upsertKey({ id, masked, plan, provider, cooldownUntil }));
 }
 
 function persistHealth(st: KeyState, observedAt: number = now()): void {
@@ -371,15 +371,23 @@ export function keyMaterialDurable(): boolean {
 
 /* ---------- pool management ---------- */
 
-export async function addKey(key: string, provider: string = "gemini"): Promise<boolean> {
+export async function addKey(key: string, provider: string = "gemini", cooldownUntil: number = 0): Promise<boolean> {
   const k = key.trim();
   if (!k) return false;
   const p = (provider || "").trim() || "gemini";
   const cur = local.get(k);
   if (cur && !cur.invalid) return false;
   const st = blank(k, p);
+  /* The sender probed the key before sending it and may know the reset
+     deadline. Parking it here costs nothing and stops the first request from
+     being spent on a key that is already rate limited — the receiver used to
+     serve it once, get a 429 and retire it as dead. */
+  if (Number.isFinite(cooldownUntil) && cooldownUntil > now()) {
+    st.cooldownUntil = cooldownUntil;
+    st.retryAfterAt = cooldownUntil;
+  }
   local.set(k, st);
-  persistIdentity(st);
+  persistIdentity(st, st.cooldownUntil);
   // Awaited, not fire-and-forget: the sync endpoint answers `durable: true`
   // from this write, and on a serverless runtime a detached insert is dropped
   // when the instance is recycled right after the response. The provider

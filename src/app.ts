@@ -155,6 +155,18 @@ app.use("/pengatur/*", async (c, next) => {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
   const presented = bearer(c.req.header("authorization")) || c.req.header("x-admin-token") || "";
+  /* A scoped token that may only add keys. The ingest path is the one a
+     long-running scraper holds, so leaking it must not hand over DELETE or
+     purge-dead. Unset by default: behaviour is unchanged until configured. */
+  if (
+    presented &&
+    cfg.ingestToken &&
+    presented === cfg.ingestToken &&
+    method === "POST" &&
+    adminPath === "/pengatur/keys"
+  ) {
+    return next();
+  }
   if (presented !== cfg.adminToken) {
     return c.json({ error: { message: "Unauthorized." } }, 401);
   }
@@ -848,7 +860,13 @@ app.post("/pengatur/keys/tier", async (c) => {
 });
 
 app.post("/pengatur/keys", async (c) => {
-  let body: { keys?: string[] | string; key?: string; provider?: string };
+  let body: {
+    keys?: string[] | string;
+    key?: string;
+    provider?: string;
+    /** key -> epoch ms or ISO date the sender knows the key is parked until */
+    cooldowns?: Record<string, number | string>;
+  };
   try {
     body = await c.req.json();
   } catch {
@@ -860,6 +878,15 @@ app.post("/pengatur/keys", async (c) => {
   if (Array.isArray(body.keys)) incoming.push(...body.keys);
   const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
   if (clean.length === 0) return c.json({ error: { message: "No keys supplied." } }, 400);
+
+  /* A harvester that just probed the key sends its reset deadline here. Keys
+     without one are admitted exactly as before, so older senders keep working. */
+  const cooldownInput = body.cooldowns && typeof body.cooldowns === "object" ? body.cooldowns : {};
+  const cooldownFor = (key: string): number => {
+    const raw = (cooldownInput as Record<string, unknown>)[key];
+    const at = typeof raw === "number" ? raw : typeof raw === "string" ? Date.parse(raw) : 0;
+    return Number.isFinite(at) ? at : 0;
+  };
 
   const named = typeof body.provider === "string" ? body.provider.trim() : "";
   if (named && !(await getProvider(named))) {
@@ -874,9 +901,12 @@ app.post("/pengatur/keys", async (c) => {
   const ids: string[] = [];
   const addedByProvider: Record<string, number> = {};
   let added = 0;
+  let parked = 0;
   for (let i = 0; i < clean.length; i++) {
-    if (await addKey(clean[i], perKey[i])) {
+    const until = cooldownFor(clean[i]);
+    if (await addKey(clean[i], perKey[i], until)) {
       added++;
+      if (until > Date.now()) parked++;
       ids.push(keyId(clean[i]));
       addedByProvider[perKey[i]] = (addedByProvider[perKey[i]] ?? 0) + 1;
     }
@@ -884,7 +914,7 @@ app.post("/pengatur/keys", async (c) => {
   await auditRecordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
-    detail: { received: clean.length, added, provider: named || "auto", providers: addedByProvider },
+    detail: { received: clean.length, added, parked, provider: named || "auto", providers: addedByProvider },
   });
   const durable = keyMaterialDurable();
   const warning = durable
@@ -894,6 +924,7 @@ app.post("/pengatur/keys", async (c) => {
     ok: true,
     received: clean.length,
     added,
+    parked,
     ids,
     durable,
     providers: addedByProvider,

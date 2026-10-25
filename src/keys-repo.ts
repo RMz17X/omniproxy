@@ -172,15 +172,22 @@ export async function upsertKey(identity: {
   plan?: KeyTier;
   label?: string | null;
   owner?: string | null;
+  /**
+   * Park deadline handed over by the sender. Written in the same statement as
+   * the row so a cold start restores the park; `setCooldown` would race the
+   * fire-and-forget insert and silently update zero rows.
+   */
+  cooldownUntil?: number;
 }): Promise<void> {
   if (!dbEnabled()) return;
   await sql(
-    `insert into keys (id, masked, provider, plan, label, owner)
-     values ($1, $2, $3, $4, $5, $6)
+    `insert into keys (id, masked, provider, plan, label, owner, cooldown_until)
+     values ($1, $2, $3, $4, $5, $6, $7)
      on conflict (id) do update
         set masked   = excluded.masked,
             provider = excluded.provider,
-            plan     = excluded.plan`,
+            plan     = excluded.plan,
+            cooldown_until = greatest(keys.cooldown_until, excluded.cooldown_until)`,
     [
       identity.id,
       identity.masked,
@@ -188,6 +195,7 @@ export async function upsertKey(identity: {
       identity.plan ?? "unknown",
       identity.label ?? null,
       identity.owner ?? null,
+      deadline(identity.cooldownUntil ?? 0),
     ],
   );
 }

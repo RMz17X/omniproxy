@@ -68,6 +68,12 @@ export const cfg = {
   defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "gemini-embedding-001",
   defaultVoice: process.env.DEFAULT_VOICE ?? "Kore",
   adminToken: process.env.ADMIN_TOKEN ?? "",
+  /**
+   * Scoped credential for machine ingestion (`POST /pengatur/keys` only).
+   * A harvester should not hold a token that can also delete or purge keys;
+   * empty means the endpoint keeps requiring ADMIN_TOKEN.
+   */
+  ingestToken: process.env.INGEST_TOKEN ?? "",
   /** OpenAI-compatible bearer the clients present ("" = open) */
   clientToken: process.env.CLIENT_TOKEN ?? "",
   /** inject Google Search grounding when the client asks for "search" */
