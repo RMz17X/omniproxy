@@ -70,6 +70,12 @@ var init_config = __esm({
       defaultEmbedModel: process.env.DEFAULT_EMBED_MODEL ?? "gemini-embedding-001",
       defaultVoice: process.env.DEFAULT_VOICE ?? "Kore",
       adminToken: process.env.ADMIN_TOKEN ?? "",
+      /**
+       * Scoped credential for machine ingestion (`POST /pengatur/keys` only).
+       * A harvester should not hold a token that can also delete or purge keys;
+       * empty means the endpoint keeps requiring ADMIN_TOKEN.
+       */
+      ingestToken: process.env.INGEST_TOKEN ?? "",
       /** OpenAI-compatible bearer the clients present ("" = open) */
       clientToken: process.env.CLIENT_TOKEN ?? "",
       /** inject Google Search grounding when the client asks for "search" */
@@ -5622,19 +5628,21 @@ async function setCooldown(id, until) {
 async function upsertKey(identity) {
   if (!dbEnabled()) return;
   await sql(
-    `insert into keys (id, masked, provider, plan, label, owner)
-     values ($1, $2, $3, $4, $5, $6)
+    `insert into keys (id, masked, provider, plan, label, owner, cooldown_until)
+     values ($1, $2, $3, $4, $5, $6, $7)
      on conflict (id) do update
         set masked   = excluded.masked,
             provider = excluded.provider,
-            plan     = excluded.plan`,
+            plan     = excluded.plan,
+            cooldown_until = greatest(keys.cooldown_until, excluded.cooldown_until)`,
     [
       identity.id,
       identity.masked,
       identity.provider ?? "gemini",
       identity.plan ?? "unknown",
       identity.label ?? null,
-      identity.owner ?? null
+      identity.owner ?? null,
+      deadline(identity.cooldownUntil ?? 0)
     ]
   );
 }
@@ -6310,12 +6318,12 @@ function readyCount() {
   for (const s of local.values()) if (selectable(s, t)) n++;
   return n;
 }
-function persistIdentity(st) {
+function persistIdentity(st, cooldownUntil = 0) {
   const id = keyId(st.key);
   const masked = maskKey(st.key);
   const plan = st.tier;
   const provider = st.provider;
-  later(() => upsertKey({ id, masked, plan, provider }));
+  later(() => upsertKey({ id, masked, plan, provider, cooldownUntil }));
 }
 function persistHealth(st, observedAt = now()) {
   const id = keyId(st.key);
@@ -6399,15 +6407,19 @@ async function hydrate() {
 function keyMaterialDurable() {
   return materialEnabled();
 }
-async function addKey(key, provider = "gemini") {
+async function addKey(key, provider = "gemini", cooldownUntil = 0) {
   const k = key.trim();
   if (!k) return false;
   const p2 = (provider || "").trim() || "gemini";
   const cur = local.get(k);
   if (cur && !cur.invalid) return false;
   const st = blank(k, p2);
+  if (Number.isFinite(cooldownUntil) && cooldownUntil > now()) {
+    st.cooldownUntil = cooldownUntil;
+    st.retryAfterAt = cooldownUntil;
+  }
   local.set(k, st);
-  persistIdentity(st);
+  persistIdentity(st, st.cooldownUntil);
   await saveMaterialNow(keyId(k), k, p2);
   return true;
 }
@@ -20976,6 +20988,9 @@ app.use("/pengatur/*", async (c, next) => {
     return c.json({ error: { message: "Admin disabled: ADMIN_TOKEN is not set." } }, 403);
   }
   const presented = bearer(c.req.header("authorization")) || c.req.header("x-admin-token") || "";
+  if (presented && cfg.ingestToken && presented === cfg.ingestToken && method === "POST" && adminPath === "/pengatur/keys") {
+    return next();
+  }
   if (presented !== cfg.adminToken) {
     return c.json({ error: { message: "Unauthorized." } }, 401);
   }
@@ -21481,6 +21496,12 @@ app.post("/pengatur/keys", async (c) => {
   if (Array.isArray(body.keys)) incoming.push(...body.keys);
   const clean = [...new Set(incoming.map((k) => String(k).trim()).filter(Boolean))];
   if (clean.length === 0) return c.json({ error: { message: "No keys supplied." } }, 400);
+  const cooldownInput = body.cooldowns && typeof body.cooldowns === "object" ? body.cooldowns : {};
+  const cooldownFor = (key) => {
+    const raw2 = cooldownInput[key];
+    const at = typeof raw2 === "number" ? raw2 : typeof raw2 === "string" ? Date.parse(raw2) : 0;
+    return Number.isFinite(at) ? at : 0;
+  };
   const named = typeof body.provider === "string" ? body.provider.trim() : "";
   if (named && !await getProvider(named)) {
     return c.json({ error: { message: `Unknown provider \`${named}\`.` } }, 400);
@@ -21490,9 +21511,12 @@ app.post("/pengatur/keys", async (c) => {
   const ids = [];
   const addedByProvider = {};
   let added = 0;
+  let parked = 0;
   for (let i = 0; i < clean.length; i++) {
-    if (await addKey(clean[i], perKey[i])) {
+    const until = cooldownFor(clean[i]);
+    if (await addKey(clean[i], perKey[i], until)) {
       added++;
+      if (until > Date.now()) parked++;
       ids.push(keyId(clean[i]));
       addedByProvider[perKey[i]] = (addedByProvider[perKey[i]] ?? 0) + 1;
     }
@@ -21500,7 +21524,7 @@ app.post("/pengatur/keys", async (c) => {
   await recordNow("keys.add", {
     actor: actorFrom(c.req.header("user-agent")),
     target: ids.join(","),
-    detail: { received: clean.length, added, provider: named || "auto", providers: addedByProvider }
+    detail: { received: clean.length, added, parked, provider: named || "auto", providers: addedByProvider }
   });
   const durable = keyMaterialDurable();
   const warning = durable ? {} : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
@@ -21508,6 +21532,7 @@ app.post("/pengatur/keys", async (c) => {
     ok: true,
     received: clean.length,
     added,
+    parked,
     ids,
     durable,
     providers: addedByProvider,

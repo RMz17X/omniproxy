@@ -106,10 +106,22 @@ container di-recreate. Rollback: `hajimi-king:0.0.2-prebugfix`.
 |---|---|---|
 | K-1 | sebagian | Log hanya menampilkan prefiks token (`redact()`); **rotasi token tetap wajib** karena nilai lama sudah tertulis di log |
 | K-2 | fixed | `threading.Lock` (bukan busy-wait), network di luar lock, satu batch per tick, backoff 60s→30m per queue, log per-key hanya attempt pertama & resolving, `difference_update` (key yang masuk saat request berjalan tidak hilang), `logger.error(exc_info=)` yang memicu TypeError diperbaiki |
-| K-3 | terbuka | desain query; butuh keputusan operator |
-| K-4 | terbuka | butuh dukungan `cooldownUntil` di receiver |
-| K-5 | terbuka | rotasi/pemecahan token admin = tindakan operator |
+| K-3 | fixed (8 window) | `QUERY_ROTATION` menambahkan satu qualifier per loop (`path:src`, `path:app`, `path:config`, `path:deploy`, `path:lib`, `path:scripts`, `path:docker`, lalu kembali ke tanpa qualifier). Tiap qualifier = window 1.000 hasil sendiri, jadi permukaan yang bisa dijangkau naik ~8× sebelum mentok lagi |
+| K-4 | fixed, menunggu deploy receiver | harvester mengirim `{cooldowns: {key: epoch_ms}}` (dari `retryDelay` Gemini / 60 s ElevenLabs), checkpoint menyimpannya, receiver memarkir key saat ingest lewat `upsertKey` (satu statement, tidak balapan dengan insert). Receiver lama mengabaikan field ini |
+| K-5 | siap, menunggu deploy + rotasi | receiver menerima `INGEST_TOKEN` (hanya `POST /pengatur/keys`). Cutover ada di §6 — belum dijalankan karena butuh deploy Vercel |
 | K-6 | fixed | probe lewat `ProxyHandler`, `os.environ['grpc_proxy']` dihapus, fallback SDK dihapus (probe REST satu-satunya validator) |
 | K-7 | fixed | SHA ditulis append-only (delta), `checkpoint.json` atomik, `_save_lock`, reload checkpoint yang terbuang dihapus, slicing prefiks nama file diperbaiki |
 | K-8 | sebagian | log per-item skip turun ke DEBUG, backoff error loop utama; metrik belum ada |
+
+## 6. Cutover K-5 (belum dijalankan)
+
+Butuh deploy Vercel; jangan mengubah `.env` harvester lebih dulu atau ingest berhenti sampai deploy selesai.
+
+1. Generate dua token: `openssl rand -hex 32` (admin) dan sekali lagi (ingest).
+2. Set di environment Vercel: `ADMIN_TOKEN=<baru>`, `INGEST_TOKEN=<ingest>`.
+3. Deploy receiver.
+4. Baru update `.env` harvester: `GEMINI_BALANCER_AUTH=<ingest>`, lalu restart container.
+5. Verifikasi: `GET /pengatur/keys/list` dengan token admin baru → 200; `POST /pengatur/keys` dengan token ingest → 200;
+   `DELETE /pengatur/keys` dengan token ingest → 401.
+
 
