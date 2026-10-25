@@ -10194,7 +10194,7 @@ code, kbd, samp { font-family: var(--mono); font-size: 0.92em; }
   border-right: 1px solid var(--rail-line);
 }
 /* Before the admin token is accepted the shell renders only the gate. The
-   rail carries the section nav AND the storage backend name, so it must not
+   rail carries the section nav, so it must not
    exist in the document until reveal() runs. */
 body[data-gate="locked"] .rail { display: none; }
 body[data-gate="locked"] .app { display: none; }
@@ -11780,12 +11780,12 @@ function navMarkup(active, idPrefix) {
 }
 function navRail(active, actions = "") {
   const providerStrip = '<div class="rail-providers" id="railProviders"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span><span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span></div>';
-  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></a>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-state" title="Where the pool and the ledger live">' + icon("lock", "icon", 13) + '<span>store</span><b id="railStore"></b></div><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
+  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></a>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
 }
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
   const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>OmniProxy</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#fafafa">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
   const providerStrip = '<div class="rail-providers" id="drawerProviders"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span><span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span></div>';
@@ -11829,7 +11829,7 @@ var AUTH_GUARD_JS = `
 })();
 `;
 function loginPage() {
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#fafafa">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
 }
 var LOGIN_JS = `
 (function () {
@@ -12005,11 +12005,6 @@ var CLIENT_JS = `
       document.body.setAttribute("data-gate", "open");
       var main = document.getElementById("main");
       if (main) main.focus();
-      /* The rail footer names the storage backend. Every page fills it here so
-         the value only ever exists after the token has been accepted. */
-      GX.api("/pengatur/settings/data").then(function (d) {
-        if (d && d.storage) GX.storage(d.storage.mode, d.storage.mode === "memory" ? "warn" : "");
-      }).catch(function () {});
       /* The rail strip names the builtin providers; the registry adds the
          custom ones so the multi-provider shape is visible on every page. */
       GX.api("/pengatur/providers/list").then(function (d) {
@@ -12300,16 +12295,6 @@ var CLIENT_JS = `
       }
     },
 
-    /* The rail states where the pool lives. The value is only written here,
-       after the admin token is accepted, so the pre-auth HTML carries no
-       storage-backend name. */
-    storage: function (text, tone) {
-      var node = document.getElementById("railStore");
-      if (!node) return;
-      node.textContent = text || "-";
-      var row = node.parentNode;
-      if (row) row.setAttribute("data-tone", tone || "");
-    },
 
     /* The rail strip names the builtin providers server-side; custom ones
        only exist once the registry answers, so they are appended here after
@@ -12498,12 +12483,12 @@ var CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. Light is the console default; dark is an explicit toggle. */
+    /* Theme and density. Both survive a reload. Dark is the console default; light is an explicit toggle. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
         if (set) return set;
-        return "light";
+        return "dark";
       },
       set: function (value) {
         document.documentElement.setAttribute("data-theme", value);
@@ -12793,8 +12778,6 @@ var OVERVIEW_BODY = `
     </div>
   </header>
 
-  <div id="storageNote" class="panel-note" style="border:1px solid var(--line);border-radius:var(--r-surface);margin-bottom:var(--sp-4)" hidden></div>
-
   <div class="split">
     <section class="panel">
       <div class="panel-head">
@@ -12954,7 +12937,7 @@ var OVERVIEW_SCRIPT = `
       el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
       el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
     }
-    el.healthMeta.textContent = pool.degraded ? "degraded, serving from memory" : pool.storage + " storage";
+    el.healthMeta.textContent = pool.degraded ? "degraded" : "";
 
     /* Per-provider pool health. A multi-provider gateway is only as healthy
        as its weakest pool, so each provider gets its own bar and count. */
@@ -12967,26 +12950,6 @@ var OVERVIEW_SCRIPT = `
     provNames.forEach(function (prov) {
       el.providerPools.appendChild(GX.providerPool(prov, byProvider[prov]));
     });
-
-    var note = document.getElementById("storageNote");
-    if (note) {
-      note.textContent = "";
-      if (pool.storage === "memory") {
-        note.appendChild(GX.el("b", { text: "In memory." }));
-        note.appendChild(document.createTextNode(
-          " The key pool and the request ledger live in this process. A restart empties them."
-        ));
-        note.hidden = false;
-      } else if (pool.degraded) {
-        note.appendChild(GX.el("b", { text: "Storage degraded." }));
-        note.appendChild(document.createTextNode(
-          " The database is not reachable, so the gateway is serving from memory only."
-        ));
-        note.hidden = false;
-      } else {
-        note.hidden = true;
-      }
-    }
   }
 
   function renderAttention(pool, tiers) {
@@ -18594,7 +18557,7 @@ var KEYS_SCRIPT = `
 
   function renderKpis(pool) {
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "storage degraded" : "shared by every instance"));
+    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "shared by every instance"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
        asked. The registry names every provider, so a custom one gets its own
@@ -18621,7 +18584,6 @@ var KEYS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
-    el.kpis.appendChild(GX.kpi("Storage", pool.storage, pool.degraded ? "degraded, serving from memory" : "key identities and ledger"));
   }
 
   function tableHead() {
@@ -19615,6 +19577,7 @@ var DETAIL_SCRIPT = `
     });
   });
 
+  GX.shortcuts();
   GX.gate({ onSuccess: refresh });
 })();
 `;
@@ -20033,6 +19996,7 @@ var PROVIDERS_SCRIPT = `
   el.models.addEventListener("input", countModels);
   el.reloadBtn.addEventListener("click", function () { reload(); });
 
+  GX.shortcuts({ refresh: "reloadBtn" });
   GX.gate({ onSuccess: reload });
 })();
 `;
@@ -20057,7 +20021,6 @@ var SETTINGS_BODY = `
       <p class="page-lede">The effective configuration of this deployment. Read only.</p>
     </div>
     <div class="page-head-side">
-      <span class="meta" id="sStorage">-</span>
       <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       <button id="exportBtn" class="btn btn-sm" type="button">${icon("download")}Export</button>
     </div>
@@ -20081,11 +20044,9 @@ var SETTINGS_BODY = `
 
   <div class="grid grid-2 u-mt-3">
     <section class="panel">
-      <div class="panel-head"><h2>Ledger and storage</h2></div>
+      <div class="panel-head"><h2>Ledger</h2></div>
       <div class="panel-body">
         <dl class="defs" id="ledger"></dl>
-        <div class="sep u-rule-gap"></div>
-        <dl class="defs" id="storage"></dl>
       </div>
     </section>
 
@@ -20119,11 +20080,9 @@ var SETTINGS_SCRIPT = `
   var el = {
     console: document.getElementById("console"),
     kpis: document.getElementById("kpis"),
-    sStorage: document.getElementById("sStorage"),
     defaults: document.getElementById("defaults"),
     limits: document.getElementById("limits"),
     ledger: document.getElementById("ledger"),
-    storage: document.getElementById("storage"),
     envTable: document.getElementById("envTable"),
     note: document.getElementById("note"),
     msg: document.getElementById("msg"),
@@ -20164,7 +20123,6 @@ var SETTINGS_SCRIPT = `
     var nDefaults = defs(el.defaults, d.defaults);
     var nLimits = defs(el.limits, d.limits);
     var nLedger = defs(el.ledger, d.ledger);
-    defs(el.storage, d.storage);
     renderEnv(d.env);
 
     el.kpis.textContent = "";
@@ -20172,9 +20130,7 @@ var SETTINGS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Limits", String(nLimits), "cooldown, attempts and timeouts"));
     el.kpis.appendChild(GX.kpi("Ledger", String(nLedger), "batch size, flush and retention"));
     el.kpis.appendChild(GX.kpi("Environment", String((d.env || []).length), "variables read by the process"));
-    el.kpis.appendChild(GX.kpi("Storage", d.storage ? d.storage.mode : "-", d.storage && d.storage.regionHostSuffix ? d.storage.regionHostSuffix : "no database configured"));
 
-    el.sStorage.textContent = d.storage ? d.storage.mode + " storage" : "-";
     el.note.textContent = d.note || "";
   }
 

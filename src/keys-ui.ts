@@ -532,7 +532,7 @@ const KEYS_SCRIPT = `
 
   function renderKpis(pool) {
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "storage degraded" : "shared by every instance"));
+    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "shared by every instance"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
        asked. The registry names every provider, so a custom one gets its own
@@ -559,7 +559,6 @@ const KEYS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
-    el.kpis.appendChild(GX.kpi("Storage", pool.storage, pool.degraded ? "degraded, serving from memory" : "key identities and ledger"));
   }
 
   function tableHead() {
@@ -1557,6 +1556,7 @@ const DETAIL_SCRIPT = `
     });
   });
 
+  GX.shortcuts();
   GX.gate({ onSuccess: refresh });
 })();
 `;

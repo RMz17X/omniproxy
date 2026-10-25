@@ -22,7 +22,6 @@ const SETTINGS_BODY = `
       <p class="page-lede">The effective configuration of this deployment. Read only.</p>
     </div>
     <div class="page-head-side">
-      <span class="meta" id="sStorage">-</span>
       <button id="refreshBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
       <button id="exportBtn" class="btn btn-sm" type="button">${icon("download")}Export</button>
     </div>
@@ -46,11 +45,9 @@ const SETTINGS_BODY = `
 
   <div class="grid grid-2 u-mt-3">
     <section class="panel">
-      <div class="panel-head"><h2>Ledger and storage</h2></div>
+      <div class="panel-head"><h2>Ledger</h2></div>
       <div class="panel-body">
         <dl class="defs" id="ledger"></dl>
-        <div class="sep u-rule-gap"></div>
-        <dl class="defs" id="storage"></dl>
       </div>
     </section>
 
@@ -85,11 +82,9 @@ const SETTINGS_SCRIPT = `
   var el = {
     console: document.getElementById("console"),
     kpis: document.getElementById("kpis"),
-    sStorage: document.getElementById("sStorage"),
     defaults: document.getElementById("defaults"),
     limits: document.getElementById("limits"),
     ledger: document.getElementById("ledger"),
-    storage: document.getElementById("storage"),
     envTable: document.getElementById("envTable"),
     note: document.getElementById("note"),
     msg: document.getElementById("msg"),
@@ -130,7 +125,6 @@ const SETTINGS_SCRIPT = `
     var nDefaults = defs(el.defaults, d.defaults);
     var nLimits = defs(el.limits, d.limits);
     var nLedger = defs(el.ledger, d.ledger);
-    defs(el.storage, d.storage);
     renderEnv(d.env);
 
     el.kpis.textContent = "";
@@ -138,9 +132,7 @@ const SETTINGS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Limits", String(nLimits), "cooldown, attempts and timeouts"));
     el.kpis.appendChild(GX.kpi("Ledger", String(nLedger), "batch size, flush and retention"));
     el.kpis.appendChild(GX.kpi("Environment", String((d.env || []).length), "variables read by the process"));
-    el.kpis.appendChild(GX.kpi("Storage", d.storage ? d.storage.mode : "-", d.storage && d.storage.regionHostSuffix ? d.storage.regionHostSuffix : "no database configured"));
 
-    el.sStorage.textContent = d.storage ? d.storage.mode + " storage" : "-";
     el.note.textContent = d.note || "";
   }
 

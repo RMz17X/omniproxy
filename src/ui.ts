@@ -303,7 +303,7 @@ code, kbd, samp { font-family: var(--mono); font-size: 0.92em; }
   border-right: 1px solid var(--rail-line);
 }
 /* Before the admin token is accepted the shell renders only the gate. The
-   rail carries the section nav AND the storage backend name, so it must not
+   rail carries the section nav, so it must not
    exist in the document until reveal() runs. */
 body[data-gate="locked"] .rail { display: none; }
 body[data-gate="locked"] .app { display: none; }
@@ -1965,10 +1965,6 @@ export function navRail(active: string, actions = ""): string {
     navMarkup(active, "nav") +
     "</nav>" +
     '<div class="rail-foot">' +
-    '<div class="rail-state" title="Where the pool and the ledger live">' +
-    icon("lock", "icon", 13) +
-    "<span>store</span><b id=\"railStore\">" +
-    "</b></div>" +
     '<div class="rail-tools">' +
     '<button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' +
     icon("sun", "icon", 15) +
@@ -2033,7 +2029,7 @@ export function consolePage(o: PageOptions): string {
     '<meta name="color-scheme" content="light dark">\n' +
     /* The console is dark-first; the light theme is an explicit choice. The
        browser chrome follows whichever surface the operator is on. */
-    '<meta name="theme-color" content="#fafafa">\n' +
+    '<meta name="theme-color" content="#000000">\n' +
     '<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n' +
     "<title>" +
     escapeHtml(o.title) +
@@ -2041,7 +2037,7 @@ export function consolePage(o: PageOptions): string {
     '<link rel="icon" href="/favicon.ico" sizes="32x32">\n' +
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n' +
     '<link rel="apple-touch-icon" href="/favicon.svg">\n' +
-    '<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n' +
+    '<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n' +
     "<script>" + AUTH_GUARD_JS + "</script>\n" +
     "<style>" +
     BASE_CSS +
@@ -2183,7 +2179,7 @@ const AUTH_GUARD_JS = `
  * Standalone login page, served at GET /pengatur/login.
  *
  * Deliberately NOT built with consolePage(): the console shell renders the
- * section rail and the storage footer, and neither may exist in the document
+ * section rail, and it may not exist in the document
  * before the admin token is accepted. This page carries only the gate form
  * and the shared stylesheet, so a pre-auth response leaks nothing about the
  * deployment.
@@ -2195,11 +2191,11 @@ export function loginPage(): string {
     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n' +
     '<meta name="robots" content="noindex, nofollow">\n' +
     '<meta name="color-scheme" content="light dark">\n' +
-    '<meta name="theme-color" content="#fafafa">\n' +
+    '<meta name="theme-color" content="#000000">\n' +
     '<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n' +
     "<title>Sign in · OmniProxy</title>\n" +
     '<link rel="icon" href="/favicon.ico" sizes="32x32">\n' +
-    '<script>try{var t=localStorage.getItem("omniproxy.theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>\n' +
+    '<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n' +
     "<style>" + BASE_CSS + "</style>\n</head>\n<body>\n" +
     '<main class="login-page">\n' +
     authGate() +
@@ -2475,11 +2471,6 @@ export const CLIENT_JS = `
       document.body.setAttribute("data-gate", "open");
       var main = document.getElementById("main");
       if (main) main.focus();
-      /* The rail footer names the storage backend. Every page fills it here so
-         the value only ever exists after the token has been accepted. */
-      GX.api("/pengatur/settings/data").then(function (d) {
-        if (d && d.storage) GX.storage(d.storage.mode, d.storage.mode === "memory" ? "warn" : "");
-      }).catch(function () {});
       /* The rail strip names the builtin providers; the registry adds the
          custom ones so the multi-provider shape is visible on every page. */
       GX.api("/pengatur/providers/list").then(function (d) {
@@ -2770,16 +2761,6 @@ export const CLIENT_JS = `
       }
     },
 
-    /* The rail states where the pool lives. The value is only written here,
-       after the admin token is accepted, so the pre-auth HTML carries no
-       storage-backend name. */
-    storage: function (text, tone) {
-      var node = document.getElementById("railStore");
-      if (!node) return;
-      node.textContent = text || "-";
-      var row = node.parentNode;
-      if (row) row.setAttribute("data-tone", tone || "");
-    },
 
     /* The rail strip names the builtin providers server-side; custom ones
        only exist once the registry answers, so they are appended here after
@@ -2968,12 +2949,12 @@ export const CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. Light is the console default; dark is an explicit toggle. */
+    /* Theme and density. Both survive a reload. Dark is the console default; light is an explicit toggle. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
         if (set) return set;
-        return "light";
+        return "dark";
       },
       set: function (value) {
         document.documentElement.setAttribute("data-theme", value);

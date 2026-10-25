@@ -27,8 +27,6 @@ const OVERVIEW_BODY = `
     </div>
   </header>
 
-  <div id="storageNote" class="panel-note" style="border:1px solid var(--line);border-radius:var(--r-surface);margin-bottom:var(--sp-4)" hidden></div>
-
   <div class="split">
     <section class="panel">
       <div class="panel-head">
@@ -189,7 +187,7 @@ const OVERVIEW_SCRIPT = `
       el.chips.appendChild(GX.chip("30 day cost", GX.fmt.money(stats.totals.costUsd)));
       el.chips.appendChild(GX.chip("projected per 30 days", GX.fmt.money(stats.projectedMonthlyUsd)));
     }
-    el.healthMeta.textContent = pool.degraded ? "degraded, serving from memory" : pool.storage + " storage";
+    el.healthMeta.textContent = pool.degraded ? "degraded" : "";
 
     /* Per-provider pool health. A multi-provider gateway is only as healthy
        as its weakest pool, so each provider gets its own bar and count. */
@@ -202,26 +200,6 @@ const OVERVIEW_SCRIPT = `
     provNames.forEach(function (prov) {
       el.providerPools.appendChild(GX.providerPool(prov, byProvider[prov]));
     });
-
-    var note = document.getElementById("storageNote");
-    if (note) {
-      note.textContent = "";
-      if (pool.storage === "memory") {
-        note.appendChild(GX.el("b", { text: "In memory." }));
-        note.appendChild(document.createTextNode(
-          " The key pool and the request ledger live in this process. A restart empties them."
-        ));
-        note.hidden = false;
-      } else if (pool.degraded) {
-        note.appendChild(GX.el("b", { text: "Storage degraded." }));
-        note.appendChild(document.createTextNode(
-          " The database is not reachable, so the gateway is serving from memory only."
-        ));
-        note.hidden = false;
-      } else {
-        note.hidden = true;
-      }
-    }
   }
 
   function renderAttention(pool, tiers) {

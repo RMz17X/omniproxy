@@ -447,6 +447,7 @@ const PROVIDERS_SCRIPT = `
   el.models.addEventListener("input", countModels);
   el.reloadBtn.addEventListener("click", function () { reload(); });
 
+  GX.shortcuts({ refresh: "reloadBtn" });
   GX.gate({ onSuccess: reload });
 })();
 `;
