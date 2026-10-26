@@ -342,7 +342,7 @@ const PROVIDERS_SCRIPT = `
       ]));
       tr.appendChild(urlCell);
 
-      var caps = GX.el("td");
+      var caps = GX.el("td", { "data-l": "caps" });
       (p.capabilities || []).forEach(function (c) { caps.appendChild(capTag(c)); });
       if (!(p.capabilities || []).length) caps.appendChild(GX.el("span", { class: "sub", text: "none" }));
       tr.appendChild(caps);

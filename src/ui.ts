@@ -143,27 +143,9 @@ export const BASE_CSS = `
   --rail-muted: #737373;
   --rail-active: #f5f5f5;
 
-  --sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-
-  --r-surface: 8px;
-  --r-ctl: 6px;
-  --r-pill: 999px;
-
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-2h: 12px;
-  --sp-3: 16px;
-  --sp-4: 24px;
-  --sp-5: 48px;
-  --sp-6: 32px;
-  --inset: 16px;
-
-  --tap: 32px;
-  --tap-sm: 28px;
-
-  --rail: 232px;
-  --gutter: 28px;
+  /* Layout tokens stay on :root. Repeating them here made the light theme
+     outrank every media query (a theme selector is more specific than
+     :root), so a light-theme phone kept 28px gutters and 32px tap targets. */
 }
 
 :root[data-theme="dark"] {
@@ -479,6 +461,9 @@ body[data-gate="locked"] .app { display: none; }
    with a floor means a 1600px canvas shows three breakdowns side by side and a
    900px one shows a single stack, with no breakpoint bookkeeping. */
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(620px, 1fr)); }
+/* a grid of tables needs more room than a grid of panels: seven columns in a
+   620px cell clipped the last one, so these pair up only when each gets 720px */
+.grid-2:has(.table) { grid-template-columns: repeat(auto-fit, minmax(720px, 1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .grid-4 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: var(--sp-3); align-items: start; }
@@ -925,7 +910,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .models-table th:nth-child(6) { width: 96px; }
 .models-table th:nth-child(7) { width: 92px; }
 .models-table th:nth-child(8) { width: 1%; }
-.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trunc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Stacked rows are full-width cards; the desktop caps above otherwise win on
    order (same specificity, later rule wins) and leave three rows narrower than
@@ -1430,6 +1415,10 @@ dialog .field:first-child { margin-top: 0; }
 .cap:has(input:disabled) { opacity: 0.6; cursor: default; }
 @media screen and (max-width: 780px) {
   .modal-split { grid-template-columns: minmax(0, 1fr); }
+  /* stacked, the two sections are a sequence again and want their rule */
+  .modal-split > .form-section + .form-section {
+    margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--line);
+  }
 }
 
 .help-h { margin: 0 0 var(--sp-2); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
@@ -1740,17 +1729,33 @@ dialog .field:first-child { margin-top: 0; }
   .table-wrap { overflow-x: visible; }
   .table thead { display: none; }
   .table, .table tbody, .table tr, .table td { display: block; width: 100%; }
+  /* the desktop row-height trick (height: 1px so every row shares the tallest
+     cell) collapses a folded row to one line and lets the cells overlap;
+     folded rows size themselves */
+  .table tbody tr, .table tbody td { height: auto; }
+  /* the row checkbox has no label of its own; pin it to the top-right corner
+     of the folded card instead of leaving it alone on its own line */
+  #keysBody .table tbody tr { position: relative; padding-right: 36px; }
+  #keysBody .table tbody td:first-child {
+    position: absolute; top: 6px; right: 0; width: auto; padding: 0;
+  }
+  #keysBody .table tbody td:first-child::before { content: none; }
   .table tr { padding: var(--sp-2) 0; border-bottom: 1px solid var(--line); }
   .table tr:last-child { border-bottom: 0; }
   .table td {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: var(--sp-3);
+    gap: 2px var(--sp-3);
     padding: 2px 0;
     border: 0;
     text-align: left;
   }
+  /* a cell with a value and a detail line stacks them instead of pushing the
+     detail to the far edge of the card */
+  .table td > * + * { flex-basis: 100%; }
+  .table td .sub, .table td .hint { white-space: normal; overflow: visible; text-overflow: clip; }
   .table td.num { text-align: right; }
   .table td::before {
     content: attr(data-l);
@@ -2011,6 +2016,21 @@ dialog .field:first-child { margin-top: 0; }
 @media screen and (max-width: 1400px) {
   :root { --gutter: 24px; }
 }
+/* below 720px every table folds into labelled rows; the fixed column widths
+   and nowrap of the registry tables must stand down or the folded cells
+   overlap each other */
+@media screen and (max-width: 720px) {
+  .providers-table th,
+  .providers-table td,
+  .providers-table td[data-l="provider"],
+  .providers-table td:nth-child(3) {
+    width: auto;
+    max-width: none;
+    white-space: normal;
+  }
+  .models-table th { width: auto; }
+}
+
 @media screen and (max-width: 1100px) {
   :root { --gutter: 16px; }
   .page { padding: var(--sp-3) var(--gutter) var(--sp-5); }
