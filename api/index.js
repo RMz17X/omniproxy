@@ -6523,16 +6523,22 @@ async function hydrate() {
   }
   const known = new Set(rows.map((r) => r.id));
   const orphans = [...entries.entries()].filter(([id]) => !known.has(id)).map(([id, e]) => ({ id, masked: maskKey(e.raw), provider: e.provider }));
-  if (orphans.length > 0) {
-    const written = await upsertIdentities(orphans);
-    log("info", "pool.identities_backfilled", { written });
+  const envOnly = [...local.values()].filter((s) => {
+    const id = keyId(s.key);
+    return !known.has(id) && !entries.has(id);
+  }).map((s) => ({ id: keyId(s.key), masked: maskKey(s.key), provider: s.provider }));
+  const missing = [...orphans, ...envOnly];
+  if (missing.length > 0) {
+    const written = await upsertIdentities(missing);
+    log("info", "pool.identities_backfilled", { written, material: orphans.length, env: envOnly.length });
   }
   log("info", "pool.hydrated", {
     source: "postgres+env",
     keys: local.size,
     rows: rows.length,
     material,
-    orphans: orphans.length
+    orphans: orphans.length,
+    envIdentities: envOnly.length
   });
   return local.size;
 }
@@ -22281,7 +22287,7 @@ async function applyProbe(raw2, probe) {
 app.post("/pengatur/keys/test-all", async (c) => {
   const keys = await listKeys();
   const target = keys.filter((k) => k.status !== "dead");
-  const limit = 4;
+  const limit = 8;
   const results = [];
   let cursor = 0;
   const worker = async () => {

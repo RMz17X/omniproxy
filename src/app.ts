@@ -1430,7 +1430,12 @@ async function applyProbe(raw: string, probe: ProbeResult): Promise<string> {
 app.post("/pengatur/keys/test-all", async (c) => {
   const keys = await listKeys();
   const target = keys.filter((k) => k.status !== "dead");
-  const limit = 4;
+  /* The sweep is bounded by the platform, not by the pool: a serverless
+     invocation dies long before 165 sequential probes finish. Eight at a time
+     keeps a full pool inside the function's maxDuration; callers that still
+     have more keys can repeat the call, because a probed key is due again only
+     after the recheck floor. */
+  const limit = 8;
   const results: { id: string; key: string; probe: unknown; applied: string }[] = [];
   let cursor = 0;
 

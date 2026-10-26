@@ -403,9 +403,20 @@ export async function hydrate(): Promise<number> {
   const orphans = [...entries.entries()]
     .filter(([id]) => !known.has(id))
     .map(([id, e]) => ({ id, masked: maskKey(e.raw), provider: e.provider }));
-  if (orphans.length > 0) {
-    const written = await repo.upsertIdentities(orphans);
-    log("info", "pool.identities_backfilled", { written });
+  /* Keys the deployment carries in `<PROVIDER>_API_KEYS` have the same gap and
+     a worse symptom: with no `keys` row their retirement has nowhere to land,
+     so every cold start resurrects a credential Google already revoked and the
+     console counts it as ready forever. Give them an identity row too. */
+  const envOnly = [...local.values()]
+    .filter((s) => {
+      const id = keyId(s.key);
+      return !known.has(id) && !entries.has(id);
+    })
+    .map((s) => ({ id: keyId(s.key), masked: maskKey(s.key), provider: s.provider }));
+  const missing = [...orphans, ...envOnly];
+  if (missing.length > 0) {
+    const written = await repo.upsertIdentities(missing);
+    log("info", "pool.identities_backfilled", { written, material: orphans.length, env: envOnly.length });
   }
 
   log("info", "pool.hydrated", {
@@ -414,6 +425,7 @@ export async function hydrate(): Promise<number> {
     rows: rows.length,
     material,
     orphans: orphans.length,
+    envIdentities: envOnly.length,
   });
   return local.size;
 }
