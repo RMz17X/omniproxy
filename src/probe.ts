@@ -23,6 +23,7 @@ export type ProbeStatus =
   | "ok"
   | "rate_limited"
   | "zero_quota"
+  | "quota_exhausted"
   | "invalid"
   | "server_error"
   | "network_error"

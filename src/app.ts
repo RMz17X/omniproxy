@@ -1027,17 +1027,25 @@ app.post("/pengatur/keys", async (c) => {
      healthy keys whenever the upstream hiccups. */
   const verdicts = await verifyIngestKeys(accepted);
   const byKey = new Map(verdicts.map((v) => [v.key, v]));
-  const probed = { ok: 0, rateLimited: 0, inconclusive: 0, refused: 0 };
+  const probed = { ok: 0, rateLimited: 0, quotaExhausted: 0, inconclusive: 0, refused: 0 };
+  /* One query for the batch: a purged key keeps its material, so the hunter
+     can offer it again, and it must not be admitted back into the pool. */
+  const purged = new Set(await purgedIds());
 
   const ids: string[] = [];
   const addedByProvider: Record<string, number> = {};
   let added = 0;
   let parked = 0;
   for (const { key, provider } of accepted) {
+    if (purged.has(keyId(key))) {
+      rejected.push({ id: keyId(key), provider, reason: "purged: tombstoned by the operator" });
+      continue;
+    }
     const v = byKey.get(key);
     if (v) {
       if (v.status === "ok") probed.ok++;
       else if (v.status === "rate_limited") probed.rateLimited++;
+      else if (v.status === "quota_exhausted") probed.quotaExhausted++;
       else if (v.status === "invalid" || v.status === "zero_quota") {
         probed.refused++;
         rejected.push({ id: keyId(key), provider, reason: `${v.status}: ${v.message}` });
@@ -1047,6 +1055,10 @@ app.post("/pengatur/keys", async (c) => {
     // The later of the sender's declared park and the probe's own window.
     let until = cooldownFor(key);
     if (v?.status === "rate_limited") until = Math.max(until, Date.now() + v.retryAfterMs);
+    /* A spent allowance is admitted parked: the credential is alive and the
+       window it waits for has a known end, so refusing it would throw away a
+       key that starts serving again on the billing cycle. */
+    if (v?.status === "quota_exhausted") until = Math.max(until, Date.now() + v.retryAfterMs);
     if (await addKey(key, provider, until)) {
       added++;
       if (until > Date.now()) parked++;
@@ -1413,6 +1425,12 @@ async function applyProbe(raw: string, probe: ProbeResult): Promise<string> {
          itself stays valid, and a later 200 still revives the row. */
       await markInvalid(raw, Date.now(), "zero_quota");
       return "retired";
+    case "quota_exhausted":
+      /* An allowance that is spent refills on the provider's billing cycle and
+         the response names the instant. Parked, never retired: the credential
+         is alive and answers 200 the moment the window rolls over. */
+      await markQuotaExhausted(raw, probe.quota ?? null);
+      return "quota_exhausted";
     case "invalid":
       await markInvalid(raw);
       return "retired";

@@ -453,6 +453,13 @@ export async function addKey(key: string, provider: string = "gemini", cooldownU
   const p = (provider || "").trim() || "gemini";
   const cur = local.get(k);
   if (cur && !cur.invalid) return false;
+  /* A purge keeps the material row, so the hunter can offer the same
+     credential again. Admitting it would serve a key the operator removed and
+     then lose the identity on the next cold start, so the tombstone wins. */
+  if (await repo.isTombstoned(keyId(k))) {
+    log("warn", "key.tombstoned_rejected", { key: maskKey(k), provider: p });
+    return false;
+  }
   const st = blank(k, p);
   /* The sender probed the key before sending it and may know the reset
      deadline. Parking it here costs nothing and stops the first request from

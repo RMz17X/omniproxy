@@ -5667,11 +5667,30 @@ async function purgedIds() {
 }
 async function restoreKeys(ids) {
   if (!dbEnabled() || ids.length === 0) return 0;
-  await sql(
-    `update keys set deleted_at = null where id = any($1::text[]) and deleted_at is not null`,
+  const res = await sql(
+    `update keys
+        set deleted_at = null,
+            enabled = true,
+            status = 'unverified',
+            retired_at = null,
+            retired_reason = null,
+            fail_count = 0,
+            cooldown_until = null,
+            retry_after_at = null,
+            last_checked_at = null
+      where id = any($1::text[]) and deleted_at is not null
+      returning id`,
     [ids]
   );
-  return ids.length;
+  return res.ok ? res.rows.length : 0;
+}
+async function isTombstoned(id) {
+  if (!dbEnabled()) return false;
+  const res = await sql(
+    `select id from keys where id = $1 and deleted_at is not null`,
+    [id]
+  );
+  return res.ok && res.rows.length > 0;
 }
 async function upsertIdentities(rows) {
   if (!dbEnabled() || rows.length === 0) return 0;
@@ -6556,6 +6575,10 @@ async function addKey(key, provider = "gemini", cooldownUntil = 0) {
   const p2 = (provider || "").trim() || "gemini";
   const cur = local.get(k);
   if (cur && !cur.invalid) return false;
+  if (await isTombstoned(keyId(k))) {
+    log("warn", "key.tombstoned_rejected", { key: maskKey(k), provider: p2 });
+    return false;
+  }
   const st = blank(k, p2);
   if (Number.isFinite(cooldownUntil) && cooldownUntil > now()) {
     st.cooldownUntil = cooldownUntil;
@@ -14687,6 +14710,10 @@ function retryDelayOf(details) {
 function retryDelayMs(body) {
   return retryDelayOf(detailsOf(errorOf(parseBody2(body))));
 }
+function nextMonthStart(from = Date.now()) {
+  const d = new Date(from);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 0, 0, 0, 0);
+}
 function retryAfterHeaderMs(headers) {
   if (!headers) return null;
   let raw2;
@@ -14766,7 +14793,7 @@ function tierEvidenceFrom(body) {
   return null;
 }
 var MODEL_UNAVAILABLE = /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported|experiencing high demand|currently unavailable/i;
-var INVALID_KEY = /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key|expected oauth 2 access token|invalid authentication credentials/i;
+var INVALID_KEY = /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key|expected oauth 2 access token|invalid authentication credentials|wrong.?api.?key|user not found/i;
 function isInvalidKeyBody(body) {
   return INVALID_KEY.test(body);
 }
@@ -14825,6 +14852,30 @@ function classifyElevenLabsResponse(status, body, headers) {
       consumer: limit,
       observedAt: Date.now()
     };
+    const limitN = limit === null ? NaN : Number(limit);
+    const countN = count === null ? NaN : Number(count);
+    if (Number.isFinite(limitN) && Number.isFinite(countN) && limitN - countN <= 0) {
+      const resetAt = nextMonthStart();
+      return {
+        verdict: "quota_exhausted",
+        quota: {
+          metric: "characters",
+          quotaId: count !== null ? `chars_${count}` : null,
+          quotaMetric: "characters",
+          limit,
+          limitValue: String(limitN - countN),
+          window: null,
+          location: null,
+          consumer: limit,
+          project: null,
+          resetAt,
+          retryAfterMs: Math.max(0, resetAt - Date.now()),
+          model: null,
+          freeTier: tier === "free"
+        },
+        tierEvidence: evidence
+      };
+    }
     return { verdict: "ok", quota: null, tierEvidence: evidence };
   }
   if (status === 401) {
@@ -16104,11 +16155,11 @@ async function probeElevenLabs(rawKey, timeoutMs = TIMEOUT_MS2) {
   const headers = Object.fromEntries(res.headers.entries());
   const classified = classifyElevenLabsResponse(res.status, body, headers);
   return {
-    status: classified.verdict === "invalid" ? "invalid" : classified.verdict === "rate_limited" ? "rate_limited" : classified.verdict === "ok" ? "ok" : classified.verdict === "server_error" ? "server_error" : "unexpected",
+    status: classified.verdict === "invalid" ? "invalid" : classified.verdict === "quota_exhausted" ? "quota_exhausted" : classified.verdict === "rate_limited" ? "rate_limited" : classified.verdict === "ok" ? "ok" : classified.verdict === "server_error" ? "server_error" : "unexpected",
     httpStatus: res.status,
     latencyMs,
     retryAfterMs: classified.quota?.retryAfterMs ?? 0,
-    message: res.status === 200 ? "serving" : body.slice(0, 220) || `HTTP ${res.status}`,
+    message: classified.verdict === "quota_exhausted" ? "allowance spent: character_count reached character_limit" : res.status === 200 ? "serving" : body.slice(0, 220) || `HTTP ${res.status}`,
     quota: classified.quota,
     tierEvidence: classified.tierEvidence
   };
@@ -22296,16 +22347,22 @@ app.post("/pengatur/keys", async (c) => {
   }
   const verdicts = await verifyIngestKeys(accepted);
   const byKey = new Map(verdicts.map((v2) => [v2.key, v2]));
-  const probed = { ok: 0, rateLimited: 0, inconclusive: 0, refused: 0 };
+  const probed = { ok: 0, rateLimited: 0, quotaExhausted: 0, inconclusive: 0, refused: 0 };
+  const purged = new Set(await purgedIds());
   const ids = [];
   const addedByProvider = {};
   let added = 0;
   let parked = 0;
   for (const { key, provider } of accepted) {
+    if (purged.has(keyId(key))) {
+      rejected.push({ id: keyId(key), provider, reason: "purged: tombstoned by the operator" });
+      continue;
+    }
     const v2 = byKey.get(key);
     if (v2) {
       if (v2.status === "ok") probed.ok++;
       else if (v2.status === "rate_limited") probed.rateLimited++;
+      else if (v2.status === "quota_exhausted") probed.quotaExhausted++;
       else if (v2.status === "invalid" || v2.status === "zero_quota") {
         probed.refused++;
         rejected.push({ id: keyId(key), provider, reason: `${v2.status}: ${v2.message}` });
@@ -22314,6 +22371,7 @@ app.post("/pengatur/keys", async (c) => {
     }
     let until = cooldownFor(key);
     if (v2?.status === "rate_limited") until = Math.max(until, Date.now() + v2.retryAfterMs);
+    if (v2?.status === "quota_exhausted") until = Math.max(until, Date.now() + v2.retryAfterMs);
     if (await addKey(key, provider, until)) {
       added++;
       if (until > Date.now()) parked++;
@@ -22585,6 +22643,9 @@ async function applyProbe(raw2, probe) {
     case "zero_quota":
       await markInvalid(raw2, Date.now(), "zero_quota");
       return "retired";
+    case "quota_exhausted":
+      await markQuotaExhausted(raw2, probe.quota ?? null);
+      return "quota_exhausted";
     case "invalid":
       await markInvalid(raw2);
       return "retired";

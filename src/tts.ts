@@ -90,17 +90,24 @@ export async function probeElevenLabs(
     status:
       classified.verdict === "invalid"
         ? "invalid"
-        : classified.verdict === "rate_limited"
-          ? "rate_limited"
-          : classified.verdict === "ok"
-            ? "ok"
-            : classified.verdict === "server_error"
-              ? "server_error"
-              : "unexpected",
+        : classified.verdict === "quota_exhausted"
+          ? "quota_exhausted"
+          : classified.verdict === "rate_limited"
+            ? "rate_limited"
+            : classified.verdict === "ok"
+              ? "ok"
+              : classified.verdict === "server_error"
+                ? "server_error"
+                : "unexpected",
     httpStatus: res.status,
     latencyMs,
     retryAfterMs: classified.quota?.retryAfterMs ?? 0,
-    message: res.status === 200 ? "serving" : body.slice(0, 220) || `HTTP ${res.status}`,
+    message:
+      classified.verdict === "quota_exhausted"
+        ? "allowance spent: character_count reached character_limit"
+        : res.status === 200
+          ? "serving"
+          : body.slice(0, 220) || `HTTP ${res.status}`,
     quota: classified.quota,
     tierEvidence: classified.tierEvidence,
   };

@@ -147,6 +147,18 @@ export function retryDelayMs(body: string): number | null {
   return retryDelayOf(detailsOf(errorOf(parseBody(body))));
 }
 
+/**
+ * First instant of the next calendar month, UTC.
+ *
+ * A plan allowance that is spent refills on the provider's billing cycle and
+ * the response names no instant, so this is the earliest moment a parked key
+ * can be probed again without wasting a call.
+ */
+function nextMonthStart(from: number = Date.now()): number {
+  const d = new Date(from);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 0, 0, 0, 0);
+}
+
 /** Retry-After header in either of its legal forms; ms, or null. */
 function retryAfterHeaderMs(headers?: Record<string, string>): number | null {
   if (!headers) return null;
@@ -277,7 +289,7 @@ const MODEL_UNAVAILABLE =
  * for project or model access carries no such text.
  */
 const INVALID_KEY =
-  /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key|expected oauth 2 access token|invalid authentication credentials/i;
+  /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key|expected oauth 2 access token|invalid authentication credentials|wrong.?api.?key|user not found/i;
 
 /**
  * The single "this credential is dead" predicate.
@@ -393,6 +405,37 @@ export function classifyElevenLabsResponse(
       consumer: limit,
       observedAt: Date.now(),
     };
+
+    /* 200 authenticates the credential but says nothing about its allowance:
+       /v1/user answers 200 while character_count sits at character_limit, and
+       the refusal only appears later on /v1/text-to-speech. Compare the two
+       numbers the body already carries — otherwise a spent key is reported
+       ready forever, is never re-probed, and every request that lands on it
+       fails. Not `invalid`: the allowance refills on the monthly cycle. */
+    const limitN = limit === null ? NaN : Number(limit);
+    const countN = count === null ? NaN : Number(count);
+    if (Number.isFinite(limitN) && Number.isFinite(countN) && limitN - countN <= 0) {
+      const resetAt = nextMonthStart();
+      return {
+        verdict: "quota_exhausted",
+        quota: {
+          metric: "characters",
+          quotaId: count !== null ? `chars_${count}` : null,
+          quotaMetric: "characters",
+          limit,
+          limitValue: String(limitN - countN),
+          window: null,
+          location: null,
+          consumer: limit,
+          project: null,
+          resetAt,
+          retryAfterMs: Math.max(0, resetAt - Date.now()),
+          model: null,
+          freeTier: tier === "free",
+        },
+        tierEvidence: evidence,
+      };
+    }
 
     return { verdict: "ok", quota: null, tierEvidence: evidence };
   }

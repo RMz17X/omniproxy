@@ -213,14 +213,48 @@ export async function purgedIds(): Promise<string[]> {
   return res.ok ? res.rows.map((r) => r.id) : [];
 }
 
-/** Undo a purge: the row and its material were never deleted. */
+/**
+ * Undo a purge: the row and its material were never deleted.
+ *
+ * Clearing `deleted_at` alone is not enough — the purge also wrote
+ * `enabled = false`, and `hydrate()` reads that flag back as "dead", so a
+ * restored key was re-killed on the next cold start and the endpoint still
+ * reported it recovered. The retirement is cleared here too and the row is
+ * marked unverified so the recheck probes it instead of serving a credential
+ * nobody has re-tested. Returns the number of rows actually restored.
+ */
 export async function restoreKeys(ids: string[]): Promise<number> {
   if (!dbEnabled() || ids.length === 0) return 0;
-  await sql(
-    `update keys set deleted_at = null where id = any($1::text[]) and deleted_at is not null`,
+  const res = await sql<{ id: string }>(
+    `update keys
+        set deleted_at = null,
+            enabled = true,
+            status = 'unverified',
+            retired_at = null,
+            retired_reason = null,
+            fail_count = 0,
+            cooldown_until = null,
+            retry_after_at = null,
+            last_checked_at = null
+      where id = any($1::text[]) and deleted_at is not null
+      returning id`,
     [ids],
   );
-  return ids.length;
+  return res.ok ? res.rows.length : 0;
+}
+
+/**
+ * Is this id a tombstone? A purged key keeps its `key_material`, so the hunter
+ * can send the same credential again; admitting it would serve a key the
+ * operator removed and then lose the row on the next cold start.
+ */
+export async function isTombstoned(id: string): Promise<boolean> {
+  if (!dbEnabled()) return false;
+  const res = await sql<{ id: string }>(
+    `select id from keys where id = $1 and deleted_at is not null`,
+    [id],
+  );
+  return res.ok && res.rows.length > 0;
 }
 
 /**
