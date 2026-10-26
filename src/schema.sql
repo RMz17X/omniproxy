@@ -182,3 +182,9 @@ alter table usage_events add column if not exists provider text not null default
 alter table usage_daily add column if not exists provider text not null default 'gemini';
 alter table usage_daily drop constraint if exists usage_daily_pkey;
 create unique index if not exists usage_daily_bucket_idx on usage_daily (day, route, model, key_id, provider);
+-- Soft delete. `purge-dead` used to DELETE the row and its material, which made
+-- a wrong call unrecoverable and left warm instances still showing the key
+-- until they recycled. A tombstone fixes both: the row and the raw value stay,
+-- every read path ignores them, and clearing the column restores the key.
+alter table keys add column if not exists deleted_at timestamptz;
+create index if not exists keys_deleted_idx on keys (deleted_at) where deleted_at is not null;

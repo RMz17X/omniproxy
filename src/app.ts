@@ -15,7 +15,7 @@
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, backfillMaterial, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, type KeyTier, type KeyView } from "./pool.ts";
+import { addKey, backfillMaterial, dropLocal, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, hydrate, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
@@ -61,12 +61,12 @@ import { isStatsRange, statsSnapshot } from "./stats.ts";
 import { USAGE_HTML } from "./usage-ui.ts";
 import { KEYS_HTML, KEY_DETAIL_HTML } from "./keys-ui.ts";
 import { PROVIDERS_HTML } from "./providers-ui.ts";
-import { loadKeys, purgeDead } from "./keys-repo.ts";
+import { loadKeys, purgedIds, purgeDead, restoreKeys } from "./keys-repo.ts";
 import { SETTINGS_HTML } from "./settings-ui.ts";
 import { settingsView } from "./settings.ts";
 import { AUDIT_HTML } from "./audit-ui.ts";
 import { LOGIN_HTML } from "./ui.ts";
-import { dbEnabled, sql } from "./db.ts";
+import { breakerOpen, dbEnabled, sql } from "./db.ts";
 
 const app = new Hono();
 
@@ -144,6 +144,52 @@ const SHELL_PATHS = [
 /** The key detail shell. `/data` carries a suffix and so stays gated. */
 const KEY_PAGE = /^\/pengatur\/keys\/[0-9a-f]{12}$/;
 
+/* ---------- admin rate limit ---------- */
+
+/**
+ * Per-instance token bucket for the admin surface.
+ *
+ * The console polls a few endpoints on a timer and an operator may hold several
+ * tabs open, so reads get a generous budget; mutations are the ones worth
+ * bounding (purge-dead, delete, test-all all cost real work). The counter lives
+ * in process memory: a serverless fleet multiplies the effective limit by the
+ * instance count, which is the right trade for a console — the point is to stop
+ * a runaway loop or a brute-force attempt, not to meter an operator.
+ */
+const ADMIN_RATE_READS = Math.max(10, Number(process.env.ADMIN_RATE_READS_PER_MIN ?? 300));
+const ADMIN_RATE_WRITES = Math.max(5, Number(process.env.ADMIN_RATE_WRITES_PER_MIN ?? 60));
+const adminHits = new Map<string, number[]>();
+
+function adminRetryAfter(ip: string, kind: "read" | "write"): number {
+  const limit = kind === "read" ? ADMIN_RATE_READS : ADMIN_RATE_WRITES;
+  const key = `${ip}:${kind}`;
+  const now = Date.now();
+  const hits = (adminHits.get(key) ?? []).filter((t) => now - t < 60_000);
+  if (hits.length >= limit) {
+    adminHits.set(key, hits);
+    return Math.max(1, Math.ceil((60_000 - (now - hits[0]!)) / 1000));
+  }
+  hits.push(now);
+  adminHits.set(key, hits);
+  if (adminHits.size > 4096) {
+    for (const [k, v] of adminHits) if (v.every((t) => now - t >= 60_000)) adminHits.delete(k);
+  }
+  return 0;
+}
+
+app.use("/pengatur/*", async (c, next) => {
+  const method = c.req.method.toUpperCase();
+  const kind = method === "GET" || method === "HEAD" || method === "OPTIONS" ? "read" : "write";
+  const forwarded = c.req.header("x-forwarded-for") ?? "";
+  const ip = forwarded.split(",")[0]?.trim() || c.req.header("x-real-ip") || "local";
+  const retry = adminRetryAfter(ip, kind);
+  if (retry > 0) {
+    c.header("Retry-After", String(retry));
+    return c.json({ error: { message: `Too many requests. Retry in ${retry}s.` } }, 429);
+  }
+  return next();
+});
+
 app.use("/pengatur/*", async (c, next) => {
   // The console shells carry no data and must load before a token exists.
   // Only read verbs are public: a POST/DELETE to a shell path is a mutating
@@ -204,10 +250,19 @@ app.get("/health", async (c) => {
  */
 app.get("/pengatur/status", async (c) => {
   const snap = await snapshot();
+  const rows = await loadKeys();
+  /* Operational view: the pool tells you what can serve, this tells you whether
+     the durable half is reachable and when a key was last judged. Without it
+     "pool went up on its own" is only visible by reading container logs. */
+  const lastCheckedAt = rows.reduce((m, k) => Math.max(m, k.lastCheckedAt || 0), 0);
   return c.json({
     ok: true,
     service: "omniproxy",
     storage: snap.storage,
+    db: { enabled: dbEnabled(), breakerOpen: breakerOpen() },
+    material: { durable: keyMaterialDurable() },
+    identities: { rows: rows.length, lastCheckedAt: lastCheckedAt || null },
+    uptimeSeconds: Math.round(process.uptime()),
     pool: snap,
     defaults: {
       model: cfg.defaultModel,
@@ -712,6 +767,10 @@ app.get("/pengatur/providers", (c) => c.html(PROVIDERS_HTML));
  */
 app.get("/pengatur/keys/list", async (c) => {
   const providerFilter = c.req.query("provider");
+  /* A purge only clears the instance that served it. Other warm instances keep
+     the tombstoned key in memory and would keep listing it, so the database's
+     tombstone list is applied here before the snapshot is taken. */
+  dropLocal(await purgedIds());
   const [keys, snap, identities] = await Promise.all([listKeys(providerFilter), snapshot(), loadKeys()]);
   const byId = new Map(identities.map((k) => [k.id, k]));
   const merged = keys.map((k) => {
@@ -1341,6 +1400,7 @@ app.post("/pengatur/keys/purge-dead", async (c) => {
   const dropped = forgetDead();
   await auditRecordNow("keys.purge-dead", {
     actor: actorFrom(c.req.header("user-agent")),
+    target: purged.ids.join(","),
     detail: { removed: purged.removed, droppedFromPool: dropped, byReason: purged.byReason },
   });
   return c.json({ ok: true, ...purged, droppedFromPool: dropped, pool: await snapshot() });
@@ -1355,6 +1415,34 @@ app.post("/pengatur/keys/purge-dead", async (c) => {
  * key, so a key whose tier models serve keeps its stored plan and stays
  * `planValidated: false`.
  */
+
+/**
+ * Undo a purge. `purge-dead` tombstones instead of deleting, so the row and its
+ * raw value are still there; clearing the tombstone and re-hydrating puts the
+ * key back in this instance's pool.
+ */
+app.post("/pengatur/keys/restore", async (c) => {
+  let body: { ids?: string[]; id?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((x): x is string => typeof x === "string" && x.length > 0)
+    : typeof body.id === "string" && body.id
+      ? [body.id]
+      : [];
+  if (ids.length === 0) return c.json({ error: { message: "`id` or `ids` is required." } }, 400);
+  const restored = await restoreKeys(ids);
+  await hydrate();
+  await auditRecordNow("keys.restore", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { requested: ids.length, restored },
+  });
+  return c.json({ ok: true, restored, pool: await snapshot() });
+});
 app.post("/pengatur/keys/validate-plan", async (c) => {
   let body: { ids?: string[]; all?: boolean };
   try {

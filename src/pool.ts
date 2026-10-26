@@ -215,6 +215,23 @@ export async function backfillMaterial(): Promise<number> {
  * empty (hydration never ran) or full but filtered (every key is cooling down
  * or retired).
  */
+/**
+ * Forget keys in this instance's memory. Used when a tombstone appears: a warm
+ * instance that predates a purge keeps serving its snapshot, so the list
+ * handler drops those ids as soon as the database reports them.
+ */
+export function dropLocal(ids: Iterable<string>): number {
+  const doomed = new Set(ids);
+  if (doomed.size === 0) return 0;
+  let dropped = 0;
+  for (const [raw, st] of local) {
+    if (!doomed.has(keyId(st.key ?? raw))) continue;
+    local.delete(raw);
+    dropped++;
+  }
+  return dropped;
+}
+
 export function poolSize(): number {
   return local.size;
 }
@@ -312,11 +329,10 @@ export async function hydrate(): Promise<number> {
   }
 
   let material = 0;
-  if (materialEnabled()) {
-    for (const entry of (await loadMaterialEntries()).values()) {
-      seed(entry.raw, entry.provider);
-      material++;
-    }
+  const entries = materialEnabled() ? await loadMaterialEntries() : new Map();
+  for (const entry of entries.values()) {
+    seed(entry.raw, entry.provider);
+    material++;
   }
 
   const rows = await repo.loadKeys();
@@ -355,11 +371,25 @@ export async function hydrate(): Promise<number> {
       if (row.cooldownUntil > now()) hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
+  /* Material without an identity row: the key serves traffic but is invisible
+     in the console, so nobody can disable or delete it. The ingest endpoint
+     awaits the secret and fires the row, and a recycled instance drops the
+     latter; one bulk insert closes the gap on every cold start. */
+  const known = new Set(rows.map((r) => r.id));
+  const orphans = [...entries.entries()]
+    .filter(([id]) => !known.has(id))
+    .map(([id, e]) => ({ id, masked: maskKey(e.raw), provider: e.provider }));
+  if (orphans.length > 0) {
+    const written = await repo.upsertIdentities(orphans);
+    log("info", "pool.identities_backfilled", { written });
+  }
+
   log("info", "pool.hydrated", {
     source: "postgres+env",
     keys: local.size,
     rows: rows.length,
     material,
+    orphans: orphans.length,
   });
   return local.size;
 }

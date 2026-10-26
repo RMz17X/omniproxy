@@ -35,7 +35,13 @@ export async function loadMaterial(): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!dbEnabled()) return out;
 
-  const res = await sql<MaterialRow>(`select id, raw_key from key_material`);
+  const res = await sql<MaterialRow>(
+    /* A tombstoned key (purge-dead) keeps its material for restore, but must
+       never be seeded back into a pool. */
+    `select m.id, m.raw_key from key_material m
+       left join keys k on k.id = m.id
+      where k.deleted_at is null`,
+  );
   if (!res.ok) {
     log("warn", "key_material.load_failed", { reason: res.reason });
     return out;
@@ -61,7 +67,11 @@ export async function loadMaterialEntries(): Promise<Map<string, { raw: string; 
   const out = new Map<string, { raw: string; provider: string }>();
   if (!dbEnabled()) return out;
 
-  const res = await sql<MaterialRow>(`select id, raw_key, provider from key_material`);
+  const res = await sql<MaterialRow>(
+    `select m.id, m.raw_key, m.provider from key_material m
+       left join keys k on k.id = m.id
+      where k.deleted_at is null`,
+  );
   if (!res.ok) {
     log("warn", "key_material.load_failed", { reason: res.reason });
     return out;

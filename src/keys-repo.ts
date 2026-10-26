@@ -146,6 +146,7 @@ export async function loadKeys(): Promise<KeyIdentity[]> {
             plan_validated_at, last_checked_at, last_used, model_refusals,
             retired_at, retired_reason
        from keys
+      where deleted_at is null
       order by id`,
   );
   return res.ok ? res.rows.map(toIdentity) : [];
@@ -198,6 +199,49 @@ export async function upsertKey(identity: {
       deadline(identity.cooldownUntil ?? 0),
     ],
   );
+}
+
+/**
+ * Tombstoned ids. A warm instance that predates a purge still holds those keys
+ * in memory; the list handler drops them from `local` when it sees this set, so
+ * a purged key stops being displayed without waiting for the instance to
+ * recycle.
+ */
+export async function purgedIds(): Promise<string[]> {
+  if (!dbEnabled()) return [];
+  const res = await sql<{ id: string }>(`select id from keys where deleted_at is not null`);
+  return res.ok ? res.rows.map((r) => r.id) : [];
+}
+
+/** Undo a purge: the row and its material were never deleted. */
+export async function restoreKeys(ids: string[]): Promise<number> {
+  if (!dbEnabled() || ids.length === 0) return 0;
+  await sql(
+    `update keys set deleted_at = null where id = any($1::text[]) and deleted_at is not null`,
+    [ids],
+  );
+  return ids.length;
+}
+
+/**
+ * Insert identity rows for material that has none.
+ *
+ * `key_material` is written before the identity row (the ingest endpoint awaits
+ * the secret, the row is fire-and-forget), so a recycled instance can leave a
+ * key that serves traffic but cannot be seen, disabled or deleted in the
+ * console. One statement covers the whole gap.
+ */
+export async function upsertIdentities(
+  rows: { id: string; masked: string; provider: string }[],
+): Promise<number> {
+  if (!dbEnabled() || rows.length === 0) return 0;
+  await sql(
+    `insert into keys (id, masked, provider)
+     select * from unnest($1::text[], $2::text[], $3::text[])
+     on conflict (id) do nothing`,
+    [rows.map((r) => r.id), rows.map((r) => r.masked), rows.map((r) => r.provider)],
+  );
+  return rows.length;
 }
 
 export async function setEnabled(id: string, enabled: boolean): Promise<void> {
@@ -263,8 +307,8 @@ export async function retire(
  * The audit row keeps the census (how many, which reason) so the removal is
  * still traceable without keeping 800 dead keys in the hot table.
  */
-export async function purgeDead(): Promise<{ removed: number; byReason: Record<string, number> }> {
-  if (!dbEnabled()) return { removed: 0, byReason: {} };
+export async function purgeDead(): Promise<{ removed: number; byReason: Record<string, number>; ids: string[] }> {
+  if (!dbEnabled()) return { removed: 0, byReason: {}, ids: [] };
   const FILTER = `status = 'dead' and retired_reason in ('invalid', 'leaked')`;
   const census = await sql<{ retired_reason: string | null; n: number }>(
     `select retired_reason, count(*)::int as n
@@ -274,16 +318,21 @@ export async function purgeDead(): Promise<{ removed: number; byReason: Record<s
   );
   const byReason: Record<string, number> = {};
   if (census.ok) for (const row of census.rows) byReason[row.retired_reason ?? "unset"] = row.n;
-  const ids = await sql<{ id: string }>(`select id from keys where ${FILTER}`);
-  if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason };
+  const ids = await sql<{ id: string }>(
+    `select id from keys where ${FILTER} and deleted_at is null`,
+  );
+  if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason, ids: [] };
   const doomed = ids.rows.map((r) => r.id);
-  /* key_material holds the raw credential; delete it in the same pass or the
-     secret outlives the row that owned it. Same id set, same filter. */
-  await sql(`delete from key_material where id = any($1::text[])`, [doomed]);
-  await sql(`delete from keys where id = any($1::text[])`, [doomed]);
-  /* The driver reports no row count for a bare DELETE, so the census is the
+  /* Tombstone, do not delete. The raw value stays in key_material so a wrong
+     purge can be undone, and every read path (loadKeys, loadMaterial) skips
+     rows that carry this column. */
+  await sql(
+    `update keys set deleted_at = now(), enabled = false where id = any($1::text[])`,
+    [doomed],
+  );
+  /* The driver reports no row count for a bare UPDATE, so the id list is the
      number removed. */
-  return { removed: doomed.length, byReason };
+  return { removed: doomed.length, byReason, ids: doomed };
 }
 
 /**

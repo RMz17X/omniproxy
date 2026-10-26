@@ -5534,6 +5534,9 @@ var init_serverless = __esm({
 function dbEnabled() {
   return client !== null || runner !== null;
 }
+function breakerOpen() {
+  return openUntil > Date.now();
+}
 function onSuccess() {
   if (failStreak > 0 || openUntil > 0) log("info", "db.recovered", {});
   failStreak = 0;
@@ -5617,6 +5620,7 @@ async function loadKeys() {
             plan_validated_at, last_checked_at, last_used, model_refusals,
             retired_at, retired_reason
        from keys
+      where deleted_at is null
       order by id`
   );
   return res.ok ? res.rows.map(toIdentity) : [];
@@ -5646,6 +5650,29 @@ async function upsertKey(identity) {
     ]
   );
 }
+async function purgedIds() {
+  if (!dbEnabled()) return [];
+  const res = await sql(`select id from keys where deleted_at is not null`);
+  return res.ok ? res.rows.map((r) => r.id) : [];
+}
+async function restoreKeys(ids) {
+  if (!dbEnabled() || ids.length === 0) return 0;
+  await sql(
+    `update keys set deleted_at = null where id = any($1::text[]) and deleted_at is not null`,
+    [ids]
+  );
+  return ids.length;
+}
+async function upsertIdentities(rows) {
+  if (!dbEnabled() || rows.length === 0) return 0;
+  await sql(
+    `insert into keys (id, masked, provider)
+     select * from unnest($1::text[], $2::text[], $3::text[])
+     on conflict (id) do nothing`,
+    [rows.map((r) => r.id), rows.map((r) => r.masked), rows.map((r) => r.provider)]
+  );
+  return rows.length;
+}
 async function setPlan(id, plan) {
   if (!dbEnabled()) return;
   await sql(
@@ -5669,7 +5696,7 @@ async function retire(id, observedAt, reason) {
   );
 }
 async function purgeDead() {
-  if (!dbEnabled()) return { removed: 0, byReason: {} };
+  if (!dbEnabled()) return { removed: 0, byReason: {}, ids: [] };
   const FILTER = `status = 'dead' and retired_reason in ('invalid', 'leaked')`;
   const census = await sql(
     `select retired_reason, count(*)::int as n
@@ -5679,12 +5706,16 @@ async function purgeDead() {
   );
   const byReason = {};
   if (census.ok) for (const row of census.rows) byReason[row.retired_reason ?? "unset"] = row.n;
-  const ids = await sql(`select id from keys where ${FILTER}`);
-  if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason };
+  const ids = await sql(
+    `select id from keys where ${FILTER} and deleted_at is null`
+  );
+  if (!ids.ok || ids.rows.length === 0) return { removed: 0, byReason, ids: [] };
   const doomed = ids.rows.map((r) => r.id);
-  await sql(`delete from key_material where id = any($1::text[])`, [doomed]);
-  await sql(`delete from keys where id = any($1::text[])`, [doomed]);
-  return { removed: doomed.length, byReason };
+  await sql(
+    `update keys set deleted_at = now(), enabled = false where id = any($1::text[])`,
+    [doomed]
+  );
+  return { removed: doomed.length, byReason, ids: doomed };
 }
 async function revive(id, observedAt, status) {
   if (!dbEnabled()) return;
@@ -5812,7 +5843,13 @@ function materialEnabled() {
 async function loadMaterial() {
   const out = /* @__PURE__ */ new Map();
   if (!dbEnabled()) return out;
-  const res = await sql(`select id, raw_key from key_material`);
+  const res = await sql(
+    /* A tombstoned key (purge-dead) keeps its material for restore, but must
+       never be seeded back into a pool. */
+    `select m.id, m.raw_key from key_material m
+       left join keys k on k.id = m.id
+      where k.deleted_at is null`
+  );
   if (!res.ok) {
     log("warn", "key_material.load_failed", { reason: res.reason });
     return out;
@@ -5827,7 +5864,11 @@ async function loadMaterial() {
 async function loadMaterialEntries() {
   const out = /* @__PURE__ */ new Map();
   if (!dbEnabled()) return out;
-  const res = await sql(`select id, raw_key, provider from key_material`);
+  const res = await sql(
+    `select m.id, m.raw_key, m.provider from key_material m
+       left join keys k on k.id = m.id
+      where k.deleted_at is null`
+  );
   if (!res.ok) {
     log("warn", "key_material.load_failed", { reason: res.reason });
     return out;
@@ -6295,6 +6336,7 @@ __export(pool_exports, {
   addKey: () => addKey,
   backfillMaterial: () => backfillMaterial,
   deadKeys: () => deadKeys,
+  dropLocal: () => dropLocal,
   forgetDead: () => forgetDead,
   hydrate: () => hydrate,
   keyId: () => keyId,
@@ -6364,6 +6406,17 @@ async function backfillMaterial() {
   if (written) log("info", "key_material.backfilled", { written });
   return written;
 }
+function dropLocal(ids) {
+  const doomed = new Set(ids);
+  if (doomed.size === 0) return 0;
+  let dropped2 = 0;
+  for (const [raw2, st] of local) {
+    if (!doomed.has(keyId(st.key ?? raw2))) continue;
+    local.delete(raw2);
+    dropped2++;
+  }
+  return dropped2;
+}
 function poolSize() {
   return local.size;
 }
@@ -6414,11 +6467,10 @@ async function hydrate() {
     return local.size;
   }
   let material = 0;
-  if (materialEnabled()) {
-    for (const entry of (await loadMaterialEntries()).values()) {
-      seed(entry.raw, entry.provider);
-      material++;
-    }
+  const entries = materialEnabled() ? await loadMaterialEntries() : /* @__PURE__ */ new Map();
+  for (const entry of entries.values()) {
+    seed(entry.raw, entry.provider);
+    material++;
   }
   const rows = await loadKeys();
   const byId = new Map([...local.values()].map((s) => [keyId(s.key), s]));
@@ -6451,11 +6503,18 @@ async function hydrate() {
       if (row.cooldownUntil > now()) hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
+  const known = new Set(rows.map((r) => r.id));
+  const orphans = [...entries.entries()].filter(([id]) => !known.has(id)).map(([id, e]) => ({ id, masked: maskKey(e.raw), provider: e.provider }));
+  if (orphans.length > 0) {
+    const written = await upsertIdentities(orphans);
+    log("info", "pool.identities_backfilled", { written });
+  }
   log("info", "pool.hydrated", {
     source: "postgres+env",
     keys: local.size,
     rows: rows.length,
-    material
+    material,
+    orphans: orphans.length
   });
   return local.size;
 }
@@ -21125,6 +21184,37 @@ var SHELL_PATHS = [
   "/pengatur/logs"
 ];
 var KEY_PAGE = /^\/pengatur\/keys\/[0-9a-f]{12}$/;
+var ADMIN_RATE_READS = Math.max(10, Number(process.env.ADMIN_RATE_READS_PER_MIN ?? 300));
+var ADMIN_RATE_WRITES = Math.max(5, Number(process.env.ADMIN_RATE_WRITES_PER_MIN ?? 60));
+var adminHits = /* @__PURE__ */ new Map();
+function adminRetryAfter(ip, kind) {
+  const limit = kind === "read" ? ADMIN_RATE_READS : ADMIN_RATE_WRITES;
+  const key = `${ip}:${kind}`;
+  const now2 = Date.now();
+  const hits = (adminHits.get(key) ?? []).filter((t) => now2 - t < 6e4);
+  if (hits.length >= limit) {
+    adminHits.set(key, hits);
+    return Math.max(1, Math.ceil((6e4 - (now2 - hits[0])) / 1e3));
+  }
+  hits.push(now2);
+  adminHits.set(key, hits);
+  if (adminHits.size > 4096) {
+    for (const [k, v2] of adminHits) if (v2.every((t) => now2 - t >= 6e4)) adminHits.delete(k);
+  }
+  return 0;
+}
+app.use("/pengatur/*", async (c, next) => {
+  const method = c.req.method.toUpperCase();
+  const kind = method === "GET" || method === "HEAD" || method === "OPTIONS" ? "read" : "write";
+  const forwarded = c.req.header("x-forwarded-for") ?? "";
+  const ip = forwarded.split(",")[0]?.trim() || c.req.header("x-real-ip") || "local";
+  const retry = adminRetryAfter(ip, kind);
+  if (retry > 0) {
+    c.header("Retry-After", String(retry));
+    return c.json({ error: { message: `Too many requests. Retry in ${retry}s.` } }, 429);
+  }
+  return next();
+});
 app.use("/pengatur/*", async (c, next) => {
   const adminPath = new URL(c.req.url).pathname;
   const method = c.req.method.toUpperCase();
@@ -21156,10 +21246,16 @@ app.get("/health", async (c) => {
 });
 app.get("/pengatur/status", async (c) => {
   const snap = await snapshot();
+  const rows = await loadKeys();
+  const lastCheckedAt = rows.reduce((m, k) => Math.max(m, k.lastCheckedAt || 0), 0);
   return c.json({
     ok: true,
     service: "omniproxy",
     storage: snap.storage,
+    db: { enabled: dbEnabled(), breakerOpen: breakerOpen() },
+    material: { durable: keyMaterialDurable() },
+    identities: { rows: rows.length, lastCheckedAt: lastCheckedAt || null },
+    uptimeSeconds: Math.round(process.uptime()),
     pool: snap,
     defaults: {
       model: cfg.defaultModel,
@@ -21518,6 +21614,7 @@ app.get("/pengatur/keys", (c) => c.html(KEYS_HTML));
 app.get("/pengatur/providers", (c) => c.html(PROVIDERS_HTML));
 app.get("/pengatur/keys/list", async (c) => {
   const providerFilter = c.req.query("provider");
+  dropLocal(await purgedIds());
   const [keys, snap, identities] = await Promise.all([listKeys(providerFilter), snapshot(), loadKeys()]);
   const byId = new Map(identities.map((k) => [k.id, k]));
   const merged = keys.map((k) => {
@@ -21983,9 +22080,28 @@ app.post("/pengatur/keys/purge-dead", async (c) => {
   const dropped2 = forgetDead();
   await recordNow("keys.purge-dead", {
     actor: actorFrom(c.req.header("user-agent")),
+    target: purged.ids.join(","),
     detail: { removed: purged.removed, droppedFromPool: dropped2, byReason: purged.byReason }
   });
   return c.json({ ok: true, ...purged, droppedFromPool: dropped2, pool: await snapshot() });
+});
+app.post("/pengatur/keys/restore", async (c) => {
+  let body;
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: { message: "Body must be JSON." } }, 400);
+  }
+  const ids = Array.isArray(body.ids) ? body.ids.filter((x2) => typeof x2 === "string" && x2.length > 0) : typeof body.id === "string" && body.id ? [body.id] : [];
+  if (ids.length === 0) return c.json({ error: { message: "`id` or `ids` is required." } }, 400);
+  const restored = await restoreKeys(ids);
+  await hydrate();
+  await recordNow("keys.restore", {
+    actor: actorFrom(c.req.header("user-agent")),
+    target: ids.join(","),
+    detail: { requested: ids.length, restored }
+  });
+  return c.json({ ok: true, restored, pool: await snapshot() });
 });
 app.post("/pengatur/keys/validate-plan", async (c) => {
   let body;
