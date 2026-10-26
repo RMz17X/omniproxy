@@ -10093,8 +10093,8 @@ var BASE_CSS = `
   /* Spacing scale (4px base) and its jobs: caption 4 / tight 8 / half 12 /
      inner 16 / section 24 / loose 32 / deep 48. Page sections stack at 24,
      content inside a section stacks at 16, controls sit at 8, captions at 4.
-     Layout rules below use these tokens, never raw px, so the compact
-     density override actually compacts the whole console. */
+     Layout rules below use these tokens, never raw px, so the rhythm holds
+     on every page. */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-2h: 12px;
@@ -10107,8 +10107,10 @@ var BASE_CSS = `
   --tap: 32px;
   --tap-sm: 28px;
 
-  --rail: 236px;
-  --page-max: 1200px;
+  /* The rail is fixed; the canvas takes the rest of the viewport, so the
+     layout is full-bleed by construction \u2014 no page max-width. */
+  --rail: 232px;
+  --gutter: 28px;
 }
 
 /* the light theme is the same system inverted, chosen explicitly ---------- */
@@ -10179,8 +10181,8 @@ var BASE_CSS = `
   --tap: 32px;
   --tap-sm: 28px;
 
-  --rail: 236px;
-  --page-max: 1200px;
+  --rail: 232px;
+  --gutter: 28px;
 }
 
 :root[data-theme="dark"] {
@@ -10227,18 +10229,6 @@ var BASE_CSS = `
   --rail-text: #ededed;
   --rail-muted: #a1a1a1;
   --rail-active: #1a1a1a;
-}
-
-/* compact density: the same page, one notch tighter ---------------------- */
-:root[data-density="compact"] {
-  --tap: 32px;
-  --tap-sm: 32px;
-  --sp-2h: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 32px;
-  --sp-6: 24px;
-  --inset: 12px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -10448,12 +10438,10 @@ body[data-gate="locked"] .app { display: none; }
 
 .page {
   width: 100%;
-  max-width: var(--page-max);
-  margin: 0 auto;
-  /* One container for every page: 24px side gutters, 24px above the page
-     head, 48px below the last section. The restyle block repeats these
-     tokens so the two layers can never drift apart again. */
-  padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  /* Full-bleed canvas: the sidebar is the only fixed column, so the page owns
+     every remaining pixel. A centered max-width column wasted half of a wide
+     screen and made tables scroll while the viewport sat empty. */
+  padding: var(--sp-4) var(--gutter) var(--sp-5);
   min-width: 0;
 }
 
@@ -10506,20 +10494,26 @@ body[data-gate="locked"] .app { display: none; }
 .zone-head .meta { margin-left: auto; font-size: 12px; color: var(--text-3); }
 
 .grid { display: grid; gap: var(--sp-3); min-width: 0; }
-.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
+/* Fluid columns: a wide screen gets more columns, not wider cells. auto-fit
+   with a floor means a 1600px canvas shows three breakdowns side by side and a
+   900px one shows a single stack, with no breakpoint bookkeeping. */
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(620px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid-4 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: var(--sp-3); align-items: start; }
 
 /* figures ---------------------------------------------------------------- */
 
-/* A KPI row is a grid of separate cards, never one full-width strip with
-   dividers: the overview reads like a dashboard, and every figure carries its
-   own surface so it can be compared at a glance. */
+/* A KPI row is separate cards, never one full-width strip with dividers: the
+   overview reads like a dashboard, and every figure carries its own surface so
+   it can be compared at a glance. One width per card across every row: the
+   card count changes per page, so a fixed 220px floor keeps a twelve-figure
+   page at six columns and a five-figure page at five, rather than stretching
+   whatever lands alone on the last row to the full width. */
 .figures {
   display: grid;
   gap: var(--sp-3);
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   min-width: 0;
 }
 .fig {
@@ -10529,7 +10523,11 @@ body[data-gate="locked"] .app { display: none; }
   border-radius: var(--r-surface);
   min-width: 0;
 }
-.fig-label { display: block; font-size: 11px; font-weight: 620; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-3); }
+.fig-label {
+  display: block; font-size: 11px; font-weight: 620; letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .fig-value {
   display: block;
   margin-top: var(--sp-2);
@@ -10911,7 +10909,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .defs { display: grid; grid-template-columns: minmax(0, 1fr); }
 .def { display: flex; align-items: baseline; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--line); min-width: 0; }
 .def:first-child { border-top: 0; padding-top: 0; }
-.def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
+.def dt { flex: 0 0 132px; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
 .def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
 
 /* The key column carries a 39-character mono value and a copy button. Without a
@@ -10922,6 +10920,32 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .table td[data-l="provider"] { width: 110px; max-width: 110px; white-space: nowrap; }
 .table td[data-l="status"] { width: 230px; max-width: 230px; }
 .table td[data-l="plan"] { width: 170px; max-width: 170px; }
+/* Providers registry: fixed column widths so the URL column absorbs the extra
+   space instead of every cell stretching and every row wrapping. */
+.providers-table th:nth-child(1) { width: 250px; }
+.providers-table th:nth-child(2) { width: 38%; }
+.providers-table th:nth-child(3) { width: 360px; }
+.providers-table th:nth-child(4),
+.providers-table th:nth-child(5) { width: 96px; }
+.providers-table th:nth-child(6) { width: 112px; }
+.providers-table th:nth-child(7) { width: 1%; }
+.providers-table td { white-space: nowrap; }
+.providers-table td:nth-child(3) { white-space: nowrap; }
+.providers-table td:nth-child(3) .tag { padding: 2px 6px; font-size: 11px; }
+.providers-table td[data-l="provider"] { width: 250px; max-width: 320px; }
+.cell-inline { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+
+/* Models catalog: the model name is the only column that wants to grow; every
+   price and counter is a narrow numeric column pinned to the right. */
+.models-table th:nth-child(1) { width: 140px; }
+.models-table th:nth-child(3) { width: 120px; }
+.models-table th:nth-child(4),
+.models-table th:nth-child(5) { width: 116px; }
+.models-table th:nth-child(6) { width: 96px; }
+.models-table th:nth-child(7) { width: 92px; }
+.models-table th:nth-child(8) { width: 1%; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Stacked rows are full-width cards; the desktop caps above otherwise win on
    order (same specificity, later rule wins) and leave three rows narrower than
    the other six, with space-between pushing their values to a different edge.
@@ -11349,29 +11373,93 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* dialogs ---------------------------------------------------------------- */
 
+/* A modal is a sheet, not a floating card: fixed header, scrolling body and a
+   footer that stays put. Widths step 620 / 960; the radius, the shadow and the
+   dimmed backdrop carry the depth, so no border tricks are needed. */
 dialog {
-  width: min(560px, calc(100vw - 32px));
-  max-height: min(88dvh, 780px);
+  width: min(620px, calc(100vw - 40px));
+  max-height: min(86dvh, 840px);
   padding: 0;
   border: 1px solid var(--line-2);
-  border-radius: var(--r-surface);
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.16);
   overflow: hidden;
   overscroll-behavior: contain;
 }
 dialog[open] { display: flex; flex-direction: column; }
-dialog::backdrop { background: rgba(8, 10, 14, 0.55); }
-dialog.wide { width: min(880px, calc(100vw - 32px)); }
-.card-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-bottom: 1px solid var(--line); }
-.card-head h2 { font-size: 15px; font-weight: 620; text-wrap: balance; }
+dialog::backdrop { background: rgba(6, 8, 12, 0.62); }
+dialog.wide { width: min(960px, calc(100vw - 40px)); }
+.card-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.card-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
 .card-head .spacer { flex: 1 1 auto; }
-.card-body { padding: var(--inset); overflow-y: auto; }
-.card-foot { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--inset); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.card-body { flex: 1 1 auto; min-height: 0; padding: var(--sp-4); overflow-y: auto; }
+.card-foot {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2h) var(--sp-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+/* Dialogs written before the sheet classes use the panel vocabulary; the
+   same three bands apply so every modal in the console reads identically. */
+dialog > form > .panel-head,
+dialog > .panel-head { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line); }
+dialog > form > .panel-body,
+dialog > .panel-body { padding: var(--sp-4); overflow-y: auto; }
+dialog > form > .panel-foot,
+dialog > .panel-foot { padding: var(--sp-2h) var(--sp-4); border-top: 1px solid var(--line); }
+dialog textarea { width: 100%; min-height: 140px; }
+dialog .input, dialog .select { width: 100%; }
+dialog .field:first-child { margin-top: 0; }
+
+/* modal forms: two columns of labelled fields, grouped under a quiet heading.
+   A long single column of ten inputs is the reason the Add provider sheet read
+   as a scroll rather than a form. */
+.card-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.card-sub { color: var(--text-3); font-size: 12.5px; font-weight: 400; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3) var(--sp-4); }
+.form-grid .span-2 { grid-column: 1 / -1; }
+.form-section + .form-section { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+/* side-by-side sections are columns, not a stack: no divider, no top gap */
+.modal-split > .form-section + .form-section { margin-top: 0; padding-top: 0; border-top: 0; }
+.form-h {
+  margin: 0 0 var(--sp-2); font-size: 11px; font-weight: 640;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);
+}
+.modal-split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--sp-6); align-items: start; }
+/* capability chips: a checked box tints the whole tile, so the chosen set is
+   legible at a glance instead of being five tiny checkboxes in a row */
+.caps-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.cap {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2h);
+  border: 1px solid var(--line); border-radius: var(--r-ctl);
+  background: var(--surface-2); color: var(--text-2);
+  font-size: 12.5px; font-weight: 520; cursor: pointer;
+}
+.cap input { margin: 0; accent-color: var(--accent); }
+.cap:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); color: var(--text); }
+.cap:has(input:disabled) { opacity: 0.6; cursor: default; }
+@media screen and (max-width: 780px) {
+  .modal-split { grid-template-columns: minmax(0, 1fr); }
+}
 
 .help-h { margin: 0 0 var(--sp-2); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 .help-h + .help-list { margin-bottom: var(--sp-4); }
 .help-list { display: grid; grid-template-columns: minmax(80px, auto) 1fr; gap: var(--sp-1) var(--sp-3); margin: 0; font-size: 12.5px; }
+/* the glossary is long: two independent columns read top to bottom, so the
+   eye follows one list instead of zig-zagging across a four-column grid */
+.help-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3) var(--sp-5); align-items: start; }
+@media screen and (max-width: 900px) {
+  .help-cols { grid-template-columns: minmax(0, 1fr); }
+}
 .help-list dt { color: var(--text); font-weight: 560; }
 .help-list dd { margin: 0; color: var(--text-2); }
 .help-list kbd {
@@ -11505,15 +11593,15 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 /* command palette -------------------------------------------------------- */
 
-.palette { width: min(600px, calc(100vw - 24px)); }
-.palette-top { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line); }
+.palette { width: min(680px, calc(100vw - 32px)); }
+.palette-top { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2h) var(--sp-3); border-bottom: 1px solid var(--line); }
 .palette-top svg { color: var(--text-3); flex: none; }
 .palette-input {
   flex: 1 1 auto;
   min-width: 0;
   border: 0;
   background: transparent;
-  font-size: 14.5px;
+  font-size: 15px;
   padding: var(--sp-1) 0;
 }
 /* This is the one control a keyboard user lands in after Ctrl K, and it had
@@ -11606,6 +11694,9 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .verdict-dot[data-tone="warn"] { background: var(--warn); }
 .verdict-dot[data-tone="bad"] { background: var(--bad); }
 .verdict strong { font-size: 14px; font-weight: 620; }
+.verdict-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.verdict-main strong { font-size: 15px; letter-spacing: -0.01em; }
+.verdict-main .meta { font-size: 12px; }
 
 /* hero ------------------------------------------------------------------- */
 
@@ -11647,7 +11738,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1100px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { display: none; }
   .menu-btn { display: inline-flex; }
@@ -11699,12 +11790,14 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 }
 
 @media (max-width: 400px) {
-  .figures { grid-template-columns: minmax(0, 1fr); }
+  /* two figures per row even on a phone: a full-width card with a
+     three-digit number wastes a screen of scroll */
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .toolbar .grow { flex-basis: 100%; }
 }
 
 @media (pointer: coarse), (hover: none) {
-  :root, :root[data-density="compact"] { --tap: 44px; --tap-sm: 40px; }
+  :root { --tap: 44px; --tap-sm: 40px; }
   .rail-item { min-height: 44px; }
   .rail-tool { width: var(--tap); height: var(--tap); }
   .toast-x, .toast-act { min-height: 40px; min-width: 40px; }
@@ -11734,7 +11827,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
    Same DOM ids/classes, new layout: the rail is a proper dashboard sidebar
    again \u2014 vertical, grouped, with the provider strip visible \u2014 panels are
    white cards, buttons/tables/forms follow the Vercel dashboard vocabulary.
-   Below 1023px the sidebar steps aside for the drawer and the menu button.
+   Below 1100px the sidebar steps aside for the drawer and the menu button.
    This block sits last in BASE_CSS so it wins over the earlier rules without
    renaming anything JS depends on. */
 
@@ -11782,14 +11875,19 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .rail-actions { padding: var(--sp-1) var(--sp-2) 0; }
 .menu-btn { display: none !important; }
 
-/* breadcrumb strip under the top bar + page headers */
+/* top bar: sticky, full-bleed, one hairline. The page scrolls under it, which
+   is what makes the console feel like an app shell instead of a document. */
 .canvas-head {
-  position: static; min-height: auto; padding: var(--sp-4) var(--sp-4) 0;
-  border-bottom: 0; background: transparent;
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: var(--sp-3);
+  min-height: 56px; padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
 }
 .canvas-crumb { font-size: 12px; }
 .canvas-crumb b { font-size: 12px; }
-.page { padding: var(--sp-4) var(--sp-4) var(--sp-5); }
+.page { padding: var(--sp-4) var(--gutter) var(--sp-5); }
 .eyebrow {
   font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--text-3);
@@ -11874,21 +11972,21 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   border-radius: var(--r-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-/* responsive: the sidebar steps aside for the drawer below 1023px \u2014 the menu
+/* responsive: the sidebar steps aside for the drawer below 1100px \u2014 the menu
    button returns, the drawer stacks the same sections vertically with the
    same aria-current marker, and the canvas takes the full width */
-@media screen and (max-width: 1023px) {
+@media screen and (max-width: 1100px) {
   .shell { display: block; }
   .rail { display: none; }
-  .canvas-head { padding: var(--sp-3) var(--sp-3) 0; }
-  .page { padding: var(--sp-3); }
+  .canvas-head { padding: 0 var(--sp-3); }
+  .page { padding: var(--sp-3) var(--sp-3) var(--sp-5); }
 }
 @media screen and (max-width: 720px) {
   .page-title { font-size: 20px; }
   .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* drawer navigation: below 1023px the menu button opens this panel, which
+/* drawer navigation: below 1100px the menu button opens this panel, which
    stacks the same sections vertically with the same aria-current marker the
    sidebar uses. The drawer strip is NOT hidden here: scoping the restyle
    hide to .rail leaves the base column style in place for it. */
@@ -11897,8 +11995,45 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .drawer .rail-item { width: 100%; }
 .drawer .rail-foot { margin-left: 0; margin-top: auto; }
 .drawer .rail-tools { padding: 0; }
-@media screen and (max-width: 1023px) {
+@media screen and (max-width: 1100px) {
   .menu-btn { display: inline-flex !important; }
+}
+
+/* full-bleed canvas -------------------------------------------------------
+   The console is a shell, not a document: the sidebar owns a fixed column and
+   every page owns the rest of the viewport. Nothing is centred and nothing is
+   capped, so a 27" monitor shows the whole table instead of a 1200px ribbon
+   with two empty margins. Wide screens gain columns (auto-fit above), narrow
+   ones lose the gutters. */
+
+.page { padding: var(--sp-4) var(--gutter) var(--sp-5); }
+.canvas-head { padding: 0 var(--gutter); }
+
+/* the page head sits on the same gutter as the panels below it */
+.page-head { align-items: flex-start; }
+.page-head-side { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; }
+
+/* A full-width table has room for a wider first column and a tighter numeric
+   tail; the cells share the leftover space instead of hugging their content. */
+.table th, .table td { padding: var(--sp-2) var(--sp-3); }
+.table th:first-child, .table td:first-child { padding-left: var(--inset); }
+.table th:last-child, .table td:last-child { padding-right: var(--inset); }
+
+/* panels that hold a table get no body padding, so the table can reach the
+   card edge and use every pixel */
+.panel > .table-wrap { border-radius: 0 0 var(--r-surface) var(--r-surface); }
+
+/* a feed of audit rows keeps its grid: action, detail and actor on their own
+   lines, the timestamp pinned to the right edge of the card */
+.feed-item { column-gap: var(--sp-3); }
+
+@media screen and (max-width: 1400px) {
+  :root { --gutter: 24px; }
+}
+@media screen and (max-width: 1100px) {
+  :root { --gutter: 16px; }
+  .page { padding: var(--sp-3) var(--gutter) var(--sp-5); }
+  .canvas-head { padding: 0 var(--gutter); }
 }
 `;
 var ICON_PATHS = {
@@ -11920,7 +12055,6 @@ var ICON_PATHS = {
   command: '<path d="M9 6a3 3 0 10-3 3h12a3 3 0 10-3-3v12a3 3 0 103-3H6a3 3 0 103 3V6z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
   moon: '<path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/>',
-  density: '<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7a2 2 0 002 2h3"/>',
   check: '<path d="M4 12.5l5 5L20 6"/>',
   trash: '<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
@@ -11989,16 +12123,16 @@ function navMarkup(active, idPrefix) {
 }
 function navRail(active, actions = "") {
   const providerStrip = '<div class="rail-providers" id="railProviders"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span><span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span></div>';
-  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></a>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
+  return '<aside class="rail" aria-label="Sections"><a class="rail-brand" href="/pengatur"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></a>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "nav") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' + icon("help", "icon", 15) + '</button><span class="spacer"></span></div>' + (actions ? '<div class="rail-actions">' + actions + "</div>" : "") + "</div></aside>";
 }
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
   const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>OmniProxy</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
   const providerStrip = '<div class="rail-providers" id="drawerProviders"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span><span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span></div>';
-  return '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div><div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden><div class="rail-brand" style="padding:0 8px"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></div>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "drawer") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerDensity" aria-label="Switch density">' + icon("density", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' + icon("help", "icon", 15) + "</button></div></div></div>";
+  return '<div class="drawer-backdrop" id="drawerBackdrop" hidden></div><div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Sections" hidden><div class="rail-brand" style="padding:0 8px"><span class="rail-mark">' + icon("command", "icon", 17) + '</span><span class="rail-name"><b>OmniProxy</b><span>Gateway</span></span></div>' + providerStrip + '<nav class="rail-nav" aria-label="Console sections">' + navMarkup(active, "drawer") + '</nav><div class="rail-foot"><div class="rail-tools"><button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' + icon("sun", "icon", 15) + '</button><button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' + icon("help", "icon", 15) + "</button></div></div></div>";
 }
 function escapeHtml(v2) {
   return String(v2 ?? "").replace(/[&<>"']/g, (c) => {
@@ -12136,8 +12270,9 @@ function helpDialog() {
     ["provider", "Which upstream pool a key, a model or a request belongs to. Every badge shows the colour and the name"]
   ];
   const keyRows = keys.map(([k, v2]) => "<dt><kbd>" + escapeHtml(k) + "</kbd></dt><dd>" + escapeHtml(v2) + "</dd>").join("");
-  const wordRows = words.map(([k, v2]) => "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(v2) + "</dd>").join("");
-  return '<dialog id="helpDialog" aria-labelledby="helpTitle"><div class="card-head"><h2 id="helpTitle">Shortcuts and words</h2><span class="spacer"></span><button class="btn btn-ghost btn-sm icon-btn" type="button" id="helpClose" aria-label="Close">' + icon("close") + '</button></div><div class="card-body"><h3 class="help-h">Keyboard</h3><dl class="help-list">' + keyRows + '</dl><h3 class="help-h">What the words mean</h3><dl class="help-list help-words">' + wordRows + "</dl></div></dialog>";
+  const half = Math.ceil(words.length / 2);
+  const wordColumn = (list3) => list3.map(([k, v2]) => "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(v2) + "</dd>").join("");
+  return '<dialog id="helpDialog" class="wide" aria-labelledby="helpTitle"><div class="card-head"><h2 id="helpTitle">Shortcuts and words</h2><span class="spacer"></span><button class="btn btn-ghost btn-sm icon-btn" type="button" id="helpClose" aria-label="Close">' + icon("close") + '</button></div><div class="card-body"><h3 class="help-h">Keyboard</h3><dl class="help-list">' + keyRows + '</dl><h3 class="help-h">What the words mean</h3><div class="help-cols"><dl class="help-list help-words">' + wordColumn(words.slice(0, half)) + '</dl><dl class="help-list help-words">' + wordColumn(words.slice(half)) + "</dl></div></div></dialog>";
 }
 function confirmDialog() {
   return '<dialog id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage"><div class="card-head"><h2 id="confirmTitle">Are you sure?</h2></div><div class="card-body"><p id="confirmMessage" class="hint"></p></div><div class="card-foot"><span class="spacer"></span><button id="confirmCancel" class="btn" type="button">Cancel</button><button id="confirmOk" class="btn btn-danger" type="button">Confirm</button></div></dialog>';
@@ -12151,7 +12286,6 @@ var CLIENT_JS = `
 
   var STORE = "omniproxy.admin.token";
   var THEME = "omniproxy.theme";
-  var DENSITY = "omniproxy.density";
 
   var ICON = {
     close: ${JSON.stringify(icon("close", "icon", 14))},
@@ -12578,6 +12712,11 @@ var CLIENT_JS = `
       if (!node) return;
       if (typeof node.showModal === "function") { if (!node.open) node.showModal(); }
       else node.setAttribute("open", "");
+      /* showModal focuses the first focusable node, which is the close button:
+         the sheet opened with a focus ring on an X and the caret nowhere. Put
+         it in the first field instead. */
+      var field = node.querySelector("input:not([type=hidden]), select, textarea");
+      if (field) field.focus();
     },
     closeDialog: function (node) {
       if (!node) return;
@@ -12727,7 +12866,7 @@ var CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. Dark is the console default; light is an explicit toggle. */
+    /* Theme survives a reload. Dark is the console default; light is an explicit toggle. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
@@ -12743,24 +12882,6 @@ var CLIENT_JS = `
         var next = GX.theme.get() === "dark" ? "light" : "dark";
         GX.theme.set(next);
         GX.toast(next === "dark" ? "Dark theme." : "Light theme.", "neutral");
-      }
-    },
-
-    density: {
-      get: function () { return document.documentElement.getAttribute("data-density") === "compact" ? "compact" : "comfortable"; },
-      set: function (value) {
-        if (value === "compact") document.documentElement.setAttribute("data-density", "compact");
-        else document.documentElement.removeAttribute("data-density");
-        try {
-          if (value === "compact") localStorage.setItem(DENSITY, "compact");
-          else localStorage.removeItem(DENSITY);
-        } catch (e) {}
-        GX._syncTools();
-      },
-      toggle: function () {
-        var next = GX.density.get() === "compact" ? "comfortable" : "compact";
-        GX.density.set(next);
-        GX.toast(next === "compact" ? "Compact rows." : "Comfortable rows.", "neutral");
       }
     },
 
@@ -12785,7 +12906,6 @@ var CLIENT_JS = `
           { group: "Tools", label: "Refresh this page", hint: "r", run: function () { var b = document.getElementById("refreshBtn"); if (b) b.click(); else location.reload(); } },
           { group: "Tools", label: "Copy this link", hint: "", run: function () { GX.copy(location.href, "Link"); } },
           { group: "Tools", label: "Switch theme", hint: "", run: function () { GX.theme.toggle(); } },
-          { group: "Tools", label: "Switch density", hint: "", run: function () { GX.density.toggle(); } },
           { group: "Tools", label: "Shortcuts and words", hint: "?", run: function () { GX.openDialog(document.getElementById("helpDialog")); } }
         ];
         return tools.concat(nav).concat(GX.palette.items);
@@ -12953,11 +13073,6 @@ var CLIENT_JS = `
           ? '<svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/></svg>'
           : '<svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>';
       });
-      var compact = GX.density.get() === "compact";
-      ["densityBtn", "drawerDensity"].forEach(function (id) {
-        var node = document.getElementById(id);
-        if (node) node.setAttribute("aria-pressed", compact ? "true" : "false");
-      });
     }
   };
 
@@ -12966,12 +13081,8 @@ var CLIENT_JS = `
   function wireChrome() {
     var themeBtn = document.getElementById("themeBtn");
     if (themeBtn) themeBtn.addEventListener("click", function () { GX.theme.toggle(); });
-    var densityBtn = document.getElementById("densityBtn");
-    if (densityBtn) densityBtn.addEventListener("click", function () { GX.density.toggle(); });
     var drawerTheme = document.getElementById("drawerTheme");
     if (drawerTheme) drawerTheme.addEventListener("click", function () { GX.theme.toggle(); });
-    var drawerDensity = document.getElementById("drawerDensity");
-    if (drawerDensity) drawerDensity.addEventListener("click", function () { GX.density.toggle(); });
     var drawerHelp = document.getElementById("drawerHelp");
     if (drawerHelp) drawerHelp.addEventListener("click", function () { GX.openDialog(document.getElementById("helpDialog")); });
 
@@ -13022,8 +13133,10 @@ var OVERVIEW_BODY = `
     <div class="panel-body">
       <div class="verdict">
         <span class="verdict-dot" id="verdictDot" data-tone="ok"></span>
-        <strong id="verdictText">-</strong>
-        <span class="meta" id="verdictState">-</span>
+        <div class="verdict-main">
+          <strong id="verdictText">-</strong>
+          <span class="meta" id="verdictState">-</span>
+        </div>
         <span class="spacer"></span>
         <label class="check"><input id="auto" type="checkbox" checked> Refresh every 15s</label>
         <span class="meta" id="updated">-</span>
@@ -13043,7 +13156,7 @@ var OVERVIEW_BODY = `
     <div class="feed" id="attn"></div>
     <div class="panel-foot" id="attnFoot">
       <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
-      <span class="meta" id="testAllNote">one live call per key, four at a time</span>
+      <span class="meta" id="testAllNote">one live call per key, eight at a time</span>
     </div>
   </section>
 
@@ -13099,7 +13212,7 @@ var OVERVIEW_BODY = `
         <button id="addBtnFoot" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add keys</button>
         <a class="btn btn-sm" href="/pengatur/keys">View keys</a>
         <button id="testAllBtnFoot" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
-        <span class="meta" id="testAllNoteFoot">one live call per key, four at a time</span>
+        <span class="meta" id="testAllNoteFoot">one live call per key, eight at a time</span>
       </div>
     </div>
   </section>
@@ -13108,18 +13221,24 @@ var OVERVIEW_BODY = `
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
     <div class="card-head">
-      <h2 id="addTitle">Add keys</h2>
+      <div class="card-title">
+        <h2 id="addTitle">Add keys</h2>
+        <span class="card-sub">Paste one key per line. Every key is probed before it joins the pool.</span>
+      </div>
       <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
-      <label class="field" for="newKeys">One key per line, or separated by commas</label>
+    <div class="card-body">
+      <label class="field" for="newKeys">Keys</label>
       <textarea id="newKeys" class="textarea" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row u-mt-3">
-        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
-        <span id="addCount" class="hint"></span>
-      </div>
-      <div id="addMsg" class="hint u-mt-2" role="status" aria-live="polite"></div>
+      <p class="hint u-mt-1">One per line, or separated by commas.</p>
+      <div id="addMsg" class="hint u-mt-3" role="status" aria-live="polite"></div>
+    </div>
+    <div class="card-foot">
+      <span id="addCount" class="hint"></span>
+      <span class="spacer"></span>
+      <button id="addCancel" class="btn" type="button">Cancel</button>
+      <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
     </div>
   </form>
 </dialog>
@@ -13145,6 +13264,7 @@ var OVERVIEW_SCRIPT = `
     kpis: document.getElementById("kpis"),
     addDialog: document.getElementById("addDialog"),
     addClose: document.getElementById("addClose"),
+    addCancel: document.getElementById("addCancel"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
     addBtn: document.getElementById("addBtn"),
@@ -13188,8 +13308,8 @@ var OVERVIEW_SCRIPT = `
     var cooling = pool.cooling || 0;
     var dead = pool.dead || 0;
     var total = pool.total || 0;
-    el.verdictText.textContent = "Ready " + ready + "/" + total + " \xB7 " + cooling + " cooling \xB7 " + dead + " dead";
-    el.verdictState.textContent = pool.degraded ? "Degraded" : "Ready";
+    el.verdictText.textContent = pool.degraded ? "Degraded" : "Ready to serve";
+    el.verdictState.textContent = ready + "/" + total + " serving \xB7 " + cooling + " cooling \xB7 " + dead + " dead";
     el.verdictDot.setAttribute("data-tone", dead > 0 ? "bad" : cooling > 0 ? "warn" : "ok");
     el.healthMeta.textContent = pool.degraded
       ? "Degraded \xB7 " + dead + " dead \xB7 " + cooling + " cooling"
@@ -13222,6 +13342,12 @@ var OVERVIEW_SCRIPT = `
     var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
     var declared = (t.free || 0) + (t.paid || 0) + (t.pro || 0);
     var keys = declared + (t.unknown || 0);
+    el.poolKpis.appendChild(GX.stat(
+      "Unverified",
+      String(pool.unverified || 0),
+      pool.unverified ? "not probed yet" : "every key has a verdict",
+      pool.unverified ? "warn" : ""
+    ));
     el.poolKpis.appendChild(GX.stat(
       "Plans declared",
       declared + "/" + keys,
@@ -13472,7 +13598,7 @@ var OVERVIEW_SCRIPT = `
     btn = btn || el.testAllBtn;
     note = note || el.testAllNote;
     GX.busy(btn, "Testing\u2026");
-    note.textContent = "one live call per key, four at a time";
+    note.textContent = "one live call per key, eight at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         var results = data.results || [];
@@ -13485,7 +13611,7 @@ var OVERVIEW_SCRIPT = `
       })
       .then(function () {
         GX.idle(btn);
-        note.textContent = "one live call per key, four at a time";
+        note.textContent = "one live call per key, eight at a time";
       });
   }
 
@@ -13574,6 +13700,7 @@ var OVERVIEW_SCRIPT = `
   el.addBtnFoot.addEventListener("click", openAdd);
   el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  if (el.addCancel) el.addCancel.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
@@ -13583,7 +13710,7 @@ var OVERVIEW_SCRIPT = `
   el.testAllBtnFoot.addEventListener("click", function () {
     GX.confirm({
       title: "Test all live keys?",
-      message: "One live call per key, four at a time.",
+      message: "One live call per key, eight at a time.",
       confirmLabel: "Test all live keys"
     }).then(function (ok) {
       if (ok) testAll(el.testAllBtnFoot, el.testAllNoteFoot);
@@ -14044,7 +14171,7 @@ var MODELS_SCRIPT = `
     }
     el.body.textContent = "";
 
-    var table = GX.el("table", { class: "table" });
+    var table = GX.el("table", { class: "table models-table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
       GX.el("th", { text: "Provider" }),
       GX.el("th", { text: "Model / Voice" }),
@@ -18799,24 +18926,34 @@ ${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="panel-head">
-      <h2 id="addTitle">Add keys</h2>
+    <div class="card-head">
+      <div class="card-title">
+        <h2 id="addTitle">Add keys</h2>
+        <span class="card-sub">Paste one key per line. Every key is probed before it joins the pool.</span>
+      </div>
+      <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
-      <div class="u-mb-3">
-        <label class="field" for="newProvider">Provider</label>
-        <select id="newProvider" class="select"></select>
-        <p class="hint u-mt-2" id="newProviderHint"></p>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="span-2">
+          <label class="field" for="newProvider">Provider</label>
+          <select id="newProvider" class="select"></select>
+          <p class="hint u-mt-1" id="newProviderHint"></p>
+        </div>
+        <div class="span-2">
+          <label class="field" for="newKeys">Keys</label>
+          <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
+          <p class="hint u-mt-1">One per line, or separated by commas. Raw values are never returned by the API: the console only ever holds the id and the masked form.</p>
+        </div>
       </div>
-      <label class="field" for="newKeys">One key per line, or separated by commas</label>
-      <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="toolbar u-mt-3">
-        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
-        <span id="addCount" class="hint"></span>
-      </div>
-      <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
-      <p class="hint u-mt-3">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+      <div id="addMsg" class="notice u-mt-3" role="status" aria-live="polite"></div>
+    </div>
+    <div class="card-foot">
+      <span id="addCount" class="hint"></span>
+      <span class="spacer"></span>
+      <button id="addCancel" class="btn" type="button">Cancel</button>
+      <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
     </div>
   </form>
 </dialog>
@@ -18850,6 +18987,7 @@ var KEYS_SCRIPT = `
     addBtn: document.getElementById("addBtn"),
     addDialog: document.getElementById("addDialog"),
     addClose: document.getElementById("addClose"),
+    addCancel: document.getElementById("addCancel"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
     newProvider: document.getElementById("newProvider"),
@@ -19153,7 +19291,7 @@ var KEYS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
-    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "shared by every instance"));
+    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "across every provider"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
        asked. The registry names every provider, so a custom one gets its own
@@ -19168,7 +19306,7 @@ var KEYS_SCRIPT = `
     var label = function (p) {
       var hit = null;
       (state.providers || []).forEach(function (x) { if (x.id === p) hit = x; });
-      return hit && hit.label ? hit.label + " keys" : p + " keys";
+      return hit && hit.label ? hit.label : p;
     };
     Object.keys(byProvider).sort(function (a, b) {
       if (a === b) return 0;
@@ -19729,6 +19867,7 @@ var KEYS_SCRIPT = `
     if (el.newKeys) el.newKeys.focus();
   });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  if (el.addCancel) el.addCancel.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   if (el.newProvider) el.newProvider.addEventListener("change", paintProviderHint);
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
   el.newKeys.addEventListener("input", function () {
@@ -19841,15 +19980,25 @@ var DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
-    <div class="panel-head">
-      <h2>State</h2>
-      <span class="meta" id="stateNote"></span>
-    </div>
-    <div class="panel-body">
-      <dl class="defs" id="summary"></dl>
-    </div>
-  </section>
+  <div class="grid grid-2 u-mt-4">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>State</h2>
+        <span class="meta" id="stateNote"></span>
+      </div>
+      <div class="panel-body">
+        <dl class="defs" id="summary"></dl>
+      </div>
+    </section>
+
+    <section class="panel" id="eventsPanel">
+      <div class="panel-head">
+        <h2>Cooldown timeline</h2>
+        <span class="meta" id="cooldownNote"></span>
+      </div>
+      <div id="eventsFeed" class="feed"></div>
+    </section>
+  </div>
 
   <section class="panel u-mt-4" id="dailyPanel" hidden>
     <div class="panel-head">
@@ -19880,13 +20029,6 @@ var DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4" id="eventsPanel">
-    <div class="panel-head">
-      <h2>Cooldown timeline</h2>
-      <span class="meta" id="cooldownNote"></span>
-    </div>
-    <div id="eventsFeed" class="feed"></div>
-  </section>
 
   <p class="hint u-mt-3" id="noHistory"></p>
 </div>
@@ -20352,66 +20494,80 @@ var PROVIDERS_BODY = `
 
 ${confirmDialog()}
 
-<dialog id="providerDialog" aria-labelledby="providerDialogTitle">
+<dialog id="providerDialog" class="wide" aria-labelledby="providerDialogTitle">
   <form id="providerForm" method="dialog">
-    <div class="panel-head">
-      <h2 id="providerDialogTitle">Add provider</h2>
+    <div class="card-head">
+      <div class="card-title">
+        <h2 id="providerDialogTitle">Add provider</h2>
+        <span class="card-sub" id="providerDialogSub">An OpenAI-compatible upstream the gateway can route to.</span>
+      </div>
+      <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="providerClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
-      <div class="toolbar">
-        <div class="grow">
-          <label class="field" for="pLabel">Label</label>
-          <input id="pLabel" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="My Gateway">
-          <p class="hint u-mt-1">Display name shown in tables and badges.</p>
-        </div>
-        <div class="grow">
-          <label class="field" for="pId">Id</label>
-          <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
-          <p class="hint u-mt-1">Alias used as the <code>provider/</code> route prefix. Lowercase letters, digits and dashes.</p>
-        </div>
-      </div>
-      <div class="u-mt-3">
-        <label class="field" for="pBaseUrl">Base URL</label>
-        <input id="pBaseUrl" class="input mono" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.example.com/v1">
-      </div>
-      <fieldset class="u-mt-3">
-        <legend class="field">Capabilities</legend>
-        <div class="toolbar" id="pCaps">
-          ${CAPABILITY_OPTIONS.map(
-  (c) => '<label class="switch" for="pCap-' + c + '"><input id="pCap-' + c + '" type="checkbox" value="' + c + '"><span>' + c + "</span></label>"
+
+    <div class="card-body">
+      <div class="modal-split">
+        <section class="form-section">
+          <h3 class="form-h">Identity</h3>
+          <div class="form-grid">
+            <div>
+              <label class="field" for="pLabel">Label</label>
+              <input id="pLabel" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="My Gateway">
+            </div>
+            <div>
+              <label class="field" for="pId">Id</label>
+              <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
+            </div>
+            <div class="span-2">
+              <label class="field" for="pBaseUrl">Base URL</label>
+              <input id="pBaseUrl" class="input mono" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.example.com/v1">
+              <p class="hint u-mt-1">The id is the <code>provider/</code> route prefix: lowercase letters, digits and dashes.</p>
+            </div>
+            <div class="span-2">
+              <label class="field" for="pKeyPattern">Key format <span class="hint">(optional)</span></label>
+              <input id="pKeyPattern" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="^sk-[A-Za-z0-9_-]{16,}$">
+              <p class="hint u-mt-1">A regex that recognises this provider's keys, so a pasted key lands in the right pool.</p>
+            </div>
+            <div class="span-2">
+              <label class="field" for="pNote">Note</label>
+              <input id="pNote" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="what this upstream is for">
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3 class="form-h">Capabilities</h3>
+          <div class="caps-grid" id="pCaps">
+            ${CAPABILITY_OPTIONS.map(
+  (c) => '<label class="cap" for="pCap-' + c + '"><input id="pCap-' + c + '" type="checkbox" value="' + c + '"><span>' + c + "</span></label>"
 ).join("")}
-        </div>
-        <p class="hint u-mt-2">A route refuses a provider without the capability it needs. An LLM-only gateway never answers TTS. Chat includes tool calls.</p>
-      </fieldset>
-      <div class="u-mt-3">
-        <label class="field" for="pKeyPattern">Key format <span class="hint">(optional)</span></label>
-        <input id="pKeyPattern" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="^sk-[A-Za-z0-9_-]{16,}$">
-        <p class="hint u-mt-1">A regular expression that recognises this provider's keys, so a pasted key lands in the right pool automatically.</p>
+          </div>
+          <p class="hint u-mt-2">A route refuses a provider without the capability it needs.</p>
+
+          <h3 class="form-h u-mt-4">Models</h3>
+          <div class="toolbar">
+            <span class="hint grow">One model id per line. Bare ids resolve here.</span>
+            <button id="pImport" class="btn btn-sm" type="button">${icon("download")}Import</button>
+          </div>
+          <p class="hint u-mt-1" id="pImportHint"></p>
+          <textarea id="pModels" spellcheck="false" rows="5" placeholder="deepseek-v4.1-flash-1017&#10;gpt-4o"></textarea>
+
+          <div id="pKeysRow">
+            <h3 class="form-h u-mt-4">First keys <span class="hint">(optional)</span></h3>
+            <textarea id="pKeys" spellcheck="false" rows="3" placeholder="sk-\u2026"></textarea>
+            <p class="hint u-mt-1">Added to the pool under this provider in the same step.</p>
+          </div>
+        </section>
       </div>
-      <div class="u-mt-3">
-        <div class="toolbar">
-          <label class="field u-mb-0 grow" for="pModels">Models</label>
-          <button id="pImport" class="btn btn-sm" type="button">${icon("download")}Import from /v1/models</button>
-        </div>
-        <p class="hint u-mt-1" id="pImportHint"></p>
-        <textarea id="pModels" spellcheck="false" rows="5" placeholder="deepseek-v4.1-flash-1017&#10;gpt-4o"></textarea>
-        <p class="hint u-mt-1">One model id per line. A bare id a client asks for is routed here when it appears in this list or in the provider's live catalog.</p>
-      </div>
-      <div class="u-mt-3" id="pKeysRow">
-        <label class="field" for="pKeys">First keys <span class="hint">(optional)</span></label>
-        <textarea id="pKeys" spellcheck="false" rows="3" placeholder="sk-\u2026"></textarea>
-        <p class="hint u-mt-1">Added to the pool under this provider in the same step. A provider with no keys serves nothing.</p>
-      </div>
-      <div class="u-mt-3">
-        <label class="field" for="pNote">Note</label>
-        <input id="pNote" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="what this upstream is for">
-      </div>
-      <div class="toolbar u-mt-3">
-        <button id="pSubmit" class="btn btn-primary" type="submit">Add provider</button>
-        <span id="pCount" class="hint"></span>
-      </div>
-      <div id="pMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
+
+      <div id="pMsg" class="notice u-mt-3" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="card-foot">
+      <span id="pCount" class="hint"></span>
+      <span class="spacer"></span>
+      <button id="providerCancel" class="btn" type="button">Cancel</button>
+      <button id="pSubmit" class="btn btn-primary" type="submit">Add provider</button>
     </div>
   </form>
 </dialog>
@@ -20435,6 +20591,8 @@ var PROVIDERS_SCRIPT = `
     form: document.getElementById("providerForm"),
     dialogTitle: document.getElementById("providerDialogTitle"),
     closeBtn: document.getElementById("providerClose"),
+    cancelBtn: document.getElementById("providerCancel"),
+    subtitle: document.getElementById("providerDialogSub"),
     id: document.getElementById("pId"),
     label: document.getElementById("pLabel"),
     baseUrl: document.getElementById("pBaseUrl"),
@@ -20539,19 +20697,21 @@ var PROVIDERS_SCRIPT = `
       if (el.resetBtn) el.resetBtn.hidden = !filtersActive();
       return;
     }
-    var table = GX.el("table", { class: "table" });
+    var table = GX.el("table", { class: "table providers-table" });
     table.appendChild(tableHead());
     var body = GX.el("tbody");
     visible.forEach(function (p) {
       var tr = GX.el("tr", { "data-provider": p.id });
 
-      var prov = GX.el("td", {}, [
-        GX.el("div", { class: "row-gap" }, [
+      /* One line per cell: the badge already names the provider, so the
+         second line only ever repeated it. The label stays as the title. */
+      var prov = GX.el("td", { "data-l": "provider" }, [
+        GX.el("div", { class: "cell-inline" }, [
           GX.providerTag(p.id),
-          GX.el("span", { class: "sub", text: p.builtin ? "builtin \xB7 model list only" : "custom" })
-        ]),
-        GX.el("div", { class: "sub", text: p.label })
+          GX.el("span", { class: "sub", text: p.builtin ? "builtin" : "custom" })
+        ])
       ]);
+      prov.title = (p.label || p.id) + (p.builtin ? " \xB7 built in, model list only" : "");
       tr.appendChild(prov);
 
       /* Base URL is the column; Wire rides under it as a subline, so the
@@ -20559,10 +20719,12 @@ var PROVIDERS_SCRIPT = `
          itself is mono and truncated with the table's own .sub ellipsis;
          the full URL stays in the title. */
       var urlCell = GX.el("td", { "data-l": "base url" });
-      var urlText = GX.el("div", { class: "sub mono", style: "max-width: 280px", text: p.baseUrl || "-" });
+      var urlText = GX.el("div", { class: "sub mono trunc", text: p.baseUrl || "-" });
       urlText.title = p.baseUrl || "";
-      urlCell.appendChild(urlText);
-      urlCell.appendChild(GX.el("div", { class: "sub", text: p.wire }));
+      urlCell.appendChild(GX.el("div", { class: "cell-inline" }, [
+        urlText,
+        GX.el("span", { class: "tag", "data-tone": "plain", text: p.wire })
+      ]));
       tr.appendChild(urlCell);
 
       var caps = GX.el("td");
@@ -20570,21 +20732,21 @@ var PROVIDERS_SCRIPT = `
       if (!(p.capabilities || []).length) caps.appendChild(GX.el("span", { class: "sub", text: "none" }));
       tr.appendChild(caps);
 
-      var keysCell = GX.el("td", { class: "u-tnum" });
+      var keysCell = GX.el("td", { class: "u-tnum num", "data-l": "keys" });
       keysCell.appendChild(GX.el("a", {
         class: "link",
         href: "/pengatur/keys?provider=" + encodeURIComponent(p.id),
         text: (p.ready || 0) + "/" + (p.keys || 0)
       }));
       tr.appendChild(keysCell);
-      var modelsCell = GX.el("td", { class: "u-tnum" });
+      var modelsCell = GX.el("td", { class: "u-tnum num", "data-l": "models" });
       modelsCell.appendChild(GX.el("a", {
         class: "link",
         href: "/pengatur/models?provider=" + encodeURIComponent(p.id),
         text: String((p.models || []).length)
       }));
       tr.appendChild(modelsCell);
-      tr.appendChild(GX.el("td", {}, [
+      tr.appendChild(GX.el("td", { "data-l": "state" }, [
         p.enabled ? GX.tag("enabled", "ok") : GX.tag("disabled", "warn")
       ]));
 
@@ -20640,6 +20802,7 @@ var PROVIDERS_SCRIPT = `
     el.form.reset();
     state.editId = "";
     el.dialogTitle.textContent = "Add provider";
+    if (el.subtitle) el.subtitle.textContent = "An OpenAI-compatible upstream the gateway can route to.";
     el.submit.textContent = "Add provider";
     el.id.disabled = false;
     el.keysRow.hidden = false;
@@ -20653,6 +20816,9 @@ var PROVIDERS_SCRIPT = `
     if (p) {
       state.editId = p.id;
       el.dialogTitle.textContent = "Edit " + p.label;
+      if (el.subtitle) el.subtitle.textContent = p.builtin
+        ? "Built in: the console curates its models and its enabled flag."
+        : "Change what this upstream is called, where it lives and what it may serve.";
       el.submit.textContent = "Save changes";
       el.id.value = p.id;
       el.id.disabled = true;
@@ -20817,6 +20983,7 @@ var PROVIDERS_SCRIPT = `
 
   el.addBtn.addEventListener("click", function () { openDialog(null); });
   el.closeBtn.addEventListener("click", function () { GX.closeDialog(el.dialog); });
+  if (el.cancelBtn) el.cancelBtn.addEventListener("click", function () { GX.closeDialog(el.dialog); });
   el.submit.addEventListener("click", function (ev) { ev.preventDefault(); submitDialog(); });
   el.importBtn.addEventListener("click", importModels);
   el.models.addEventListener("input", countModels);

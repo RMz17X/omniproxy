@@ -181,24 +181,34 @@ ${confirmDialog()}
 
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
-    <div class="panel-head">
-      <h2 id="addTitle">Add keys</h2>
+    <div class="card-head">
+      <div class="card-title">
+        <h2 id="addTitle">Add keys</h2>
+        <span class="card-sub">Paste one key per line. Every key is probed before it joins the pool.</span>
+      </div>
+      <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
-      <div class="u-mb-3">
-        <label class="field" for="newProvider">Provider</label>
-        <select id="newProvider" class="select"></select>
-        <p class="hint u-mt-2" id="newProviderHint"></p>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="span-2">
+          <label class="field" for="newProvider">Provider</label>
+          <select id="newProvider" class="select"></select>
+          <p class="hint u-mt-1" id="newProviderHint"></p>
+        </div>
+        <div class="span-2">
+          <label class="field" for="newKeys">Keys</label>
+          <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
+          <p class="hint u-mt-1">One per line, or separated by commas. Raw values are never returned by the API: the console only ever holds the id and the masked form.</p>
+        </div>
       </div>
-      <label class="field" for="newKeys">One key per line, or separated by commas</label>
-      <textarea id="newKeys" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="toolbar u-mt-3">
-        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
-        <span id="addCount" class="hint"></span>
-      </div>
-      <div id="addMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
-      <p class="hint u-mt-3">Raw values are never returned by the API. The console only ever holds the id and the masked form.</p>
+      <div id="addMsg" class="notice u-mt-3" role="status" aria-live="polite"></div>
+    </div>
+    <div class="card-foot">
+      <span id="addCount" class="hint"></span>
+      <span class="spacer"></span>
+      <button id="addCancel" class="btn" type="button">Cancel</button>
+      <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
     </div>
   </form>
 </dialog>
@@ -233,6 +243,7 @@ const KEYS_SCRIPT = `
     addBtn: document.getElementById("addBtn"),
     addDialog: document.getElementById("addDialog"),
     addClose: document.getElementById("addClose"),
+    addCancel: document.getElementById("addCancel"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
     newProvider: document.getElementById("newProvider"),
@@ -536,7 +547,7 @@ const KEYS_SCRIPT = `
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
-    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "shared by every instance"));
+    el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "across every provider"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
        asked. The registry names every provider, so a custom one gets its own
@@ -551,7 +562,7 @@ const KEYS_SCRIPT = `
     var label = function (p) {
       var hit = null;
       (state.providers || []).forEach(function (x) { if (x.id === p) hit = x; });
-      return hit && hit.label ? hit.label + " keys" : p + " keys";
+      return hit && hit.label ? hit.label : p;
     };
     Object.keys(byProvider).sort(function (a, b) {
       if (a === b) return 0;
@@ -1112,6 +1123,7 @@ const KEYS_SCRIPT = `
     if (el.newKeys) el.newKeys.focus();
   });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  if (el.addCancel) el.addCancel.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   if (el.newProvider) el.newProvider.addEventListener("change", paintProviderHint);
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
   el.newKeys.addEventListener("input", function () {
@@ -1227,15 +1239,25 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4">
-    <div class="panel-head">
-      <h2>State</h2>
-      <span class="meta" id="stateNote"></span>
-    </div>
-    <div class="panel-body">
-      <dl class="defs" id="summary"></dl>
-    </div>
-  </section>
+  <div class="grid grid-2 u-mt-4">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>State</h2>
+        <span class="meta" id="stateNote"></span>
+      </div>
+      <div class="panel-body">
+        <dl class="defs" id="summary"></dl>
+      </div>
+    </section>
+
+    <section class="panel" id="eventsPanel">
+      <div class="panel-head">
+        <h2>Cooldown timeline</h2>
+        <span class="meta" id="cooldownNote"></span>
+      </div>
+      <div id="eventsFeed" class="feed"></div>
+    </section>
+  </div>
 
   <section class="panel u-mt-4" id="dailyPanel" hidden>
     <div class="panel-head">
@@ -1266,13 +1288,6 @@ const DETAIL_BODY = `
     </div>
   </section>
 
-  <section class="panel u-mt-4" id="eventsPanel">
-    <div class="panel-head">
-      <h2>Cooldown timeline</h2>
-      <span class="meta" id="cooldownNote"></span>
-    </div>
-    <div id="eventsFeed" class="feed"></div>
-  </section>
 
   <p class="hint u-mt-3" id="noHistory"></p>
 </div>

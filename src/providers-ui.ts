@@ -99,75 +99,89 @@ const PROVIDERS_BODY = `
 
 ${confirmDialog()}
 
-<dialog id="providerDialog" aria-labelledby="providerDialogTitle">
+<dialog id="providerDialog" class="wide" aria-labelledby="providerDialogTitle">
   <form id="providerForm" method="dialog">
-    <div class="panel-head">
-      <h2 id="providerDialogTitle">Add provider</h2>
+    <div class="card-head">
+      <div class="card-title">
+        <h2 id="providerDialogTitle">Add provider</h2>
+        <span class="card-sub" id="providerDialogSub">An OpenAI-compatible upstream the gateway can route to.</span>
+      </div>
+      <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="providerClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
-      <div class="toolbar">
-        <div class="grow">
-          <label class="field" for="pLabel">Label</label>
-          <input id="pLabel" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="My Gateway">
-          <p class="hint u-mt-1">Display name shown in tables and badges.</p>
-        </div>
-        <div class="grow">
-          <label class="field" for="pId">Id</label>
-          <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
-          <p class="hint u-mt-1">Alias used as the <code>provider/</code> route prefix. Lowercase letters, digits and dashes.</p>
-        </div>
+
+    <div class="card-body">
+      <div class="modal-split">
+        <section class="form-section">
+          <h3 class="form-h">Identity</h3>
+          <div class="form-grid">
+            <div>
+              <label class="field" for="pLabel">Label</label>
+              <input id="pLabel" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="My Gateway">
+            </div>
+            <div>
+              <label class="field" for="pId">Id</label>
+              <input id="pId" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="my-gateway">
+            </div>
+            <div class="span-2">
+              <label class="field" for="pBaseUrl">Base URL</label>
+              <input id="pBaseUrl" class="input mono" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.example.com/v1">
+              <p class="hint u-mt-1">The id is the <code>provider/</code> route prefix: lowercase letters, digits and dashes.</p>
+            </div>
+            <div class="span-2">
+              <label class="field" for="pKeyPattern">Key format <span class="hint">(optional)</span></label>
+              <input id="pKeyPattern" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="^sk-[A-Za-z0-9_-]{16,}$">
+              <p class="hint u-mt-1">A regex that recognises this provider's keys, so a pasted key lands in the right pool.</p>
+            </div>
+            <div class="span-2">
+              <label class="field" for="pNote">Note</label>
+              <input id="pNote" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="what this upstream is for">
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3 class="form-h">Capabilities</h3>
+          <div class="caps-grid" id="pCaps">
+            ${CAPABILITY_OPTIONS.map(
+              (c) =>
+                '<label class="cap" for="pCap-' +
+                c +
+                '"><input id="pCap-' +
+                c +
+                '" type="checkbox" value="' +
+                c +
+                '"><span>' +
+                c +
+                "</span></label>",
+            ).join("")}
+          </div>
+          <p class="hint u-mt-2">A route refuses a provider without the capability it needs.</p>
+
+          <h3 class="form-h u-mt-4">Models</h3>
+          <div class="toolbar">
+            <span class="hint grow">One model id per line. Bare ids resolve here.</span>
+            <button id="pImport" class="btn btn-sm" type="button">${icon("download")}Import</button>
+          </div>
+          <p class="hint u-mt-1" id="pImportHint"></p>
+          <textarea id="pModels" spellcheck="false" rows="5" placeholder="deepseek-v4.1-flash-1017&#10;gpt-4o"></textarea>
+
+          <div id="pKeysRow">
+            <h3 class="form-h u-mt-4">First keys <span class="hint">(optional)</span></h3>
+            <textarea id="pKeys" spellcheck="false" rows="3" placeholder="sk-…"></textarea>
+            <p class="hint u-mt-1">Added to the pool under this provider in the same step.</p>
+          </div>
+        </section>
       </div>
-      <div class="u-mt-3">
-        <label class="field" for="pBaseUrl">Base URL</label>
-        <input id="pBaseUrl" class="input mono" type="url" spellcheck="false" autocomplete="off" placeholder="https://api.example.com/v1">
-      </div>
-      <fieldset class="u-mt-3">
-        <legend class="field">Capabilities</legend>
-        <div class="toolbar" id="pCaps">
-          ${CAPABILITY_OPTIONS.map(
-            (c) =>
-              '<label class="switch" for="pCap-' +
-              c +
-              '"><input id="pCap-' +
-              c +
-              '" type="checkbox" value="' +
-              c +
-              '"><span>' +
-              c +
-              "</span></label>",
-          ).join("")}
-        </div>
-        <p class="hint u-mt-2">A route refuses a provider without the capability it needs. An LLM-only gateway never answers TTS. Chat includes tool calls.</p>
-      </fieldset>
-      <div class="u-mt-3">
-        <label class="field" for="pKeyPattern">Key format <span class="hint">(optional)</span></label>
-        <input id="pKeyPattern" class="input mono" type="text" spellcheck="false" autocomplete="off" placeholder="^sk-[A-Za-z0-9_-]{16,}$">
-        <p class="hint u-mt-1">A regular expression that recognises this provider's keys, so a pasted key lands in the right pool automatically.</p>
-      </div>
-      <div class="u-mt-3">
-        <div class="toolbar">
-          <label class="field u-mb-0 grow" for="pModels">Models</label>
-          <button id="pImport" class="btn btn-sm" type="button">${icon("download")}Import from /v1/models</button>
-        </div>
-        <p class="hint u-mt-1" id="pImportHint"></p>
-        <textarea id="pModels" spellcheck="false" rows="5" placeholder="deepseek-v4.1-flash-1017&#10;gpt-4o"></textarea>
-        <p class="hint u-mt-1">One model id per line. A bare id a client asks for is routed here when it appears in this list or in the provider's live catalog.</p>
-      </div>
-      <div class="u-mt-3" id="pKeysRow">
-        <label class="field" for="pKeys">First keys <span class="hint">(optional)</span></label>
-        <textarea id="pKeys" spellcheck="false" rows="3" placeholder="sk-…"></textarea>
-        <p class="hint u-mt-1">Added to the pool under this provider in the same step. A provider with no keys serves nothing.</p>
-      </div>
-      <div class="u-mt-3">
-        <label class="field" for="pNote">Note</label>
-        <input id="pNote" class="input" type="text" spellcheck="false" autocomplete="off" placeholder="what this upstream is for">
-      </div>
-      <div class="toolbar u-mt-3">
-        <button id="pSubmit" class="btn btn-primary" type="submit">Add provider</button>
-        <span id="pCount" class="hint"></span>
-      </div>
-      <div id="pMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
+
+      <div id="pMsg" class="notice u-mt-3" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="card-foot">
+      <span id="pCount" class="hint"></span>
+      <span class="spacer"></span>
+      <button id="providerCancel" class="btn" type="button">Cancel</button>
+      <button id="pSubmit" class="btn btn-primary" type="submit">Add provider</button>
     </div>
   </form>
 </dialog>
@@ -192,6 +206,8 @@ const PROVIDERS_SCRIPT = `
     form: document.getElementById("providerForm"),
     dialogTitle: document.getElementById("providerDialogTitle"),
     closeBtn: document.getElementById("providerClose"),
+    cancelBtn: document.getElementById("providerCancel"),
+    subtitle: document.getElementById("providerDialogSub"),
     id: document.getElementById("pId"),
     label: document.getElementById("pLabel"),
     baseUrl: document.getElementById("pBaseUrl"),
@@ -296,19 +312,21 @@ const PROVIDERS_SCRIPT = `
       if (el.resetBtn) el.resetBtn.hidden = !filtersActive();
       return;
     }
-    var table = GX.el("table", { class: "table" });
+    var table = GX.el("table", { class: "table providers-table" });
     table.appendChild(tableHead());
     var body = GX.el("tbody");
     visible.forEach(function (p) {
       var tr = GX.el("tr", { "data-provider": p.id });
 
-      var prov = GX.el("td", {}, [
-        GX.el("div", { class: "row-gap" }, [
+      /* One line per cell: the badge already names the provider, so the
+         second line only ever repeated it. The label stays as the title. */
+      var prov = GX.el("td", { "data-l": "provider" }, [
+        GX.el("div", { class: "cell-inline" }, [
           GX.providerTag(p.id),
-          GX.el("span", { class: "sub", text: p.builtin ? "builtin · model list only" : "custom" })
-        ]),
-        GX.el("div", { class: "sub", text: p.label })
+          GX.el("span", { class: "sub", text: p.builtin ? "builtin" : "custom" })
+        ])
       ]);
+      prov.title = (p.label || p.id) + (p.builtin ? " · built in, model list only" : "");
       tr.appendChild(prov);
 
       /* Base URL is the column; Wire rides under it as a subline, so the
@@ -316,10 +334,12 @@ const PROVIDERS_SCRIPT = `
          itself is mono and truncated with the table's own .sub ellipsis;
          the full URL stays in the title. */
       var urlCell = GX.el("td", { "data-l": "base url" });
-      var urlText = GX.el("div", { class: "sub mono", style: "max-width: 280px", text: p.baseUrl || "-" });
+      var urlText = GX.el("div", { class: "sub mono trunc", text: p.baseUrl || "-" });
       urlText.title = p.baseUrl || "";
-      urlCell.appendChild(urlText);
-      urlCell.appendChild(GX.el("div", { class: "sub", text: p.wire }));
+      urlCell.appendChild(GX.el("div", { class: "cell-inline" }, [
+        urlText,
+        GX.el("span", { class: "tag", "data-tone": "plain", text: p.wire })
+      ]));
       tr.appendChild(urlCell);
 
       var caps = GX.el("td");
@@ -327,21 +347,21 @@ const PROVIDERS_SCRIPT = `
       if (!(p.capabilities || []).length) caps.appendChild(GX.el("span", { class: "sub", text: "none" }));
       tr.appendChild(caps);
 
-      var keysCell = GX.el("td", { class: "u-tnum" });
+      var keysCell = GX.el("td", { class: "u-tnum num", "data-l": "keys" });
       keysCell.appendChild(GX.el("a", {
         class: "link",
         href: "/pengatur/keys?provider=" + encodeURIComponent(p.id),
         text: (p.ready || 0) + "/" + (p.keys || 0)
       }));
       tr.appendChild(keysCell);
-      var modelsCell = GX.el("td", { class: "u-tnum" });
+      var modelsCell = GX.el("td", { class: "u-tnum num", "data-l": "models" });
       modelsCell.appendChild(GX.el("a", {
         class: "link",
         href: "/pengatur/models?provider=" + encodeURIComponent(p.id),
         text: String((p.models || []).length)
       }));
       tr.appendChild(modelsCell);
-      tr.appendChild(GX.el("td", {}, [
+      tr.appendChild(GX.el("td", { "data-l": "state" }, [
         p.enabled ? GX.tag("enabled", "ok") : GX.tag("disabled", "warn")
       ]));
 
@@ -397,6 +417,7 @@ const PROVIDERS_SCRIPT = `
     el.form.reset();
     state.editId = "";
     el.dialogTitle.textContent = "Add provider";
+    if (el.subtitle) el.subtitle.textContent = "An OpenAI-compatible upstream the gateway can route to.";
     el.submit.textContent = "Add provider";
     el.id.disabled = false;
     el.keysRow.hidden = false;
@@ -410,6 +431,9 @@ const PROVIDERS_SCRIPT = `
     if (p) {
       state.editId = p.id;
       el.dialogTitle.textContent = "Edit " + p.label;
+      if (el.subtitle) el.subtitle.textContent = p.builtin
+        ? "Built in: the console curates its models and its enabled flag."
+        : "Change what this upstream is called, where it lives and what it may serve.";
       el.submit.textContent = "Save changes";
       el.id.value = p.id;
       el.id.disabled = true;
@@ -574,6 +598,7 @@ const PROVIDERS_SCRIPT = `
 
   el.addBtn.addEventListener("click", function () { openDialog(null); });
   el.closeBtn.addEventListener("click", function () { GX.closeDialog(el.dialog); });
+  if (el.cancelBtn) el.cancelBtn.addEventListener("click", function () { GX.closeDialog(el.dialog); });
   el.submit.addEventListener("click", function (ev) { ev.preventDefault(); submitDialog(); });
   el.importBtn.addEventListener("click", importModels);
   el.models.addEventListener("input", countModels);

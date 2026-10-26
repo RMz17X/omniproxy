@@ -74,8 +74,8 @@ export const BASE_CSS = `
   /* Spacing scale (4px base) and its jobs: caption 4 / tight 8 / half 12 /
      inner 16 / section 24 / loose 32 / deep 48. Page sections stack at 24,
      content inside a section stacks at 16, controls sit at 8, captions at 4.
-     Layout rules below use these tokens, never raw px, so the compact
-     density override actually compacts the whole console. */
+     Layout rules below use these tokens, never raw px, so the rhythm holds
+     on every page. */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-2h: 12px;
@@ -88,8 +88,10 @@ export const BASE_CSS = `
   --tap: 32px;
   --tap-sm: 28px;
 
-  --rail: 236px;
-  --page-max: 1200px;
+  /* The rail is fixed; the canvas takes the rest of the viewport, so the
+     layout is full-bleed by construction — no page max-width. */
+  --rail: 232px;
+  --gutter: 28px;
 }
 
 /* the light theme is the same system inverted, chosen explicitly ---------- */
@@ -160,8 +162,8 @@ export const BASE_CSS = `
   --tap: 32px;
   --tap-sm: 28px;
 
-  --rail: 236px;
-  --page-max: 1200px;
+  --rail: 232px;
+  --gutter: 28px;
 }
 
 :root[data-theme="dark"] {
@@ -208,18 +210,6 @@ export const BASE_CSS = `
   --rail-text: #ededed;
   --rail-muted: #a1a1a1;
   --rail-active: #1a1a1a;
-}
-
-/* compact density: the same page, one notch tighter ---------------------- */
-:root[data-density="compact"] {
-  --tap: 32px;
-  --tap-sm: 32px;
-  --sp-2h: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 32px;
-  --sp-6: 24px;
-  --inset: 12px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -429,12 +419,10 @@ body[data-gate="locked"] .app { display: none; }
 
 .page {
   width: 100%;
-  max-width: var(--page-max);
-  margin: 0 auto;
-  /* One container for every page: 24px side gutters, 24px above the page
-     head, 48px below the last section. The restyle block repeats these
-     tokens so the two layers can never drift apart again. */
-  padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  /* Full-bleed canvas: the sidebar is the only fixed column, so the page owns
+     every remaining pixel. A centered max-width column wasted half of a wide
+     screen and made tables scroll while the viewport sat empty. */
+  padding: var(--sp-4) var(--gutter) var(--sp-5);
   min-width: 0;
 }
 
@@ -487,20 +475,26 @@ body[data-gate="locked"] .app { display: none; }
 .zone-head .meta { margin-left: auto; font-size: 12px; color: var(--text-3); }
 
 .grid { display: grid; gap: var(--sp-3); min-width: 0; }
-.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
+/* Fluid columns: a wide screen gets more columns, not wider cells. auto-fit
+   with a floor means a 1600px canvas shows three breakdowns side by side and a
+   900px one shows a single stack, with no breakpoint bookkeeping. */
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(620px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid-4 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: var(--sp-3); align-items: start; }
 
 /* figures ---------------------------------------------------------------- */
 
-/* A KPI row is a grid of separate cards, never one full-width strip with
-   dividers: the overview reads like a dashboard, and every figure carries its
-   own surface so it can be compared at a glance. */
+/* A KPI row is separate cards, never one full-width strip with dividers: the
+   overview reads like a dashboard, and every figure carries its own surface so
+   it can be compared at a glance. One width per card across every row: the
+   card count changes per page, so a fixed 220px floor keeps a twelve-figure
+   page at six columns and a five-figure page at five, rather than stretching
+   whatever lands alone on the last row to the full width. */
 .figures {
   display: grid;
   gap: var(--sp-3);
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   min-width: 0;
 }
 .fig {
@@ -510,7 +504,11 @@ body[data-gate="locked"] .app { display: none; }
   border-radius: var(--r-surface);
   min-width: 0;
 }
-.fig-label { display: block; font-size: 11px; font-weight: 620; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-3); }
+.fig-label {
+  display: block; font-size: 11px; font-weight: 620; letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .fig-value {
   display: block;
   margin-top: var(--sp-2);
@@ -892,7 +890,7 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .defs { display: grid; grid-template-columns: minmax(0, 1fr); }
 .def { display: flex; align-items: baseline; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--line); min-width: 0; }
 .def:first-child { border-top: 0; padding-top: 0; }
-.def dt { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
+.def dt { flex: 0 0 132px; white-space: nowrap; font-size: 12.5px; color: var(--text-3); }
 .def dd { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
 
 /* The key column carries a 39-character mono value and a copy button. Without a
@@ -903,6 +901,32 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .table td[data-l="provider"] { width: 110px; max-width: 110px; white-space: nowrap; }
 .table td[data-l="status"] { width: 230px; max-width: 230px; }
 .table td[data-l="plan"] { width: 170px; max-width: 170px; }
+/* Providers registry: fixed column widths so the URL column absorbs the extra
+   space instead of every cell stretching and every row wrapping. */
+.providers-table th:nth-child(1) { width: 250px; }
+.providers-table th:nth-child(2) { width: 38%; }
+.providers-table th:nth-child(3) { width: 360px; }
+.providers-table th:nth-child(4),
+.providers-table th:nth-child(5) { width: 96px; }
+.providers-table th:nth-child(6) { width: 112px; }
+.providers-table th:nth-child(7) { width: 1%; }
+.providers-table td { white-space: nowrap; }
+.providers-table td:nth-child(3) { white-space: nowrap; }
+.providers-table td:nth-child(3) .tag { padding: 2px 6px; font-size: 11px; }
+.providers-table td[data-l="provider"] { width: 250px; max-width: 320px; }
+.cell-inline { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+
+/* Models catalog: the model name is the only column that wants to grow; every
+   price and counter is a narrow numeric column pinned to the right. */
+.models-table th:nth-child(1) { width: 140px; }
+.models-table th:nth-child(3) { width: 120px; }
+.models-table th:nth-child(4),
+.models-table th:nth-child(5) { width: 116px; }
+.models-table th:nth-child(6) { width: 96px; }
+.models-table th:nth-child(7) { width: 92px; }
+.models-table th:nth-child(8) { width: 1%; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Stacked rows are full-width cards; the desktop caps above otherwise win on
    order (same specificity, later rule wins) and leave three rows narrower than
    the other six, with space-between pushing their values to a different edge.
@@ -1330,29 +1354,93 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 
 /* dialogs ---------------------------------------------------------------- */
 
+/* A modal is a sheet, not a floating card: fixed header, scrolling body and a
+   footer that stays put. Widths step 620 / 960; the radius, the shadow and the
+   dimmed backdrop carry the depth, so no border tricks are needed. */
 dialog {
-  width: min(560px, calc(100vw - 32px));
-  max-height: min(88dvh, 780px);
+  width: min(620px, calc(100vw - 40px));
+  max-height: min(86dvh, 840px);
   padding: 0;
   border: 1px solid var(--line-2);
-  border-radius: var(--r-surface);
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.16);
   overflow: hidden;
   overscroll-behavior: contain;
 }
 dialog[open] { display: flex; flex-direction: column; }
-dialog::backdrop { background: rgba(8, 10, 14, 0.55); }
-dialog.wide { width: min(880px, calc(100vw - 32px)); }
-.card-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-bottom: 1px solid var(--line); }
-.card-head h2 { font-size: 15px; font-weight: 620; text-wrap: balance; }
+dialog::backdrop { background: rgba(6, 8, 12, 0.62); }
+dialog.wide { width: min(960px, calc(100vw - 40px)); }
+.card-head {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.card-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
 .card-head .spacer { flex: 1 1 auto; }
-.card-body { padding: var(--inset); overflow-y: auto; }
-.card-foot { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--inset); border-top: 1px solid var(--line); flex-wrap: wrap; }
+.card-body { flex: 1 1 auto; min-height: 0; padding: var(--sp-4); overflow-y: auto; }
+.card-foot {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2h) var(--sp-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+/* Dialogs written before the sheet classes use the panel vocabulary; the
+   same three bands apply so every modal in the console reads identically. */
+dialog > form > .panel-head,
+dialog > .panel-head { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line); }
+dialog > form > .panel-body,
+dialog > .panel-body { padding: var(--sp-4); overflow-y: auto; }
+dialog > form > .panel-foot,
+dialog > .panel-foot { padding: var(--sp-2h) var(--sp-4); border-top: 1px solid var(--line); }
+dialog textarea { width: 100%; min-height: 140px; }
+dialog .input, dialog .select { width: 100%; }
+dialog .field:first-child { margin-top: 0; }
+
+/* modal forms: two columns of labelled fields, grouped under a quiet heading.
+   A long single column of ten inputs is the reason the Add provider sheet read
+   as a scroll rather than a form. */
+.card-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.card-sub { color: var(--text-3); font-size: 12.5px; font-weight: 400; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3) var(--sp-4); }
+.form-grid .span-2 { grid-column: 1 / -1; }
+.form-section + .form-section { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+/* side-by-side sections are columns, not a stack: no divider, no top gap */
+.modal-split > .form-section + .form-section { margin-top: 0; padding-top: 0; border-top: 0; }
+.form-h {
+  margin: 0 0 var(--sp-2); font-size: 11px; font-weight: 640;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);
+}
+.modal-split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--sp-6); align-items: start; }
+/* capability chips: a checked box tints the whole tile, so the chosen set is
+   legible at a glance instead of being five tiny checkboxes in a row */
+.caps-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.cap {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2h);
+  border: 1px solid var(--line); border-radius: var(--r-ctl);
+  background: var(--surface-2); color: var(--text-2);
+  font-size: 12.5px; font-weight: 520; cursor: pointer;
+}
+.cap input { margin: 0; accent-color: var(--accent); }
+.cap:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); color: var(--text); }
+.cap:has(input:disabled) { opacity: 0.6; cursor: default; }
+@media screen and (max-width: 780px) {
+  .modal-split { grid-template-columns: minmax(0, 1fr); }
+}
 
 .help-h { margin: 0 0 var(--sp-2); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 .help-h + .help-list { margin-bottom: var(--sp-4); }
 .help-list { display: grid; grid-template-columns: minmax(80px, auto) 1fr; gap: var(--sp-1) var(--sp-3); margin: 0; font-size: 12.5px; }
+/* the glossary is long: two independent columns read top to bottom, so the
+   eye follows one list instead of zig-zagging across a four-column grid */
+.help-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3) var(--sp-5); align-items: start; }
+@media screen and (max-width: 900px) {
+  .help-cols { grid-template-columns: minmax(0, 1fr); }
+}
 .help-list dt { color: var(--text); font-weight: 560; }
 .help-list dd { margin: 0; color: var(--text-2); }
 .help-list kbd {
@@ -1486,15 +1574,15 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 
 /* command palette -------------------------------------------------------- */
 
-.palette { width: min(600px, calc(100vw - 24px)); }
-.palette-top { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--line); }
+.palette { width: min(680px, calc(100vw - 32px)); }
+.palette-top { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2h) var(--sp-3); border-bottom: 1px solid var(--line); }
 .palette-top svg { color: var(--text-3); flex: none; }
 .palette-input {
   flex: 1 1 auto;
   min-width: 0;
   border: 0;
   background: transparent;
-  font-size: 14.5px;
+  font-size: 15px;
   padding: var(--sp-1) 0;
 }
 /* This is the one control a keyboard user lands in after Ctrl K, and it had
@@ -1587,6 +1675,9 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .verdict-dot[data-tone="warn"] { background: var(--warn); }
 .verdict-dot[data-tone="bad"] { background: var(--bad); }
 .verdict strong { font-size: 14px; font-weight: 620; }
+.verdict-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.verdict-main strong { font-size: 15px; letter-spacing: -0.01em; }
+.verdict-main .meta { font-size: 12px; }
 
 /* hero ------------------------------------------------------------------- */
 
@@ -1628,7 +1719,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1100px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .rail { display: none; }
   .menu-btn { display: inline-flex; }
@@ -1680,12 +1771,14 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 }
 
 @media (max-width: 400px) {
-  .figures { grid-template-columns: minmax(0, 1fr); }
+  /* two figures per row even on a phone: a full-width card with a
+     three-digit number wastes a screen of scroll */
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .toolbar .grow { flex-basis: 100%; }
 }
 
 @media (pointer: coarse), (hover: none) {
-  :root, :root[data-density="compact"] { --tap: 44px; --tap-sm: 40px; }
+  :root { --tap: 44px; --tap-sm: 40px; }
   .rail-item { min-height: 44px; }
   .rail-tool { width: var(--tap); height: var(--tap); }
   .toast-x, .toast-act { min-height: 40px; min-width: 40px; }
@@ -1715,7 +1808,7 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
    Same DOM ids/classes, new layout: the rail is a proper dashboard sidebar
    again — vertical, grouped, with the provider strip visible — panels are
    white cards, buttons/tables/forms follow the Vercel dashboard vocabulary.
-   Below 1023px the sidebar steps aside for the drawer and the menu button.
+   Below 1100px the sidebar steps aside for the drawer and the menu button.
    This block sits last in BASE_CSS so it wins over the earlier rules without
    renaming anything JS depends on. */
 
@@ -1763,14 +1856,19 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .rail-actions { padding: var(--sp-1) var(--sp-2) 0; }
 .menu-btn { display: none !important; }
 
-/* breadcrumb strip under the top bar + page headers */
+/* top bar: sticky, full-bleed, one hairline. The page scrolls under it, which
+   is what makes the console feel like an app shell instead of a document. */
 .canvas-head {
-  position: static; min-height: auto; padding: var(--sp-4) var(--sp-4) 0;
-  border-bottom: 0; background: transparent;
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: var(--sp-3);
+  min-height: 56px; padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px);
 }
 .canvas-crumb { font-size: 12px; }
 .canvas-crumb b { font-size: 12px; }
-.page { padding: var(--sp-4) var(--sp-4) var(--sp-5); }
+.page { padding: var(--sp-4) var(--gutter) var(--sp-5); }
 .eyebrow {
   font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--text-3);
@@ -1855,21 +1953,21 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
   border-radius: var(--r-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
-/* responsive: the sidebar steps aside for the drawer below 1023px — the menu
+/* responsive: the sidebar steps aside for the drawer below 1100px — the menu
    button returns, the drawer stacks the same sections vertically with the
    same aria-current marker, and the canvas takes the full width */
-@media screen and (max-width: 1023px) {
+@media screen and (max-width: 1100px) {
   .shell { display: block; }
   .rail { display: none; }
-  .canvas-head { padding: var(--sp-3) var(--sp-3) 0; }
-  .page { padding: var(--sp-3); }
+  .canvas-head { padding: 0 var(--sp-3); }
+  .page { padding: var(--sp-3) var(--sp-3) var(--sp-5); }
 }
 @media screen and (max-width: 720px) {
   .page-title { font-size: 20px; }
   .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* drawer navigation: below 1023px the menu button opens this panel, which
+/* drawer navigation: below 1100px the menu button opens this panel, which
    stacks the same sections vertically with the same aria-current marker the
    sidebar uses. The drawer strip is NOT hidden here: scoping the restyle
    hide to .rail leaves the base column style in place for it. */
@@ -1878,8 +1976,45 @@ dialog.wide { width: min(880px, calc(100vw - 32px)); }
 .drawer .rail-item { width: 100%; }
 .drawer .rail-foot { margin-left: 0; margin-top: auto; }
 .drawer .rail-tools { padding: 0; }
-@media screen and (max-width: 1023px) {
+@media screen and (max-width: 1100px) {
   .menu-btn { display: inline-flex !important; }
+}
+
+/* full-bleed canvas -------------------------------------------------------
+   The console is a shell, not a document: the sidebar owns a fixed column and
+   every page owns the rest of the viewport. Nothing is centred and nothing is
+   capped, so a 27" monitor shows the whole table instead of a 1200px ribbon
+   with two empty margins. Wide screens gain columns (auto-fit above), narrow
+   ones lose the gutters. */
+
+.page { padding: var(--sp-4) var(--gutter) var(--sp-5); }
+.canvas-head { padding: 0 var(--gutter); }
+
+/* the page head sits on the same gutter as the panels below it */
+.page-head { align-items: flex-start; }
+.page-head-side { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; }
+
+/* A full-width table has room for a wider first column and a tighter numeric
+   tail; the cells share the leftover space instead of hugging their content. */
+.table th, .table td { padding: var(--sp-2) var(--sp-3); }
+.table th:first-child, .table td:first-child { padding-left: var(--inset); }
+.table th:last-child, .table td:last-child { padding-right: var(--inset); }
+
+/* panels that hold a table get no body padding, so the table can reach the
+   card edge and use every pixel */
+.panel > .table-wrap { border-radius: 0 0 var(--r-surface) var(--r-surface); }
+
+/* a feed of audit rows keeps its grid: action, detail and actor on their own
+   lines, the timestamp pinned to the right edge of the card */
+.feed-item { column-gap: var(--sp-3); }
+
+@media screen and (max-width: 1400px) {
+  :root { --gutter: 24px; }
+}
+@media screen and (max-width: 1100px) {
+  :root { --gutter: 16px; }
+  .page { padding: var(--sp-3) var(--gutter) var(--sp-5); }
+  .canvas-head { padding: 0 var(--gutter); }
 }
 `;
 
@@ -1904,7 +2039,6 @@ const ICON_PATHS: Record<string, string> = {
   command: '<path d="M9 6a3 3 0 10-3 3h12a3 3 0 10-3-3v12a3 3 0 103-3H6a3 3 0 103 3V6z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
   moon: '<path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/>',
-  density: '<path d="M4 6h16M4 10h16M4 14h16M4 18h16"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7a2 2 0 002 2h3"/>',
   check: '<path d="M4 12.5l5 5L20 6"/>',
   trash: '<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
@@ -2050,9 +2184,6 @@ export function navRail(active: string, actions = ""): string {
     '<button class="rail-tool" type="button" id="themeBtn" aria-label="Switch light and dark theme" title="Theme">' +
     icon("sun", "icon", 15) +
     "</button>" +
-    '<button class="rail-tool" type="button" id="densityBtn" aria-label="Switch compact and comfortable density" title="Density">' +
-    icon("density", "icon", 15) +
-    "</button>" +
     '<button class="rail-tool" type="button" id="helpBtn" aria-label="Shortcuts and words" title="Help (?)">' +
     icon("help", "icon", 15) +
     "</button>" +
@@ -2118,7 +2249,7 @@ export function consolePage(o: PageOptions): string {
     '<link rel="icon" href="/favicon.ico" sizes="32x32">\n' +
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n' +
     '<link rel="apple-touch-icon" href="/favicon.svg">\n' +
-    '<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");var d=localStorage.getItem("omniproxy.density");if(d)document.documentElement.setAttribute("data-density",d);}catch(e){}</script>\n' +
+    '<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n' +
     "<script>" + AUTH_GUARD_JS + "</script>\n" +
     "<style>" +
     BASE_CSS +
@@ -2168,9 +2299,6 @@ function drawerMarkup(active: string): string {
     '<div class="rail-tools">' +
     '<button class="rail-tool" type="button" id="drawerTheme" aria-label="Switch light and dark theme">' +
     icon("sun", "icon", 15) +
-    "</button>" +
-    '<button class="rail-tool" type="button" id="drawerDensity" aria-label="Switch density">' +
-    icon("density", "icon", 15) +
     "</button>" +
     '<button class="rail-tool" type="button" id="drawerHelp" aria-label="Shortcuts and words">' +
     icon("help", "icon", 15) +
@@ -2429,12 +2557,12 @@ export function helpDialog(): string {
   const keyRows = keys
     .map(([k, v]) => "<dt><kbd>" + escapeHtml(k) + "</kbd></dt><dd>" + escapeHtml(v) + "</dd>")
     .join("");
-  const wordRows = words
-    .map(([k, v]) => "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(v) + "</dd>")
-    .join("");
+  const half = Math.ceil(words.length / 2);
+  const wordColumn = (list: [string, string][]) =>
+    list.map(([k, v]) => "<dt>" + escapeHtml(k) + "</dt><dd>" + escapeHtml(v) + "</dd>").join("");
 
   return (
-    '<dialog id="helpDialog" aria-labelledby="helpTitle">' +
+    '<dialog id="helpDialog" class="wide" aria-labelledby="helpTitle">' +
     '<div class="card-head">' +
     '<h2 id="helpTitle">Shortcuts and words</h2>' +
     '<span class="spacer"></span>' +
@@ -2448,9 +2576,10 @@ export function helpDialog(): string {
     keyRows +
     "</dl>" +
     '<h3 class="help-h">What the words mean</h3>' +
-    '<dl class="help-list help-words">' +
-    wordRows +
-    "</dl>" +
+    '<div class="help-cols">' +
+    '<dl class="help-list help-words">' + wordColumn(words.slice(0, half)) + "</dl>" +
+    '<dl class="help-list help-words">' + wordColumn(words.slice(half)) + "</dl>" +
+    "</div>" +
     "</div>" +
     "</dialog>"
   );
@@ -2505,7 +2634,6 @@ export const CLIENT_JS = `
 
   var STORE = "omniproxy.admin.token";
   var THEME = "omniproxy.theme";
-  var DENSITY = "omniproxy.density";
 
   var ICON = {
     close: ${JSON.stringify(icon("close", "icon", 14))},
@@ -2932,6 +3060,11 @@ export const CLIENT_JS = `
       if (!node) return;
       if (typeof node.showModal === "function") { if (!node.open) node.showModal(); }
       else node.setAttribute("open", "");
+      /* showModal focuses the first focusable node, which is the close button:
+         the sheet opened with a focus ring on an X and the caret nowhere. Put
+         it in the first field instead. */
+      var field = node.querySelector("input:not([type=hidden]), select, textarea");
+      if (field) field.focus();
     },
     closeDialog: function (node) {
       if (!node) return;
@@ -3081,7 +3214,7 @@ export const CLIENT_JS = `
       area.remove();
     },
 
-    /* Theme and density. Both survive a reload. Dark is the console default; light is an explicit toggle. */
+    /* Theme survives a reload. Dark is the console default; light is an explicit toggle. */
     theme: {
       get: function () {
         var set = document.documentElement.getAttribute("data-theme");
@@ -3097,24 +3230,6 @@ export const CLIENT_JS = `
         var next = GX.theme.get() === "dark" ? "light" : "dark";
         GX.theme.set(next);
         GX.toast(next === "dark" ? "Dark theme." : "Light theme.", "neutral");
-      }
-    },
-
-    density: {
-      get: function () { return document.documentElement.getAttribute("data-density") === "compact" ? "compact" : "comfortable"; },
-      set: function (value) {
-        if (value === "compact") document.documentElement.setAttribute("data-density", "compact");
-        else document.documentElement.removeAttribute("data-density");
-        try {
-          if (value === "compact") localStorage.setItem(DENSITY, "compact");
-          else localStorage.removeItem(DENSITY);
-        } catch (e) {}
-        GX._syncTools();
-      },
-      toggle: function () {
-        var next = GX.density.get() === "compact" ? "comfortable" : "compact";
-        GX.density.set(next);
-        GX.toast(next === "compact" ? "Compact rows." : "Comfortable rows.", "neutral");
       }
     },
 
@@ -3139,7 +3254,6 @@ export const CLIENT_JS = `
           { group: "Tools", label: "Refresh this page", hint: "r", run: function () { var b = document.getElementById("refreshBtn"); if (b) b.click(); else location.reload(); } },
           { group: "Tools", label: "Copy this link", hint: "", run: function () { GX.copy(location.href, "Link"); } },
           { group: "Tools", label: "Switch theme", hint: "", run: function () { GX.theme.toggle(); } },
-          { group: "Tools", label: "Switch density", hint: "", run: function () { GX.density.toggle(); } },
           { group: "Tools", label: "Shortcuts and words", hint: "?", run: function () { GX.openDialog(document.getElementById("helpDialog")); } }
         ];
         return tools.concat(nav).concat(GX.palette.items);
@@ -3307,11 +3421,6 @@ export const CLIENT_JS = `
           ? '<svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z"/></svg>'
           : '<svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>';
       });
-      var compact = GX.density.get() === "compact";
-      ["densityBtn", "drawerDensity"].forEach(function (id) {
-        var node = document.getElementById(id);
-        if (node) node.setAttribute("aria-pressed", compact ? "true" : "false");
-      });
     }
   };
 
@@ -3320,12 +3429,8 @@ export const CLIENT_JS = `
   function wireChrome() {
     var themeBtn = document.getElementById("themeBtn");
     if (themeBtn) themeBtn.addEventListener("click", function () { GX.theme.toggle(); });
-    var densityBtn = document.getElementById("densityBtn");
-    if (densityBtn) densityBtn.addEventListener("click", function () { GX.density.toggle(); });
     var drawerTheme = document.getElementById("drawerTheme");
     if (drawerTheme) drawerTheme.addEventListener("click", function () { GX.theme.toggle(); });
-    var drawerDensity = document.getElementById("drawerDensity");
-    if (drawerDensity) drawerDensity.addEventListener("click", function () { GX.density.toggle(); });
     var drawerHelp = document.getElementById("drawerHelp");
     if (drawerHelp) drawerHelp.addEventListener("click", function () { GX.openDialog(document.getElementById("helpDialog")); });
 

@@ -313,7 +313,7 @@ const MODELS_SCRIPT = `
     }
     el.body.textContent = "";
 
-    var table = GX.el("table", { class: "table" });
+    var table = GX.el("table", { class: "table models-table" });
     var head = GX.el("thead", null, GX.el("tr", null, [
       GX.el("th", { text: "Provider" }),
       GX.el("th", { text: "Model / Voice" }),

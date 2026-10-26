@@ -27,8 +27,10 @@ const OVERVIEW_BODY = `
     <div class="panel-body">
       <div class="verdict">
         <span class="verdict-dot" id="verdictDot" data-tone="ok"></span>
-        <strong id="verdictText">-</strong>
-        <span class="meta" id="verdictState">-</span>
+        <div class="verdict-main">
+          <strong id="verdictText">-</strong>
+          <span class="meta" id="verdictState">-</span>
+        </div>
         <span class="spacer"></span>
         <label class="check"><input id="auto" type="checkbox" checked> Refresh every 15s</label>
         <span class="meta" id="updated">-</span>
@@ -48,7 +50,7 @@ const OVERVIEW_BODY = `
     <div class="feed" id="attn"></div>
     <div class="panel-foot" id="attnFoot">
       <button id="testAllBtn" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
-      <span class="meta" id="testAllNote">one live call per key, four at a time</span>
+      <span class="meta" id="testAllNote">one live call per key, eight at a time</span>
     </div>
   </section>
 
@@ -104,7 +106,7 @@ const OVERVIEW_BODY = `
         <button id="addBtnFoot" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add keys</button>
         <a class="btn btn-sm" href="/pengatur/keys">View keys</a>
         <button id="testAllBtnFoot" class="btn btn-sm" type="button">${icon("test")}Test all live keys</button>
-        <span class="meta" id="testAllNoteFoot">one live call per key, four at a time</span>
+        <span class="meta" id="testAllNoteFoot">one live call per key, eight at a time</span>
       </div>
     </div>
   </section>
@@ -113,18 +115,24 @@ const OVERVIEW_BODY = `
 <dialog id="addDialog" aria-labelledby="addTitle">
   <form id="addForm" method="dialog">
     <div class="card-head">
-      <h2 id="addTitle">Add keys</h2>
+      <div class="card-title">
+        <h2 id="addTitle">Add keys</h2>
+        <span class="card-sub">Paste one key per line. Every key is probed before it joins the pool.</span>
+      </div>
       <span class="spacer"></span>
       <button class="btn btn-ghost btn-sm icon-btn" type="button" id="addClose" aria-label="Close">${icon("close")}</button>
     </div>
-    <div class="panel-body">
-      <label class="field" for="newKeys">One key per line, or separated by commas</label>
+    <div class="card-body">
+      <label class="field" for="newKeys">Keys</label>
       <textarea id="newKeys" class="textarea" spellcheck="false" placeholder="key one&#10;key two"></textarea>
-      <div class="row u-mt-3">
-        <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
-        <span id="addCount" class="hint"></span>
-      </div>
-      <div id="addMsg" class="hint u-mt-2" role="status" aria-live="polite"></div>
+      <p class="hint u-mt-1">One per line, or separated by commas.</p>
+      <div id="addMsg" class="hint u-mt-3" role="status" aria-live="polite"></div>
+    </div>
+    <div class="card-foot">
+      <span id="addCount" class="hint"></span>
+      <span class="spacer"></span>
+      <button id="addCancel" class="btn" type="button">Cancel</button>
+      <button id="addSubmit" class="btn btn-primary" type="submit">Add to pool</button>
     </div>
   </form>
 </dialog>
@@ -151,6 +159,7 @@ const OVERVIEW_SCRIPT = `
     kpis: document.getElementById("kpis"),
     addDialog: document.getElementById("addDialog"),
     addClose: document.getElementById("addClose"),
+    addCancel: document.getElementById("addCancel"),
     addForm: document.getElementById("addForm"),
     addSubmit: document.getElementById("addSubmit"),
     addBtn: document.getElementById("addBtn"),
@@ -194,8 +203,8 @@ const OVERVIEW_SCRIPT = `
     var cooling = pool.cooling || 0;
     var dead = pool.dead || 0;
     var total = pool.total || 0;
-    el.verdictText.textContent = "Ready " + ready + "/" + total + " · " + cooling + " cooling · " + dead + " dead";
-    el.verdictState.textContent = pool.degraded ? "Degraded" : "Ready";
+    el.verdictText.textContent = pool.degraded ? "Degraded" : "Ready to serve";
+    el.verdictState.textContent = ready + "/" + total + " serving · " + cooling + " cooling · " + dead + " dead";
     el.verdictDot.setAttribute("data-tone", dead > 0 ? "bad" : cooling > 0 ? "warn" : "ok");
     el.healthMeta.textContent = pool.degraded
       ? "Degraded · " + dead + " dead · " + cooling + " cooling"
@@ -228,6 +237,12 @@ const OVERVIEW_SCRIPT = `
     var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
     var declared = (t.free || 0) + (t.paid || 0) + (t.pro || 0);
     var keys = declared + (t.unknown || 0);
+    el.poolKpis.appendChild(GX.stat(
+      "Unverified",
+      String(pool.unverified || 0),
+      pool.unverified ? "not probed yet" : "every key has a verdict",
+      pool.unverified ? "warn" : ""
+    ));
     el.poolKpis.appendChild(GX.stat(
       "Plans declared",
       declared + "/" + keys,
@@ -478,7 +493,7 @@ const OVERVIEW_SCRIPT = `
     btn = btn || el.testAllBtn;
     note = note || el.testAllNote;
     GX.busy(btn, "Testing…");
-    note.textContent = "one live call per key, four at a time";
+    note.textContent = "one live call per key, eight at a time";
     GX.api("/pengatur/keys/test-all", { method: "POST" })
       .then(function (data) {
         var results = data.results || [];
@@ -491,7 +506,7 @@ const OVERVIEW_SCRIPT = `
       })
       .then(function () {
         GX.idle(btn);
-        note.textContent = "one live call per key, four at a time";
+        note.textContent = "one live call per key, eight at a time";
       });
   }
 
@@ -580,6 +595,7 @@ const OVERVIEW_SCRIPT = `
   el.addBtnFoot.addEventListener("click", openAdd);
   el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
+  if (el.addCancel) el.addCancel.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
   el.newKeys.addEventListener("input", function () {
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
@@ -589,7 +605,7 @@ const OVERVIEW_SCRIPT = `
   el.testAllBtnFoot.addEventListener("click", function () {
     GX.confirm({
       title: "Test all live keys?",
-      message: "One live call per key, four at a time.",
+      message: "One live call per key, eight at a time.",
       confirmLabel: "Test all live keys"
     }).then(function (ok) {
       if (ok) testAll(el.testAllBtnFoot, el.testAllNoteFoot);
