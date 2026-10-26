@@ -102,3 +102,19 @@ test("an unrelated 403 is not mistaken for an invalid key", () => {
   });
   expect(isInvalidKeyText(denied)).toBe(false);
 });
+
+test("an OAuth token presented as an API key is a dead credential", () => {
+  // `AQ.` tokens are OAuth credentials: generateContent refuses the type
+  // itself, so the key can never serve and must retire, not cycle.
+  const oauth = JSON.stringify({
+    error: {
+      code: 401,
+      status: "UNAUTHENTICATED",
+      message:
+        "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential.",
+    },
+  });
+  expect(isInvalidKeyText(oauth)).toBe(true);
+  // A bare 401 stays ambiguous: a live key can be refused for project access.
+  expect(isInvalidKeyText(JSON.stringify({ error: { code: 401, message: "Unauthorized" } }))).toBe(false);
+});

@@ -109,6 +109,16 @@ const LEAKED_403 = JSON.stringify({
   },
 });
 
+/** What Google answers an `AQ.` OAuth token presented as an API key. */
+const OAUTH_401 = JSON.stringify({
+  error: {
+    code: 401,
+    status: "UNAUTHENTICATED",
+    message:
+      "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential.",
+  },
+});
+
 const RETIRED_404 = JSON.stringify({
   error: {
     code: 404,
@@ -129,6 +139,10 @@ test("every transport and status class maps to exactly one verdict", () => {
   // answer 401 too); only invalid-key text retires the key.
   expect(classifyResponse(401, "{}").verdict).toBe("unexpected");
   expect(classifyResponse(401, '{"error":{"message":"API key not valid."}}').verdict).toBe("invalid");
+  // An OAuth token presented as an API key draws a 401 that names neither
+  // API_KEY_INVALID nor a leak. The credential type can never authenticate
+  // this surface, so it retires like any other dead credential.
+  expect(classifyResponse(401, OAUTH_401).verdict).toBe("invalid");
   expect(classifyResponse(403, LEAKED_403).verdict).toBe("invalid");
   expect(classifyResponse(403, '{"error":{"message":"Permission denied."}}').verdict).toBe("unexpected");
   expect(classifyResponse(500, "{}").verdict).toBe("server_error");

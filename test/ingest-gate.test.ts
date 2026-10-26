@@ -55,6 +55,17 @@ test("a leaked key is refused by the leak probe", async () => {
   expect(body.rejected[0]?.reason.startsWith("invalid:")).toBe(true);
 });
 
+test("an OAuth token is refused: the credential type can never serve", async () => {
+  // Google answers an `AQ.` token on generateContent with a 401 that names
+  // neither API_KEY_INVALID nor a leak. It is still dead here, and admitting
+  // it would only park-and-retry the same refusal forever.
+  const res = await ingest(["AIzaTESTOAUTH000000000000001"]);
+  const body = (await res.json()) as IngestBody;
+  expect(body.added).toBe(0);
+  expect(body.probed.refused).toBe(1);
+  expect(body.rejected[0]?.reason.startsWith("invalid:")).toBe(true);
+});
+
 test("a throttled key with quota left is admitted, parked until its window", async () => {
   const res = await ingest(["AIzaTEST429X000000000000001"]);
   const body = (await res.json()) as IngestBody;

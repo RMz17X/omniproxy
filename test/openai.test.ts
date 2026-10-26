@@ -9,7 +9,7 @@ import "./env.ts";
 import { ensureMock } from "./env.ts";
 import { setPool } from "./harness.ts";
 
-import { addKey } from "../src/pool.ts";
+import { addKey, keyId, listKeys } from "../src/pool.ts";
 import { chatCompletions } from "../src/openai.ts";
 
 const TEST_KEY = "AIzaOAITEST1";
@@ -104,4 +104,30 @@ test("re-frames Gemini streamGenerateContent SSE into OpenAI chat chunks with [D
   expect(sawDone).toBe(true);
   expect(chunkCount).toBeGreaterThan(2);
   expect(assembled).toBe("Hello from mock!");
+});
+
+test("an OAuth token is retired on its first refusal, and the request rotates past it", async () => {
+  // An `AQ.` OAuth token answers generateContent with a 401 that names
+  // neither API_KEY_INVALID nor a leak. It must retire like any dead
+  // credential — soft-parking it made the key cycle ready -> 401 -> ready
+  // forever, and every request paid for it again.
+  const oauth = "AIzaOAUTHTEST00000000000001";
+  await setPool([oauth, TEST_KEY]);
+  await addKey(oauth);
+  await addKey(TEST_KEY);
+
+  const req = new Request("http://localhost/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "gemini-2.5-flash",
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  });
+
+  const res = await chatCompletions(req);
+  expect(res.status).toBe(200); // rotated onto the healthy key
+
+  const view = (await listKeys()).find((k) => k.id === keyId(oauth));
+  expect(view?.status).toBe("dead");
 });

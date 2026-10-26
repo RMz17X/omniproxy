@@ -267,8 +267,29 @@ const MODEL_UNAVAILABLE =
   /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported|experiencing high demand|currently unavailable/i;
 
 /** The only texts that make a 403 a permanent credential verdict. */
+/**
+ * Text that proves the credential itself is unusable, whichever surface
+ * answered. The last two alternatives are Google's OAuth refusal — the shape
+ * an `AQ.` token draws when it is presented to generateContent as an API key:
+ * "Request had invalid authentication credentials. Expected OAuth 2 access
+ * token…". That credential type can never authenticate this API, so the key
+ * is dead here. It is NOT the case a bare 401 protects: a live key refused
+ * for project or model access carries no such text.
+ */
 const INVALID_KEY =
-  /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i;
+  /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key|expected oauth 2 access token|invalid authentication credentials/i;
+
+/**
+ * The single "this credential is dead" predicate.
+ *
+ * The serving path (execute) and the probe must never disagree about it:
+ * when they did, an OAuth token was soft-parked on every request and
+ * re-admitted by the probe forever. `isInvalidKeyText` in upstream.ts
+ * delegates here for the same reason.
+ */
+export function isInvalidKeyBody(body: string): boolean {
+  return INVALID_KEY.test(body);
+}
 
 function messageOf(body: string): string {
   const err = errorOf(parseBody(body));

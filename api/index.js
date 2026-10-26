@@ -247,7 +247,7 @@ var init_metrics = __esm({
   }
 });
 
-// ../../node_modules/@neondatabase/serverless/index.mjs
+// node_modules/@neondatabase/serverless/index.mjs
 function Ma(r) {
   return 0;
 }
@@ -671,7 +671,7 @@ function $l(r) {
 }
 var Po, Ie, Ro, Lo, Bo, Fo, Mo, a, V, T, se, Dn, we, O, E, Wn, jn, oi, b, x, v, p, y, h, ve, Ii, Ti, _i, A, pe, Ge, tr, rr, Fi, ki, Qi, Ni, zi, Yi, ts, ns, Je, _t, os, M, et, as, lr, fr, tt, rt, nt, ju, it, xs, yr, mr, gr, wr, br, ec, xr, vs, Sr, vr, Ss, _s, Ps, Ls, Bs, wc, Fs, Ms, ks, Ir, Lt, Ws, Gs, ln, Vs, Ks, Ys, eo, vn, to, ro, An, uo, fo, ho, Il, po, yo, wo, So, Mn, ot, da, pa, ya, ai, ma, ga, ui, wa, ba, xa, ci, va, Yt, dt, pt, Sa, li, je, yt, Zt, xe, mt, He, Jt, $e, wt, N, hi, _a, Ta, vt, ds, ps, ls, Co, Ao, On, ut, _o, Qn, ct, To, export_DatabaseError, export_defaults, export_escapeIdentifier, export_escapeLiteral, export_types;
 var init_serverless = __esm({
-  "../../node_modules/@neondatabase/serverless/index.mjs"() {
+  "node_modules/@neondatabase/serverless/index.mjs"() {
     Po = Object.create;
     Ie = Object.defineProperty;
     Ro = Object.getOwnPropertyDescriptor;
@@ -6978,15 +6978,15 @@ var init_pool = __esm({
   }
 });
 
-// ../../node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
 var X_ALREADY_SENT = "x-hono-already-sent";
 
-// ../../node_modules/@hono/node-server/dist/index.mjs
+// node_modules/@hono/node-server/dist/index.mjs
 import { STATUS_CODES, ServerResponse, createServer } from "node:http";
 import { Http2ServerRequest, constants } from "node:http2";
 import { Readable } from "node:stream";
 
-// ../../node_modules/hono/dist/helper/websocket/index.js
+// node_modules/hono/dist/helper/websocket/index.js
 var defineWebSocketHelper = (handler2) => {
   return (...args) => {
     if (typeof args[0] === "function") {
@@ -7007,7 +7007,7 @@ var defineWebSocketHelper = (handler2) => {
   };
 };
 
-// ../../node_modules/@hono/node-server/dist/index.mjs
+// node_modules/@hono/node-server/dist/index.mjs
 var RequestError = class extends Error {
   constructor(message, options) {
     super(message, options);
@@ -8174,15 +8174,15 @@ var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
   return new Response();
 });
 
-// ../../node_modules/hono/dist/request/constants.js
+// node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = Symbol();
 
-// ../../node_modules/hono/dist/utils/buffer.js
+// node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType2) => {
   return new Response(arrayBuffer, { headers: { "Content-Type": contentType2.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase()) } }).formData();
 };
 
-// ../../node_modules/hono/dist/utils/body.js
+// node_modules/hono/dist/utils/body.js
 var MAX_NESTED_OBJECTS = 1e4;
 var isRawRequest = (request) => "headers" in request;
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
@@ -8246,7 +8246,7 @@ var throwNestingLimitExceeded = () => {
   throw new Error("Nesting limit exceeded");
 };
 
-// ../../node_modules/hono/dist/utils/url.js
+// node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split("/");
   if (paths[0] === "") paths.shift();
@@ -8417,7 +8417,7 @@ var getQueryParams = (url, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// ../../node_modules/hono/dist/request.js
+// node_modules/hono/dist/request.js
 var HonoRequest = class {
   /**
   * `.raw` can get the raw Request object.
@@ -8687,7 +8687,7 @@ var HonoRequest = class {
   }
 };
 
-// ../../node_modules/hono/dist/utils/html.js
+// node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -8717,7 +8717,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   else return resStr;
 };
 
-// ../../node_modules/hono/dist/context.js
+// node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType2, headers) => {
   return {
@@ -9095,7 +9095,7 @@ var Context = class {
   };
 };
 
-// ../../node_modules/hono/dist/compose.js
+// node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -9126,7 +9126,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// ../../node_modules/hono/dist/router.js
+// node_modules/hono/dist/router.js
 var METHODS = [
   "get",
   "post",
@@ -9140,10 +9140,10 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 var UnsupportedPathError = class extends Error {
 };
 
-// ../../node_modules/hono/dist/utils/constants.js
+// node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
-// ../../node_modules/hono/dist/hono-base.js
+// node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -9484,10 +9484,10 @@ var Hono = class Hono2 {
   };
 };
 
-// ../../node_modules/hono/dist/router/utils.js
+// node_modules/hono/dist/router/utils.js
 var createNullObject = () => /* @__PURE__ */ Object.create(null);
 
-// ../../node_modules/hono/dist/router/reg-exp-router/matcher.js
+// node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -9504,7 +9504,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// ../../node_modules/hono/dist/router/reg-exp-router/node.js
+// node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
 var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
 var PATH_ERROR = Symbol();
@@ -9585,7 +9585,7 @@ var Node = class Node2 {
   }
 };
 
-// ../../node_modules/hono/dist/router/reg-exp-router/trie.js
+// node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -9650,7 +9650,7 @@ var Trie = class {
   }
 };
 
-// ../../node_modules/hono/dist/router/reg-exp-router/router.js
+// node_modules/hono/dist/router/reg-exp-router/router.js
 var wildcardRegExpCache = createNullObject();
 function buildWildcardRegExp(path) {
   return wildcardRegExpCache[path] ??= new RegExp(`^${path.replace(/\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g, (match2, metaChar) => metaChar ? `\\${metaChar}` : match2 === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match2 === "*" ? ".*" : `/:${LABEL_REG_EXP_STR}`)}$`);
@@ -9744,7 +9744,7 @@ var RegExpRouter = class {
   }
 };
 
-// ../../node_modules/hono/dist/router/smart-router/router.js
+// node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = "SmartRouter";
   #routers = [];
@@ -9791,7 +9791,7 @@ var SmartRouter = class {
   }
 };
 
-// ../../node_modules/hono/dist/router/trie-router/node.js
+// node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = createNullObject();
 var order = 0;
 var Node3 = class Node4 {
@@ -9921,7 +9921,7 @@ var Node3 = class Node4 {
   }
 };
 
-// ../../node_modules/hono/dist/router/trie-router/router.js
+// node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = "TrieRouter";
   #node = new Node3();
@@ -9933,7 +9933,7 @@ var TrieRouter = class {
   }
 };
 
-// ../../node_modules/hono/dist/hono.js
+// node_modules/hono/dist/hono.js
 var Hono3 = class extends Hono {
   /**
   * Creates an instance of the Hono class.
@@ -9946,7 +9946,7 @@ var Hono3 = class extends Hono {
   }
 };
 
-// ../../node_modules/hono/dist/middleware/cors/index.js
+// node_modules/hono/dist/middleware/cors/index.js
 var cors = (options) => {
   const opts = {
     origin: "*",
@@ -14518,7 +14518,10 @@ function tierEvidenceFrom(body) {
   return null;
 }
 var MODEL_UNAVAILABLE = /no longer available to new users|is not found for API version|not supported for generateContent|does not support generateContent|MODEL_NOT_FOUND|is not supported|experiencing high demand|currently unavailable/i;
-var INVALID_KEY = /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i;
+var INVALID_KEY = /reported as leaked|API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key|expected oauth 2 access token|invalid authentication credentials/i;
+function isInvalidKeyBody(body) {
+  return INVALID_KEY.test(body);
+}
 function classifyResponse(status, body, headers) {
   const none = { quota: null, tierEvidence: null };
   if (status === 0) return { verdict: "network_error", ...none };
@@ -14645,8 +14648,7 @@ function isQuotaText(body) {
   return /RESOURCE_EXHAUSTED|quota|rate.?limit|exceeded/i.test(body);
 }
 function isInvalidKeyText(body) {
-  if (/reported as leaked/i.test(body)) return true;
-  return /API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i.test(body);
+  return isInvalidKeyBody(body);
 }
 function isZeroQuota(body) {
   const value = /"quota_limit_value"\s*:\s*"?(\d+)"?/.exec(body);

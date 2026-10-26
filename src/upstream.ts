@@ -27,7 +27,7 @@ import {
   pick,
   snapshot,
 } from "./pool.ts";
-import { isModelScopedQuota, parseQuotaDetail, retryDelayMs } from "./verdict.ts";
+import { isInvalidKeyBody, isModelScopedQuota, parseQuotaDetail, retryDelayMs } from "./verdict.ts";
 
 export type ExecResult = {
   response: Response;
@@ -84,11 +84,11 @@ function isQuotaText(body: string): boolean {
 }
 
 export function isInvalidKeyText(body: string): boolean {
-  // A leaked key is dead for good: Google revokes it and every later call
-  // answers 403 "Your API key was reported as leaked". Retiring it is the only
-  // correct verdict — parking it would re-fire a revoked credential forever.
-  if (/reported as leaked/i.test(body)) return true;
-  return /API_KEY_INVALID|API key not valid|API key expired|invalid.?api.?key/i.test(body);
+  // One predicate, shared with classifyResponse. The serving path and the
+  // probe disagreeing about "dead credential" is how OAuth tokens stayed in
+  // the pool forever: the probe called them unclassifiable and the serving
+  // path soft-parked them, so they cycled instead of retiring.
+  return isInvalidKeyBody(body);
 }
 
 /**

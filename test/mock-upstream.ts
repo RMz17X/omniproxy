@@ -205,6 +205,19 @@ const server = Bun.serve({
         error: { code: 400, status: "INVALID_ARGUMENT", message: "API key not valid. API_KEY_INVALID" },
       });
     }
+    // An `AQ.` OAuth token presented as an API key: Google refuses the
+    // credential type with a 401 that names neither API_KEY_INVALID nor a
+    // leak. It is still a dead credential on this surface.
+    if (key.toLowerCase().includes("oauth")) {
+      return q(401, {
+        error: {
+          code: 401,
+          status: "UNAUTHENTICATED",
+          message:
+            "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential.",
+        },
+      });
+    }
     if (key.toLowerCase().includes("boom".toLowerCase())) return q(500, { error: { message: "internal" } });
 
     if (url.pathname.endsWith(":streamGenerateContent")) {
