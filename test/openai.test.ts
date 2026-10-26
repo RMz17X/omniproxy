@@ -131,3 +131,33 @@ test("an OAuth token is retired on its first refusal, and the request rotates pa
   const view = (await listKeys()).find((k) => k.id === keyId(oauth));
   expect(view?.status).toBe("dead");
 });
+
+test("a Gemini request never draws a key from another provider's pool", async () => {
+  // Selection without a provider filter once handed an ElevenLabs `sk_` key
+  // to Google: the 401 that followed retired a healthy credential from the
+  // wrong pool (90 of them in production). With the pool holding only an
+  // ElevenLabs key, a Gemini request must report exhaustion instead of
+  // spending that key.
+  const eleven = "sk_0123456789abcdef0123456789abcdef01234567";
+  await setPool([]);
+  await addKey(eleven, "elevenlabs");
+
+  const req = new Request("http://localhost/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "gemini-2.5-flash",
+      messages: [{ role: "user", content: "hi" }],
+    }),
+  });
+
+  const res = await chatCompletions(req);
+  // Not 401: a 401 here would mean the ElevenLabs key was actually sent to
+  // Google. The pool has a key, just none for this provider.
+  expect(res.status).toBe(429);
+  const body = (await res.json()) as { error: { code?: string } };
+  expect((body.error as { code?: string }).code).toBe("pool_exhausted");
+
+  const view = (await listKeys()).find((k) => k.id === keyId(eleven));
+  expect(view?.status).toBe("ready");
+});

@@ -39,6 +39,7 @@ export async function geminiPassthrough(req: Request, path: string): Promise<Res
     },
     path,
     req.signal,
+    { provider: "gemini" },
   );
 
   // The passthrough is byte-transparent on success, so the body is never parsed
@@ -132,6 +133,7 @@ export async function speech(req: Request, resolvedModel?: string): Promise<Resp
     },
     path,
     req.signal,
+    { model, provider: "gemini" },
   );
 
   if (result.response.status === 499) {

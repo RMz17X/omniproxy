@@ -218,6 +218,20 @@ const server = Bun.serve({
         },
       });
     }
+    // A credential from another provider reaching Google's endpoint: the
+    // shape is foreign, so Google rejects it the same way. Selection must
+    // never let this happen; the rule exists so a regression fails loudly
+    // instead of silently retiring the key.
+    if (key.startsWith("sk_")) {
+      return q(401, {
+        error: {
+          code: 401,
+          status: "UNAUTHENTICATED",
+          message:
+            "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential.",
+        },
+      });
+    }
     if (key.toLowerCase().includes("boom".toLowerCase())) return q(500, { error: { message: "internal" } });
 
     if (url.pathname.endsWith(":streamGenerateContent")) {

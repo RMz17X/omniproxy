@@ -355,6 +355,7 @@ export async function chatCompletions(req: Request, resolvedModel?: string): Pro
       path: `/v1beta/models/${candidate}:${method}`,
     }),
     req.signal,
+    { provider: "gemini" },
   );
 
   /** The model that actually served this request, not the one requested. */
@@ -770,6 +771,7 @@ export async function embeddings(req: Request, resolvedModel?: string): Promise<
     },
     path,
     req.signal,
+    { model, provider: "gemini" },
   );
 
   noteUsage(req, {

@@ -14693,6 +14693,7 @@ function attemptSignal(client2, timeoutMs) {
 async function execute(url, init, path, signal, opts) {
   const tried = /* @__PURE__ */ new Set();
   const deadline2 = Date.now() + cfg.maxWaitMs;
+  const provider = opts?.provider ?? "gemini";
   const maxAttempts = await rotationCap();
   const quotaRefused = /* @__PURE__ */ new Set();
   const modelRefusedKeys = /* @__PURE__ */ new Set();
@@ -14700,9 +14701,9 @@ async function execute(url, init, path, signal, opts) {
   let rotated = false;
   if (signal?.aborted) return aborted();
   for (; ; ) {
-    let st = await pick(tried, opts?.model, opts?.provider);
+    let st = await pick(tried, opts?.model, provider);
     if (!st && opts?.model) {
-      const block = modelBlock(tried, opts.model, opts?.provider);
+      const block = modelBlock(tried, opts.model, provider);
       if (block.kind === "model_refusal") {
         counters.poolExhausted++;
         log("warn", "model.quota_refused_all", {
@@ -14784,7 +14785,7 @@ async function execute(url, init, path, signal, opts) {
         };
       }
       await sleep(wait);
-      st = await pick(tried, opts?.model, opts?.provider);
+      st = await pick(tried, opts?.model, provider);
     }
     if (attempts > 0) {
       rotated = true;
@@ -15061,7 +15062,7 @@ function jsonError(status, code, message) {
 function modelChain(primary) {
   return [primary, ...cfg.modelFallback].filter((m, i, all) => Boolean(m) && all.indexOf(m) === i);
 }
-async function executeWithFallback(models, build, signal) {
+async function executeWithFallback(models, build, signal, opts) {
   const chain = models.length ? models : [cfg.defaultModel];
   const chainDeadline = Date.now() + cfg.modelChainBudgetMs;
   let last = null;
@@ -15075,7 +15076,12 @@ async function executeWithFallback(models, build, signal) {
     }
     const timeoutMs = index === 0 ? cfg.upstreamTimeoutMs : Math.max(1e3, Math.min(cfg.fallbackTimeoutMs, chainDeadline - Date.now()));
     const { url, init, path } = build(model);
-    const result = await execute(url, init, path, signal, { timeoutMs, deferQuotaRetire: true, model });
+    const result = await execute(url, init, path, signal, {
+      timeoutMs,
+      deferQuotaRetire: true,
+      model,
+      provider: opts?.provider
+    });
     last = result;
     lastModel = model;
     if (result.quotaRefused) {
@@ -16305,7 +16311,8 @@ async function geminiPassthrough(req, path) {
       body
     },
     path,
-    req.signal
+    req.signal,
+    { provider: "gemini" }
   );
   const model = /\/models\/([^:/?]+)/.exec(path)?.[1] ?? "";
   noteUsage(req, {
@@ -16364,7 +16371,8 @@ async function speech(req, resolvedModel) {
       body: JSON.stringify(payload)
     },
     path,
-    req.signal
+    req.signal,
+    { model, provider: "gemini" }
   );
   if (result.response.status === 499) {
     return new Response(null, { status: 499 });
@@ -16639,7 +16647,8 @@ async function chatCompletions(req, resolvedModel) {
       },
       path: `/v1beta/models/${candidate}:${method}`
     }),
-    req.signal
+    req.signal,
+    { provider: "gemini" }
   );
   const model = result.model;
   noteUsage(req, {
@@ -16979,7 +16988,8 @@ async function embeddings(req, resolvedModel) {
       body: JSON.stringify(payload)
     },
     path,
-    req.signal
+    req.signal,
+    { model, provider: "gemini" }
   );
   noteUsage(req, {
     provider: "gemini",

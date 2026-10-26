@@ -186,6 +186,15 @@ export async function execute(
 ): Promise<ExecResult> {
   const tried = new Set<string>();
   const deadline = Date.now() + cfg.maxWaitMs;
+  /**
+   * Never "any provider". The Gemini wire is the only caller that omits this
+   * argument, so the default names it. When it was left undefined, `pick()`
+   * was free to hand an ElevenLabs `sk_` key to Google: the upstream answered
+   * 401, and the correct invalid-credential verdict retired a perfectly
+   * healthy key from the wrong pool. A default keeps a forgotten argument
+   * from ever crossing provider pools again.
+   */
+  const provider = opts?.provider ?? "gemini";
   // Read once per request: the operator can change the cap from the console
   // while requests are in flight, and a single rotation run must not switch
   // limits halfway through.
@@ -203,7 +212,7 @@ export async function execute(
   for (;;) {
     // `provider` restricts selection to one pool: a request routed to
     // whatstoken must never be handed a Gemini credential (and vice versa).
-    let st = await pick(tried, opts?.model, opts?.provider);
+    let st = await pick(tried, opts?.model, provider);
 
     // A live per-model refusal has no bounded reset to wait for (the deadline
     // is that model's next daily reset), so report a model verdict and let the
@@ -212,7 +221,7 @@ export async function execute(
     // refusal must reach the caller's per-model tally so a key is retired only
     // once the whole chain agrees.
     if (!st && opts?.model) {
-      const block = modelBlock(tried, opts.model, opts?.provider);
+      const block = modelBlock(tried, opts.model, provider);
       if (block.kind === "model_refusal") {
         counters.poolExhausted++;
         log("warn", "model.quota_refused_all", {
@@ -299,7 +308,7 @@ export async function execute(
         };
       }
       await sleep(wait);
-      st = await pick(tried, opts?.model, opts?.provider);
+      st = await pick(tried, opts?.model, provider);
     }
 
     if (attempts > 0) {
@@ -666,6 +675,7 @@ export async function executeWithFallback(
   models: string[],
   build: (model: string) => ModelAttempt,
   signal?: AbortSignal,
+  opts?: { provider?: string },
 ): Promise<ExecResult & { model: string }> {
   const chain = models.length ? models : [cfg.defaultModel];
   const chainDeadline = Date.now() + cfg.modelChainBudgetMs;
@@ -689,7 +699,12 @@ export async function executeWithFallback(
         ? cfg.upstreamTimeoutMs
         : Math.max(1_000, Math.min(cfg.fallbackTimeoutMs, chainDeadline - Date.now()));
     const { url, init, path } = build(model);
-    const result = await execute(url, init, path, signal, { timeoutMs, deferQuotaRetire: true, model });
+    const result = await execute(url, init, path, signal, {
+      timeoutMs,
+      deferQuotaRetire: true,
+      model,
+      provider: opts?.provider,
+    });
     last = result;
     lastModel = model;
 
