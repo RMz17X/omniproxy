@@ -10507,7 +10507,7 @@ body[data-gate="locked"] .app { display: none; }
   min-width: 0;
 }
 .fig {
-  padding: var(--sp-3);
+  padding: var(--sp-2h) var(--sp-3);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-surface);
@@ -10520,16 +10520,16 @@ body[data-gate="locked"] .app { display: none; }
 }
 .fig-value {
   display: block;
-  margin-top: var(--sp-2);
+  margin-top: 2px;
   font-family: var(--mono);
-  font-size: 27px;
+  font-size: 24px;
   font-weight: 550;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   line-height: 1.05;
   word-break: break-word;
 }
-.fig-sub { display: block; margin-top: var(--sp-2); font-size: 12px; color: var(--text-2); }
+.fig-sub { display: block; margin-top: var(--sp-1); font-size: 12px; color: var(--text-2); }
 .fig[data-tone="ok"] .fig-value { color: var(--ok); }
 .fig[data-tone="warn"] .fig-value { color: var(--warn); }
 .fig[data-tone="bad"] .fig-value { color: var(--bad); }
@@ -10539,6 +10539,32 @@ body[data-gate="locked"] .app { display: none; }
 .fig[data-tone="prov-custom"] .fig-value { color: var(--prov-custom); }
 
 .kpi { padding: var(--sp-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-surface); }
+
+/* The pool split is one card, not one card per provider: the pool is one
+   pool and the split is a detail of it. A row of name / ready-of-total /
+   bar per provider, all on one surface. */
+.prov-split {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2h) var(--sp-3);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-surface); min-width: 0;
+}
+.split-head {
+  flex: none; font-size: 11px; font-weight: 620; letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--text-3); white-space: nowrap;
+}
+.split-cells { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); flex: 1 1 auto; min-width: 0; }
+.split-cell { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.split-name { font-size: 12.5px; color: var(--text-2); white-space: nowrap; }
+.split-count { font-family: var(--mono); font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.split-count b { font-weight: 600; color: var(--text); }
+.split-bar { display: block; width: 56px; height: 3px; border-radius: 2px; background: var(--surface-3); overflow: hidden; flex: none; }
+.split-bar i { display: block; height: 100%; border-radius: 2px; background: var(--text-3); }
+.split-cell[data-tone="prov-gemini"] .split-bar i { background: var(--prov-gemini); }
+.split-cell[data-tone="prov-elevenlabs"] .split-bar i { background: var(--prov-elevenlabs); }
+.split-cell[data-tone="prov-whatstoken"] .split-bar i { background: var(--prov-whatstoken); }
+.split-cell[data-tone="prov-custom"] .split-bar i { background: var(--prov-custom); }
 
 /* controls --------------------------------------------------------------- */
 
@@ -11379,6 +11405,17 @@ dialog {
   overscroll-behavior: contain;
 }
 dialog[open] { display: flex; flex-direction: column; }
+/* A sheet whose body scrolls keeps its footer pinned. The form is the flex
+   child of the dialog, so the form has to be the column that shrinks and its
+   own body has to be the scrolling one; without min-height: 0 the form kept
+   its content height and the footer rendered past the bottom of a phone. */
+dialog[open] > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+dialog[open] > form > .card-head,
+dialog[open] > form > .panel-head { flex: none; }
+dialog[open] > form > .card-body,
+dialog[open] > form > .panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+dialog[open] > form > .card-foot,
+dialog[open] > form > .panel-foot { flex: none; }
 dialog::backdrop { background: rgba(6, 8, 12, 0.62); }
 dialog.wide { width: min(960px, calc(100vw - 40px)); }
 .card-head {
@@ -11405,7 +11442,20 @@ dialog > form > .panel-body,
 dialog > .panel-body { padding: var(--sp-4); overflow-y: auto; }
 dialog > form > .panel-foot,
 dialog > .panel-foot { padding: var(--sp-2h) var(--sp-4); border-top: 1px solid var(--line); }
-dialog textarea { width: 100%; min-height: 140px; }
+/* Textareas in a sheet are lists of ids or keys, so they get the control's
+   border, radius and padding and the mono face \u2014 an unstyled textarea sat at
+   the UA's 2px padding with the browser's own border and resize grip. */
+dialog textarea {
+  width: 100%; min-height: 128px; padding: var(--sp-2) var(--sp-2h);
+  border: 1px solid var(--line); border-radius: var(--r-ctl);
+  background: var(--surface); color: var(--text);
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.65;
+  resize: vertical; tab-size: 2;
+}
+dialog textarea::placeholder { color: var(--text-3); }
+dialog textarea:hover { border-color: var(--line-2); }
+dialog textarea:focus { border-color: var(--text); }
+dialog textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 dialog .input, dialog .select { width: 100%; }
 dialog .field:first-child { margin-top: 0; }
 
@@ -11423,20 +11473,51 @@ dialog .field:first-child { margin-top: 0; }
   margin: 0 0 var(--sp-2); font-size: 11px; font-weight: 640;
   letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);
 }
+/* "(optional)" is a qualifier, not part of the shouted heading */
+.form-h .hint { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 11px; }
+/* the first-keys box holds a handful of lines, not a catalog */
+#pKeys { min-height: 88px; }
 .modal-split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--sp-6); align-items: start; }
-/* capability chips: a checked box tints the whole tile, so the chosen set is
-   legible at a glance instead of being five tiny checkboxes in a row */
-.caps-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
-.cap {
-  display: flex; align-items: center; gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-2h);
-  border: 1px solid var(--line); border-radius: var(--r-ctl);
-  background: var(--surface-2); color: var(--text-2);
-  font-size: 12.5px; font-weight: 520; cursor: pointer;
+/* capability list: a permission list, not five loose checkboxes. One bordered
+   surface, a hairline between rows, a drawn check so the state does not depend
+   on the platform's checkbox glyph. */
+.cap-set { margin: 0; padding: 0; border: 0; min-width: 0; }
+.cap-list {
+  display: grid; border: 1px solid var(--line); border-radius: var(--r-ctl);
+  overflow: hidden; background: var(--surface);
 }
-.cap input { margin: 0; accent-color: var(--accent); }
-.cap:has(input:checked) { border-color: var(--accent); background: var(--accent-wash); color: var(--text); }
-.cap:has(input:disabled) { opacity: 0.6; cursor: default; }
+.cap {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center; gap: var(--sp-2) var(--sp-2h);
+  padding: 7px var(--sp-2h);
+  cursor: pointer; min-width: 0;
+}
+.cap + .cap { border-top: 1px solid var(--line); }
+.cap:hover { background: var(--surface-2); }
+.cap:has(input:checked) { background: var(--accent-wash); }
+.cap:has(input:disabled) { opacity: 0.55; cursor: default; }
+.cap input { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; pointer-events: none; }
+.cap-box {
+  position: relative; width: 16px; height: 16px; flex: none;
+  border: 1.5px solid var(--line-2); border-radius: 4px;
+  background: var(--surface); transition: background 120ms ease, border-color 120ms ease;
+}
+.cap-box::after {
+  content: ""; position: absolute; left: 4px; top: 4px;
+  width: 8px; height: 4px; margin-top: -1px;
+  border-left: 2px solid var(--accent-ink); border-bottom: 2px solid var(--accent-ink);
+  transform: rotate(-45deg) scale(0.4); opacity: 0;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+.cap input:checked + .cap-box { background: var(--accent); border-color: var(--accent); }
+.cap input:checked + .cap-box::after { transform: rotate(-45deg) scale(1); opacity: 1; }
+.cap input:focus-visible + .cap-box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cap-name { font-size: 12.5px; font-weight: 560; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cap-hint { font-size: 11.5px; color: var(--text-3); white-space: nowrap; }
+/* a section heading with its action on the same line */
+.form-row { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.form-row .form-h { margin-bottom: 0; flex: 1 1 auto; }
+.form-row + textarea { margin-top: var(--sp-2); }
 @media screen and (max-width: 780px) {
   .modal-split { grid-template-columns: minmax(0, 1fr); }
   /* stacked, the two sections are a sequence again and want their rule */
@@ -11919,7 +12000,7 @@ dialog .field:first-child { margin-top: 0; }
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-.fig-value { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.fig-value { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 
 /* one vertical rhythm for every page: the direct sections of the console
    stack at exactly 24px, so no page can drift into 16px here and 32px there.
@@ -18863,6 +18944,7 @@ var KEYS_BODY = `
   ${noticeBand()}
 
   <div class="figures" id="kpis"></div>
+  <div class="u-mt-3" id="provSplit"></div>
 
   <section class="panel u-mt-4">
     <div class="panel-head">
@@ -18990,6 +19072,7 @@ var KEYS_SCRIPT = `
   var el = {
     console: document.getElementById("console"),
     kpis: document.getElementById("kpis"),
+    provSplit: document.getElementById("provSplit"),
     poolMeta: document.getElementById("poolMeta"),
     listMeta: document.getElementById("listMeta"),
     keysBody: document.getElementById("keysBody"),
@@ -19313,14 +19396,16 @@ var KEYS_SCRIPT = `
 
   function renderKpis(pool) {
     el.kpis.textContent = "";
+    el.provSplit.textContent = "";
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
     el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "across every provider"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
-       asked. The registry names every provider, so a custom one gets its own
-       card the moment it holds a key. */
+       asked. It used to be one card per provider, which read as four
+       unrelated numbers and pushed the table a row further down \u2014 the pool
+       is one pool, so the split is one surface holding every provider. */
     var byProvider = pool.byProvider || pool.providers || {};
     var tone = function (p) {
       if (p === "gemini") return "prov-gemini";
@@ -19333,13 +19418,33 @@ var KEYS_SCRIPT = `
       (state.providers || []).forEach(function (x) { if (x.id === p) hit = x; });
       return hit && hit.label ? hit.label : p;
     };
-    Object.keys(byProvider).sort(function (a, b) {
+    var names = Object.keys(byProvider).sort(function (a, b) {
       if (a === b) return 0;
       return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
-    }).forEach(function (p) {
-      var snap = byProvider[p] || {};
-      el.kpis.appendChild(GX.kpi(label(p), GX.fmt.num(snap.total || 0), (snap.ready || 0) + " ready", tone(p)));
     });
+    if (names.length) {
+      var cells = names.map(function (p) {
+        var snap = byProvider[p] || {};
+        var total = Number(snap.total) || 0;
+        var ready = Number(snap.ready) || 0;
+        var pct = total ? Math.max(0, Math.min(100, (ready / total) * 100)) : 0;
+        var cell = GX.el("div", { class: "split-cell", "data-tone": tone(p) }, [
+          GX.el("span", { class: "split-name", text: label(p) }),
+          GX.el("span", { class: "split-count" }, [
+            GX.el("b", { text: GX.fmt.num(ready) }),
+            GX.el("span", { text: "/" + GX.fmt.num(total) })
+          ]),
+          GX.el("span", { class: "split-bar", role: "presentation" },
+            GX.el("i", { style: "width:" + pct.toFixed(0) + "%" }))
+        ]);
+        cell.title = ready + " of " + total + " " + label(p) + " keys are ready";
+        return cell;
+      });
+      el.provSplit.appendChild(GX.el("div", { class: "prov-split" }, [
+        GX.el("span", { class: "split-head", text: "By provider" }),
+        GX.el("div", { class: "split-cells" }, cells)
+      ]));
+    }
   }
 
   function tableHead() {
@@ -19599,13 +19704,18 @@ var KEYS_SCRIPT = `
     GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: ids } })
       .then(function (data) {
         var list = (data && (data.results || data.keys)) || [];
-        var ok = 0, failed = 0;
-        list.forEach(function (row) { if (row && row.error) failed += 1; else ok += 1; });
+        var ok = 0, failed = 0, skipped = 0;
+        list.forEach(function (row) {
+          if (!row) return;
+          if (row.error) failed += 1;
+          else if (row.planValidated) ok += 1;
+          else skipped += 1;
+        });
         if (!list.length) ok = data && data.updated ? data.updated : 0;
-        GX.notice(
-          "Validated " + ok + " key(s)" + (failed ? ", " + failed + " could not be read." : "."),
-          failed ? "warn" : "ok"
-        );
+        var note = "Validated " + ok + " key(s)";
+        if (skipped) note += ", " + skipped + " have no published plan";
+        if (failed) note += ", " + failed + " could not be read";
+        GX.notice(note + ".", failed ? "warn" : skipped ? "warn" : "ok");
         return reload();
       })
       .catch(function (err) { GX.notice("Plan validation failed: " + err.message, "err"); })
@@ -19628,9 +19738,11 @@ var KEYS_SCRIPT = `
       .then(function (data) {
         var row = pickValidation(data, k.id);
         if (row.error) { GX.notice(k.key + ": " + row.error, "err"); return; }
-        var tier = row.plan || row.tier || "";
-        if (tier) {
-          GX.notice(k.key + ": plan is " + tierLabel(tier) + ".", "ok");
+        /* "tier" is always present and "unknown" is still a value, so the
+           verdict gates the message: a provider that publishes no plan must
+           not be reported as if it had declared "Unspecified". */
+        if (row.planValidated && (row.plan || row.tier)) {
+          GX.notice(k.key + ": plan is " + tierLabel(row.plan || row.tier) + ".", "ok");
           return;
         }
         GX.notice(k.key + ": " + (row.message || "the upstream answer did not name a plan."), "warn");
@@ -20458,7 +20570,13 @@ var KEY_DETAIL_HTML = consolePage({
 });
 
 // src/providers-ui.ts
-var CAPABILITY_OPTIONS = ["llm", "tts", "image", "video", "embeddings"];
+var CAPABILITY_OPTIONS = [
+  { id: "llm", label: "Chat", hint: "completions, tools" },
+  { id: "tts", label: "Speech", hint: "text to audio" },
+  { id: "image", label: "Image", hint: "image generation" },
+  { id: "video", label: "Video", hint: "video generation" },
+  { id: "embeddings", label: "Embeddings", hint: "vector search" }
+];
 var PROVIDERS_BODY = `
 
 <div id="console" hidden>
@@ -20561,21 +20679,22 @@ ${confirmDialog()}
         </section>
 
         <section class="form-section">
-          <h3 class="form-h">Capabilities</h3>
-          <div class="caps-grid" id="pCaps">
-            ${CAPABILITY_OPTIONS.map(
-  (c) => '<label class="cap" for="pCap-' + c + '"><input id="pCap-' + c + '" type="checkbox" value="' + c + '"><span>' + c + "</span></label>"
+          <fieldset class="cap-set">
+            <legend class="form-h">Capabilities</legend>
+            <div class="cap-list" id="pCaps">
+              ${CAPABILITY_OPTIONS.map(
+  (c) => '<label class="cap" for="pCap-' + c.id + '"><input id="pCap-' + c.id + '" type="checkbox" value="' + c.id + '"><span class="cap-box" aria-hidden="true"></span><span class="cap-name">' + c.label + '</span><span class="cap-hint">' + c.hint + "</span></label>"
 ).join("")}
-          </div>
-          <p class="hint u-mt-2">A route refuses a provider without the capability it needs.</p>
+            </div>
+            <p class="hint u-mt-2">A route refuses a provider without the capability it needs.</p>
+          </fieldset>
 
-          <h3 class="form-h u-mt-4">Models</h3>
-          <div class="toolbar">
-            <span class="hint grow">One model id per line. Bare ids resolve here.</span>
+          <div class="form-row u-mt-4">
+            <h3 class="form-h">Models</h3>
             <button id="pImport" class="btn btn-sm" type="button">${icon("download")}Import</button>
           </div>
-          <p class="hint u-mt-1" id="pImportHint"></p>
           <textarea id="pModels" spellcheck="false" rows="5" placeholder="deepseek-v4.1-flash-1017&#10;gpt-4o"></textarea>
+          <p class="hint u-mt-1" id="pImportHint">One model id per line. A bare id resolves here.</p>
 
           <div id="pKeysRow">
             <h3 class="form-h u-mt-4">First keys <span class="hint">(optional)</span></h3>
@@ -20823,6 +20942,8 @@ var PROVIDERS_SCRIPT = `
 
   /* ---------- dialog ---------- */
 
+  var IMPORT_HINT = "One model id per line. A bare id resolves here.";
+
   function resetDialog() {
     el.form.reset();
     state.editId = "";
@@ -20832,7 +20953,7 @@ var PROVIDERS_SCRIPT = `
     el.id.disabled = false;
     el.keysRow.hidden = false;
     el.count.textContent = "";
-    if (el.importHint) el.importHint.textContent = "";
+    if (el.importHint) el.importHint.textContent = IMPORT_HINT;
     GX.say(el.msg, "");
   }
 
@@ -22544,6 +22665,7 @@ app.post("/pengatur/keys/validate-plan", async (c) => {
   else if (Array.isArray(body.ids)) ids = body.ids.filter((x2) => typeof x2 === "string" && x2);
   if (!ids.length) return c.json({ error: { message: "`ids` or `all` is required." } }, 400);
   const results = new Array(ids.length);
+  const owned = new Map((await listKeys()).map((k) => [k.id, k.provider || "gemini"]));
   let cursor = 0;
   const worker = async () => {
     for (; ; ) {
@@ -22553,6 +22675,19 @@ app.post("/pengatur/keys/validate-plan", async (c) => {
       const raw2 = await rawKeyById(id);
       if (!raw2) {
         results[i] = { id, tier: "unknown", planValidated: false, error: "No key with that id." };
+        continue;
+      }
+      const provider = owned.get(id) || "gemini";
+      if (provider !== "gemini") {
+        results[i] = {
+          id,
+          tier: "unknown",
+          planValidated: false,
+          verdict: "not_applicable",
+          httpStatus: 0,
+          error: null,
+          message: "only Google publishes a plan; " + provider + " keys have none"
+        };
         continue;
       }
       const t = await probeTier(raw2);

@@ -1546,7 +1546,14 @@ app.post("/pengatur/keys/validate-plan", async (c) => {
     verdict?: string;
     httpStatus?: number;
     error: string | null;
+    message?: string;
   }[] = new Array(ids.length);
+  /* Tier evidence lives in Google's 429 body (`quota_limit_value`, the quota
+     id). probeTier always speaks the Gemini dialect, so handing it another
+     provider's credential made Google answer "API key not valid" and the
+     console reported a healthy Cerebras key as broken. The pool knows who
+     owns the key; anything that is not Gemini has no plan to read. */
+  const owned = new Map((await listKeys()).map((k) => [k.id, k.provider || "gemini"]));
   let cursor = 0;
   const worker = async () => {
     for (;;) {
@@ -1556,6 +1563,19 @@ app.post("/pengatur/keys/validate-plan", async (c) => {
       const raw = await rawKeyById(id);
       if (!raw) {
         results[i] = { id, tier: "unknown", planValidated: false, error: "No key with that id." };
+        continue;
+      }
+      const provider = owned.get(id) || "gemini";
+      if (provider !== "gemini") {
+        results[i] = {
+          id,
+          tier: "unknown",
+          planValidated: false,
+          verdict: "not_applicable",
+          httpStatus: 0,
+          error: null,
+          message: "only Google publishes a plan; " + provider + " keys have none",
+        };
         continue;
       }
       const t = await probeTier(raw);

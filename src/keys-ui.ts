@@ -93,6 +93,7 @@ const KEYS_BODY = `
   ${noticeBand()}
 
   <div class="figures" id="kpis"></div>
+  <div class="u-mt-3" id="provSplit"></div>
 
   <section class="panel u-mt-4">
     <div class="panel-head">
@@ -221,6 +222,7 @@ const KEYS_SCRIPT = `
   var el = {
     console: document.getElementById("console"),
     kpis: document.getElementById("kpis"),
+    provSplit: document.getElementById("provSplit"),
     poolMeta: document.getElementById("poolMeta"),
     listMeta: document.getElementById("listMeta"),
     keysBody: document.getElementById("keysBody"),
@@ -544,14 +546,16 @@ const KEYS_SCRIPT = `
 
   function renderKpis(pool) {
     el.kpis.textContent = "";
+    el.provSplit.textContent = "";
     el.kpis.appendChild(GX.kpi("Ready", GX.fmt.num(pool.ready), "selectable right now", "ok"));
     el.kpis.appendChild(GX.kpi("Cooling", GX.fmt.num(pool.cooling), "waiting out a quota", pool.cooling ? "warn" : ""));
     el.kpis.appendChild(GX.kpi("Dead", GX.fmt.num(pool.dead), "revoked or no quota", pool.dead ? "bad" : ""));
     el.kpis.appendChild(GX.kpi("Keys in pool", GX.fmt.num(pool.total), pool.degraded ? "degraded" : "across every provider"));
     /* Per-provider counts, in each provider's colour. A multi-provider pool
        is several pools wearing one number; the split is the first thing
-       asked. The registry names every provider, so a custom one gets its own
-       card the moment it holds a key. */
+       asked. It used to be one card per provider, which read as four
+       unrelated numbers and pushed the table a row further down — the pool
+       is one pool, so the split is one surface holding every provider. */
     var byProvider = pool.byProvider || pool.providers || {};
     var tone = function (p) {
       if (p === "gemini") return "prov-gemini";
@@ -564,13 +568,33 @@ const KEYS_SCRIPT = `
       (state.providers || []).forEach(function (x) { if (x.id === p) hit = x; });
       return hit && hit.label ? hit.label : p;
     };
-    Object.keys(byProvider).sort(function (a, b) {
+    var names = Object.keys(byProvider).sort(function (a, b) {
       if (a === b) return 0;
       return a === "gemini" ? -1 : b === "gemini" ? 1 : a < b ? -1 : 1;
-    }).forEach(function (p) {
-      var snap = byProvider[p] || {};
-      el.kpis.appendChild(GX.kpi(label(p), GX.fmt.num(snap.total || 0), (snap.ready || 0) + " ready", tone(p)));
     });
+    if (names.length) {
+      var cells = names.map(function (p) {
+        var snap = byProvider[p] || {};
+        var total = Number(snap.total) || 0;
+        var ready = Number(snap.ready) || 0;
+        var pct = total ? Math.max(0, Math.min(100, (ready / total) * 100)) : 0;
+        var cell = GX.el("div", { class: "split-cell", "data-tone": tone(p) }, [
+          GX.el("span", { class: "split-name", text: label(p) }),
+          GX.el("span", { class: "split-count" }, [
+            GX.el("b", { text: GX.fmt.num(ready) }),
+            GX.el("span", { text: "/" + GX.fmt.num(total) })
+          ]),
+          GX.el("span", { class: "split-bar", role: "presentation" },
+            GX.el("i", { style: "width:" + pct.toFixed(0) + "%" }))
+        ]);
+        cell.title = ready + " of " + total + " " + label(p) + " keys are ready";
+        return cell;
+      });
+      el.provSplit.appendChild(GX.el("div", { class: "prov-split" }, [
+        GX.el("span", { class: "split-head", text: "By provider" }),
+        GX.el("div", { class: "split-cells" }, cells)
+      ]));
+    }
   }
 
   function tableHead() {
@@ -830,13 +854,18 @@ const KEYS_SCRIPT = `
     GX.api("/pengatur/keys/validate-plan", { method: "POST", body: { ids: ids } })
       .then(function (data) {
         var list = (data && (data.results || data.keys)) || [];
-        var ok = 0, failed = 0;
-        list.forEach(function (row) { if (row && row.error) failed += 1; else ok += 1; });
+        var ok = 0, failed = 0, skipped = 0;
+        list.forEach(function (row) {
+          if (!row) return;
+          if (row.error) failed += 1;
+          else if (row.planValidated) ok += 1;
+          else skipped += 1;
+        });
         if (!list.length) ok = data && data.updated ? data.updated : 0;
-        GX.notice(
-          "Validated " + ok + " key(s)" + (failed ? ", " + failed + " could not be read." : "."),
-          failed ? "warn" : "ok"
-        );
+        var note = "Validated " + ok + " key(s)";
+        if (skipped) note += ", " + skipped + " have no published plan";
+        if (failed) note += ", " + failed + " could not be read";
+        GX.notice(note + ".", failed ? "warn" : skipped ? "warn" : "ok");
         return reload();
       })
       .catch(function (err) { GX.notice("Plan validation failed: " + err.message, "err"); })
@@ -859,9 +888,11 @@ const KEYS_SCRIPT = `
       .then(function (data) {
         var row = pickValidation(data, k.id);
         if (row.error) { GX.notice(k.key + ": " + row.error, "err"); return; }
-        var tier = row.plan || row.tier || "";
-        if (tier) {
-          GX.notice(k.key + ": plan is " + tierLabel(tier) + ".", "ok");
+        /* "tier" is always present and "unknown" is still a value, so the
+           verdict gates the message: a provider that publishes no plan must
+           not be reported as if it had declared "Unspecified". */
+        if (row.planValidated && (row.plan || row.tier)) {
+          GX.notice(k.key + ": plan is " + tierLabel(row.plan || row.tier) + ".", "ok");
           return;
         }
         GX.notice(k.key + ": " + (row.message || "the upstream answer did not name a plan."), "warn");

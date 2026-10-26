@@ -37,7 +37,15 @@ export type ProviderRow = {
 
 /* ---------- page ---------- */
 
-const CAPABILITY_OPTIONS = ["llm", "tts", "image", "video", "embeddings"];
+/* Capability ids are the wire contract; the console names them in words so the
+   sheet reads as a permission list rather than five lower-case tokens. */
+const CAPABILITY_OPTIONS: { id: string; label: string; hint: string }[] = [
+  { id: "llm", label: "Chat", hint: "completions, tools" },
+  { id: "tts", label: "Speech", hint: "text to audio" },
+  { id: "image", label: "Image", hint: "image generation" },
+  { id: "video", label: "Video", hint: "video generation" },
+  { id: "embeddings", label: "Embeddings", hint: "vector search" },
+];
 
 const PROVIDERS_BODY = `
 
@@ -141,30 +149,33 @@ ${confirmDialog()}
         </section>
 
         <section class="form-section">
-          <h3 class="form-h">Capabilities</h3>
-          <div class="caps-grid" id="pCaps">
-            ${CAPABILITY_OPTIONS.map(
-              (c) =>
-                '<label class="cap" for="pCap-' +
-                c +
-                '"><input id="pCap-' +
-                c +
-                '" type="checkbox" value="' +
-                c +
-                '"><span>' +
-                c +
-                "</span></label>",
-            ).join("")}
-          </div>
-          <p class="hint u-mt-2">A route refuses a provider without the capability it needs.</p>
+          <fieldset class="cap-set">
+            <legend class="form-h">Capabilities</legend>
+            <div class="cap-list" id="pCaps">
+              ${CAPABILITY_OPTIONS.map(
+                (c) =>
+                  '<label class="cap" for="pCap-' +
+                  c.id +
+                  '"><input id="pCap-' +
+                  c.id +
+                  '" type="checkbox" value="' +
+                  c.id +
+                  '"><span class="cap-box" aria-hidden="true"></span><span class="cap-name">' +
+                  c.label +
+                  '</span><span class="cap-hint">' +
+                  c.hint +
+                  "</span></label>",
+              ).join("")}
+            </div>
+            <p class="hint u-mt-2">A route refuses a provider without the capability it needs.</p>
+          </fieldset>
 
-          <h3 class="form-h u-mt-4">Models</h3>
-          <div class="toolbar">
-            <span class="hint grow">One model id per line. Bare ids resolve here.</span>
+          <div class="form-row u-mt-4">
+            <h3 class="form-h">Models</h3>
             <button id="pImport" class="btn btn-sm" type="button">${icon("download")}Import</button>
           </div>
-          <p class="hint u-mt-1" id="pImportHint"></p>
           <textarea id="pModels" spellcheck="false" rows="5" placeholder="deepseek-v4.1-flash-1017&#10;gpt-4o"></textarea>
+          <p class="hint u-mt-1" id="pImportHint">One model id per line. A bare id resolves here.</p>
 
           <div id="pKeysRow">
             <h3 class="form-h u-mt-4">First keys <span class="hint">(optional)</span></h3>
@@ -413,6 +424,8 @@ const PROVIDERS_SCRIPT = `
 
   /* ---------- dialog ---------- */
 
+  var IMPORT_HINT = "One model id per line. A bare id resolves here.";
+
   function resetDialog() {
     el.form.reset();
     state.editId = "";
@@ -422,7 +435,7 @@ const PROVIDERS_SCRIPT = `
     el.id.disabled = false;
     el.keysRow.hidden = false;
     el.count.textContent = "";
-    if (el.importHint) el.importHint.textContent = "";
+    if (el.importHint) el.importHint.textContent = IMPORT_HINT;
     GX.say(el.msg, "");
   }
 
