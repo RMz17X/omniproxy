@@ -6347,6 +6347,7 @@ __export(pool_exports, {
   backfillMaterial: () => backfillMaterial,
   deadKeys: () => deadKeys,
   dropLocal: () => dropLocal,
+  flushPoolWrites: () => flushPoolWrites,
   forgetDead: () => forgetDead,
   hydrate: () => hydrate,
   keyId: () => keyId,
@@ -6390,12 +6391,19 @@ function keyId(k) {
 function later(fn) {
   if (!dbEnabled()) return;
   queueMicrotask(() => {
-    void fn().catch((err2) => {
+    const p2 = fn().catch((err2) => {
       log("warn", "pool.persist_failed", {
         error: err2 instanceof Error ? err2.message : String(err2)
       });
-    });
+    }).finally(() => pendingWrites.delete(p2));
+    pendingWrites.add(p2);
   });
+}
+async function flushPoolWrites() {
+  await new Promise((resolve) => queueMicrotask(resolve));
+  while (pendingWrites.size > 0) {
+    await Promise.allSettled([...pendingWrites]);
+  }
 }
 async function backfillMaterial() {
   if (!materialEnabled()) return 0;
@@ -6934,7 +6942,7 @@ async function snapshot() {
     providers: byProvider
   };
 }
-var storageMode, KEY_TIERS, local, now, blank, outranked, HYDRATE_REFRESH_MS, lastHydrateAt, hydrating, planOf;
+var storageMode, KEY_TIERS, local, now, blank, pendingWrites, outranked, HYDRATE_REFRESH_MS, lastHydrateAt, hydrating, planOf;
 var init_pool = __esm({
   "src/pool.ts"() {
     "use strict";
@@ -6970,6 +6978,7 @@ var init_pool = __esm({
       lastCheckedAt: 0,
       modelRefusals: {}
     });
+    pendingWrites = /* @__PURE__ */ new Set();
     outranked = (st, observedAt) => st.retiredAt > observedAt;
     HYDRATE_REFRESH_MS = 2e4;
     lastHydrateAt = 0;
@@ -22008,6 +22017,7 @@ app.post("/pengatur/keys", async (c) => {
     }
   });
   const durable = keyMaterialDurable();
+  await flushPoolWrites();
   const warning = durable ? {} : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
   return c.json({
     ok: true,
@@ -22216,6 +22226,7 @@ app.post("/pengatur/keys/test", async (c) => {
   const held = Boolean(await rawKeyById(id));
   const applied = held ? await applyProbe(raw2, result) : "none";
   if (held && result.tierEvidence) await markValidatedPlan(raw2, result.tierEvidence);
+  await flushPoolWrites();
   const view = held ? (await listKeys()).find((k) => k.id === id) : void 0;
   await recordNow("keys.test", {
     actor: actorFrom(c.req.header("user-agent")),
@@ -22286,6 +22297,7 @@ app.post("/pengatur/keys/test-all", async (c) => {
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  await flushPoolWrites();
   const purged = await purgeDead();
   const dropped2 = forgetDead();
   await recordNow("keys.test-all", {
@@ -22455,6 +22467,7 @@ app.post("/internal/keys/recheck", async (c) => {
     return c.json({ error: { message: "Unauthorized." } }, 401);
   }
   const result = await recheckDueKeys();
+  await flushPoolWrites();
   await recordNow("keys.recheck", {
     actor: actorFrom(c.req.header("user-agent")),
     target: "pool",
@@ -22474,6 +22487,7 @@ async function runRecheckOnce(trigger) {
   recheckBusy = true;
   try {
     const r = await recheckDueKeys();
+    await flushPoolWrites();
     if (r.checked > 0) {
       await recordNow("keys.recheck", {
         actor: trigger === "timer" ? "scheduler" : "traffic",

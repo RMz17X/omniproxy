@@ -15,7 +15,7 @@
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, backfillMaterial, dropLocal, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, hydrate, type KeyTier, type KeyView } from "./pool.ts";
+import { addKey, backfillMaterial, dropLocal, flushPoolWrites, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, hydrate, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
@@ -1069,6 +1069,9 @@ app.post("/pengatur/keys", async (c) => {
     },
   });
   const durable = keyMaterialDurable();
+  // The sender acts on `added`/`ids` immediately (hajimi-king logs them as
+  // delivered); the rows must exist before the response says so.
+  await flushPoolWrites();
   const warning = durable
     ? {}
     : { warning: "KEY_MATERIAL is not durable: keys added now survive until the next cold start only." };
@@ -1351,6 +1354,9 @@ app.post("/pengatur/keys/test", async (c) => {
   // Plan evidence rides on the 429 body only; a 2xx proves the credential but
   // says nothing about the plan, so the stored tier is left alone.
   if (held && result.tierEvidence) await markValidatedPlan(raw, result.tierEvidence);
+  // The verdict is detached by design (see flushPoolWrites); an admin caller
+  // reads the pool right after this response, so it must already be durable.
+  await flushPoolWrites();
 
   const view = held ? (await listKeys()).find((k) => k.id === id) : undefined;
 
@@ -1444,6 +1450,10 @@ app.post("/pengatur/keys/test-all", async (c) => {
   };
 
   await Promise.all(Array.from({ length: Math.min(limit, target.length) }, worker));
+  // The sweep reports what it applied, so the writes must land before the
+  // response: a frozen instance would otherwise lose the revives and the
+  // caller would read a pool that disagrees with the report.
+  await flushPoolWrites();
   /* Every credential the sweep just retired is dead forever, so it is removed
      in the same pass. Keeping it only inflates the pool snapshot and the
      keys list; quota_exhausted rows are left alone because a 200 revives them. */
@@ -1715,6 +1725,9 @@ app.post("/internal/keys/recheck", async (c) => {
   }
 
   const result = await recheckDueKeys();
+  // The pass reports counts an operator acts on; make sure the retirements and
+  // revivals it just applied survive the response.
+  await flushPoolWrites();
 
   await auditRecordNow("keys.recheck", {
     actor: actorFrom(c.req.header("user-agent")),
@@ -1749,6 +1762,10 @@ async function runRecheckOnce(trigger: "timer" | "lazy"): Promise<void> {
   recheckBusy = true;
   try {
     const r = await recheckDueKeys();
+    // A background pass has no response to keep the instance alive, so its
+    // verdicts must reach Postgres before this function returns; otherwise the
+    // instance freezes and the next cold start re-probes the same keys.
+    await flushPoolWrites();
     if (r.checked > 0) {
       await auditRecordNow("keys.recheck", {
         actor: trigger === "timer" ? "scheduler" : "traffic",

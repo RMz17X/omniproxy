@@ -153,15 +153,39 @@ const blank = (key: string, provider: string = "gemini"): KeyState => ({
  * Run a durable write off the request path. `db.ts` already turns failures
  * into typed results; this wrapper only guarantees the caller never awaits it.
  */
+const pendingWrites = new Set<Promise<void>>();
+
 function later(fn: () => Promise<void>): void {
   if (!dbEnabled()) return;
   queueMicrotask(() => {
-    void fn().catch((err: unknown) => {
-      log("warn", "pool.persist_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
+    const p = fn()
+      .catch((err: unknown) => {
+        log("warn", "pool.persist_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => pendingWrites.delete(p));
+    pendingWrites.add(p);
   });
+}
+
+/**
+ * Await every write queued so far.
+ *
+ * `later()` exists so a request never waits on Postgres, but that makes the
+ * write detached: on a serverless runtime the instance freezes as soon as the
+ * response is sent, and a queued write that has not started yet is simply
+ * lost. Serving paths can live with that (the verdict is re-derived on the
+ * next request), but an ADMIN path cannot: it reports "revived 87" and the
+ * durable pool must actually hold those 87 afterwards. Every admin route that
+ * reports a pool outcome calls this before answering.
+ */
+export async function flushPoolWrites(): Promise<void> {
+  // Let the already-queued microtasks run so their promises are registered.
+  await new Promise<void>((resolve) => queueMicrotask(resolve));
+  while (pendingWrites.size > 0) {
+    await Promise.allSettled([...pendingWrites]);
+  }
 }
 
 /**
