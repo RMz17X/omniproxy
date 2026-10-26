@@ -42,7 +42,9 @@ var init_config = __esm({
       /** cooldown applied on 5xx */
       serverErrCooldownMs: num(process.env.KEY_5XX_COOLDOWN_MS, 15e3),
       /** max key attempts per request before giving up */
-      maxAttempts: num(process.env.MAX_ATTEMPTS, 6),
+      // 10 per operator policy: a 429 must rotate to another still-valid key, and
+      // the console can override this at runtime (see settings-store.ts).
+      maxAttempts: num(process.env.MAX_ATTEMPTS, 10),
       /** how long to wait for a busy pool before 429-ing the client */
       maxWaitMs: num(process.env.MAX_WAIT_MS, 8e3),
       /** hard ceiling for one upstream attempt; also the client-disconnect bound */
@@ -123,6 +125,14 @@ var init_config = __esm({
        * 0 disables the timer (the HTTP route still works).
        */
       recheckIntervalMinutes: num(process.env.RECHECK_INTERVAL_MINUTES, 19),
+      /**
+       * How often public traffic may trigger a background re-check of due keys.
+       * A serverless instance is frozen between requests, so the timer alone can
+       * miss a rate-limit window expiring; the first request after it pays that
+       * miss with a 429 unless traffic drives the probe. 0 disables the hook (the
+       * timer and the HTTP route still work); tests set 0 to keep pools still.
+       */
+      lazyRecheckMs: num(process.env.LAZY_RECHECK_MS, 6e4),
       /** a key rejected as invalid is not re-probed more often than this */
       invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
       /**
@@ -237,7 +247,7 @@ var init_metrics = __esm({
   }
 });
 
-// node_modules/@neondatabase/serverless/index.mjs
+// ../../node_modules/@neondatabase/serverless/index.mjs
 function Ma(r) {
   return 0;
 }
@@ -661,7 +671,7 @@ function $l(r) {
 }
 var Po, Ie, Ro, Lo, Bo, Fo, Mo, a, V, T, se, Dn, we, O, E, Wn, jn, oi, b, x, v, p, y, h, ve, Ii, Ti, _i, A, pe, Ge, tr, rr, Fi, ki, Qi, Ni, zi, Yi, ts, ns, Je, _t, os, M, et, as, lr, fr, tt, rt, nt, ju, it, xs, yr, mr, gr, wr, br, ec, xr, vs, Sr, vr, Ss, _s, Ps, Ls, Bs, wc, Fs, Ms, ks, Ir, Lt, Ws, Gs, ln, Vs, Ks, Ys, eo, vn, to, ro, An, uo, fo, ho, Il, po, yo, wo, So, Mn, ot, da, pa, ya, ai, ma, ga, ui, wa, ba, xa, ci, va, Yt, dt, pt, Sa, li, je, yt, Zt, xe, mt, He, Jt, $e, wt, N, hi, _a, Ta, vt, ds, ps, ls, Co, Ao, On, ut, _o, Qn, ct, To, export_DatabaseError, export_defaults, export_escapeIdentifier, export_escapeLiteral, export_types;
 var init_serverless = __esm({
-  "node_modules/@neondatabase/serverless/index.mjs"() {
+  "../../node_modules/@neondatabase/serverless/index.mjs"() {
     Po = Object.create;
     Ie = Object.defineProperty;
     Ro = Object.getOwnPropertyDescriptor;
@@ -6968,15 +6978,15 @@ var init_pool = __esm({
   }
 });
 
-// node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
+// ../../node_modules/@hono/node-server/dist/constants-BLSFu_RU.mjs
 var X_ALREADY_SENT = "x-hono-already-sent";
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 import { STATUS_CODES, ServerResponse, createServer } from "node:http";
 import { Http2ServerRequest, constants } from "node:http2";
 import { Readable } from "node:stream";
 
-// node_modules/hono/dist/helper/websocket/index.js
+// ../../node_modules/hono/dist/helper/websocket/index.js
 var defineWebSocketHelper = (handler2) => {
   return (...args) => {
     if (typeof args[0] === "function") {
@@ -6997,7 +7007,7 @@ var defineWebSocketHelper = (handler2) => {
   };
 };
 
-// node_modules/@hono/node-server/dist/index.mjs
+// ../../node_modules/@hono/node-server/dist/index.mjs
 var RequestError = class extends Error {
   constructor(message, options) {
     super(message, options);
@@ -7607,8 +7617,8 @@ var Response$1 = class Response$12 {
   #body;
   #init;
   [getResponseCache]() {
-    const cache2 = this[cacheKey];
-    const liveHeaders = cache2 && cache2[2] instanceof Headers ? cache2[2] : void 0;
+    const cache4 = this[cacheKey];
+    const liveHeaders = cache4 && cache4[2] instanceof Headers ? cache4[2] : void 0;
     delete this[cacheKey];
     return this[responseCache] ||= new GlobalResponse(this.#body, liveHeaders ? {
       status: this.#init?.status,
@@ -7636,10 +7646,10 @@ var Response$1 = class Response$12 {
     ];
   }
   get headers() {
-    const cache2 = this[cacheKey];
-    if (cache2) {
-      if (!(cache2[2] instanceof Headers)) cache2[2] = new Headers(cache2[2] || (cache2[1] === null ? void 0 : { "content-type": defaultContentType }));
-      return cache2[2];
+    const cache4 = this[cacheKey];
+    if (cache4) {
+      if (!(cache4[2] instanceof Headers)) cache4[2] = new Headers(cache4[2] || (cache4[1] === null ? void 0 : { "content-type": defaultContentType }));
+      return cache4[2];
     }
     return this[getResponseCache]().headers;
   }
@@ -8164,15 +8174,15 @@ var upgradeWebSocket = defineWebSocketHelper(async (c, events, options) => {
   return new Response();
 });
 
-// node_modules/hono/dist/request/constants.js
+// ../../node_modules/hono/dist/request/constants.js
 var GET_MATCH_RESULT = Symbol();
 
-// node_modules/hono/dist/utils/buffer.js
+// ../../node_modules/hono/dist/utils/buffer.js
 var bufferToFormData = (arrayBuffer, contentType2) => {
   return new Response(arrayBuffer, { headers: { "Content-Type": contentType2.replace(/^[^;]+/, (mediaType) => mediaType.toLowerCase()) } }).formData();
 };
 
-// node_modules/hono/dist/utils/body.js
+// ../../node_modules/hono/dist/utils/body.js
 var MAX_NESTED_OBJECTS = 1e4;
 var isRawRequest = (request) => "headers" in request;
 var parseBody = async (request, options = /* @__PURE__ */ Object.create(null)) => {
@@ -8236,7 +8246,7 @@ var throwNestingLimitExceeded = () => {
   throw new Error("Nesting limit exceeded");
 };
 
-// node_modules/hono/dist/utils/url.js
+// ../../node_modules/hono/dist/utils/url.js
 var splitPath = (path) => {
   const paths = path.split("/");
   if (paths[0] === "") paths.shift();
@@ -8407,7 +8417,7 @@ var getQueryParams = (url, key) => {
 };
 var decodeURIComponent_ = decodeURIComponent;
 
-// node_modules/hono/dist/request.js
+// ../../node_modules/hono/dist/request.js
 var HonoRequest = class {
   /**
   * `.raw` can get the raw Request object.
@@ -8677,7 +8687,7 @@ var HonoRequest = class {
   }
 };
 
-// node_modules/hono/dist/utils/html.js
+// ../../node_modules/hono/dist/utils/html.js
 var HtmlEscapedCallbackPhase = {
   Stringify: 1,
   BeforeStream: 2,
@@ -8707,7 +8717,7 @@ var resolveCallback = async (str, phase, preserveCallbacks, context, buffer) => 
   else return resStr;
 };
 
-// node_modules/hono/dist/context.js
+// ../../node_modules/hono/dist/context.js
 var TEXT_PLAIN = "text/plain; charset=UTF-8";
 var setDefaultContentType = (contentType2, headers) => {
   return {
@@ -9085,7 +9095,7 @@ var Context = class {
   };
 };
 
-// node_modules/hono/dist/compose.js
+// ../../node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
     let index = -1;
@@ -9116,7 +9126,7 @@ var compose = (middleware, onError, onNotFound) => {
   };
 };
 
-// node_modules/hono/dist/router.js
+// ../../node_modules/hono/dist/router.js
 var METHODS = [
   "get",
   "post",
@@ -9130,10 +9140,10 @@ var MESSAGE_MATCHER_IS_ALREADY_BUILT = "Can not add a route since the matcher is
 var UnsupportedPathError = class extends Error {
 };
 
-// node_modules/hono/dist/utils/constants.js
+// ../../node_modules/hono/dist/utils/constants.js
 var COMPOSED_HANDLER = "__COMPOSED_HANDLER";
 
-// node_modules/hono/dist/hono-base.js
+// ../../node_modules/hono/dist/hono-base.js
 var notFoundHandler = (c) => {
   return c.text("404 Not Found", 404);
 };
@@ -9474,10 +9484,10 @@ var Hono = class Hono2 {
   };
 };
 
-// node_modules/hono/dist/router/utils.js
+// ../../node_modules/hono/dist/router/utils.js
 var createNullObject = () => /* @__PURE__ */ Object.create(null);
 
-// node_modules/hono/dist/router/reg-exp-router/matcher.js
+// ../../node_modules/hono/dist/router/reg-exp-router/matcher.js
 var emptyParam = [];
 function match(method, path) {
   const matchers = this.buildAllMatchers();
@@ -9494,7 +9504,7 @@ function match(method, path) {
   return match2(method, path);
 }
 
-// node_modules/hono/dist/router/reg-exp-router/node.js
+// ../../node_modules/hono/dist/router/reg-exp-router/node.js
 var LABEL_REG_EXP_STR = "[^/]+";
 var TAIL_WILDCARD_REG_EXP_STR = "(?:|/.*)";
 var PATH_ERROR = Symbol();
@@ -9575,7 +9585,7 @@ var Node = class Node2 {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/trie.js
+// ../../node_modules/hono/dist/router/reg-exp-router/trie.js
 var Trie = class {
   #context = { varIndex: 0 };
   #root = new Node();
@@ -9640,7 +9650,7 @@ var Trie = class {
   }
 };
 
-// node_modules/hono/dist/router/reg-exp-router/router.js
+// ../../node_modules/hono/dist/router/reg-exp-router/router.js
 var wildcardRegExpCache = createNullObject();
 function buildWildcardRegExp(path) {
   return wildcardRegExpCache[path] ??= new RegExp(`^${path.replace(/\/:[^/{}]+(?:\{\[\^\/]\+})?(?=[/{]|$)|\/?\*$|([.\\+*[^\]$()?{}|])/g, (match2, metaChar) => metaChar ? `\\${metaChar}` : match2 === "/*" ? TAIL_WILDCARD_REG_EXP_STR : match2 === "*" ? ".*" : `/:${LABEL_REG_EXP_STR}`)}$`);
@@ -9734,7 +9744,7 @@ var RegExpRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/smart-router/router.js
+// ../../node_modules/hono/dist/router/smart-router/router.js
 var SmartRouter = class {
   name = "SmartRouter";
   #routers = [];
@@ -9781,7 +9791,7 @@ var SmartRouter = class {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/node.js
+// ../../node_modules/hono/dist/router/trie-router/node.js
 var emptyParams = createNullObject();
 var order = 0;
 var Node3 = class Node4 {
@@ -9911,7 +9921,7 @@ var Node3 = class Node4 {
   }
 };
 
-// node_modules/hono/dist/router/trie-router/router.js
+// ../../node_modules/hono/dist/router/trie-router/router.js
 var TrieRouter = class {
   name = "TrieRouter";
   #node = new Node3();
@@ -9923,7 +9933,7 @@ var TrieRouter = class {
   }
 };
 
-// node_modules/hono/dist/hono.js
+// ../../node_modules/hono/dist/hono.js
 var Hono3 = class extends Hono {
   /**
   * Creates an instance of the Hono class.
@@ -9936,7 +9946,7 @@ var Hono3 = class extends Hono {
   }
 };
 
-// node_modules/hono/dist/middleware/cors/index.js
+// ../../node_modules/hono/dist/middleware/cors/index.js
 var cors = (options) => {
   const opts = {
     origin: "*",
@@ -10633,6 +10643,23 @@ body[data-gate="locked"] .app { display: none; }
 .muted { color: var(--text-3); }
 .mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .num { text-align: right; }
+
+/* Console inline editor (the settings rotation cap): a number field and its
+   save button on one row, matching the panel rhythm. */
+.inline-form { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.text-input {
+  min-height: var(--tap-sm);
+  padding: 0 var(--sp-2);
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-surface);
+  min-width: 0;
+  width: 6rem;
+}
+.text-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .check { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: 12.5px; color: var(--text-2); cursor: pointer; }
 .check input[type="checkbox"] {
@@ -14310,6 +14337,55 @@ function catalogFor(id) {
 init_config();
 init_log();
 init_metrics();
+
+// src/settings-store.ts
+init_config();
+init_db();
+var CACHE_TTL_MS = 1e4;
+var cache = { at: 0, values: /* @__PURE__ */ new Map() };
+async function load() {
+  if (Date.now() - cache.at < CACHE_TTL_MS) return cache.values;
+  const values = /* @__PURE__ */ new Map();
+  if (dbEnabled()) {
+    const res = await sql("select key, value from gateway_settings", []);
+    if (res.ok) for (const row of res.rows) values.set(row.key, row.value);
+  }
+  cache = { at: Date.now(), values };
+  return values;
+}
+async function getSetting(key) {
+  return (await load()).get(key) ?? null;
+}
+async function setSetting(key, value) {
+  if (!dbEnabled()) throw new Error("storage disabled: no DATABASE_URL");
+  const res = await sql(
+    "insert into gateway_settings (key, value, updated_at) values ($1, $2, now()) on conflict (key) do update set value = excluded.value, updated_at = now()",
+    [key, value]
+  );
+  if (!res.ok) throw new Error(res.message ?? "write failed");
+  cache.values.set(key, value);
+  cache.at = Date.now();
+}
+var clamp = (n, lo, hi2) => Math.min(hi2, Math.max(lo, n));
+var MAX_ATTEMPTS_KEY = "max_key_attempts";
+var MAX_ATTEMPTS_RANGE = { min: 1, max: 50 };
+async function rotationCap() {
+  const raw2 = await getSetting(MAX_ATTEMPTS_KEY);
+  const n = raw2 === null ? cfg.maxAttempts : Number(raw2);
+  return Number.isFinite(n) ? clamp(Math.round(n), MAX_ATTEMPTS_RANGE.min, MAX_ATTEMPTS_RANGE.max) : cfg.maxAttempts;
+}
+async function rotationSetting() {
+  const stored = await getSetting(MAX_ATTEMPTS_KEY) !== null;
+  return {
+    maxKeyAttempts: await rotationCap(),
+    envDefault: cfg.maxAttempts,
+    stored,
+    min: MAX_ATTEMPTS_RANGE.min,
+    max: MAX_ATTEMPTS_RANGE.max
+  };
+}
+
+// src/upstream.ts
 init_pool();
 
 // src/verdict.ts
@@ -14615,6 +14691,7 @@ function attemptSignal(client2, timeoutMs) {
 async function execute(url, init, path, signal, opts) {
   const tried = /* @__PURE__ */ new Set();
   const deadline2 = Date.now() + cfg.maxWaitMs;
+  const maxAttempts = await rotationCap();
   const quotaRefused = /* @__PURE__ */ new Set();
   const modelRefusedKeys = /* @__PURE__ */ new Set();
   let attempts = 0;
@@ -14711,7 +14788,7 @@ async function execute(url, init, path, signal, opts) {
       rotated = true;
       counters.rotations++;
     }
-    if (attempts >= cfg.maxAttempts) {
+    if (attempts >= maxAttempts) {
       counters.poolExhausted++;
       return {
         response: jsonError(429, "max_attempts", "Every key attempt failed."),
@@ -14771,7 +14848,7 @@ async function execute(url, init, path, signal, opts) {
         attempt: attempts,
         error: err2 instanceof Error ? err2.message : String(err2)
       });
-      if (attempts >= cfg.maxAttempts) {
+      if (attempts >= maxAttempts) {
         return {
           response: jsonError(
             502,
@@ -14801,7 +14878,7 @@ async function execute(url, init, path, signal, opts) {
           model: scopeModel,
           retryAfterMs: quota.retryAfterMs
         });
-        if (attempts >= cfg.maxAttempts) {
+        if (attempts >= maxAttempts) {
           return {
             response: rebuild(res, body),
             key: st.key,
@@ -14820,7 +14897,7 @@ async function execute(url, init, path, signal, opts) {
         } else {
           log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
         }
-        if (attempts >= cfg.maxAttempts) {
+        if (attempts >= maxAttempts) {
           return {
             response: rebuild(res, body),
             key: st.key,
@@ -14835,7 +14912,7 @@ async function execute(url, init, path, signal, opts) {
       const cd = parseRetryAfter(res, body) ?? cfg.cooldownMs;
       await mark429(st.key, Math.max(cfg.cooldownMs, cd));
       log("info", "key.cooldown", { path, key: maskKey(st.key), status, cooldownMs: Math.max(cfg.cooldownMs, cd) });
-      if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+      if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
     if (status === 401 || status === 403) {
@@ -14846,7 +14923,7 @@ async function execute(url, init, path, signal, opts) {
       } else if (status === 401) {
         await markSoftError(st.key, cfg.serverErrCooldownMs);
         log("warn", "key.auth_cooldown", { path, key: maskKey(st.key), status });
-        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       } else if (isQuotaText(body)) {
         const quota = parseQuotaDetail(body, Object.fromEntries(res.headers));
@@ -14860,7 +14937,7 @@ async function execute(url, init, path, signal, opts) {
             model: scopeModel,
             retryAfterMs: quota.retryAfterMs
           });
-          if (attempts >= cfg.maxAttempts) {
+          if (attempts >= maxAttempts) {
             return {
               response: rebuild(res, body),
               key: st.key,
@@ -14879,7 +14956,7 @@ async function execute(url, init, path, signal, opts) {
           } else {
             log("warn", "model.zero_quota", { path, key: maskKey(st.key) });
           }
-          if (attempts >= cfg.maxAttempts) {
+          if (attempts >= maxAttempts) {
             return {
               response: rebuild(res, body),
               key: st.key,
@@ -14897,7 +14974,7 @@ async function execute(url, init, path, signal, opts) {
       } else {
         return { response: rebuild(res, body), key: st.key, attempts, rotated };
       }
-      if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+      if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
     if (status === 400 || status === 404) {
@@ -14905,7 +14982,7 @@ async function execute(url, init, path, signal, opts) {
       if (isInvalidKeyText(body)) {
         const claimed = await markInvalid(st.key);
         log("warn", "key.invalid", { path, key: maskKey(st.key), status, first: claimed });
-        if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+        if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
         continue;
       }
       if (isModelUnavailable(body)) {
@@ -14923,7 +15000,7 @@ async function execute(url, init, path, signal, opts) {
       }
       await markSoftError(st.key, cfg.serverErrCooldownMs);
       log("warn", "key.soft_error", { path, key: maskKey(st.key), status, attempt: attempts });
-      if (attempts >= cfg.maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
+      if (attempts >= maxAttempts) return { response: rebuild(res, body), key: st.key, attempts, rotated };
       continue;
     }
     return { response: res, key: st.key, attempts, rotated };
@@ -15029,7 +15106,7 @@ async function executeWithFallback(models, build, signal) {
 init_log();
 var CACHE_MS = Number(process.env.MODELS_CACHE_MS ?? 3e5);
 var TIMEOUT_MS = Number(process.env.MODELS_TIMEOUT_MS ?? 1e4);
-var cache = null;
+var cache2 = null;
 function upstreamMessage(body, status) {
   try {
     const parsed = JSON.parse(body);
@@ -15098,8 +15175,8 @@ async function fetchWithKey(key) {
   });
 }
 async function listLiveModels(force = false) {
-  if (!force && cache && Date.now() - cache.at < CACHE_MS) {
-    return { models: cache.models, source: cache.source, cached: true };
+  if (!force && cache2 && Date.now() - cache2.at < CACHE_MS) {
+    return { models: cache2.models, source: cache2.source, cached: true };
   }
   if (Date.now() < discoveryBlockedUntil) {
     const err2 = new Error(
@@ -15175,10 +15252,10 @@ async function listLiveModels(force = false) {
       };
     });
     models.sort((a2, b2) => a2.id.localeCompare(b2.id));
-    cache = { at: Date.now(), models, source: "generativelanguage.googleapis.com" };
-    return { models, source: cache.source, cached: false };
+    cache2 = { at: Date.now(), models, source: "generativelanguage.googleapis.com" };
+    return { models, source: cache2.source, cached: false };
   }
-  if (cache) return { models: cache.models, source: cache.source + " (stale)", cached: true };
+  if (cache2) return { models: cache2.models, source: cache2.source + " (stale)", cached: true };
   if (probed >= PROBE_CAP && leakedForListing.size >= poolSize()) {
     discoveryBlockedUntil = Date.now() + DISCOVERY_BACKOFF_MS;
   }
@@ -15305,6 +15382,26 @@ init_config();
 
 // src/tts.ts
 init_config();
+
+// src/body.ts
+var cache3 = /* @__PURE__ */ new WeakMap();
+function bodyText(req) {
+  let pending2 = cache3.get(req);
+  if (!pending2) {
+    pending2 = req.text();
+    cache3.set(req, pending2);
+  }
+  return pending2;
+}
+async function bodyJson(req) {
+  try {
+    return JSON.parse(await bodyText(req));
+  } catch {
+    return void 0;
+  }
+}
+
+// src/tts.ts
 init_pool();
 
 // src/ledger.ts
@@ -15760,17 +15857,17 @@ async function probeElevenLabs(rawKey, timeoutMs = TIMEOUT_MS2) {
     tierEvidence: classified.tierEvidence
   };
 }
-function toElevenLabsBody(bodyText) {
+function toElevenLabsBody(bodyText2) {
   let parsed;
   try {
-    parsed = JSON.parse(bodyText);
+    parsed = JSON.parse(bodyText2);
   } catch {
-    return bodyText;
+    return bodyText2;
   }
-  if (!parsed || typeof parsed !== "object") return bodyText;
+  if (!parsed || typeof parsed !== "object") return bodyText2;
   const isNative = typeof parsed.text === "string";
   const hasModelId = typeof parsed.model_id === "string";
-  if (isNative && hasModelId) return bodyText;
+  if (isNative && hasModelId) return bodyText2;
   const out = { ...parsed };
   const text = parsed.input ?? parsed.text ?? parsed.prompt;
   if (typeof text === "string") out.text = text;
@@ -15794,24 +15891,11 @@ function toElevenLabsBody(bodyText) {
   return JSON.stringify(out);
 }
 async function serveElevenLabs(req, key) {
-  let rawKey = key ? await rawKeyById(key) || key : void 0;
-  if (!rawKey) {
-    const st = await pick(/* @__PURE__ */ new Set(), void 0, "elevenlabs");
-    if (st) {
-      rawKey = await rawKeyById(st.key) || st.key;
-    }
-  }
-  if (!rawKey) {
-    return new Response(JSON.stringify({ error: { message: "No available ElevenLabs API keys in pool." } }), {
-      status: 503,
-      headers: { "content-type": "application/json" }
-    });
-  }
   const hasBody = req.method !== "GET" && req.method !== "HEAD";
-  const bodyText = hasBody ? await req.text() : "";
+  const raw2 = hasBody ? await bodyText(req) : "";
   let voiceId = "21m00Tcm4TlvDq8ikWAM";
   try {
-    const parsed = JSON.parse(bodyText);
+    const parsed = JSON.parse(raw2);
     if (typeof parsed.voice_id === "string" && parsed.voice_id) voiceId = parsed.voice_id;
     else if (typeof parsed.voice === "string" && parsed.voice) voiceId = parsed.voice;
   } catch {
@@ -15822,31 +15906,61 @@ async function serveElevenLabs(req, key) {
   else if (url.searchParams.get("voice_id")) voiceId = url.searchParams.get("voice_id");
   else if (url.searchParams.get("voice")) voiceId = url.searchParams.get("voice");
   const upstreamUrl = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}${url.search}`;
-  const res = await fetch(upstreamUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "xi-api-key": rawKey
-    },
-    body: toElevenLabsBody(bodyText),
-    signal: req.signal
-  });
-  noteUsage(req, {
-    model: "elevenlabs",
-    provider: "elevenlabs",
-    keyRaw: rawKey,
-    attempts: 1,
-    rotated: false,
-    errorCode: res.ok ? null : `http_${res.status}`
-  });
-  const respHeaders = new Headers(res.headers);
-  respHeaders.delete("content-encoding");
-  respHeaders.delete("content-length");
-  respHeaders.delete("transfer-encoding");
-  return new Response(res.body, {
-    status: res.status,
-    headers: respHeaders
-  });
+  const payload = toElevenLabsBody(raw2);
+  const tried = /* @__PURE__ */ new Set();
+  const deadline2 = Date.now() + cfg.maxWaitMs;
+  let attempts = 0;
+  for (; ; ) {
+    let rawKey = key && !tried.has(key) ? await rawKeyById(key) || key : void 0;
+    if (!rawKey) {
+      const st = await pick(tried, void 0, "elevenlabs");
+      if (st) rawKey = await rawKeyById(st.key) || st.key;
+    }
+    if (!rawKey) {
+      return new Response(JSON.stringify({ error: { message: "No available ElevenLabs API keys in pool." } }), {
+        status: 503,
+        headers: { "content-type": "application/json" }
+      });
+    }
+    tried.add(rawKey);
+    attempts++;
+    const res = await fetch(upstreamUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "xi-api-key": rawKey
+      },
+      body: payload,
+      // A stalled upstream must not hold the invocation: the caller's own
+      // disconnect still wins, the gateway timeout is the backstop.
+      signal: AbortSignal.any([req.signal, AbortSignal.timeout(cfg.upstreamTimeoutMs)])
+    });
+    if (res.status === 429 && attempts < 3 && Date.now() < deadline2) {
+      const body = await res.text().catch(() => "");
+      await mark429(rawKey, Math.max(cfg.cooldownMs, parseRetryAfter(res, body) ?? 0));
+      continue;
+    }
+    if (res.status === 401 && attempts < 3 && Date.now() < deadline2) {
+      await markInvalid(rawKey);
+      continue;
+    }
+    noteUsage(req, {
+      model: "elevenlabs",
+      provider: "elevenlabs",
+      keyRaw: rawKey,
+      attempts,
+      rotated: attempts > 1,
+      errorCode: res.ok ? null : `http_${res.status}`
+    });
+    const respHeaders = new Headers(res.headers);
+    respHeaders.delete("content-encoding");
+    respHeaders.delete("content-length");
+    respHeaders.delete("transfer-encoding");
+    return new Response(res.body, {
+      status: res.status,
+      headers: respHeaders
+    });
+  }
 }
 async function listElevenLabsInventory() {
   const st = await pick(/* @__PURE__ */ new Set(), void 0, "elevenlabs");
@@ -16154,6 +16268,21 @@ async function probeTier(rawKey, timeoutMs = TIMEOUT_MS3) {
   }
   return last;
 }
+async function verifyIngestKeys(keys, opts = {}) {
+  const limit = Math.max(1, Math.floor(opts.concurrency ?? 8));
+  const out = [];
+  for (let i = 0; i < keys.length; i += limit) {
+    const slice = keys.slice(i, i + limit);
+    const batch = await Promise.all(
+      slice.map(async ({ key, provider }) => {
+        const r = await probeKey(key, void 0, provider);
+        return { key, provider, status: r.status, retryAfterMs: r.retryAfterMs, message: r.message };
+      })
+    );
+    out.push(...batch);
+  }
+  return out;
+}
 
 // src/app.ts
 import { deflateSync } from "node:zlib";
@@ -16199,7 +16328,7 @@ function withMeta(res, meta) {
 async function speech(req, resolvedModel) {
   let body;
   try {
-    body = await req.json();
+    body = JSON.parse(await bodyText(req));
   } catch {
     return badRequest("Body must be JSON.");
   }
@@ -16472,7 +16601,7 @@ var metaHeaders = (attempts, rotated) => ({
 async function chatCompletions(req, resolvedModel) {
   let body;
   try {
-    body = await req.json();
+    body = JSON.parse(await bodyText(req));
   } catch {
     return err(400, "invalid_request_error", "Body must be JSON.");
   }
@@ -16813,7 +16942,7 @@ async function embeddings(req, resolvedModel) {
   counters.embeddings++;
   let body;
   try {
-    body = await req.json();
+    body = JSON.parse(await bodyText(req));
   } catch {
     return err(400, "invalid_request_error", "Body must be JSON.");
   }
@@ -16964,11 +17093,11 @@ var PATHS = {
 var METERED = ["chat", "embeddings"];
 async function openaiWire(req, provider, route, model, signal) {
   const base = baseUrlOf(provider);
-  const bodyText = req.method === "GET" || req.method === "HEAD" ? "" : await req.text();
-  let body = bodyText;
+  const raw2 = req.method === "GET" || req.method === "HEAD" ? "" : await bodyText(req);
+  let body = raw2;
   let stream = false;
   try {
-    const parsed = JSON.parse(bodyText);
+    const parsed = JSON.parse(raw2);
     if (parsed && typeof parsed === "object") {
       if (model) parsed.model = model;
       stream = Boolean(parsed.stream);
@@ -20689,7 +20818,7 @@ var SETTINGS_BODY = `
     <div class="page-head-main">
       <span class="eyebrow">Govern</span>
       <h1 class="page-title">Settings</h1>
-      <p class="page-lede">The effective configuration of this deployment. Read only.</p>
+      <p class="page-lede">The effective configuration of this deployment. The rotation cap is editable; the rest is deploy-time.</p>
     </div>
   </header>
 
@@ -20713,6 +20842,25 @@ var SETTINGS_BODY = `
       <div class="panel-body"><dl class="defs" id="ledger"></dl></div>
     </section>
   </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Key rotation</h2>
+      <span class="meta" id="rotationMeta"></span>
+    </div>
+    <div class="panel-body">
+      <p class="hint">
+        How many keys one request may try before the pool gives up. A 429 rotates to the next
+        still-valid key and parks the throttled one until its rate-limit window ends, so a
+        bigger cap survives more simultaneous throttles at the cost of more upstream calls.
+      </p>
+      <div class="inline-form u-mt-2">
+        <input class="text-input" id="rotationCap" type="number" min="1" max="50" step="1" inputmode="numeric" aria-label="Max key rotation" />
+        <button id="rotationSave" class="btn btn-sm btn-primary" type="button">Save</button>
+      </div>
+      <div id="rotationMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
+    </div>
+  </section>
 
   <section class="panel">
     <div class="panel-head">
@@ -20749,6 +20897,10 @@ var SETTINGS_SCRIPT = `
     envTable: document.getElementById("envTable"),
     note: document.getElementById("note"),
     msg: document.getElementById("msg"),
+    rotationCap: document.getElementById("rotationCap"),
+    rotationSave: document.getElementById("rotationSave"),
+    rotationMeta: document.getElementById("rotationMeta"),
+    rotationMsg: document.getElementById("rotationMsg"),
     refresh: document.getElementById("refreshBtn"),
     exportBtn: document.getElementById("exportBtn")
   };
@@ -20782,11 +20934,24 @@ var SETTINGS_SCRIPT = `
     });
   }
 
+  function rotationMeta(r) {
+    el.rotationMeta.textContent = r.stored
+      ? "operator override (env default " + r.envDefault + ")"
+      : "env default " + r.envDefault;
+  }
+
   function render(d) {
     var nDefaults = defs(el.defaults, d.defaults);
     var nLimits = defs(el.limits, d.limits);
     var nLedger = defs(el.ledger, d.ledger);
     renderEnv(d.env);
+
+    if (d.rotation) {
+      el.rotationCap.value = String(d.rotation.maxKeyAttempts);
+      el.rotationCap.min = String(d.rotation.min);
+      el.rotationCap.max = String(d.rotation.max);
+      rotationMeta(d.rotation);
+    }
 
     el.kpis.textContent = "";
     el.kpis.appendChild(GX.kpi("Defaults", String(nDefaults), "model, voice and search model"));
@@ -20819,6 +20984,17 @@ var SETTINGS_SCRIPT = `
   }
 
   el.refresh.addEventListener("click", function () { reload(); });
+  el.rotationSave.addEventListener("click", function () {
+    var n = Number(el.rotationCap.value);
+    GX.busy(el.rotationSave, "Saving\u2026");
+    GX.api("/pengatur/settings/rotation", { method: "POST", body: { maxKeyAttempts: n } })
+      .then(function (r) {
+        rotationMeta(r.rotation);
+        GX.say(el.rotationMsg, "Rotation cap set to " + r.rotation.maxKeyAttempts + ".", "ok");
+      })
+      .catch(function (err) { GX.say(el.rotationMsg, err.message, "err"); })
+      .then(function () { GX.idle(el.rotationSave); });
+  });
   el.exportBtn.addEventListener("click", function () {
     GX.busy(el.exportBtn, "Exporting\u2026");
     GX.download("/pengatur/settings/export", "omniproxy-config.json")
@@ -20863,7 +21039,7 @@ var FLAG_ENVS = [
   "PORT",
   "LOG_LEVEL"
 ];
-var NOTES = "Cooldown values and tokens are deploy-time settings: change them in the host environment, then redeploy. This page is read-only.";
+var NOTES = "The rotation cap is editable here and takes effect immediately; every other value on this page is deploy-time: change it in the host environment, then redeploy. Token values are never shown.";
 function regionHostSuffix(dsn) {
   const at = dsn.indexOf("@");
   if (at < 0) return "unknown";
@@ -20875,7 +21051,7 @@ function regionHostSuffix(dsn) {
   if (safe.length < 2) return "unknown";
   return safe.slice(1).join(".");
 }
-function settingsView() {
+async function settingsView() {
   const flags = [...TOKEN_ENVS, ...FLAG_ENVS].map((name) => {
     const raw2 = process.env[name];
     return { name, state: raw2 && raw2.trim() !== "" ? "set" : "unset" };
@@ -20898,6 +21074,7 @@ function settingsView() {
       maxWaitMs: cfg.maxWaitMs,
       upstreamTimeoutMs: cfg.upstreamTimeoutMs
     },
+    rotation: await rotationSetting(),
     ledger: {
       flushMs: cfg.ledgerFlushMs,
       maxRows: cfg.ledgerMaxRows,
@@ -21170,6 +21347,8 @@ var clientGate = async (c, next) => {
 };
 app.use("/v1/*", clientGate);
 app.use("/v1beta/*", clientGate);
+app.use("/v1/*", lazyRecheck);
+app.use("/v1beta/*", lazyRecheck);
 var SHELL_PATHS = [
   "/pengatur",
   "/pengatur/login",
@@ -21270,12 +21449,8 @@ app.get("/pengatur/status", async (c) => {
   });
 });
 async function peekModel(req) {
-  try {
-    const parsed = JSON.parse(await req.clone().text());
-    return typeof parsed.model === "string" ? parsed.model : "";
-  } catch {
-    return "";
-  }
+  const parsed = await bodyJson(req);
+  return typeof parsed?.model === "string" ? parsed.model : "";
 }
 async function resolveRoute(model, cap) {
   const route = await resolveModelRoute(model);
@@ -21404,6 +21579,22 @@ app.get("/v1/models", async (c) => {
         upstream_owned_by: m.ownedBy
       }))
     );
+  }
+  try {
+    const { inv } = await elevenLabsInventoryCached();
+    const list3 = (inv?.models ?? []).filter((m) => m.can_do_text_to_speech !== false);
+    census.elevenlabs = list3.length;
+    rows.push(
+      ...list3.map((m) => ({
+        id: `elevenlabs/${m.model_id}`,
+        object: "model",
+        created: 17e8,
+        owned_by: "elevenlabs",
+        display_name: m.name ?? m.model_id
+      }))
+    );
+  } catch {
+    census.elevenlabs = 0;
   }
   if (rows.length === 0) {
     return c.json({ error: { message: "No provider can list models right now." } }, 503);
@@ -21568,27 +21759,27 @@ async function openaiWireRows(force) {
 }
 var ELEVENLABS_CACHE_MS = 6e5;
 var elevenLabsCache = null;
+async function elevenLabsInventoryCached(force = false) {
+  if (!force && elevenLabsCache && Date.now() - elevenLabsCache.at < ELEVENLABS_CACHE_MS) {
+    return { cached: true, inv: { voices: elevenLabsCache.voices, models: elevenLabsCache.models } };
+  }
+  const fresh = await listElevenLabsInventory();
+  if (!fresh) return { cached: false, inv: null };
+  elevenLabsCache = { at: Date.now(), voices: fresh.voices, models: fresh.models };
+  return { cached: false, inv: fresh };
+}
 app.get("/pengatur/elevenlabs/list", async (c) => {
   const force = new URL(c.req.url).searchParams.get("refresh") === "1";
-  if (!force && elevenLabsCache && Date.now() - elevenLabsCache.at < ELEVENLABS_CACHE_MS) {
-    return c.json({
-      ok: true,
-      cached: true,
-      voices: elevenLabsCache.voices,
-      models: elevenLabsCache.models
-    });
-  }
-  const inv = await listElevenLabsInventory();
+  const { cached, inv } = await elevenLabsInventoryCached(force);
   if (!inv) {
     return c.json(
       { ok: false, error: "No available ElevenLabs API keys in pool.", voices: [], models: [] },
       503
     );
   }
-  elevenLabsCache = { at: Date.now(), voices: inv.voices, models: inv.models };
   return c.json({
     ok: true,
-    cached: false,
+    cached,
     voices: inv.voices,
     models: inv.models
   });
@@ -21763,12 +21954,26 @@ app.post("/pengatur/keys", async (c) => {
     if (why) rejected.push({ id: keyId(clean[i]), provider, reason: why });
     else accepted.push({ key: clean[i], provider });
   }
+  const verdicts = await verifyIngestKeys(accepted);
+  const byKey = new Map(verdicts.map((v2) => [v2.key, v2]));
+  const probed = { ok: 0, rateLimited: 0, inconclusive: 0, refused: 0 };
   const ids = [];
   const addedByProvider = {};
   let added = 0;
   let parked = 0;
   for (const { key, provider } of accepted) {
-    const until = cooldownFor(key);
+    const v2 = byKey.get(key);
+    if (v2) {
+      if (v2.status === "ok") probed.ok++;
+      else if (v2.status === "rate_limited") probed.rateLimited++;
+      else if (v2.status === "invalid" || v2.status === "zero_quota") {
+        probed.refused++;
+        rejected.push({ id: keyId(key), provider, reason: `${v2.status}: ${v2.message}` });
+        continue;
+      } else probed.inconclusive++;
+    }
+    let until = cooldownFor(key);
+    if (v2?.status === "rate_limited") until = Math.max(until, Date.now() + v2.retryAfterMs);
     if (await addKey(key, provider, until)) {
       added++;
       if (until > Date.now()) parked++;
@@ -21786,7 +21991,8 @@ app.post("/pengatur/keys", async (c) => {
       provider: named || "auto",
       providers: addedByProvider,
       rejected: rejected.length,
-      rejectedIds: rejected.map((r) => r.id)
+      rejectedIds: rejected.map((r) => r.id),
+      probed
     }
   });
   const durable = keyMaterialDurable();
@@ -21797,6 +22003,7 @@ app.post("/pengatur/keys", async (c) => {
     added,
     parked,
     rejected,
+    probed,
     ids,
     durable,
     providers: addedByProvider,
@@ -22249,31 +22456,47 @@ app.post("/internal/keys/recheck", async (c) => {
 });
 var RECHECK_INTERVAL_MS = cfg.recheckIntervalMinutes * 6e4;
 var recheckTimer = null;
-var recheckRunning = false;
+var recheckBusy = false;
+async function runRecheckOnce(trigger) {
+  if (recheckBusy) return;
+  recheckBusy = true;
+  try {
+    const r = await recheckDueKeys();
+    if (r.checked > 0) {
+      await recordNow("keys.recheck", {
+        actor: trigger === "timer" ? "scheduler" : "traffic",
+        target: "pool",
+        detail: { ...r, trigger }
+      });
+      log("info", trigger === "timer" ? "recheck.tick" : "recheck.lazy", r);
+    }
+  } catch (e) {
+    log("warn", "recheck.failed", { trigger, reason: e.message });
+  } finally {
+    recheckBusy = false;
+  }
+}
 function startRecheckLoop() {
   if (recheckTimer || RECHECK_INTERVAL_MS <= 0) return;
-  recheckTimer = setInterval(async () => {
-    if (recheckRunning) return;
-    recheckRunning = true;
-    try {
-      const r = await recheckDueKeys();
-      if (r.checked > 0) {
-        await recordNow("keys.recheck", {
-          actor: "scheduler",
-          target: "pool",
-          detail: { ...r, trigger: "timer" }
-        });
-        log("info", "recheck.tick", r);
-      }
-    } catch (e) {
-      log("warn", "recheck.tick_failed", { reason: e.message });
-    } finally {
-      recheckRunning = false;
-    }
+  recheckTimer = setInterval(() => {
+    void runRecheckOnce("timer");
   }, RECHECK_INTERVAL_MS);
   log("info", "recheck.scheduler_started", { intervalMs: RECHECK_INTERVAL_MS });
 }
 startRecheckLoop();
+var LAZY_RECHECK_MS = cfg.lazyRecheckMs;
+var lastLazyRecheckAt = 0;
+function maybeRecheckDueKeys() {
+  if (LAZY_RECHECK_MS <= 0) return;
+  const at = Date.now();
+  if (recheckBusy || at - lastLazyRecheckAt < LAZY_RECHECK_MS) return;
+  lastLazyRecheckAt = at;
+  void runRecheckOnce("lazy");
+}
+async function lazyRecheck(_c, next) {
+  maybeRecheckDueKeys();
+  await next();
+}
 app.notFound(
   (c) => c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404)
 );
@@ -22322,9 +22545,30 @@ app.get("/pengatur/logs/export.csv", usageExportHandler);
 app.get("/pengatur/usage/export.csv", usageExportHandler);
 app.get("/pengatur/logs", (c) => c.html(USAGE_HTML));
 app.get("/pengatur/settings", (c) => c.html(SETTINGS_HTML));
-app.get("/pengatur/settings/data", (c) => c.json(settingsView()));
+app.get("/pengatur/settings/data", async (c) => c.json(await settingsView()));
+app.post("/pengatur/settings/rotation", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const n = Number(body?.maxKeyAttempts);
+  if (!Number.isFinite(n) || n < MAX_ATTEMPTS_RANGE.min || n > MAX_ATTEMPTS_RANGE.max) {
+    return c.json(
+      {
+        error: {
+          message: `maxKeyAttempts must be a number between ${MAX_ATTEMPTS_RANGE.min} and ${MAX_ATTEMPTS_RANGE.max}.`
+        }
+      },
+      400
+    );
+  }
+  const value = Math.round(n);
+  await setSetting(MAX_ATTEMPTS_KEY, String(value));
+  await recordNow("settings.rotation", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { maxKeyAttempts: value }
+  });
+  return c.json({ ok: true, rotation: await rotationSetting() });
+});
 app.get("/pengatur/settings/export", async (c) => {
-  const view = settingsView();
+  const view = await settingsView();
   await recordNow("settings.export", {
     actor: actorFrom(c.req.header("user-agent")),
     detail: { envFlags: view.env.length }
