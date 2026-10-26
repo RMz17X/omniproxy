@@ -133,6 +133,11 @@ const clientGate = async (c: Context, next: Next) => {
 
 app.use("/v1/*", clientGate);
 app.use("/v1beta/*", clientGate);
+// Traffic also drives the key re-check: a frozen serverless instance cannot
+// run the timer, so a request is the only reliable moment to notice that a
+// rate-limit window has expired. Defined below; hoisted.
+app.use("/v1/*", lazyRecheck);
+app.use("/v1beta/*", lazyRecheck);
 
 /** Shells carry no data; their client scripts fetch `/data` with the token. */
 const SHELL_PATHS = [
@@ -1732,32 +1737,68 @@ app.post("/internal/keys/recheck", async (c) => {
  */
 const RECHECK_INTERVAL_MS = cfg.recheckIntervalMinutes * 60_000;
 let recheckTimer: ReturnType<typeof setInterval> | null = null;
-let recheckRunning = false;
+/** One pass at a time: the timer and the traffic hook share it. */
+let recheckBusy = false;
+
+/**
+ * Probe every due key once. A pass already in flight makes this a no-op, so
+ * the timer and the lazy hook can never double-probe the same key.
+ */
+async function runRecheckOnce(trigger: "timer" | "lazy"): Promise<void> {
+  if (recheckBusy) return;
+  recheckBusy = true;
+  try {
+    const r = await recheckDueKeys();
+    if (r.checked > 0) {
+      await auditRecordNow("keys.recheck", {
+        actor: trigger === "timer" ? "scheduler" : "traffic",
+        target: "pool",
+        detail: { ...r, trigger },
+      });
+      log("info", trigger === "timer" ? "recheck.tick" : "recheck.lazy", r);
+    }
+  } catch (e) {
+    log("warn", "recheck.failed", { trigger, reason: (e as Error).message });
+  } finally {
+    recheckBusy = false;
+  }
+}
 
 function startRecheckLoop(): void {
   if (recheckTimer || RECHECK_INTERVAL_MS <= 0) return;
-  recheckTimer = setInterval(async () => {
-    if (recheckRunning) return;
-    recheckRunning = true;
-    try {
-      const r = await recheckDueKeys();
-      if (r.checked > 0) {
-        await auditRecordNow("keys.recheck", {
-          actor: "scheduler",
-          target: "pool",
-          detail: { ...r, trigger: "timer" },
-        });
-        log("info", "recheck.tick", r);
-      }
-    } catch (e) {
-      log("warn", "recheck.tick_failed", { reason: (e as Error).message });
-    } finally {
-      recheckRunning = false;
-    }
+  recheckTimer = setInterval(() => {
+    void runRecheckOnce("timer");
   }, RECHECK_INTERVAL_MS);
   log("info", "recheck.scheduler_started", { intervalMs: RECHECK_INTERVAL_MS });
 }
 startRecheckLoop();
+
+/**
+ * Lazy, traffic-driven re-check.
+ *
+ * A serverless instance is frozen between requests, so the timer above only
+ * fires while an instance happens to stay warm: without this hook a
+ * rate-limit window could expire with nothing alive to notice, and the next
+ * client request would pay a 429 to re-discover what the gateway could have
+ * verified for free. Traffic drives the check instead — at most once a
+ * minute per instance, in the background, so no request ever waits on it.
+ */
+const LAZY_RECHECK_MS = cfg.lazyRecheckMs;
+let lastLazyRecheckAt = 0;
+
+function maybeRecheckDueKeys(): void {
+  if (LAZY_RECHECK_MS <= 0) return;
+  const at = Date.now();
+  if (recheckBusy || at - lastLazyRecheckAt < LAZY_RECHECK_MS) return;
+  lastLazyRecheckAt = at;
+  void runRecheckOnce("lazy");
+}
+
+/** Fire the lazy re-check from the public surfaces, then continue. */
+async function lazyRecheck(_c: Context, next: Next): Promise<void> {
+  maybeRecheckDueKeys();
+  await next();
+}
 
 app.notFound((c) =>
   c.json({ error: { message: `No route for ${c.req.method} ${new URL(c.req.url).pathname}` } }, 404),

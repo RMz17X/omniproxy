@@ -25,6 +25,9 @@ process.env.KEY_5XX_COOLDOWN_MS = "100";
 /** Small so the "whole pool is cooling" path terminates quickly. */
 process.env.MAX_WAIT_MS = "600";
 process.env.MAX_ATTEMPTS = "6";
+/** Background re-checks would re-probe (and re-verdict) test pools mid-run;
+   the timer and the HTTP route stay covered, the traffic hook is off here. */
+process.env.LAZY_RECHECK_MS = "0";
 process.env.LOG_LEVEL = "error";
 /** Small ledger batch so the flush thresholds are reachable in a unit test. */
 process.env.LEDGER_MAX_ROWS = "4";

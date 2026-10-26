@@ -123,6 +123,14 @@ export const cfg = {
    * 0 disables the timer (the HTTP route still works).
    */
   recheckIntervalMinutes: num(process.env.RECHECK_INTERVAL_MINUTES, 19),
+  /**
+   * How often public traffic may trigger a background re-check of due keys.
+   * A serverless instance is frozen between requests, so the timer alone can
+   * miss a rate-limit window expiring; the first request after it pays that
+   * miss with a 429 unless traffic drives the probe. 0 disables the hook (the
+   * timer and the HTTP route still work); tests set 0 to keep pools still.
+   */
+  lazyRecheckMs: num(process.env.LAZY_RECHECK_MS, 60_000),
   /** a key rejected as invalid is not re-probed more often than this */
   invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
   /**
