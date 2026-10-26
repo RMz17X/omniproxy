@@ -6521,6 +6521,11 @@ async function hydrate() {
       if (row.cooldownUntil > now()) hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
+  const purged = await purgedIds();
+  if (purged.length > 0) {
+    const dropped2 = dropLocal(purged);
+    if (dropped2 > 0) log("info", "pool.tombstoned_skipped", { purged: purged.length, dropped: dropped2 });
+  }
   const known = new Set(rows.map((r) => r.id));
   const orphans = [...entries.entries()].filter(([id]) => !known.has(id)).map(([id, e]) => ({ id, masked: maskKey(e.raw), provider: e.provider }));
   const envOnly = [...local.values()].filter((s) => {

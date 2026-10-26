@@ -395,6 +395,16 @@ export async function hydrate(): Promise<number> {
       if (row.cooldownUntil > now()) hit.cooldownUntil = Math.max(hit.cooldownUntil, row.cooldownUntil);
     }
   }
+  /* A soft delete keeps `key_material` and the env still lists the credential,
+     so both sources re-seed a purged key on every cold start: it comes back
+     "ready", serves traffic and answers 403. The tombstone has to outrank the
+     sources it was meant to override. */
+  const purged = await repo.purgedIds();
+  if (purged.length > 0) {
+    const dropped = dropLocal(purged);
+    if (dropped > 0) log("info", "pool.tombstoned_skipped", { purged: purged.length, dropped });
+  }
+
   /* Material without an identity row: the key serves traffic but is invisible
      in the console, so nobody can disable or delete it. The ingest endpoint
      awaits the secret and fires the row, and a recycled instance drops the
