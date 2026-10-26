@@ -145,7 +145,7 @@ const AUDIT_SCRIPT = `
     rows.forEach(function (r) { kinds[r.action] = true; });
 
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "capped at " + el.limit.value + " — more may exist"));
+    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "capped at " + el.limit.value + ", more may exist"));
     el.kpis.appendChild(GX.kpi("Kinds", GX.fmt.num(Object.keys(kinds).length), "distinct action names"));
     /* sWindow in the header and trailMeta in the panel both said "100
        recorded" / "100 entries" - the same number twice. The header keeps the

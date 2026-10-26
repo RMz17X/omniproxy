@@ -110,7 +110,7 @@ const STATS_BODY = `
     </div>
     <div class="panel-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
-      <table class="sr-only" id="heatTable"></table>
+      <div class="sr-only"><table id="heatTable"></table></div>
       <p class="hint u-mt-3" id="heatNote"></p>
       <div id="heatEmpty"></div>
     </div>

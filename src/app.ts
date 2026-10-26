@@ -628,7 +628,7 @@ app.get("/pengatur/models/list", async (c) => {
         outputTokenLimit: null,
         kind: "voice" as const,
         free: v.category === "premade",
-        freeLabel: v.category === "premade" ? "premade (free tier)" : `professional (${v.category}) — paid plan required`,
+        freeLabel: v.category === "premade" ? "premade (free tier)" : `professional (${v.category}), paid plan required`,
         inUsd: null,
         outUsd: null,
         inRaw: "",

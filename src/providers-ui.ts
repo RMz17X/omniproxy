@@ -324,7 +324,7 @@ const PROVIDERS_SCRIPT = `
       return;
     }
     var table = GX.el("table", { class: "table providers-table" });
-    table.appendChild(tableHead());
+    table.appendChild(GX.el("thead", null, tableHead()));
     var body = GX.el("tbody");
     visible.forEach(function (p) {
       var tr = GX.el("tr", { "data-provider": p.id });
@@ -340,17 +340,16 @@ const PROVIDERS_SCRIPT = `
       prov.title = (p.label || p.id) + (p.builtin ? " · built in, model list only" : "");
       tr.appendChild(prov);
 
-      /* Base URL is the column; Wire rides under it as a subline, so the
-         Provider column keeps its shape and no other column moves. The URL
-         itself is mono and truncated with the table's own .sub ellipsis;
-         the full URL stays in the title. */
+      /* Base URL is the column. The wire type is already carried by the
+         provider id and the edit sheet, so repeating it as a tag here only
+         stole width from the URL. The full value stays in the title. */
       var urlCell = GX.el("td", { "data-l": "base url" });
-      var urlText = GX.el("div", { class: "sub mono trunc", text: p.baseUrl || "-" });
-      urlText.title = p.baseUrl || "";
-      urlCell.appendChild(GX.el("div", { class: "cell-inline" }, [
-        urlText,
-        GX.el("span", { class: "tag", "data-tone": "plain", text: p.wire })
-      ]));
+      var urlText = GX.el("div", {
+        class: "sub mono trunc",
+        text: p.baseUrl || "runtime-resolved"
+      });
+      urlText.title = p.baseUrl || "Built-in provider: the base URL is resolved at request time";
+      urlCell.appendChild(urlText);
       tr.appendChild(urlCell);
 
       var caps = GX.el("td", { "data-l": "caps" });
