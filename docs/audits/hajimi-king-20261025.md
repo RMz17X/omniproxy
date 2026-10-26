@@ -208,3 +208,37 @@ Verifikasi live (deploy `459312f`, alias `omniproxy.vercel.app`):
 - Deteksi lokal: `gsk_…` → groq, `csk-…` → cerebras, `sk-or-v1-…` → openrouter (mengalahkan pola `sk-…` generik),
   Mistral sudah tidak ada di registry.
 
+## 10. Purge reversible, identitas orphan, rate limit admin (2026-10-26 00:1x WIB)
+
+Empat perbaikan pada receiver, semuanya live di `omniproxy.vercel.app` (deploy `27ca908`).
+
+**Purge jadi global dan bisa dibatalkan.** `purge-dead` tidak lagi `delete`; ia menulis `deleted_at`
+(tombstone). `loadKeys()`, `loadMaterial()`, dan `loadMaterialEntries()` melewati baris bertombstone, dan
+`POST /pengatur/keys/restore {id|ids}` menghapus tombstone lalu hydrate ulang. Efek samping yang
+sekaligus memperbaiki bug: instance hangat yang lebih tua dari purge tidak lagi menampilkan baris mati,
+karena `/pengatur/keys/list` menerapkan daftar tombstone ke memori instance itu sebelum snapshot.
+
+**Identitas orphan.** `keys` hanya berisi 119 baris sementara `key_material` 266 — 148 key melayani
+`/v1` tanpa bisa dilihat, di-disable, atau dihapus dari konsol. `hydrate()` sekarang menulis identitas
+yang hilang dalam satu statement (`upsertIdentities`, `on conflict do nothing`). Setelah deploy:
+`keys` 267, orphan 0.
+
+**Rate limit admin.** `/pengatur/*` punya budget per IP per instance: 300 baca / 60 tulis per menit
+(`ADMIN_RATE_READS_PER_MIN`, `ADMIN_RATE_WRITES_PER_MIN`), balasan 429 + `Retry-After`. Verifikasi
+in-process: budget tulis 5 → 5×400 lalu 3×429 dengan `Retry-After: 60`; budget baca 50 → 50×200 lalu
+5×429. Burst live 150 request paralel → 9×429: hitungan memang per instance, jadi armada Vercel
+melipatgandakan batas efektif. Itu trade-off yang disengaja untuk konsol — tujuannya menghentikan loop
+liar dan brute force, bukan mengukur operator.
+
+**Status operasional.** `/pengatur/status` sekarang membawa `db {enabled, breakerOpen}`,
+`material {durable}`, `identities {rows, lastCheckedAt}`, dan `uptimeSeconds`.
+
+**Runtime.** `~/.docker/buildx/current` dimiliki `root` sehingga `docker compose build` gagal; sudah
+di-`chown` ke `agent`, build tanpa `BUILDX_CONFIG` berhasil. Log container harvester sudah dibatasi
+`json-file 10m × 3` (diverifikasi lewat `docker inspect`).
+
+**Test suite.** 87 lulus, 33 gagal — semuanya test yang butuh `test/mock-upstream.ts`. Di host ini
+loopback TCP diblokir: `Bun.serve` + `fetch` di proses yang sama pun gagal (`socket closed`), dan `curl`
+ke port server lokal mengembalikan 000, bahkan dengan sandbox dimatikan. Jadi kegagalan itu lingkungan,
+bukan kode; `tsc --noEmit` bersih dan seluruh test non-jaringan lulus.
+
