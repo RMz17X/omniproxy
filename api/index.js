@@ -10076,7 +10076,7 @@ var BASE_CSS = `
 
   --text: #171717;
   --text-2: #525252;
-  --text-3: #737373;
+  --text-3: #6b6b6b;
 
   --accent: #000000;
   --accent-hover: #333333;
@@ -10094,8 +10094,8 @@ var BASE_CSS = `
   --wash-neutral: rgba(115, 115, 115, 0.08);
 
   /* provider identity: muted Vercel-style hues, always paired with the word */
-  --prov-gemini: #0070f3;
-  --prov-gemini-wash: rgba(0, 112, 243, 0.08);
+  --prov-gemini: #0057c2;
+  --prov-gemini-wash: rgba(0, 87, 194, 0.08);
   --prov-elevenlabs: #7928ca;
   --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
   --prov-whatstoken: #0a7d5a;
@@ -10108,7 +10108,7 @@ var BASE_CSS = `
   --rail-bg-2: #f5f5f5;
   --rail-line: #eaeaea;
   --rail-text: #171717;
-  --rail-muted: #737373;
+  --rail-muted: #6b6b6b;
   --rail-active: #f5f5f5;
 
   --sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -10155,7 +10155,7 @@ var BASE_CSS = `
 
   --text: #171717;
   --text-2: #525252;
-  --text-3: #737373;
+  --text-3: #6b6b6b;
 
   --accent: #000000;
   --accent-hover: #333333;
@@ -10173,8 +10173,8 @@ var BASE_CSS = `
   --wash-neutral: rgba(115, 115, 115, 0.08);
 
   /* provider identity: muted Vercel-style hues, always paired with the word */
-  --prov-gemini: #0070f3;
-  --prov-gemini-wash: rgba(0, 112, 243, 0.08);
+  --prov-gemini: #0057c2;
+  --prov-gemini-wash: rgba(0, 87, 194, 0.08);
   --prov-elevenlabs: #7928ca;
   --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
   --prov-whatstoken: #0a7d5a;
@@ -10187,7 +10187,7 @@ var BASE_CSS = `
   --rail-bg-2: #f5f5f5;
   --rail-line: #eaeaea;
   --rail-text: #171717;
-  --rail-muted: #737373;
+  --rail-muted: #6b6b6b;
   --rail-active: #f5f5f5;
 
   /* Layout tokens stay on :root. Repeating them here made the light theme
@@ -10207,7 +10207,7 @@ var BASE_CSS = `
 
   --text: #ededed;
   --text-2: #a1a1a1;
-  --text-3: #737373;
+  --text-3: #8a8a8a;
 
   --accent: #ffffff;
   --accent-hover: #e5e5e5;
@@ -10959,19 +10959,33 @@ td input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outlin
 .table td[data-l="provider"] { width: 110px; max-width: 110px; white-space: nowrap; }
 .table td[data-l="status"] { width: 230px; max-width: 230px; }
 .table td[data-l="plan"] { width: 170px; max-width: 170px; }
-/* Providers registry: fixed column widths so the URL column absorbs the extra
-   space instead of every cell stretching and every row wrapping. */
-.providers-table th:nth-child(1) { width: 250px; }
-.providers-table th:nth-child(2) { width: 38%; }
-.providers-table th:nth-child(3) { width: 360px; }
-.providers-table th:nth-child(4),
-.providers-table th:nth-child(5) { width: 96px; }
-.providers-table th:nth-child(6) { width: 112px; }
+/* Providers registry: every column keeps one line. The URL is the only cell
+   allowed to ellipsize (host stays visible, full value in the title) so the
+   action column never leaves the canvas at 1440. */
+.providers-table th:nth-child(1) { width: 190px; }
+.providers-table th:nth-child(2) { width: 205px; }
+.providers-table th:nth-child(3) { width: auto; }
+.providers-table th:nth-child(4) { width: 64px; }
+.providers-table th:nth-child(5) { width: 76px; }
+.providers-table th:nth-child(6) { width: 96px; }
 .providers-table th:nth-child(7) { width: 1%; }
 .providers-table td { white-space: nowrap; }
-.providers-table td:nth-child(3) { white-space: nowrap; }
+.providers-table td:nth-child(2) { max-width: 205px; overflow: hidden; }
 .providers-table td:nth-child(3) .tag { padding: 2px 6px; font-size: 11px; }
-.providers-table td[data-l="provider"] { width: 250px; max-width: 320px; }
+.providers-table td[data-l="provider"] { width: 190px; max-width: 190px; }
+
+/* Between 720 and 1400 the registry can still exceed the canvas. Pin the
+   action column so Edit / Disable never scroll out of reach. */
+@media screen and (max-width: 1400px) {
+  .providers-table th:last-child,
+  .providers-table td.actions {
+    position: sticky; right: 0; z-index: 1;
+    background: var(--surface);
+    box-shadow: -1px 0 0 var(--line);
+  }
+  .providers-table th:last-child { z-index: 2; }
+  .providers-table tbody tr:hover td.actions { background: var(--surface-2); }
+}
 .cell-inline { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 
 /* Models catalog: the model name is the only column that wants to grow; every
@@ -11911,7 +11925,7 @@ dialog .field:first-child { margin-top: 0; }
 }
 
 @media (pointer: coarse), (hover: none) {
-  :root { --tap: 44px; --tap-sm: 40px; }
+  :root { --tap: 44px; --tap-sm: 44px; }
   .rail-item { min-height: 44px; }
   .rail-tool { width: var(--tap); height: var(--tap); }
   .toast-x, .toast-act { min-height: 40px; min-width: 40px; }
@@ -12098,6 +12112,10 @@ dialog .field:first-child { margin-top: 0; }
 @media screen and (max-width: 720px) {
   .page-title { font-size: 20px; }
   .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
+  /* The 720px floor that keeps a desktop breakdown readable (ui.ts, .grid-2:has)
+     is more specific than .grid-2, so it survived the fold and made Stats and
+     Logs 720px wide inside a 390px phone. Re-assert the fold here. */
+  .grid-2:has(.table) { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* drawer navigation: below 1100px the menu button opens this panel, which
@@ -12151,6 +12169,7 @@ dialog .field:first-child { margin-top: 0; }
   .providers-table th,
   .providers-table td,
   .providers-table td[data-l="provider"],
+  .providers-table td:nth-child(2),
   .providers-table td:nth-child(3) {
     width: auto;
     max-width: none;
@@ -17818,7 +17837,7 @@ var STATS_BODY = `
     </div>
     <div class="panel-body">
       <div class="heat-scroll"><div id="heat" class="heat" role="img" aria-label="Requests by hour and weekday"></div></div>
-      <table class="sr-only" id="heatTable"></table>
+      <div class="sr-only"><table id="heatTable"></table></div>
       <p class="hint u-mt-3" id="heatNote"></p>
       <div id="heatEmpty"></div>
     </div>
@@ -20893,7 +20912,7 @@ var PROVIDERS_SCRIPT = `
       return;
     }
     var table = GX.el("table", { class: "table providers-table" });
-    table.appendChild(tableHead());
+    table.appendChild(GX.el("thead", null, tableHead()));
     var body = GX.el("tbody");
     visible.forEach(function (p) {
       var tr = GX.el("tr", { "data-provider": p.id });
@@ -20909,17 +20928,16 @@ var PROVIDERS_SCRIPT = `
       prov.title = (p.label || p.id) + (p.builtin ? " \xB7 built in, model list only" : "");
       tr.appendChild(prov);
 
-      /* Base URL is the column; Wire rides under it as a subline, so the
-         Provider column keeps its shape and no other column moves. The URL
-         itself is mono and truncated with the table's own .sub ellipsis;
-         the full URL stays in the title. */
+      /* Base URL is the column. The wire type is already carried by the
+         provider id and the edit sheet, so repeating it as a tag here only
+         stole width from the URL. The full value stays in the title. */
       var urlCell = GX.el("td", { "data-l": "base url" });
-      var urlText = GX.el("div", { class: "sub mono trunc", text: p.baseUrl || "-" });
-      urlText.title = p.baseUrl || "";
-      urlCell.appendChild(GX.el("div", { class: "cell-inline" }, [
-        urlText,
-        GX.el("span", { class: "tag", "data-tone": "plain", text: p.wire })
-      ]));
+      var urlText = GX.el("div", {
+        class: "sub mono trunc",
+        text: p.baseUrl || "runtime-resolved"
+      });
+      urlText.title = p.baseUrl || "Built-in provider: the base URL is resolved at request time";
+      urlCell.appendChild(urlText);
       tr.appendChild(urlCell);
 
       var caps = GX.el("td", { "data-l": "caps" });
@@ -21616,7 +21634,7 @@ var AUDIT_SCRIPT = `
     rows.forEach(function (r) { kinds[r.action] = true; });
 
     el.kpis.textContent = "";
-    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "capped at " + el.limit.value + " \u2014 more may exist"));
+    el.kpis.appendChild(GX.kpi("Actions", GX.fmt.num(rows.length), "capped at " + el.limit.value + ", more may exist"));
     el.kpis.appendChild(GX.kpi("Kinds", GX.fmt.num(Object.keys(kinds).length), "distinct action names"));
     /* sWindow in the header and trailMeta in the panel both said "100
        recorded" / "100 entries" - the same number twice. The header keeps the
@@ -22069,7 +22087,7 @@ app.get("/pengatur/models/list", async (c) => {
     outputTokenLimit: null,
     kind: "voice",
     free: v2.category === "premade",
-    freeLabel: v2.category === "premade" ? "premade (free tier)" : `professional (${v2.category}) \u2014 paid plan required`,
+    freeLabel: v2.category === "premade" ? "premade (free tier)" : `professional (${v2.category}), paid plan required`,
     inUsd: null,
     outUsd: null,
     inRaw: "",
