@@ -12294,6 +12294,80 @@ dialog textarea:focus-visible { outline: none; }
   .canvas-head .palette-kbd { display: none; }
   .menu-btn { align-self: center; }
 }
+
+/* list pages on a phone: every table row becomes one compact item card ----
+   (Ricki's order: the folded label/value stack read as a sparse spreadsheet
+   \u2014 every cell boxed by the system block's borders, companion elements
+   scattered onto their own lines by the old flex-basis rule, actions spread
+   across the row. This block sits last in BASE_CSS and restates the whole
+   fold, so no earlier rule can re-box the cells: a row is a raised card on
+   the panel, its fields are borderless label/value lines inside it, and
+   companions stay on their value's line.) */
+@media screen and (max-width: 720px) {
+  .table-wrap { overflow: visible; }
+  .table { display: block; padding: var(--sp-3) var(--sp-3) var(--sp-1); }
+  .table thead { display: none; }
+  .table tbody { display: block; }
+  .table tbody tr, #keysBody .table tbody tr {
+    display: block; position: relative; height: auto;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-surface);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+    padding: 10px 14px 12px;
+    margin: 0 0 10px;
+  }
+  .table tbody tr[aria-selected="true"] { background: var(--accent-wash); }
+  .table td {
+    display: flex; flex-wrap: wrap; align-items: center;
+    justify-content: space-between; gap: 2px var(--sp-3);
+    width: auto; max-width: none; height: auto;
+    padding: 3px 0; border: 0;
+    text-align: left; white-space: normal;
+  }
+  .table td::before {
+    content: attr(data-l);
+    flex: none;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-3);
+  }
+  .table td:not([data-l])::before { content: none; }
+  /* companions stay on the value's line; only detail lines take a full row */
+  .table td > * + * { flex-basis: auto; }
+  .table td > div.sub, .table td > div.hint { flex-basis: 100%; white-space: normal; overflow: visible; }
+  .table td.num { text-align: right; }
+  /* the row checkbox pins to the card's top-right corner, out of the flow */
+  .table td.pick, #keysBody .table tbody td.pick {
+    position: absolute; top: 10px; right: 12px; left: auto;
+    display: block; width: 44px; max-width: 44px; height: 44px; padding: 0;
+    background: transparent;
+  }
+  .table td.pick::before { content: none; }
+  .table td[data-l="id"] { padding-right: 44px; }
+  /* the key and its copy button share one line, the key truncating first */
+  .table td .key-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table td[data-l="key"] .icon-btn { flex: none; width: 32px; height: 32px; min-height: 32px; }
+  /* actions gather at the card's foot: one hairline, right-aligned, compact */
+  .table td.actions, .table td.actions-cell, #keysBody .table tbody td.actions {
+    justify-content: flex-end; gap: var(--sp-2);
+    margin-top: 6px; padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .table td.actions .icon-btn, .table td.actions-cell .icon-btn { width: 40px; height: 40px; min-height: 40px; }
+  .providers-table td { white-space: normal; }
+  .table td[data-l="test"] { white-space: normal; }
+  /* the system block pads a table's first cell as a section inset; inside a
+     card that just indents the first field against its siblings */
+  .table td:first-child { padding-left: 0; }
+  /* a long row id truncates instead of sliding under the pinned checkbox */
+  .table td[data-l="id"] .link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* providers: the <=1400px sticky action column paints a surface box with a
+     shadow seam; inside a card the footer is transparent like the keys one */
+  .providers-table td.actions { position: static; background: transparent; box-shadow: none; }
+  /* capability chips flow after their label as one cluster, not spread
+     across the row by the space-between default */
+  .table td[data-l="caps"] { justify-content: flex-start; gap: 6px; }
+}
 `;
 var ICON_PATHS = {
   pulse: '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
