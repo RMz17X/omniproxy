@@ -70,7 +70,6 @@ const PROVIDERS_BODY = `
       <h2>Registry</h2>
       <span class="meta" id="countMeta"></span>
       <div class="actions">
-        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
         <button id="addBtn" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add provider</button>
       </div>
     </div>
@@ -211,7 +210,6 @@ const PROVIDERS_SCRIPT = `
     filter: document.getElementById("pFilter"),
     stateSel: document.getElementById("pState"),
     resetBtn: document.getElementById("pReset"),
-    reloadBtn: document.getElementById("reloadBtn"),
     addBtn: document.getElementById("addBtn"),
     dialog: document.getElementById("providerDialog"),
     form: document.getElementById("providerForm"),
@@ -614,9 +612,7 @@ const PROVIDERS_SCRIPT = `
   el.submit.addEventListener("click", function (ev) { ev.preventDefault(); submitDialog(); });
   el.importBtn.addEventListener("click", importModels);
   el.models.addEventListener("input", countModels);
-  el.reloadBtn.addEventListener("click", function () { reload(); });
 
-  GX.shortcuts({ refresh: "reloadBtn" });
   readUrl();
   GX.gate({ onSuccess: reload });
 })();

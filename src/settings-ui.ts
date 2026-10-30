@@ -147,7 +147,6 @@ const SETTINGS_SCRIPT = `
     clientKeySecretValue: document.getElementById("clientKeySecretValue"),
     clientKeyCopy: document.getElementById("clientKeyCopy"),
     clientKeyDismiss: document.getElementById("clientKeyDismiss"),
-    refresh: document.getElementById("refreshBtn"),
     exportBtn: document.getElementById("exportBtn")
   };
 
@@ -333,7 +332,6 @@ const SETTINGS_SCRIPT = `
     return refresh().catch(function () {});
   }
 
-  el.refresh.addEventListener("click", function () { reload(); });
   el.rotationSave.addEventListener("click", function () {
     var n = Number(el.rotationCap.value);
     GX.busy(el.rotationSave, "Saving…");
@@ -352,8 +350,7 @@ const SETTINGS_SCRIPT = `
       .then(function () { GX.idle(el.exportBtn); });
   });
 
-  GX.shortcuts({ refresh: "refreshBtn" });
-  GX.gate({ onSuccess: refresh });
+    GX.gate({ onSuccess: refresh });
 })();
 `;
 
@@ -363,10 +360,7 @@ export const SETTINGS_HTML = consolePage({
   actions:
     '<button id="exportBtn" class="btn btn-sm" type="button">' +
     icon("download") +
-    "Export JSON</button>" +
-    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
-    icon("refresh") +
-    "Refresh</button>",
+    "Export JSON</button>",
   body: SETTINGS_BODY,
   script: SETTINGS_SCRIPT,
 });

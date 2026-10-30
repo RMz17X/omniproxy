@@ -131,7 +131,6 @@ const STATS_SCRIPT = `
     heatEmpty: document.getElementById("heatEmpty"),
     heatValues: document.getElementById("heatValues"),
     err: document.getElementById("dataErr"),
-    refresh: document.getElementById("refreshBtn"),
     stamp: document.getElementById("stamp")
   };
 
@@ -371,10 +370,8 @@ const STATS_SCRIPT = `
     el.heat.classList.toggle("values", el.heatValues.checked);
   });
 
-  el.refresh.addEventListener("click", function () { reload(); });
 
   buildRange();
-  GX.shortcuts({ refresh: "refreshBtn" });
   GX.gate({
     onSuccess: function () {
       readUrl();
@@ -388,10 +385,6 @@ const STATS_SCRIPT = `
 export const STATS_HTML = consolePage({
   title: "Statistics",
   active: "/pengatur/stats",
-  actions:
-    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
-    icon("refresh") +
-    "Refresh</button>",
   body: STATS_BODY,
   script: STATS_SCRIPT,
 });

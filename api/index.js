@@ -12511,7 +12511,6 @@ function helpDialog() {
   const keys = [
     ["Ctrl K", "Open the command palette"],
     ["/", "Focus the filter of this page"],
-    ["r", "Refresh the data on this page"],
     ["?", "Open this help"],
     ["Esc", "Clear the filter, or close a dialog"],
     ["Tab", "Move through the table, row by row"]
@@ -13170,7 +13169,7 @@ var CLIENT_JS = `
           return { group: "Go to", label: item.label, hint: item.href, run: function () { location.href = item.href; } };
         });
         var tools = [
-          { group: "Tools", label: "Refresh this page", hint: "r", run: function () { var b = document.getElementById("refreshBtn"); if (b) b.click(); else location.reload(); } },
+          { group: "Tools", label: "Reload this page", run: function () { location.reload(); } },
           { group: "Tools", label: "Copy this link", hint: "", run: function () { GX.copy(location.href, "Link"); } },
           { group: "Tools", label: "Switch theme", hint: "", run: function () { GX.theme.toggle(); } },
           { group: "Tools", label: "Shortcuts and words", hint: "?", run: function () { GX.openDialog(document.getElementById("helpDialog")); } }
@@ -13538,7 +13537,6 @@ var OVERVIEW_SCRIPT = `
     addBtnFoot: document.getElementById("addBtnFoot"),
     testAllBtnFoot: document.getElementById("testAllBtnFoot"),
     testAllNoteFoot: document.getElementById("testAllNoteFoot"),
-    refreshBtn: document.getElementById("refreshBtn"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
@@ -13965,7 +13963,6 @@ var OVERVIEW_SCRIPT = `
 
   el.addBtn.addEventListener("click", openAdd);
   el.addBtnFoot.addEventListener("click", openAdd);
-  el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   if (el.addCancel) el.addCancel.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
@@ -13987,9 +13984,7 @@ var OVERVIEW_SCRIPT = `
     if (el.auto.checked) startAuto(); else stopAuto();
   });
 
-  GX.shortcuts({
-    refresh: "refreshBtn"
-  });
+  GX.shortcuts({});
 
   GX.gate({
     onSuccess: function () {
@@ -14001,7 +13996,7 @@ var OVERVIEW_SCRIPT = `
 var ADMIN_HTML = consolePage({
   title: "Overview",
   active: "/pengatur",
-  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + 'Refresh</button><button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
+  actions: '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
   body: OVERVIEW_BODY,
   script: OVERVIEW_SCRIPT
 });
@@ -14158,9 +14153,6 @@ var MODELS_BODY = `
   <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Find</h2>
-      <div class="actions">
-        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh all</button>
-      </div>
     </div>
     <div class="panel-body">
       <div class="toolbar">
@@ -14240,7 +14232,6 @@ var MODELS_SCRIPT = `
     kind: document.getElementById("kind"),
     provider: document.getElementById("provider"),
     size: document.getElementById("size"),
-    reloadBtn: document.getElementById("reloadBtn"),
     body: document.getElementById("body"),
     pager: document.getElementById("pager"),
     msg: document.getElementById("msg"),
@@ -14562,7 +14553,6 @@ var MODELS_SCRIPT = `
   }
 
   function load(force) {
-    GX.busy(el.reloadBtn, "Loading\u2026");
     var url = "/pengatur/models/list" + (force ? "?refresh=1" : "");
     return GX.api(url)
       .then(function (data) {
@@ -14594,10 +14584,9 @@ var MODELS_SCRIPT = `
         el.body.appendChild(GX.state(
           "error",
           "Live list unavailable",
-          err.message + " Check the key in Keys, then refresh the list."
+          err.message + " Check the key in Keys, then reopen this page."
         ));
       })
-      .then(function () { GX.idle(el.reloadBtn); });
   }
 
   function reload() {
@@ -14629,7 +14618,6 @@ var MODELS_SCRIPT = `
       .then(function () { btn.disabled = false; });
   }
 
-  el.reloadBtn.addEventListener("click", function () { load(true); });
   el.size.addEventListener("change", function () {
     state.size = Number(el.size.value) || 25;
     state.page = 1;
@@ -14670,7 +14658,7 @@ var MODELS_SCRIPT = `
   }
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
-  GX.shortcuts({ filter: "q", refresh: "reloadBtn" });
+  GX.shortcuts({ filter: "q" });
 
   GX.gate({
     onSuccess: function () {
@@ -17976,7 +17964,6 @@ var STATS_SCRIPT = `
     heatEmpty: document.getElementById("heatEmpty"),
     heatValues: document.getElementById("heatValues"),
     err: document.getElementById("dataErr"),
-    refresh: document.getElementById("refreshBtn"),
     stamp: document.getElementById("stamp")
   };
 
@@ -18216,10 +18203,8 @@ var STATS_SCRIPT = `
     el.heat.classList.toggle("values", el.heatValues.checked);
   });
 
-  el.refresh.addEventListener("click", function () { reload(); });
 
   buildRange();
-  GX.shortcuts({ refresh: "refreshBtn" });
   GX.gate({
     onSuccess: function () {
       readUrl();
@@ -18232,7 +18217,6 @@ var STATS_SCRIPT = `
 var STATS_HTML = consolePage({
   title: "Statistics",
   active: "/pengatur/stats",
-  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
   body: STATS_BODY,
   script: STATS_SCRIPT
 });
@@ -18801,7 +18785,6 @@ var USAGE_SCRIPT = `
     log: document.getElementById("log"),
     logMeta: document.getElementById("logMeta"),
     pager: document.getElementById("pager"),
-    refresh: document.getElementById("refreshBtn"),
     csv: document.getElementById("csvBtn"),
     auto: document.getElementById("auto"),
     err: document.getElementById("err")
@@ -19076,7 +19059,6 @@ var USAGE_SCRIPT = `
     writeUrl();
     load();
   });
-  el.refresh.addEventListener("click", function () { reload(); });
   el.csv.addEventListener("click", exportCsv);
   el.auto.addEventListener("change", function () {
     if (state.timer) { state.timer(); state.timer = null; }
@@ -19084,7 +19066,6 @@ var USAGE_SCRIPT = `
   });
 
   GX.shortcuts({
-    refresh: "refreshBtn",
     onEscape: function () {
       if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.route && !state.filter.status) return;
       state.filter = { day: "", model: "", key: "", route: "", status: "" };
@@ -19110,7 +19091,7 @@ var USAGE_SCRIPT = `
 var USAGE_HTML = consolePage({
   title: "Logs",
   active: "/pengatur/logs",
-  actions: '<button id="csvBtn" class="btn btn-sm" type="button">' + icon("download") + 'Export CSV</button><button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
+  actions: '<button id="csvBtn" class="btn btn-sm" type="button">' + icon("download") + "Export CSV</button>",
   body: USAGE_BODY,
   script: USAGE_SCRIPT
 });
@@ -19273,7 +19254,6 @@ var KEYS_SCRIPT = `
     keyPager: document.getElementById("keyPager"),
     testAllBtn: document.getElementById("testAllBtn"),
     purgeDeadBtn: document.getElementById("purgeDeadBtn"),
-    refreshBtn: document.getElementById("refreshBtn"),
     auto: document.getElementById("auto"),
     bulkBar: document.getElementById("bulkBar"),
     bulkApply: document.getElementById("bulkApply"),
@@ -20200,7 +20180,6 @@ var KEYS_SCRIPT = `
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
   });
-  el.refreshBtn.addEventListener("click", function () { reload(); });
   el.testAllBtn.addEventListener("click", testAll);
   if (el.purgeDeadBtn) el.purgeDeadBtn.addEventListener("click", purgeDead);
   el.auto.addEventListener("change", function () {
@@ -20249,7 +20228,6 @@ var KEYS_SCRIPT = `
 
   GX.shortcuts({
     filter: "keyFilter",
-    refresh: "refreshBtn",
     onEscape: function () {
       if (!state.query && !state.status && !state.provider) return;
       state.query = "";
@@ -20747,7 +20725,7 @@ var DETAIL_SCRIPT = `
 var KEYS_HTML = consolePage({
   title: "Keys",
   active: "/pengatur/keys",
-  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + 'Refresh</button><button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
+  actions: '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' + icon("plus") + "Add keys</button>",
   body: KEYS_BODY,
   script: KEYS_SCRIPT
 });
@@ -20789,7 +20767,6 @@ var PROVIDERS_BODY = `
       <h2>Registry</h2>
       <span class="meta" id="countMeta"></span>
       <div class="actions">
-        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh</button>
         <button id="addBtn" class="btn btn-sm btn-primary" type="button">${icon("plus")}Add provider</button>
       </div>
     </div>
@@ -20918,7 +20895,6 @@ var PROVIDERS_SCRIPT = `
     filter: document.getElementById("pFilter"),
     stateSel: document.getElementById("pState"),
     resetBtn: document.getElementById("pReset"),
-    reloadBtn: document.getElementById("reloadBtn"),
     addBtn: document.getElementById("addBtn"),
     dialog: document.getElementById("providerDialog"),
     form: document.getElementById("providerForm"),
@@ -21321,9 +21297,7 @@ var PROVIDERS_SCRIPT = `
   el.submit.addEventListener("click", function (ev) { ev.preventDefault(); submitDialog(); });
   el.importBtn.addEventListener("click", importModels);
   el.models.addEventListener("input", countModels);
-  el.reloadBtn.addEventListener("click", function () { reload(); });
 
-  GX.shortcuts({ refresh: "reloadBtn" });
   readUrl();
   GX.gate({ onSuccess: reload });
 })();
@@ -21471,7 +21445,6 @@ var SETTINGS_SCRIPT = `
     clientKeySecretValue: document.getElementById("clientKeySecretValue"),
     clientKeyCopy: document.getElementById("clientKeyCopy"),
     clientKeyDismiss: document.getElementById("clientKeyDismiss"),
-    refresh: document.getElementById("refreshBtn"),
     exportBtn: document.getElementById("exportBtn")
   };
 
@@ -21657,7 +21630,6 @@ var SETTINGS_SCRIPT = `
     return refresh().catch(function () {});
   }
 
-  el.refresh.addEventListener("click", function () { reload(); });
   el.rotationSave.addEventListener("click", function () {
     var n = Number(el.rotationCap.value);
     GX.busy(el.rotationSave, "Saving\u2026");
@@ -21676,14 +21648,13 @@ var SETTINGS_SCRIPT = `
       .then(function () { GX.idle(el.exportBtn); });
   });
 
-  GX.shortcuts({ refresh: "refreshBtn" });
-  GX.gate({ onSuccess: refresh });
+    GX.gate({ onSuccess: refresh });
 })();
 `;
 var SETTINGS_HTML = consolePage({
   title: "Settings",
   active: "/pengatur/settings",
-  actions: '<button id="exportBtn" class="btn btn-sm" type="button">' + icon("download") + 'Export JSON</button><button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
+  actions: '<button id="exportBtn" class="btn btn-sm" type="button">' + icon("download") + "Export JSON</button>",
   body: SETTINGS_BODY,
   script: SETTINGS_SCRIPT
 });
@@ -21836,7 +21807,6 @@ var AUDIT_SCRIPT = `
     since: document.getElementById("since"),
     limit: document.getElementById("limit"),
     auto: document.getElementById("auto"),
-    refresh: document.getElementById("refreshBtn"),
     msg: document.getElementById("msg"),
     trail: document.getElementById("trail"),
     trailMeta: document.getElementById("trailMeta")
@@ -21957,7 +21927,6 @@ var AUDIT_SCRIPT = `
     return refresh().catch(function () {});
   }
 
-  el.refresh.addEventListener("click", function () { reload(); });
   el.limit.addEventListener("change", function () { writeUrl(); reload(); });
   el.since.addEventListener("change", function () { writeUrl(); reload(); });
   el.action.addEventListener("keydown", function (event) {
@@ -21971,7 +21940,7 @@ var AUDIT_SCRIPT = `
     if (el.auto.checked) state.timer = GX.every(15000, reload);
   });
 
-  GX.shortcuts({ filter: "action", refresh: "refreshBtn" });
+  GX.shortcuts({ filter: "action" });
   GX.gate({
     onSuccess: function () {
       readUrl();
@@ -21983,7 +21952,6 @@ var AUDIT_SCRIPT = `
 var AUDIT_HTML = consolePage({
   title: "Audit",
   active: "/pengatur/audit",
-  actions: '<button id="refreshBtn" class="btn btn-sm" type="button">' + icon("refresh") + "Refresh</button>",
   body: AUDIT_BODY,
   script: AUDIT_SCRIPT
 });

@@ -32,9 +32,6 @@ const MODELS_BODY = `
   <section class="panel u-mt-4">
     <div class="panel-head">
       <h2>Find</h2>
-      <div class="actions">
-        <button id="reloadBtn" class="btn btn-sm" type="button">${icon("refresh")}Refresh all</button>
-      </div>
     </div>
     <div class="panel-body">
       <div class="toolbar">
@@ -115,7 +112,6 @@ const MODELS_SCRIPT = `
     kind: document.getElementById("kind"),
     provider: document.getElementById("provider"),
     size: document.getElementById("size"),
-    reloadBtn: document.getElementById("reloadBtn"),
     body: document.getElementById("body"),
     pager: document.getElementById("pager"),
     msg: document.getElementById("msg"),
@@ -437,7 +433,6 @@ const MODELS_SCRIPT = `
   }
 
   function load(force) {
-    GX.busy(el.reloadBtn, "Loading…");
     var url = "/pengatur/models/list" + (force ? "?refresh=1" : "");
     return GX.api(url)
       .then(function (data) {
@@ -469,10 +464,9 @@ const MODELS_SCRIPT = `
         el.body.appendChild(GX.state(
           "error",
           "Live list unavailable",
-          err.message + " Check the key in Keys, then refresh the list."
+          err.message + " Check the key in Keys, then reopen this page."
         ));
       })
-      .then(function () { GX.idle(el.reloadBtn); });
   }
 
   function reload() {
@@ -504,7 +498,6 @@ const MODELS_SCRIPT = `
       .then(function () { btn.disabled = false; });
   }
 
-  el.reloadBtn.addEventListener("click", function () { load(true); });
   el.size.addEventListener("change", function () {
     state.size = Number(el.size.value) || 25;
     state.page = 1;
@@ -545,7 +538,7 @@ const MODELS_SCRIPT = `
   }
   el.tierNote.textContent = TIER_NOTES[state.tier];
 
-  GX.shortcuts({ filter: "q", refresh: "reloadBtn" });
+  GX.shortcuts({ filter: "q" });
 
   GX.gate({
     onSuccess: function () {

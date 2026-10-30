@@ -82,7 +82,6 @@ const AUDIT_SCRIPT = `
     since: document.getElementById("since"),
     limit: document.getElementById("limit"),
     auto: document.getElementById("auto"),
-    refresh: document.getElementById("refreshBtn"),
     msg: document.getElementById("msg"),
     trail: document.getElementById("trail"),
     trailMeta: document.getElementById("trailMeta")
@@ -203,7 +202,6 @@ const AUDIT_SCRIPT = `
     return refresh().catch(function () {});
   }
 
-  el.refresh.addEventListener("click", function () { reload(); });
   el.limit.addEventListener("change", function () { writeUrl(); reload(); });
   el.since.addEventListener("change", function () { writeUrl(); reload(); });
   el.action.addEventListener("keydown", function (event) {
@@ -217,7 +215,7 @@ const AUDIT_SCRIPT = `
     if (el.auto.checked) state.timer = GX.every(15000, reload);
   });
 
-  GX.shortcuts({ filter: "action", refresh: "refreshBtn" });
+  GX.shortcuts({ filter: "action" });
   GX.gate({
     onSuccess: function () {
       readUrl();
@@ -230,10 +228,6 @@ const AUDIT_SCRIPT = `
 export const AUDIT_HTML = consolePage({
   title: "Audit",
   active: "/pengatur/audit",
-  actions:
-    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
-    icon("refresh") +
-    "Refresh</button>",
   body: AUDIT_BODY,
   script: AUDIT_SCRIPT,
 });

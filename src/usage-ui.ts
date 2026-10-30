@@ -186,7 +186,6 @@ const USAGE_SCRIPT = `
     log: document.getElementById("log"),
     logMeta: document.getElementById("logMeta"),
     pager: document.getElementById("pager"),
-    refresh: document.getElementById("refreshBtn"),
     csv: document.getElementById("csvBtn"),
     auto: document.getElementById("auto"),
     err: document.getElementById("err")
@@ -461,7 +460,6 @@ const USAGE_SCRIPT = `
     writeUrl();
     load();
   });
-  el.refresh.addEventListener("click", function () { reload(); });
   el.csv.addEventListener("click", exportCsv);
   el.auto.addEventListener("change", function () {
     if (state.timer) { state.timer(); state.timer = null; }
@@ -469,7 +467,6 @@ const USAGE_SCRIPT = `
   });
 
   GX.shortcuts({
-    refresh: "refreshBtn",
     onEscape: function () {
       if (!state.filter.day && !state.filter.model && !state.filter.key && !state.filter.route && !state.filter.status) return;
       state.filter = { day: "", model: "", key: "", route: "", status: "" };
@@ -499,10 +496,7 @@ export const USAGE_HTML = consolePage({
   actions:
     '<button id="csvBtn" class="btn btn-sm" type="button">' +
     icon("download") +
-    "Export CSV</button>" +
-    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
-    icon("refresh") +
-    "Refresh</button>",
+    "Export CSV</button>",
   body: USAGE_BODY,
   script: USAGE_SCRIPT,
 });

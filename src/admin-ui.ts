@@ -166,7 +166,6 @@ const OVERVIEW_SCRIPT = `
     addBtnFoot: document.getElementById("addBtnFoot"),
     testAllBtnFoot: document.getElementById("testAllBtnFoot"),
     testAllNoteFoot: document.getElementById("testAllNoteFoot"),
-    refreshBtn: document.getElementById("refreshBtn"),
     newKeys: document.getElementById("newKeys"),
     addCount: document.getElementById("addCount"),
     addMsg: document.getElementById("addMsg"),
@@ -593,7 +592,6 @@ const OVERVIEW_SCRIPT = `
 
   el.addBtn.addEventListener("click", openAdd);
   el.addBtnFoot.addEventListener("click", openAdd);
-  el.refreshBtn.addEventListener("click", function () { reload(); });
   el.addClose.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   if (el.addCancel) el.addCancel.addEventListener("click", function () { GX.closeDialog(el.addDialog); });
   el.addForm.addEventListener("submit", function (event) { event.preventDefault(); addKeys(); });
@@ -615,9 +613,7 @@ const OVERVIEW_SCRIPT = `
     if (el.auto.checked) startAuto(); else stopAuto();
   });
 
-  GX.shortcuts({
-    refresh: "refreshBtn"
-  });
+  GX.shortcuts({});
 
   GX.gate({
     onSuccess: function () {
@@ -631,9 +627,6 @@ export const ADMIN_HTML = consolePage({
   title: "Overview",
   active: "/pengatur",
   actions:
-    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
-    icon("refresh") +
-    "Refresh</button>" +
     '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' +
     icon("plus") +
     "Add keys</button>",

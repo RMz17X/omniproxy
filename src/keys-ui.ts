@@ -234,7 +234,6 @@ const KEYS_SCRIPT = `
     keyPager: document.getElementById("keyPager"),
     testAllBtn: document.getElementById("testAllBtn"),
     purgeDeadBtn: document.getElementById("purgeDeadBtn"),
-    refreshBtn: document.getElementById("refreshBtn"),
     auto: document.getElementById("auto"),
     bulkBar: document.getElementById("bulkBar"),
     bulkApply: document.getElementById("bulkApply"),
@@ -1161,7 +1160,6 @@ const KEYS_SCRIPT = `
     var n = el.newKeys.value.split(/[\\s,]+/).filter(function (s) { return s.trim(); }).length;
     el.addCount.textContent = n ? n + " key" + (n === 1 ? "" : "s") + " detected" : "";
   });
-  el.refreshBtn.addEventListener("click", function () { reload(); });
   el.testAllBtn.addEventListener("click", testAll);
   if (el.purgeDeadBtn) el.purgeDeadBtn.addEventListener("click", purgeDead);
   el.auto.addEventListener("change", function () {
@@ -1210,7 +1208,6 @@ const KEYS_SCRIPT = `
 
   GX.shortcuts({
     filter: "keyFilter",
-    refresh: "refreshBtn",
     onEscape: function () {
       if (!state.query && !state.status && !state.provider) return;
       state.query = "";
@@ -1714,9 +1711,6 @@ export const KEYS_HTML = consolePage({
   title: "Keys",
   active: "/pengatur/keys",
   actions:
-    '<button id="refreshBtn" class="btn btn-sm" type="button">' +
-    icon("refresh") +
-    "Refresh</button>" +
     '<button id="addBtn" class="btn btn-sm btn-primary" type="button">' +
     icon("plus") +
     "Add keys</button>",

@@ -2767,7 +2767,6 @@ export function helpDialog(): string {
   const keys: [string, string][] = [
     ["Ctrl K", "Open the command palette"],
     ["/", "Focus the filter of this page"],
-    ["r", "Refresh the data on this page"],
     ["?", "Open this help"],
     ["Esc", "Clear the filter, or close a dialog"],
     ["Tab", "Move through the table, row by row"],
@@ -3490,7 +3489,7 @@ export const CLIENT_JS = `
           return { group: "Go to", label: item.label, hint: item.href, run: function () { location.href = item.href; } };
         });
         var tools = [
-          { group: "Tools", label: "Refresh this page", hint: "r", run: function () { var b = document.getElementById("refreshBtn"); if (b) b.click(); else location.reload(); } },
+          { group: "Tools", label: "Reload this page", run: function () { location.reload(); } },
           { group: "Tools", label: "Copy this link", hint: "", run: function () { GX.copy(location.href, "Link"); } },
           { group: "Tools", label: "Switch theme", hint: "", run: function () { GX.theme.toggle(); } },
           { group: "Tools", label: "Shortcuts and words", hint: "?", run: function () { GX.openDialog(document.getElementById("helpDialog")); } }
