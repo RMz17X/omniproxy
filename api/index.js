@@ -7660,8 +7660,8 @@ var Response$1 = class Response$12 {
   #body;
   #init;
   [getResponseCache]() {
-    const cache4 = this[cacheKey];
-    const liveHeaders = cache4 && cache4[2] instanceof Headers ? cache4[2] : void 0;
+    const cache5 = this[cacheKey];
+    const liveHeaders = cache5 && cache5[2] instanceof Headers ? cache5[2] : void 0;
     delete this[cacheKey];
     return this[responseCache] ||= new GlobalResponse(this.#body, liveHeaders ? {
       status: this.#init?.status,
@@ -7689,10 +7689,10 @@ var Response$1 = class Response$12 {
     ];
   }
   get headers() {
-    const cache4 = this[cacheKey];
-    if (cache4) {
-      if (!(cache4[2] instanceof Headers)) cache4[2] = new Headers(cache4[2] || (cache4[1] === null ? void 0 : { "content-type": defaultContentType }));
-      return cache4[2];
+    const cache5 = this[cacheKey];
+    if (cache5) {
+      if (!(cache5[2] instanceof Headers)) cache5[2] = new Headers(cache5[2] || (cache5[1] === null ? void 0 : { "content-type": defaultContentType }));
+      return cache5[2];
     }
     return this[getResponseCache]().headers;
   }
@@ -21273,6 +21273,39 @@ var SETTINGS_BODY = `
 
   <section class="panel">
     <div class="panel-head">
+      <h2>Client API keys</h2>
+      <span class="meta" id="clientKeysMeta"></span>
+    </div>
+    <div class="panel-body">
+      <p class="hint">
+        The credential a client sends to <code>/v1</code>. Each key can be revoked on its own, so a
+        consumer does not need the deployment-wide token. A key is shown once, when it is created.
+      </p>
+      <div class="inline-form u-mt-2">
+        <input class="text-input" id="clientKeyLabel" type="text" maxlength="80" placeholder="Label (who is it for?)" aria-label="Client key label" />
+        <button id="clientKeyCreate" class="btn btn-sm btn-primary" type="button">Create key</button>
+      </div>
+      <div id="clientKeyMsg" class="notice u-mt-2" role="status" aria-live="polite"></div>
+
+      <div id="clientKeySecret" class="notice u-mt-2" role="status" aria-live="polite" hidden>
+        <div class="defs"><div class="def"><dt>New key</dt><dd class="mono" id="clientKeySecretValue"></dd></div></div>
+        <div class="inline-form u-mt-2">
+          <button id="clientKeyCopy" class="btn btn-sm" type="button">Copy</button>
+          <button id="clientKeyDismiss" class="btn btn-sm" type="button">Done</button>
+        </div>
+      </div>
+
+      <div class="table-wrap scroll-y u-mt-2">
+        <table class="table" id="clientKeysTable">
+          <thead><tr><th>Key</th><th>Label</th><th>Created</th><th>Last used</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
       <h2>Environment</h2>
       <span class="meta">values are never shown</span>
     </div>
@@ -21310,6 +21343,15 @@ var SETTINGS_SCRIPT = `
     rotationSave: document.getElementById("rotationSave"),
     rotationMeta: document.getElementById("rotationMeta"),
     rotationMsg: document.getElementById("rotationMsg"),
+    clientKeysMeta: document.getElementById("clientKeysMeta"),
+    clientKeysTable: document.getElementById("clientKeysTable"),
+    clientKeyLabel: document.getElementById("clientKeyLabel"),
+    clientKeyCreate: document.getElementById("clientKeyCreate"),
+    clientKeyMsg: document.getElementById("clientKeyMsg"),
+    clientKeySecret: document.getElementById("clientKeySecret"),
+    clientKeySecretValue: document.getElementById("clientKeySecretValue"),
+    clientKeyCopy: document.getElementById("clientKeyCopy"),
+    clientKeyDismiss: document.getElementById("clientKeyDismiss"),
     refresh: document.getElementById("refreshBtn"),
     exportBtn: document.getElementById("exportBtn")
   };
@@ -21349,11 +21391,115 @@ var SETTINGS_SCRIPT = `
       : "env default " + r.envDefault;
   }
 
+  function when(ms) {
+    if (!ms) return "never";
+    return new Date(ms).toLocaleString("en-GB", {
+      day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  }
+
+  function renderClientKeys(d) {
+    var body = el.clientKeysTable.querySelector("tbody");
+    body.textContent = "";
+
+    var keys = d.keys || [];
+    el.clientKeysMeta.textContent = keys.length
+      ? keys.length + " key" + (keys.length === 1 ? "" : "s")
+      : "none yet";
+
+    if (!keys.length) {
+      var tr = GX.el("tr");
+      var td = GX.el("td", { colspan: "5" });
+      td.appendChild(GX.state(
+        "empty",
+        "No client keys",
+        d.storage
+          ? "Create one above, then send it as Authorization: Bearer <key>."
+          : "Storage is disabled (no DATABASE_URL), so keys cannot be stored."
+      ));
+      tr.appendChild(td);
+      body.appendChild(tr);
+      return;
+    }
+
+    keys.forEach(function (k) {
+      var row = GX.el("tr");
+      GX.cell(row, k.prefix + "\u2026", "mono", "key");
+      GX.cell(row, k.label || "-", "", "label");
+      GX.cell(row, when(k.createdAt), "", "created");
+      GX.cell(row, when(k.lastUsedAt), "", "last used");
+
+      var actions = GX.el("td", { "data-l": "actions" });
+      var btn = GX.el("button", { class: "btn btn-sm btn-danger", type: "button", text: "Revoke" });
+      btn.addEventListener("click", function () {
+        GX.confirm({
+          title: "Revoke this key?",
+          message: "Any client still using " + k.prefix + "\u2026 will be refused on /v1 immediately.",
+          confirmLabel: "Revoke"
+        }).then(function (ok) {
+          if (!ok) return;
+          GX.busy(btn, "Revoking\u2026");
+          GX.api("/pengatur/settings/client-keys/" + k.id, { method: "DELETE" })
+            .then(function () {
+              GX.say(el.clientKeyMsg, "Key " + k.prefix + "\u2026 revoked.", "ok");
+              return loadClientKeys();
+            })
+            .catch(function (err) { GX.say(el.clientKeyMsg, err.message, "err"); })
+            .then(function () { GX.idle(btn); });
+        });
+      });
+      actions.appendChild(btn);
+      row.appendChild(actions);
+      body.appendChild(row);
+    });
+  }
+
+  function loadClientKeys() {
+    return GX.api("/pengatur/settings/client-keys")
+      .then(renderClientKeys)
+      .catch(function (err) {
+        if (err.status === 401 || err.status === 403) return;
+        GX.say(el.clientKeyMsg, err.message, "err");
+      });
+  }
+
+  el.clientKeyCreate.addEventListener("click", function () {
+    var label = (el.clientKeyLabel.value || "").trim();
+    GX.busy(el.clientKeyCreate, "Creating\u2026");
+    GX.api("/pengatur/settings/client-keys", { method: "POST", body: { label: label } })
+      .then(function (r) {
+        el.clientKeyLabel.value = "";
+        el.clientKeySecretValue.textContent = r.raw;
+        el.clientKeySecret.hidden = false;
+        GX.say(el.clientKeyMsg, "Key created. Copy it now \u2014 it is not shown again.", "ok");
+        return loadClientKeys();
+      })
+      .catch(function (err) { GX.say(el.clientKeyMsg, err.message, "err"); })
+      .then(function () { GX.idle(el.clientKeyCreate); });
+  });
+
+  el.clientKeyCopy.addEventListener("click", function () {
+    var text = el.clientKeySecretValue.textContent || "";
+    if (!text) return;
+    var done = function () { GX.toast("Key copied.", "ok"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { GX.toast("Copy failed.", "err"); });
+    } else {
+      GX.toast("Copy unsupported in this browser.", "err");
+    }
+  });
+
+  el.clientKeyDismiss.addEventListener("click", function () {
+    el.clientKeySecretValue.textContent = "";
+    el.clientKeySecret.hidden = true;
+  });
+
   function render(d) {
     var nDefaults = defs(el.defaults, d.defaults);
     var nLimits = defs(el.limits, d.limits);
     var nLedger = defs(el.ledger, d.ledger);
     renderEnv(d.env);
+    loadClientKeys();
 
     if (d.rotation) {
       el.rotationCap.value = String(d.rotation.maxKeyAttempts);
@@ -21723,6 +21869,117 @@ var AUDIT_HTML = consolePage({
   script: AUDIT_SCRIPT
 });
 
+// src/client-keys.ts
+init_db();
+import { createHash as createHash3, randomBytes } from "node:crypto";
+init_log();
+var CLIENT_KEY_PREFIX = "op_live_";
+var SHOWN_LEN = CLIENT_KEY_PREFIX.length + 8;
+var CACHE_TTL_MS2 = 1e4;
+var TOUCH_TTL_MS = 6e4;
+var CONFIGURED_KEY = "client_keys_configured";
+var toEpoch2 = (v2) => {
+  if (!v2) return 0;
+  const t = v2 instanceof Date ? v2.getTime() : Date.parse(v2);
+  return Number.isFinite(t) ? t : 0;
+};
+var clientKeyId = (raw2) => createHash3("sha256").update(raw2).digest("hex").slice(0, 12);
+var hashOf = (raw2) => createHash3("sha256").update(raw2).digest("hex");
+function mintClientKey() {
+  return CLIENT_KEY_PREFIX + randomBytes(24).toString("hex");
+}
+async function createClientKey(label) {
+  const raw2 = mintClientKey();
+  const id = clientKeyId(raw2);
+  const prefix = raw2.slice(0, SHOWN_LEN);
+  const hash = hashOf(raw2);
+  const res = await sql(
+    `insert into client_keys (id, hash, prefix, label) values ($1, $2, $3, $4)`,
+    [id, hash, prefix, label]
+  );
+  if (!res.ok) throw new Error(res.message ?? "could not store the client key");
+  await setSetting(CONFIGURED_KEY, "1");
+  cache4.at = 0;
+  return { raw: raw2, row: { id, prefix, label, enabled: true, createdAt: Date.now(), lastUsedAt: 0 } };
+}
+var toRow = (r) => ({
+  id: r.id,
+  prefix: r.prefix,
+  label: r.label ?? null,
+  enabled: r.enabled === true,
+  createdAt: toEpoch2(r.created_at),
+  lastUsedAt: toEpoch2(r.last_used_at)
+});
+async function listClientKeys() {
+  if (!dbEnabled()) return [];
+  const res = await sql(
+    `select id, prefix, label, enabled, created_at, last_used_at
+       from client_keys
+      order by created_at desc`
+  );
+  if (!res.ok) {
+    log("warn", "client_keys.list_failed", { reason: res.reason });
+    return [];
+  }
+  return res.rows.map(toRow);
+}
+async function revokeClientKey(id) {
+  if (!dbEnabled()) return false;
+  const res = await sql(`delete from client_keys where id = $1 returning id`, [id]);
+  if (!res.ok) throw new Error(res.message ?? "could not revoke the client key");
+  cache4.at = 0;
+  return res.rows.length > 0;
+}
+var cache4 = { at: 0, hashes: /* @__PURE__ */ new Set(), enabled: false };
+var touched = /* @__PURE__ */ new Map();
+async function load2() {
+  if (Date.now() - cache4.at < CACHE_TTL_MS2) return cache4;
+  if (!dbEnabled()) {
+    cache4 = { at: Date.now(), hashes: /* @__PURE__ */ new Set(), enabled: false };
+    return cache4;
+  }
+  const res = await sql(`select hash, enabled from client_keys`);
+  if (!res.ok) {
+    log("warn", "client_keys.load_failed", { reason: res.reason });
+    return cache4;
+  }
+  const hashes = /* @__PURE__ */ new Set();
+  let enabled = false;
+  for (const row of res.rows) {
+    if (row.enabled !== true) continue;
+    hashes.add(row.hash);
+    enabled = true;
+  }
+  cache4 = { at: Date.now(), hashes, enabled };
+  return cache4;
+}
+async function clientKeysArmed() {
+  if ((await load2()).enabled) return true;
+  return await getSetting(CONFIGURED_KEY) === "1";
+}
+async function verifyClientKey(raw2) {
+  const value = raw2.trim();
+  if (!value.startsWith(CLIENT_KEY_PREFIX)) return false;
+  const { hashes } = await load2();
+  const hash = hashOf(value);
+  if (!hashes.has(hash)) return false;
+  const last = touched.get(hash) ?? 0;
+  if (Date.now() - last > TOUCH_TTL_MS) {
+    touched.set(hash, Date.now());
+    sqlLater(`update client_keys set last_used_at = now() where hash = $1`, [hash]);
+  }
+  return true;
+}
+async function clientKeyStats() {
+  if (!dbEnabled()) return { total: 0, enabled: 0 };
+  const res = await sql(
+    `select count(*) as total, count(*) filter (where enabled) as enabled from client_keys`
+  );
+  if (!res.ok) return { total: 0, enabled: 0 };
+  const row = res.rows[0];
+  return { total: Number(row?.total ?? 0), enabled: Number(row?.enabled ?? 0) };
+}
+
 // src/app.ts
 init_db();
 var app = new Hono3();
@@ -21747,12 +22004,12 @@ var bearer = (h2) => {
   return m ? m[1].trim() : h2.trim();
 };
 var clientGate = async (c, next) => {
-  if (!cfg.clientToken) return next();
+  const configured = cfg.clientToken !== "" || await clientKeysArmed();
+  if (!configured) return next();
   const presented = bearer(c.req.header("authorization")) || c.req.header("x-api-key") || "";
-  if (presented !== cfg.clientToken) {
-    return c.json({ error: { type: "auth_error", message: "Invalid API key." } }, 401);
-  }
-  return next();
+  if (cfg.clientToken && presented === cfg.clientToken) return next();
+  if (presented && await verifyClientKey(presented)) return next();
+  return c.json({ error: { type: "auth_error", message: "Invalid API key." } }, 401);
 };
 app.use("/v1/*", clientGate);
 app.use("/v1beta/*", clientGate);
@@ -23028,6 +23285,57 @@ app.get("/pengatur/audit/data", async (c) => {
   });
   if (!res.ok) return c.json({ ok: false, error: { message: res.error ?? "audit query failed" } }, 500);
   return c.json(res);
+});
+app.get("/pengatur/settings/client-keys", async (c) => {
+  const [keys, stats] = await Promise.all([listClientKeys(), clientKeyStats()]);
+  return c.json({
+    ok: true,
+    keys,
+    stats,
+    /** true when CLIENT_TOKEN alone already gates /v1; the console says so */
+    envToken: cfg.clientToken !== "",
+    /** true once a key has ever been minted: `/v1` stays gated even at zero keys */
+    armed: await clientKeysArmed(),
+    storage: dbEnabled()
+  });
+});
+app.post("/pengatur/settings/client-keys", async (c) => {
+  if (!dbEnabled()) {
+    return c.json({ error: { message: "storage disabled: no DATABASE_URL" } }, 400);
+  }
+  const body = await c.req.json().catch(() => null);
+  const rawLabel = typeof body?.label === "string" ? body.label.trim() : "";
+  const label = rawLabel === "" ? null : rawLabel.slice(0, 80);
+  try {
+    const created = await createClientKey(label);
+    await recordNow("settings.client_key.create", {
+      actor: actorFrom(c.req.header("user-agent")),
+      // The raw key is never recorded; the id and label are enough to trace it.
+      detail: { id: created.row.id, label }
+    });
+    return c.json({ ok: true, key: created.row, raw: created.raw });
+  } catch (err2) {
+    const message = err2 instanceof Error ? err2.message : "could not create the key";
+    return c.json({ error: { message } }, 500);
+  }
+});
+app.delete("/pengatur/settings/client-keys/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!/^[0-9a-f]{12}$/.test(id)) {
+    return c.json({ error: { message: "unknown key id" } }, 400);
+  }
+  try {
+    const removed = await revokeClientKey(id);
+    if (!removed) return c.json({ error: { message: "unknown key id" } }, 404);
+    await recordNow("settings.client_key.revoke", {
+      actor: actorFrom(c.req.header("user-agent")),
+      detail: { id }
+    });
+    return c.json({ ok: true, id });
+  } catch (err2) {
+    const message = err2 instanceof Error ? err2.message : "could not revoke the key";
+    return c.json({ error: { message } }, 500);
+  }
 });
 var app_default = app;
 
