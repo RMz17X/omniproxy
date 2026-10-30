@@ -144,6 +144,26 @@ create table if not exists providers (
   created_at   timestamptz not null default now()
 );
 
+-- Client API keys: the credentials end users present on /v1/*.
+--
+-- Deliberately separate from `keys` (that table is the upstream pool: Gemini /
+-- ElevenLabs credentials the gateway spends). A row here is a key an operator
+-- mints for a client and can revoke individually, so handing access to one
+-- consumer no longer means shipping the deployment-wide CLIENT_TOKEN.
+--
+-- Only the SHA-256 is stored. The raw value is displayed exactly once, at mint
+-- time, and can never be read back from this table.
+create table if not exists client_keys (
+  id           text primary key,          -- sha256(raw)[:12]
+  hash         text not null unique,      -- sha256(raw), full
+  prefix       text not null,             -- shown in the console: op_live_xxxxxxxx
+  label        text,
+  enabled      boolean not null default true,
+  created_at   timestamptz not null default now(),
+  last_used_at timestamptz
+);
+create index if not exists client_keys_hash_idx on client_keys (hash);
+
 -- Seed the builtins so a console toggle or an imported model list survives a
 -- cold start. `do nothing` on conflict: the code owns the definition, the row
 -- only carries operator state, so a redeploy never reverts an edit.

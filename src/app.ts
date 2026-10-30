@@ -72,6 +72,15 @@ import {
   setSetting,
 } from "./settings-store.ts";
 import { AUDIT_HTML } from "./audit-ui.ts";
+import {
+  clientKeyStats,
+  clientKeysArmed,
+  clientKeysEnabled,
+  createClientKey,
+  listClientKeys,
+  revokeClientKey,
+  verifyClientKey,
+} from "./client-keys.ts";
 import { LOGIN_HTML } from "./ui.ts";
 import { breakerOpen, dbEnabled, sql } from "./db.ts";
 
@@ -123,12 +132,20 @@ const bearer = (h: string | undefined): string => {
  * token means open, exactly like `/v1/*` before.
  */
 const clientGate = async (c: Context, next: Next) => {
-  if (!cfg.clientToken) return next();
+  /* Two credential sources, both accepted:
+       - CLIENT_TOKEN, the deploy-time bearer (env, unchanged behaviour)
+       - a row in `client_keys`, minted from the settings console, so access can
+         be handed out and revoked per client instead of one shared secret.
+     Unset token AND zero stored keys means open — that is the historical
+     behaviour and stays supported for a private deployment. */
+  const configured = cfg.clientToken !== "" || (await clientKeysArmed());
+  if (!configured) return next();
+
   const presented = bearer(c.req.header("authorization")) || c.req.header("x-api-key") || "";
-  if (presented !== cfg.clientToken) {
-    return c.json({ error: { type: "auth_error", message: "Invalid API key." } }, 401);
-  }
-  return next();
+  if (cfg.clientToken && presented === cfg.clientToken) return next();
+  if (presented && (await verifyClientKey(presented))) return next();
+
+  return c.json({ error: { type: "auth_error", message: "Invalid API key." } }, 401);
 };
 
 app.use("/v1/*", clientGate);
@@ -1993,4 +2010,74 @@ app.get("/pengatur/audit/data", async (c) => {
   if (!res.ok) return c.json({ ok: false, error: { message: res.error ?? "audit query failed" } }, 500);
   return c.json(res);
 });
+
+/* ---------- client API keys ---------- */
+
+/**
+ * The `/v1/*` credentials an operator hands to consumers.
+ *
+ * Admin-gated by the `/pengatur/*` middleware: listing exposes only the visible
+ * prefix, minting returns the raw value exactly once, and revoking is the only
+ * mutation. Nothing here can read a stored key back — the table holds hashes.
+ */
+app.get("/pengatur/settings/client-keys", async (c) => {
+  const [keys, stats] = await Promise.all([listClientKeys(), clientKeyStats()]);
+  return c.json({
+    ok: true,
+    keys,
+    stats,
+    /** true when CLIENT_TOKEN alone already gates /v1; the console says so */
+    envToken: cfg.clientToken !== "",
+    /** true once a key has ever been minted: `/v1` stays gated even at zero keys */
+    armed: await clientKeysArmed(),
+    storage: dbEnabled(),
+  });
+});
+
+/**
+ * Mint one key. The response is the only moment the raw value exists outside
+ * the client's own storage, so the console shows it in a copy-once panel.
+ */
+app.post("/pengatur/settings/client-keys", async (c) => {
+  if (!dbEnabled()) {
+    return c.json({ error: { message: "storage disabled: no DATABASE_URL" } }, 400);
+  }
+  const body = (await c.req.json().catch(() => null)) as { label?: unknown } | null;
+  const rawLabel = typeof body?.label === "string" ? body.label.trim() : "";
+  const label = rawLabel === "" ? null : rawLabel.slice(0, 80);
+
+  try {
+    const created = await createClientKey(label);
+    await auditRecordNow("settings.client_key.create", {
+      actor: actorFrom(c.req.header("user-agent")),
+      // The raw key is never recorded; the id and label are enough to trace it.
+      detail: { id: created.row.id, label },
+    });
+    return c.json({ ok: true, key: created.row, raw: created.raw });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "could not create the key";
+    return c.json({ error: { message } }, 500);
+  }
+});
+
+/** Revoke one key by its console id. Gone means gone: the hash row is deleted. */
+app.delete("/pengatur/settings/client-keys/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!/^[0-9a-f]{12}$/.test(id)) {
+    return c.json({ error: { message: "unknown key id" } }, 400);
+  }
+  try {
+    const removed = await revokeClientKey(id);
+    if (!removed) return c.json({ error: { message: "unknown key id" } }, 404);
+    await auditRecordNow("settings.client_key.revoke", {
+      actor: actorFrom(c.req.header("user-agent")),
+      detail: { id },
+    });
+    return c.json({ ok: true, id });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "could not revoke the key";
+    return c.json({ error: { message } }, 500);
+  }
+});
+
 export default app;
