@@ -15371,6 +15371,23 @@ async function execute(url, init, path, signal, opts) {
     }
     await markUsed(st.key);
     const status = res.status;
+    if (status === 402) {
+      const body = await safeText(res);
+      quotaRefused.add(st.key);
+      const claimed = await markInvalid(st.key);
+      log("warn", "key.zero_quota", { path, key: maskKey(st.key), first: claimed, status });
+      if (attempts >= maxAttempts) {
+        return {
+          response: rebuild(res, body),
+          key: st.key,
+          attempts,
+          rotated,
+          quotaRefused: true,
+          quotaRefusedKeys: [...quotaRefused]
+        };
+      }
+      continue;
+    }
     if (status === 429) {
       counters.upstream429++;
       const body = await safeText(res);
