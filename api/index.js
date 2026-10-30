@@ -10064,58 +10064,62 @@ init_pool();
 // src/ui.ts
 var BASE_CSS = `
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* Vercel dashboard canvas -------------------------------------------- */
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --surface-2: #f5f5f5;
-  --surface-3: #eaeaea;
-  --line: #eaeaea;
-  --line-2: #d4d4d4;
+  /* iOS dark canvas: true black behind elevated grouped surfaces ------- */
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --surface-3: #3a3a3c;
+  --line: rgba(84, 84, 88, 0.65);
+  --line-2: #48484a;
 
-  --text: #171717;
-  --text-2: #525252;
-  --text-3: #6b6b6b;
+  --text: #ffffff;
+  --text-2: #aeaeb2;
+  --text-3: #8e8e93;
 
-  --accent: #000000;
-  --accent-hover: #333333;
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
   --accent-ink: #ffffff;
-  --accent-wash: rgba(0, 0, 0, 0.05);
+  --accent-wash: rgba(10, 132, 255, 0.16);
 
-  --ok: #067647;
-  --warn: #b54708;
-  --bad: #dc2626;
-  --neutral: #737373;
+  --fill: rgba(120, 120, 128, 0.24);
+  --fill-2: rgba(120, 120, 128, 0.4);
 
-  --wash-ok: rgba(6, 118, 71, 0.08);
-  --wash-warn: rgba(181, 71, 8, 0.08);
-  --wash-bad: rgba(220, 38, 38, 0.07);
-  --wash-neutral: rgba(115, 115, 115, 0.08);
+  --ok: #30d158;
+  --warn: #ff9f0a;
+  --bad: #ff453a;
+  --neutral: #98989f;
 
-  /* provider identity: muted Vercel-style hues, always paired with the word */
-  --prov-gemini: #0057c2;
-  --prov-gemini-wash: rgba(0, 87, 194, 0.08);
-  --prov-elevenlabs: #7928ca;
-  --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
-  --prov-whatstoken: #0a7d5a;
-  --prov-whatstoken-wash: rgba(10, 125, 90, 0.08);
-  --prov-custom: #171717;
-  --prov-custom-wash: rgba(0, 0, 0, 0.05);
+  --wash-ok: rgba(48, 209, 88, 0.14);
+  --wash-warn: rgba(255, 159, 10, 0.14);
+  --wash-bad: rgba(255, 69, 58, 0.14);
+  --wash-neutral: rgba(152, 152, 159, 0.14);
 
-  /* top bar (the old rail, restyled) ----------------------------------- */
-  --rail-bg: #ffffff;
-  --rail-bg-2: #f5f5f5;
-  --rail-line: #eaeaea;
-  --rail-text: #171717;
-  --rail-muted: #6b6b6b;
-  --rail-active: #f5f5f5;
+  /* provider identity: system hues, always paired with the word */
+  --prov-gemini: #409cff;
+  --prov-gemini-wash: rgba(64, 156, 255, 0.14);
+  --prov-elevenlabs: #bf5af2;
+  --prov-elevenlabs-wash: rgba(191, 90, 242, 0.14);
+  --prov-whatstoken: #30d158;
+  --prov-whatstoken-wash: rgba(48, 209, 88, 0.14);
+  --prov-custom: #98989f;
+  --prov-custom-wash: rgba(152, 152, 159, 0.14);
 
-  --sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* sidebar (translucent material over the black canvas) ---------------- */
+  --rail-bg: rgba(28, 28, 30, 0.78);
+  --rail-bg-2: rgba(120, 120, 128, 0.18);
+  --rail-line: rgba(84, 84, 88, 0.5);
+  --rail-text: #ffffff;
+  --rail-muted: #aeaeb2;
+  --rail-active: rgba(10, 132, 255, 0.2);
+  --rail-active-ink: #409cff;
 
-  --r-surface: 8px;
-  --r-ctl: 6px;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --r-surface: 18px;
+  --r-ctl: 11px;
   --r-pill: 999px;
 
   /* Spacing scale (4px base) and its jobs: caption 4 / tight 8 / half 12 /
@@ -10132,63 +10136,65 @@ var BASE_CSS = `
   --sp-6: 32px;
   --inset: 16px;
 
-  --tap: 32px;
-  --tap-sm: 28px;
+  --tap: 44px;
+  --tap-sm: 36px;
 
   /* The rail is fixed; the canvas takes the rest of the viewport, so the
      layout is full-bleed by construction \u2014 no page max-width. */
-  --rail: 232px;
-  --gutter: 28px;
+  --rail: 252px;
+  --gutter: 24px;
 }
 
-/* the light theme is the same system inverted, chosen explicitly ---------- */
+/* the light theme is the same system in its light variant, chosen explicitly */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  /* Vercel dashboard canvas -------------------------------------------- */
-  --bg: #fafafa;
+  /* iOS light canvas: grouped grey behind white surfaces ---------------- */
+  --bg: #f2f2f7;
   --surface: #ffffff;
-  --surface-2: #f5f5f5;
-  --surface-3: #eaeaea;
-  --line: #eaeaea;
-  --line-2: #d4d4d4;
+  --surface-2: #f2f2f7;
+  --surface-3: #e5e5ea;
+  --line: rgba(60, 60, 67, 0.16);
+  --line-2: #c7c7cc;
 
-  --text: #171717;
-  --text-2: #525252;
-  --text-3: #6b6b6b;
+  --text: #000000;
+  --text-2: #616167;
+  --text-3: #8a8a8e;
 
-  --accent: #000000;
-  --accent-hover: #333333;
+  --accent: #007aff;
+  --accent-hover: #0060df;
   --accent-ink: #ffffff;
-  --accent-wash: rgba(0, 0, 0, 0.05);
+  --accent-wash: rgba(0, 122, 255, 0.12);
 
-  --ok: #067647;
-  --warn: #b54708;
-  --bad: #dc2626;
-  --neutral: #737373;
+  --fill: rgba(120, 120, 128, 0.12);
+  --fill-2: rgba(120, 120, 128, 0.24);
 
-  --wash-ok: rgba(6, 118, 71, 0.08);
-  --wash-warn: rgba(181, 71, 8, 0.08);
-  --wash-bad: rgba(220, 38, 38, 0.07);
-  --wash-neutral: rgba(115, 115, 115, 0.08);
+  --ok: #248a3d;
+  --warn: #b25e09;
+  --bad: #d70015;
+  --neutral: #6d6d72;
 
-  /* provider identity: muted Vercel-style hues, always paired with the word */
-  --prov-gemini: #0057c2;
-  --prov-gemini-wash: rgba(0, 87, 194, 0.08);
-  --prov-elevenlabs: #7928ca;
-  --prov-elevenlabs-wash: rgba(121, 40, 202, 0.08);
-  --prov-whatstoken: #0a7d5a;
-  --prov-whatstoken-wash: rgba(10, 125, 90, 0.08);
-  --prov-custom: #171717;
-  --prov-custom-wash: rgba(0, 0, 0, 0.05);
+  --wash-ok: rgba(52, 199, 89, 0.12);
+  --wash-warn: rgba(255, 149, 0, 0.12);
+  --wash-bad: rgba(255, 59, 48, 0.1);
+  --wash-neutral: rgba(109, 109, 114, 0.1);
 
-  /* top bar (the old rail, restyled) ----------------------------------- */
-  --rail-bg: #ffffff;
-  --rail-bg-2: #f5f5f5;
-  --rail-line: #eaeaea;
-  --rail-text: #171717;
-  --rail-muted: #6b6b6b;
-  --rail-active: #f5f5f5;
+  --prov-gemini: #007aff;
+  --prov-gemini-wash: rgba(0, 122, 255, 0.1);
+  --prov-elevenlabs: #8944ab;
+  --prov-elevenlabs-wash: rgba(175, 82, 222, 0.1);
+  --prov-whatstoken: #248a3d;
+  --prov-whatstoken-wash: rgba(52, 199, 89, 0.12);
+  --prov-custom: #616167;
+  --prov-custom-wash: rgba(109, 109, 114, 0.1);
+
+  --rail-bg: rgba(242, 242, 247, 0.82);
+  --rail-bg-2: rgba(120, 120, 128, 0.12);
+  --rail-line: rgba(60, 60, 67, 0.12);
+  --rail-text: #000000;
+  --rail-muted: #616167;
+  --rail-active: rgba(0, 122, 255, 0.12);
+  --rail-active-ink: #007aff;
 
   /* Layout tokens stay on :root. Repeating them here made the light theme
      outrank every media query (a theme selector is more specific than
@@ -10199,46 +10205,50 @@ var BASE_CSS = `
   color-scheme: dark;
 
   --bg: #000000;
-  --surface: #111111;
-  --surface-2: #1a1a1a;
-  --surface-3: #262626;
-  --line: #333333;
-  --line-2: #444444;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --surface-3: #3a3a3c;
+  --line: rgba(84, 84, 88, 0.65);
+  --line-2: #48484a;
 
-  --text: #ededed;
-  --text-2: #a1a1a1;
-  --text-3: #8a8a8a;
+  --text: #ffffff;
+  --text-2: #aeaeb2;
+  --text-3: #8e8e93;
 
-  --accent: #ffffff;
-  --accent-hover: #e5e5e5;
-  --accent-ink: #000000;
-  --accent-wash: rgba(255, 255, 255, 0.08);
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(10, 132, 255, 0.16);
 
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --bad: #f87171;
-  --neutral: #a1a1a1;
+  --fill: rgba(120, 120, 128, 0.24);
+  --fill-2: rgba(120, 120, 128, 0.4);
 
-  --wash-ok: rgba(74, 222, 128, 0.12);
-  --wash-warn: rgba(251, 191, 36, 0.12);
-  --wash-bad: rgba(248, 113, 113, 0.12);
-  --wash-neutral: rgba(161, 161, 161, 0.12);
+  --ok: #30d158;
+  --warn: #ff9f0a;
+  --bad: #ff453a;
+  --neutral: #98989f;
 
-  --prov-gemini: #3291ff;
-  --prov-gemini-wash: rgba(50, 145, 255, 0.12);
-  --prov-elevenlabs: #a78bfa;
-  --prov-elevenlabs-wash: rgba(167, 139, 250, 0.12);
-  --prov-whatstoken: #34d399;
-  --prov-whatstoken-wash: rgba(52, 211, 153, 0.12);
-  --prov-custom: #ededed;
-  --prov-custom-wash: rgba(255, 255, 255, 0.08);
+  --wash-ok: rgba(48, 209, 88, 0.14);
+  --wash-warn: rgba(255, 159, 10, 0.14);
+  --wash-bad: rgba(255, 69, 58, 0.14);
+  --wash-neutral: rgba(152, 152, 159, 0.14);
 
-  --rail-bg: #000000;
-  --rail-bg-2: #1a1a1a;
-  --rail-line: #333333;
-  --rail-text: #ededed;
-  --rail-muted: #a1a1a1;
-  --rail-active: #1a1a1a;
+  --prov-gemini: #409cff;
+  --prov-gemini-wash: rgba(64, 156, 255, 0.14);
+  --prov-elevenlabs: #bf5af2;
+  --prov-elevenlabs-wash: rgba(191, 90, 242, 0.14);
+  --prov-whatstoken: #30d158;
+  --prov-whatstoken-wash: rgba(48, 209, 88, 0.14);
+  --prov-custom: #98989f;
+  --prov-custom-wash: rgba(152, 152, 159, 0.14);
+
+  --rail-bg: rgba(28, 28, 30, 0.78);
+  --rail-bg-2: rgba(120, 120, 128, 0.18);
+  --rail-line: rgba(84, 84, 88, 0.5);
+  --rail-text: #ffffff;
+  --rail-muted: #aeaeb2;
+  --rail-active: rgba(10, 132, 255, 0.2);
+  --rail-active-ink: #409cff;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -11951,15 +11961,23 @@ dialog .field:first-child { margin-top: 0; }
   .panel, .fig { border-color: #bbb; }
 }
 
-/* Vercel dashboard restyle (total redesign) -------------------------------
-   Same DOM ids/classes, new layout: the rail is a proper dashboard sidebar
-   again \u2014 vertical, grouped, with the provider strip visible \u2014 panels are
-   white cards, buttons/tables/forms follow the Vercel dashboard vocabulary.
-   Below 1100px the sidebar steps aside for the drawer and the menu button.
-   This block sits last in BASE_CSS so it wins over the earlier rules without
-   renaming anything JS depends on. */
+/* iOS system redesign (total) --------------------------------------------
+   Same DOM ids/classes, new visual language modelled on the iPhone dark
+   mode system: a true-black canvas, elevated grouped surfaces with large
+   radii, a translucent sidebar and frosted top bar, filled borderless
+   controls, a system-blue primary action, a true segmented control and
+   switch, tinted capsule badges, sheets that rise from the bottom on a
+   phone, and floating blurred banners for toasts. This block sits last in
+   BASE_CSS so it wins over the earlier rules without renaming anything
+   client JS depends on. The light theme is the same system in its light
+   variant; dark is the default the bootstrap paints first. */
 
-/* sidebar navigation */
+::selection { background: var(--accent); color: #fff; }
+* { scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent; }
+body { font-size: 14.5px; letter-spacing: -0.006em; }
+h1, h2, h3, h4 { font-weight: 700; }
+
+/* shell + sidebar -------------------------------------------------------- */
 .shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); min-height: 100dvh; }
 .rail {
   position: sticky; top: 0; z-index: 40;
@@ -11967,221 +11985,322 @@ dialog .field:first-child { margin-top: 0; }
   height: 100dvh; padding: var(--sp-3);
   background: var(--rail-bg); color: var(--rail-text);
   border-right: 1px solid var(--rail-line);
+  backdrop-filter: blur(22px) saturate(1.7);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7);
   overflow-y: auto;
 }
 .rail-brand { padding: var(--sp-1) var(--sp-2); min-height: var(--tap); }
-.rail-mark { background: var(--text); color: var(--bg); border-radius: 8px; }
-.rail-name b { font-size: 15px; font-weight: 660; letter-spacing: -0.02em; }
+.rail-mark, .gate-mark {
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.rail-name b { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
 .rail-name span {
   display: block; font-size: 10px; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--rail-muted);
 }
-/* the provider strip returns: a multi-provider gateway names the pools it
-   fronts in the sidebar, before any data loads */
 .rail .rail-providers { display: flex; }
 .rail-nav { flex-direction: column; gap: var(--sp-3); }
-.rail-group { flex-direction: column; gap: var(--sp-1); }
-/* group labels are visible again: the sidebar is tall enough for them, and
-   Observe / Operate / System is the map of the console */
+.rail-group { flex-direction: column; gap: 2px; }
 .rail-label {
   position: static; width: auto; height: auto; padding: 0 var(--sp-2) var(--sp-1);
   margin: 0; overflow: visible; clip: auto; white-space: normal; border: 0;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--rail-muted);
 }
 .rail-item {
-  border-left: 0; border-radius: 7px; min-height: var(--tap); height: auto;
-  padding: 0 var(--sp-2h); font-size: 13.5px; font-weight: 520; color: var(--rail-muted);
+  border-left: 0; border-radius: 10px; min-height: 40px; height: auto;
+  padding: 0 var(--sp-2h); font-size: 14px; font-weight: 500; color: var(--rail-muted);
+  transition: background-color 140ms ease, color 140ms ease;
 }
-.rail-item:hover { background: var(--rail-bg-2); color: var(--rail-text); }
+.rail-item:hover { background: var(--rail-bg-2); color: var(--rail-text); text-decoration: none; }
 .rail-item[aria-current="page"] {
-  background: var(--rail-active); color: var(--rail-text);
+  background: var(--rail-active); color: var(--rail-active-ink);
   border-left: 0; font-weight: 600;
 }
-.rail-item[aria-current="page"] svg { color: var(--text); }
+.rail-item[aria-current="page"] svg { color: var(--rail-active-ink); opacity: 1; }
 .rail-foot { margin-top: auto; margin-left: 0; flex-direction: column; align-items: stretch; gap: var(--sp-2); flex: none; }
 .rail-state { padding: var(--sp-1) var(--sp-2); }
 .rail-tools { padding: var(--sp-1) var(--sp-2) 0; }
+.rail-tool {
+  border: 0; border-radius: 10px; background: var(--rail-bg-2); color: var(--rail-muted);
+}
+.rail-tool:hover { color: var(--rail-text); }
+.rail-tool[aria-pressed="true"] { color: var(--rail-active-ink); background: var(--rail-active); }
 .rail-actions { padding: var(--sp-1) var(--sp-2) 0; }
 .menu-btn { display: none !important; }
 
-/* top bar: sticky, full-bleed, one hairline. The page scrolls under it, which
-   is what makes the console feel like an app shell instead of a document. */
+/* frosted top bar --------------------------------------------------------- */
 .canvas-head {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: var(--sp-3);
   min-height: 56px; padding: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--bg) 68%, transparent);
+  backdrop-filter: blur(22px) saturate(1.7);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7);
 }
-.canvas-crumb { font-size: 12px; }
-.canvas-crumb b { font-size: 12px; }
+.canvas-crumb { font-size: 12.5px; }
+.canvas-crumb b { font-size: 12.5px; }
+
+/* page head: the large-title pattern -------------------------------------- */
 .page { padding: var(--sp-4) var(--gutter) var(--sp-5); }
 .eyebrow {
-  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--text-3);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--accent);
 }
 .page-head { margin-bottom: var(--sp-4); align-items: flex-start; }
-.page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
-.page-lede { font-size: 14px; }
+.page-head-side { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; }
+.page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.025em; }
+.page-lede { font-size: 14px; color: var(--text-2); }
 
-/* white cards on the grey canvas */
-.panel {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+/* grouped surfaces --------------------------------------------------------- */
+.panel, .card, .kpi, .fig, .prov-split {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
 }
 .panel-head { padding: var(--inset); border-bottom: 1px solid var(--line); }
-.panel-head h2, .panel-head h3 { font-size: 13px; font-weight: 600; }
+.panel-head h2, .panel-head h3 { font-size: 14px; font-weight: 600; }
 .panel-body { padding: var(--inset); }
 .panel-foot, .panel-note { border-top: 1px solid var(--line); }
-.kpi, .fig {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-surface); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-.fig-value { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.panel > .table-wrap { border-radius: 0 0 var(--r-surface) var(--r-surface); }
 
-/* one vertical rhythm for every page: the direct sections of the console
-   stack at exactly 24px, so no page can drift into 16px here and 32px there.
-   The id selector wins over the u-mt-* utilities by design \u2014 the rhythm is
-   a property of the layout, not of whichever class a section happens to carry. */
+/* one vertical rhythm for every page (see the earlier note on this rule) */
 #console > * + * { margin-top: var(--sp-4); }
 
-/* buttons: black primary, neutral secondary */
+/* figures: widget cards, numbers in the system face ------------------------ */
+.fig { padding: var(--sp-3); }
+.fig-label {
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0;
+  text-transform: none; color: var(--text-2);
+}
+.fig-value {
+  font-family: var(--sans); font-size: 26px; font-weight: 700;
+  letter-spacing: -0.02em; margin-top: var(--sp-1);
+}
+.fig-sub { color: var(--text-2); }
+
+/* buttons: filled, borderless, system blue primary ------------------------- */
 .btn {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-ctl); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  font-weight: 500;
+  background: var(--fill); border: 0; border-radius: var(--r-ctl);
+  font-weight: 600; font-size: 13.5px; box-shadow: none;
+  transition: background-color 140ms ease, color 140ms ease, transform 80ms ease;
 }
-.btn:hover { background: var(--surface-2); border-color: var(--line-2); }
-.btn-primary { background: #000; border-color: #000; color: #fff; }
-.btn-primary:hover { background: #333; border-color: #333; }
-:root[data-theme="dark"] .btn-primary { background: #fff; border-color: #fff; color: #000; }
-:root[data-theme="dark"] .btn-primary:hover { background: #e5e5e5; border-color: #e5e5e5; }
+.btn:hover { background: var(--fill-2); border: 0; }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { background: var(--wash-bad); color: var(--bad); }
+.btn-danger:hover { background: color-mix(in srgb, var(--bad) 22%, transparent); }
+.btn-ghost { background: transparent; color: var(--accent); }
+.btn-ghost:hover { background: var(--accent-wash); color: var(--accent); }
+.icon-btn { border-radius: var(--r-ctl); }
 
-/* forms */
-.input, .select, .textarea {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-ctl);
+/* forms: filled borderless fields ------------------------------------------ */
+.input, .select, .textarea, .text-input {
+  background: var(--surface-2); border: 0; border-radius: var(--r-ctl);
+  font-size: 14px;
+  box-shadow: inset 0 0 0 1px transparent;
 }
-.input:focus, .select:focus, .textarea:focus { border-color: var(--text); }
+.input:hover, .select:hover, .textarea:hover { border: 0; }
+.input:focus, .select:focus, .textarea:focus {
+  border: 0; background: var(--surface-2);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+select:not(.select), td select {
+  background-color: var(--surface-2); border: 0; border-radius: 8px;
+}
+dialog textarea { background: var(--surface-2); border: 0; border-radius: var(--r-ctl); }
+dialog textarea:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.field { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 
-/* tables: sticky header, row hover, mono ids */
-.table-wrap { overflow-x: auto; }
+/* segmented control: grey track, floating thumb ----------------------------- */
+.seg { background: var(--fill); border: 0; border-radius: 11px; padding: 2px; gap: 2px; }
+.seg button { border-radius: 9px; font-weight: 600; min-height: 30px; }
+.seg button:hover { color: var(--text); background: transparent; }
+.seg button[aria-pressed="true"] {
+  background: var(--surface-3); color: var(--text);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28), 0 0 1px rgba(0, 0, 0, 0.24);
+}
+:root[data-theme="light"] .seg button[aria-pressed="true"] {
+  background: #ffffff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14), 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+/* switch: the system toggle --------------------------------------------------- */
+.switch input[type="checkbox"] {
+  width: 51px; height: 31px; border: 0; background: var(--fill-2);
+  transition: background-color 160ms ease;
+}
+.switch input[type="checkbox"]::after {
+  top: 2px; left: 2px; width: 27px; height: 27px; background: #ffffff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), 0 0 1px rgba(0, 0, 0, 0.24);
+  transition: transform 160ms ease;
+}
+.switch input[type="checkbox"]:checked { background: var(--ok); border: 0; }
+.switch input[type="checkbox"]:checked::after { transform: translateX(20px); background: #ffffff; }
+
+/* checkboxes tint with the accent (already token-driven); rounder box -------- */
+.check input[type="checkbox"] { border-radius: 6px; border: 0; background: var(--fill); }
+.check input[type="checkbox"]:checked { background: var(--accent); }
+
+/* tables ----------------------------------------------------------------------- */
 .table th {
   position: sticky; top: 0; z-index: 1; background: var(--surface);
   font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-3);
   border-bottom: 1px solid var(--line); white-space: nowrap;
 }
-.table td { border-bottom: 1px solid var(--surface-2); }
-.table tbody tr:hover { background: var(--bg); }
+.table th, .table td { padding: var(--sp-2) var(--sp-3); }
+.table th:first-child, .table td:first-child { padding-left: var(--inset); }
+.table th:last-child, .table td:last-child { padding-right: var(--inset); }
+.table td { border-bottom: 1px solid var(--line); }
+.table tbody tr:hover { background: var(--surface-2); }
 .table .id-cell, .table td.mono, .key-text, .credential-value {
   font-family: var(--mono); overflow-wrap: anywhere;
 }
+.credential-value { background: var(--surface-2); border: 0; border-radius: var(--r-ctl); word-break: break-all; }
 
-/* pills: status + provider, dot + word */
+/* badges: tinted capsules, no border ------------------------------------------- */
 .tag, .prov {
-  border-radius: var(--r-pill); padding: 2px var(--sp-2);
-  font-size: 11px; font-weight: 500;
+  border: 0; border-radius: var(--r-pill); padding: 3px var(--sp-2);
+  font-size: 11.5px; font-weight: 600; background: var(--fill); color: var(--text-2);
 }
 .tag .dot, .prov .prov-dot { width: 6px; height: 6px; }
+.tag[data-tone="plain"] { border: 0; }
 
-/* masked credential on the key-detail page: never a full raw value */
-.credential-value { overflow-wrap: anywhere; word-break: break-all; }
+/* pager -------------------------------------------------------------------------- */
+.pager .pages .pagebtn { border: 0; background: var(--fill); border-radius: 9px; }
+.pager .pages .pagebtn:hover:not(:disabled) { background: var(--fill-2); color: var(--text); }
+.pager .pages .pagebtn.active { background: var(--accent); color: #fff; border: 0; }
 
-/* empty / loading / error states as centred white cards */
+/* states: a grouped card, centred -------------------------------------------------- */
 .state {
-  background: var(--surface); border: 1px dashed var(--line-2);
+  background: var(--surface); border: 0;
   border-radius: var(--r-surface); padding: var(--sp-6) var(--inset); text-align: center;
 }
+.sk { border-radius: 6px; }
 
-/* dialogs + toasts: white cards, one shadow */
-.dialog, .toast {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
+/* notices, capability list, definition rows ----------------------------------------- */
+.notice { border: 0; background: var(--fill); border-radius: var(--r-ctl); }
+.cap-list { border: 0; border-radius: 14px; background: var(--surface-2); }
+.cap-box { border-radius: 5px; }
 
-/* responsive: the sidebar steps aside for the drawer below 1100px \u2014 the menu
-   button returns, the drawer stacks the same sections vertically with the
-   same aria-current marker, and the canvas takes the full width */
-@media screen and (max-width: 1100px) {
-  .shell { display: block; }
-  .rail { display: none; }
-  .canvas-head { padding: 0 var(--sp-3); }
-  .page { padding: var(--sp-3) var(--sp-3) var(--sp-5); }
+/* dialogs: sheets ---------------------------------------------------------------------- */
+dialog {
+  border: 0; border-radius: 20px; background: var(--surface);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.3);
 }
-@media screen and (max-width: 720px) {
-  .page-title { font-size: 20px; }
-  .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
-  /* The 720px floor that keeps a desktop breakdown readable (ui.ts, .grid-2:has)
-     is more specific than .grid-2, so it survived the fold and made Stats and
-     Logs 720px wide inside a 390px phone. Re-assert the fold here. */
-  .grid-2:has(.table) { grid-template-columns: minmax(0, 1fr); }
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+@media (prefers-reduced-motion: no-preference) {
+  dialog[open] { animation: ios-sheet-in 240ms cubic-bezier(0.32, 0.72, 0.24, 1); }
+  @keyframes ios-sheet-in {
+    from { opacity: 0.4; transform: translateY(14px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+  }
 }
+.palette { border-radius: 20px; }
+.palette-item { border-radius: 10px; }
+.palette-kbd { border: 0; background: var(--fill); border-radius: 6px; }
 
-/* drawer navigation: below 1100px the menu button opens this panel, which
-   stacks the same sections vertically with the same aria-current marker the
-   sidebar uses. The drawer strip is NOT hidden here: scoping the restyle
-   hide to .rail leaves the base column style in place for it. */
+/* toasts: floating blurred banners ------------------------------------------------------- */
+.toast {
+  border: 0; border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 84%, transparent);
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+}
+.toast-act { border: 0; border-radius: 8px; background: var(--fill); }
+.toast-x { border-radius: 8px; }
+
+/* drawer: same material as the sidebar ----------------------------------------------------- */
+.drawer {
+  background: var(--rail-bg); color: var(--rail-text); border-right: 1px solid var(--rail-line);
+  backdrop-filter: blur(22px) saturate(1.7);
+  -webkit-backdrop-filter: blur(22px) saturate(1.7);
+  border-radius: 0 20px 20px 0;
+}
 .drawer .rail-nav { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
 .drawer .rail-group { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
 .drawer .rail-item { width: 100%; }
 .drawer .rail-foot { margin-left: 0; margin-top: auto; }
 .drawer .rail-tools { padding: 0; }
-@media screen and (max-width: 1100px) {
-  .menu-btn { display: inline-flex !important; }
+
+/* sign-in: centred card on the black canvas, app-icon mark ----------------------------------- */
+.login-page {
+  background:
+    radial-gradient(900px 480px at 50% -8%, var(--accent-wash), transparent 62%),
+    var(--bg);
 }
+.gate-card { padding: var(--sp-5); border-radius: 22px; }
+.gate-mark { width: 44px; height: 44px; border-radius: 12px; }
+.gate-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.gate-toggle { border-radius: 8px; }
 
-/* full-bleed canvas -------------------------------------------------------
-   The console is a shell, not a document: the sidebar owns a fixed column and
-   every page owns the rest of the viewport. Nothing is centred and nothing is
-   capped, so a 27" monitor shows the whole table instead of a 1200px ribbon
-   with two empty margins. Wide screens gain columns (auto-fit above), narrow
-   ones lose the gutters. */
-
-.page { padding: var(--sp-4) var(--gutter) var(--sp-5); }
-.canvas-head { padding: 0 var(--gutter); }
-
-/* the page head sits on the same gutter as the panels below it */
-.page-head { align-items: flex-start; }
-.page-head-side { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; }
-
-/* A full-width table has room for a wider first column and a tighter numeric
-   tail; the cells share the leftover space instead of hugging their content. */
-.table th, .table td { padding: var(--sp-2) var(--sp-3); }
-.table th:first-child, .table td:first-child { padding-left: var(--inset); }
-.table th:last-child, .table td:last-child { padding-right: var(--inset); }
-
-/* panels that hold a table get no body padding, so the table can reach the
-   card edge and use every pixel */
-.panel > .table-wrap { border-radius: 0 0 var(--r-surface) var(--r-surface); }
-
-/* a feed of audit rows keeps its grid: action, detail and actor on their own
-   lines, the timestamp pinned to the right edge of the card */
+/* charts keep the system hues through the tokens; rounder bars -------------------------------- */
+.poolbar-track { height: 8px; }
+.daybar { border-radius: 3px 3px 0 0; }
+.heat .cell { border-radius: 4px; }
 .feed-item { column-gap: var(--sp-3); }
 
+/* responsive -------------------------------------------------------------------------------------- */
 @media screen and (max-width: 1400px) {
   :root { --gutter: 24px; }
 }
-/* below 720px every table folds into labelled rows; the fixed column widths
-   and nowrap of the registry tables must stand down or the folded cells
-   overlap each other */
+@media screen and (max-width: 1100px) {
+  :root { --gutter: 16px; }
+  .shell { display: block; }
+  .rail { display: none; }
+  .menu-btn { display: inline-flex !important; }
+  .canvas-head { padding: 0 var(--gutter); }
+  .page { padding: var(--sp-3) var(--gutter) var(--sp-5); }
+}
 @media screen and (max-width: 720px) {
+  .page-title { font-size: 24px; }
+  .grid-4, .grid-3, .grid-2, .split { grid-template-columns: minmax(0, 1fr); }
+  /* The 720px floor that keeps a desktop breakdown readable is more specific
+     than .grid-2, so re-assert the fold here (same fix as the last restyle). */
+  .grid-2:has(.table) { grid-template-columns: minmax(0, 1fr); }
   .providers-table th,
   .providers-table td,
   .providers-table td[data-l="provider"],
   .providers-table td:nth-child(2),
   .providers-table td:nth-child(3) {
-    width: auto;
-    max-width: none;
-    white-space: normal;
+    width: auto; max-width: none; white-space: normal;
   }
   .models-table th { width: auto; }
+  /* sheets rise from the bottom edge on a phone */
+  dialog {
+    width: 100vw; max-width: 100vw;
+    margin: auto 0 0;
+    border-radius: 22px 22px 0 0;
+    max-height: 92dvh;
+  }
+  .palette { width: calc(100vw - 24px); }
+  .toasts { bottom: calc(var(--sp-3) + env(safe-area-inset-bottom, 0px)); }
+  .page { padding-bottom: calc(var(--sp-5) + env(safe-area-inset-bottom, 0px)); }
+  .fig-value { font-size: 24px; }
 }
 
-@media screen and (max-width: 1100px) {
-  :root { --gutter: 16px; }
-  .page { padding: var(--sp-3) var(--gutter) var(--sp-5); }
-  .canvas-head { padding: 0 var(--gutter); }
+/* filled fields carry their focus in the inset ring alone (the global
+   outline on top of it read as a double border in the sheet) */
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible,
+dialog textarea:focus-visible { outline: none; }
+
+/* phone top bar: one compact row \u2014 menu, palette, then the page actions.
+   At 44px targets with labels the actions wrapped and the menu dropped to
+   its own row; the bar steps down to 40px targets and drops the kbd hint. */
+@media screen and (max-width: 720px) {
+  .canvas-head { flex-wrap: nowrap; gap: var(--sp-2); }
+  .head-actions { flex-wrap: nowrap; gap: var(--sp-2); }
+  .head-actions .btn { min-height: 40px; padding: 0 10px; font-size: 12.5px; }
+  .canvas-head .palette-kbd { display: none; }
+  .menu-btn { align-self: center; }
 }
 `;
 var ICON_PATHS = {
@@ -12276,7 +12395,7 @@ function navRail(active, actions = "") {
 function consolePage(o) {
   const section = SECTION_LABELS[normaliseActive(o.active)] ?? o.title;
   const head = '<header class="canvas-head"><button class="btn btn-ghost btn-sm icon-btn menu-btn" type="button" id="menuBtn" aria-label="Open sections" aria-expanded="false" aria-controls="drawer">' + icon("menu", "icon", 18) + '</button><div class="canvas-crumb"><span class="rail-mark" style="width:20px;height:20px;border-radius:5px;background:var(--text);color:var(--bg)">' + icon("command", "icon", 12) + '</span><span>OmniProxy</span><span aria-hidden="true">/</span><b>' + escapeHtml(section) + '</b></div><div class="head-actions"><button class="btn btn-ghost btn-sm" type="button" id="paletteBtn" aria-keyshortcuts="Control+K">' + icon("search", "icon", 14) + '<span class="palette-kbd">Ctrl K</span></button>' + (o.actions ?? "") + "</div></header>";
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">\n<title>' + escapeHtml(o.title) + ' \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<link rel="icon" href="/favicon.svg" type="image/svg+xml">\n<link rel="apple-touch-icon" href="/favicon.svg">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n<script>' + AUTH_GUARD_JS + "</script>\n<style>" + BASE_CSS + '</style>\n</head>\n<body data-gate="locked">\n<a class="skip" href="#main">Skip to content</a>\n<div class="shell">\n' + navRail(o.active) + '<div class="canvas">\n' + head + '<main id="main" class="page" tabindex="-1">\n' + o.body + "\n</main>\n</div>\n</div>\n" + drawerMarkup(o.active) + helpDialog() + confirmDialog() + paletteDialog() + toastMount() + "<script>" + CLIENT_JS + "</script>\n" + (o.script ? "<script>\n" + o.script + "\n</script>\n" : "") + "</body>\n</html>";
 }
 function drawerMarkup(active) {
   const providerStrip = '<div class="rail-providers" id="drawerProviders"><span class="rail-prov"><span class="prov-dot" data-p="gemini"></span><span>Gemini</span></span><span class="rail-prov"><span class="prov-dot" data-p="elevenlabs"></span><span>ElevenLabs</span></span><span class="rail-prov"><span class="prov-dot" data-p="whatstoken"></span><span>WhatsToken</span></span></div>';
@@ -12320,7 +12439,7 @@ var AUTH_GUARD_JS = `
 })();
 `;
 function loginPage() {
-  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
+  return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n<meta name="robots" content="noindex, nofollow">\n<meta name="color-scheme" content="light dark">\n<meta name="theme-color" content="#000000">\n<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">\n<title>Sign in \xB7 OmniProxy</title>\n<link rel="icon" href="/favicon.ico" sizes="32x32">\n<script>try{var t=localStorage.getItem("omniproxy.theme");document.documentElement.setAttribute("data-theme",t||"dark");}catch(e){}</script>\n<style>' + BASE_CSS + '</style>\n</head>\n<body>\n<main class="login-page">\n' + authGate() + "</main>\n<script>" + LOGIN_JS + "</script>\n</body>\n</html>";
 }
 var LOGIN_JS = `
 (function () {
@@ -13888,8 +14007,8 @@ var ADMIN_HTML = consolePage({
 });
 
 // src/favicon.ts
-var TILE = "#0a0c0f";
-var ACCENT = "#4fb0c4";
+var TILE = "#0a84ff";
+var ACCENT = "#ffffff";
 var FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Key rotator">
   <rect width="32" height="32" rx="7" fill="${TILE}"/>
   <path d="M9 20l5-9 4 6 5-3" fill="none" stroke="${ACCENT}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>

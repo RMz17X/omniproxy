@@ -6,12 +6,12 @@
  *   /favicon.ico  — real 32x32 PNG-in-ICO container, for browsers and crawlers
  *                   that probe the root path without reading the <link> tag
  *
- * The mark is the same one the consoles use: a dark rounded tile with an
- * ascending key-rotation trace.
+ * The mark is the same one the consoles use: a system-blue app-icon tile
+ * with an ascending key-rotation trace in white.
  */
 
-const TILE = "#0a0c0f";
-const ACCENT = "#4fb0c4";
+const TILE = "#0a84ff";
+const ACCENT = "#ffffff";
 
 export const FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Key rotator">
   <rect width="32" height="32" rx="7" fill="${TILE}"/>
