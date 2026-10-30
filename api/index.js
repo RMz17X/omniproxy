@@ -15936,6 +15936,15 @@ init_config();
 
 // src/body.ts
 var cache3 = /* @__PURE__ */ new WeakMap();
+var bytesCache = /* @__PURE__ */ new WeakMap();
+function bodyBytes(req) {
+  let pending2 = bytesCache.get(req);
+  if (!pending2) {
+    pending2 = req.arrayBuffer();
+    bytesCache.set(req, pending2);
+  }
+  return pending2;
+}
 function bodyText(req) {
   let pending2 = cache3.get(req);
   if (!pending2) {
@@ -22422,7 +22431,12 @@ app.post("/v1/audio/speech", async (c) => {
 app.post("/v1/audio/transcriptions", async (c) => {
   let form;
   try {
-    form = await c.req.raw.formData();
+    const buf = await bodyBytes(c.req.raw);
+    form = await new Request("http://local/transcriptions", {
+      method: "POST",
+      headers: { "content-type": c.req.header("content-type") ?? "" },
+      body: buf
+    }).formData();
   } catch {
     return c.json(
       { error: { message: "Expected a multipart form with an audio file and a model field." } },

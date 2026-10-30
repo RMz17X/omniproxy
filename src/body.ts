@@ -15,6 +15,23 @@
 
 const cache = new WeakMap<Request, Promise<string>>();
 
+const bytesCache = new WeakMap<Request, Promise<ArrayBuffer>>();
+
+/**
+ * The full request body as bytes, read once per request. For payloads
+ * text would corrupt (multipart audio): same single-read discipline as
+ * bodyText — whichever consumer runs first performs the one read the
+ * runtime allows, and every other consumer shares its promise.
+ */
+export function bodyBytes(req: Request): Promise<ArrayBuffer> {
+  let pending = bytesCache.get(req);
+  if (!pending) {
+    pending = req.arrayBuffer();
+    bytesCache.set(req, pending);
+  }
+  return pending;
+}
+
 /** The full request body as text, read once per request. */
 export function bodyText(req: Request): Promise<string> {
   let pending = cache.get(req);

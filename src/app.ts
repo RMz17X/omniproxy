@@ -22,7 +22,7 @@ import { MODELS_HTML } from "./models-ui.ts";
 import { catalogModels, discoveryDebug, listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey, probeTier, verifyIngestKeys, type ProbeResult } from "./probe.ts";
 import { deflateSync } from "node:zlib";
-import { bodyJson } from "./body.ts";
+import { bodyJson , bodyBytes } from "./body.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { listElevenLabsInventory, serveElevenLabs, type ElevenLabsModel, type ElevenLabsVoice } from "./tts.ts";
 import { chatCompletions, embeddings, geminiModelRows } from "./openai.ts";
@@ -411,7 +411,16 @@ app.post("/v1/audio/speech", async (c) => {
 app.post("/v1/audio/transcriptions", async (c) => {
   let form: FormData;
   try {
-    form = await c.req.raw.formData();
+    // Parse from the buffered bytes, not the live stream: on Vercel's
+    // Node runtime Request.formData() on the incoming request never
+    // resolves (the body machinery body.ts documents), while a Request
+    // built over a local buffer parses instantly and touches nothing.
+    const buf = await bodyBytes(c.req.raw);
+    form = await new Request("http://local/transcriptions", {
+      method: "POST",
+      headers: { "content-type": c.req.header("content-type") ?? "" },
+      body: buf,
+    }).formData();
   } catch {
     return c.json(
       { error: { message: "Expected a multipart form with an audio file and a model field." } },
