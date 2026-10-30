@@ -944,6 +944,25 @@ app.get("/pengatur/keys/:id/data", async (c) => {
 });
 
 /**
+ * The full credential for one key, for the console's Copy buttons. Display
+ * everywhere stays masked; the raw value crosses the wire only here, on
+ * demand, behind the /pengatur admin gate (the /material path does not
+ * match the public KEY_PAGE shell pattern), and the read is audit-logged.
+ */
+app.get("/pengatur/keys/:id/material", async (c) => {
+  const id = c.req.param("id");
+  const raw = await rawKeyById(id);
+  if (!raw) {
+    return c.json({ ok: false, error: { message: "No stored credential for this key." } }, 404);
+  }
+  await auditRecordNow("keys.material_copy", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { id },
+  });
+  return c.json({ ok: true, key: raw });
+});
+
+/**
  * Declare the billing plan for a pooled key. Google does not expose the plan
  * over the API, so the console asks the operator and stores the answer here;
  * /pengatur/models then prices a test run against the declared plan.

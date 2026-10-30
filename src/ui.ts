@@ -2293,7 +2293,7 @@ dialog textarea:focus-visible { outline: none; }
   .table td.pick, #keysBody .table tbody td.pick {
     position: absolute; top: 10px; right: 12px; left: auto;
     display: block; width: 44px; max-width: 44px; height: 44px; padding: 0;
-    background: transparent;
+    background: transparent; z-index: 3;
   }
   .table td.pick::before { content: none; }
   .table td[data-l="id"] { padding-right: 44px; }
@@ -2312,7 +2312,10 @@ dialog textarea:focus-visible { outline: none; }
   /* the system block pads a table's first cell as a section inset; inside a
      card that just indents the first field against its siblings */
   .table td:first-child { padding-left: 0; }
-  /* a long row id truncates instead of sliding under the pinned checkbox */
+  /* a long row id truncates instead of sliding under the pinned checkbox:
+     the cell's own box stops 56px short of the card's right edge, so the
+     link can never cover the checkbox's tap target */
+  .table td[data-l="id"] { width: calc(100% - 56px); }
   .table td[data-l="id"] .link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* providers: the <=1400px sticky action column paints a surface box with a
      shadow seam; inside a card the footer is transparent like the keys one */

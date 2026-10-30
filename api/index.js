@@ -12340,7 +12340,7 @@ dialog textarea:focus-visible { outline: none; }
   .table td.pick, #keysBody .table tbody td.pick {
     position: absolute; top: 10px; right: 12px; left: auto;
     display: block; width: 44px; max-width: 44px; height: 44px; padding: 0;
-    background: transparent;
+    background: transparent; z-index: 3;
   }
   .table td.pick::before { content: none; }
   .table td[data-l="id"] { padding-right: 44px; }
@@ -12359,7 +12359,10 @@ dialog textarea:focus-visible { outline: none; }
   /* the system block pads a table's first cell as a section inset; inside a
      card that just indents the first field against its siblings */
   .table td:first-child { padding-left: 0; }
-  /* a long row id truncates instead of sliding under the pinned checkbox */
+  /* a long row id truncates instead of sliding under the pinned checkbox:
+     the cell's own box stops 56px short of the card's right edge, so the
+     link can never cover the checkbox's tap target */
+  .table td[data-l="id"] { width: calc(100% - 56px); }
   .table td[data-l="id"] .link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* providers: the <=1400px sticky action column paints a surface box with a
      shadow seam; inside a card the footer is transparent like the keys one */
@@ -19453,11 +19456,14 @@ var KEYS_SCRIPT = `
     return out;
   }
 
-  /* Masked keys only. The console never fetches a raw credential: the
-     list API hands out the masked form, and that is what is shown and
-     copied. There is intentionally no raw-key reveal button or flow. */
+  /* The list shows the masked form, but Copy means the whole credential:
+     at click time the row fetches its stored material from the gated
+     material endpoint and copies that. A key with no stored material
+     fails loudly instead of copying the mask. */
   function copyKey(k, btn) {
-    GX.copy(k.key || k.masked || "", "Masked key");
+    GX.api("/pengatur/keys/" + encodeURIComponent(k.id) + "/material")
+      .then(function (d) { GX.copy(d.key || "", "API key"); })
+      .catch(function (err) { GX.notice("Could not copy the full key: " + err.message, "err"); });
   }
 
   /* ErNor: never hide the key. A Google key is 39 characters and is shown in
@@ -19779,8 +19785,8 @@ var KEYS_SCRIPT = `
       var copyBtn = GX.el("button", {
         class: "btn btn-ghost btn-sm icon-btn",
         type: "button",
-        title: "Copy the masked key",
-        "aria-label": "Copy the masked key",
+        title: "Copy the full API key",
+        "aria-label": "Copy the full API key",
         html: COPY_ICON
       });
       copyBtn.addEventListener("click", function () { copyKey(k, copyBtn); });
@@ -20548,15 +20554,20 @@ var DETAIL_SCRIPT = `
     noHistory: document.getElementById("noHistory")
   };
 
-  /* The detail page shows the masked form only. No raw credential is
-     fetched, revealed, or copied from this page. */
+  /* The detail page DISPLAYS the masked form only, but its Copy button
+     copies the whole credential, fetched on demand from the gated
+     material endpoint \u2014 same contract as the list page. */
   function renderCredential(k) {
     el.keyRaw.textContent = k.masked || k.key || "-";
     el.keyRaw.title = "";
     el.keyMaskNote.textContent = "masked only";
     detailMasked = k.masked || k.key || "";
     el.keyCopy.disabled = false;
-    el.keyCopy.onclick = function () { GX.copy(k.masked || k.key || "", "Masked key"); };
+    el.keyCopy.onclick = function () {
+      GX.api("/pengatur/keys/" + encodeURIComponent(keyId) + "/material")
+        .then(function (d) { GX.copy(d.key || "", "API key"); })
+        .catch(function (err) { GX.notice("Could not copy the full key: " + err.message, "err"); });
+    };
   }
 
   /* Seven KPI cards used to wrap into a 200px strip above the fold. A
@@ -22719,6 +22730,18 @@ app.get("/pengatur/keys/:id/data", async (c) => {
     events,
     cooldown: { status: key.status, until: key.cooldownUntil, leftMs: key.cooldownLeftMs }
   });
+});
+app.get("/pengatur/keys/:id/material", async (c) => {
+  const id = c.req.param("id");
+  const raw2 = await rawKeyById(id);
+  if (!raw2) {
+    return c.json({ ok: false, error: { message: "No stored credential for this key." } }, 404);
+  }
+  await recordNow("keys.material_copy", {
+    actor: actorFrom(c.req.header("user-agent")),
+    detail: { id }
+  });
+  return c.json({ ok: true, key: raw2 });
 });
 app.post("/pengatur/keys/tier", async (c) => {
   let body;

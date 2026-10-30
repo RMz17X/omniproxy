@@ -357,11 +357,14 @@ const KEYS_SCRIPT = `
     return out;
   }
 
-  /* Masked keys only. The console never fetches a raw credential: the
-     list API hands out the masked form, and that is what is shown and
-     copied. There is intentionally no raw-key reveal button or flow. */
+  /* The list shows the masked form, but Copy means the whole credential:
+     at click time the row fetches its stored material from the gated
+     material endpoint and copies that. A key with no stored material
+     fails loudly instead of copying the mask. */
   function copyKey(k, btn) {
-    GX.copy(k.key || k.masked || "", "Masked key");
+    GX.api("/pengatur/keys/" + encodeURIComponent(k.id) + "/material")
+      .then(function (d) { GX.copy(d.key || "", "API key"); })
+      .catch(function (err) { GX.notice("Could not copy the full key: " + err.message, "err"); });
   }
 
   /* ErNor: never hide the key. A Google key is 39 characters and is shown in
@@ -683,8 +686,8 @@ const KEYS_SCRIPT = `
       var copyBtn = GX.el("button", {
         class: "btn btn-ghost btn-sm icon-btn",
         type: "button",
-        title: "Copy the masked key",
-        "aria-label": "Copy the masked key",
+        title: "Copy the full API key",
+        "aria-label": "Copy the full API key",
         html: COPY_ICON
       });
       copyBtn.addEventListener("click", function () { copyKey(k, copyBtn); });
@@ -1456,15 +1459,20 @@ const DETAIL_SCRIPT = `
     noHistory: document.getElementById("noHistory")
   };
 
-  /* The detail page shows the masked form only. No raw credential is
-     fetched, revealed, or copied from this page. */
+  /* The detail page DISPLAYS the masked form only, but its Copy button
+     copies the whole credential, fetched on demand from the gated
+     material endpoint — same contract as the list page. */
   function renderCredential(k) {
     el.keyRaw.textContent = k.masked || k.key || "-";
     el.keyRaw.title = "";
     el.keyMaskNote.textContent = "masked only";
     detailMasked = k.masked || k.key || "";
     el.keyCopy.disabled = false;
-    el.keyCopy.onclick = function () { GX.copy(k.masked || k.key || "", "Masked key"); };
+    el.keyCopy.onclick = function () {
+      GX.api("/pengatur/keys/" + encodeURIComponent(keyId) + "/material")
+        .then(function (d) { GX.copy(d.key || "", "API key"); })
+        .catch(function (err) { GX.notice("Could not copy the full key: " + err.message, "err"); });
+    };
   }
 
   /* Seven KPI cards used to wrap into a 200px strip above the fold. A
