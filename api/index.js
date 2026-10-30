@@ -10106,8 +10106,8 @@ var BASE_CSS = `
   --prov-custom: #98989f;
   --prov-custom-wash: rgba(152, 152, 159, 0.14);
 
-  /* sidebar (translucent material over the black canvas) ---------------- */
-  --rail-bg: rgba(28, 28, 30, 0.78);
+  /* sidebar (solid surface, pre-glass: no translucent materials) ------- */
+  --rail-bg: #1c1c1e;
   --rail-bg-2: rgba(120, 120, 128, 0.18);
   --rail-line: rgba(84, 84, 88, 0.5);
   --rail-text: #ffffff;
@@ -10118,7 +10118,7 @@ var BASE_CSS = `
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
-  --r-surface: 18px;
+  --r-surface: 12px;
   --r-ctl: 11px;
   --r-pill: 999px;
 
@@ -10188,7 +10188,7 @@ var BASE_CSS = `
   --prov-custom: #616167;
   --prov-custom-wash: rgba(109, 109, 114, 0.1);
 
-  --rail-bg: rgba(242, 242, 247, 0.82);
+  --rail-bg: #f2f2f7;
   --rail-bg-2: rgba(120, 120, 128, 0.12);
   --rail-line: rgba(60, 60, 67, 0.12);
   --rail-text: #000000;
@@ -10242,7 +10242,7 @@ var BASE_CSS = `
   --prov-custom: #98989f;
   --prov-custom-wash: rgba(152, 152, 159, 0.14);
 
-  --rail-bg: rgba(28, 28, 30, 0.78);
+  --rail-bg: #1c1c1e;
   --rail-bg-2: rgba(120, 120, 128, 0.18);
   --rail-line: rgba(84, 84, 88, 0.5);
   --rail-text: #ffffff;
@@ -11963,11 +11963,13 @@ dialog .field:first-child { margin-top: 0; }
 
 /* iOS system redesign (total) --------------------------------------------
    Same DOM ids/classes, new visual language modelled on the iPhone dark
-   mode system: a true-black canvas, elevated grouped surfaces with large
-   radii, a translucent sidebar and frosted top bar, filled borderless
-   controls, a system-blue primary action, a true segmented control and
-   switch, tinted capsule badges, sheets that rise from the bottom on a
-   phone, and floating blurred banners for toasts. This block sits last in
+   mode system: a true-black canvas, elevated grouped surfaces, a solid
+   sidebar and top bar, filled borderless controls, a system-blue primary
+   action, a true segmented control and switch, tinted capsule badges,
+   sheets that rise from the bottom on a phone, and solid banners for
+   toasts. Pre-glass (iOS 18 and earlier, per Ricki's order): every
+   surface is opaque \u2014 no backdrop blur, no glass translucency, no
+   gradients, no glow. This block sits last in
    BASE_CSS so it wins over the earlier rules without renaming anything
    client JS depends on. The light theme is the same system in its light
    variant; dark is the default the bootstrap paints first. */
@@ -11985,14 +11987,12 @@ h1, h2, h3, h4 { font-weight: 700; }
   height: 100dvh; padding: var(--sp-3);
   background: var(--rail-bg); color: var(--rail-text);
   border-right: 1px solid var(--rail-line);
-  backdrop-filter: blur(22px) saturate(1.7);
-  -webkit-backdrop-filter: blur(22px) saturate(1.7);
   overflow-y: auto;
 }
 .rail-brand { padding: var(--sp-1) var(--sp-2); min-height: var(--tap); }
 .rail-mark, .gate-mark {
   border-radius: 10px;
-  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  background: var(--accent);
   color: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
@@ -12032,15 +12032,13 @@ h1, h2, h3, h4 { font-weight: 700; }
 .rail-actions { padding: var(--sp-1) var(--sp-2) 0; }
 .menu-btn { display: none !important; }
 
-/* frosted top bar --------------------------------------------------------- */
+/* top bar ----------------------------------------------------------------- */
 .canvas-head {
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: var(--sp-3);
   min-height: 56px; padding: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg) 68%, transparent);
-  backdrop-filter: blur(22px) saturate(1.7);
-  -webkit-backdrop-filter: blur(22px) saturate(1.7);
+  background: var(--bg);
 }
 .canvas-crumb { font-size: 12.5px; }
 .canvas-crumb b { font-size: 12.5px; }
@@ -12118,17 +12116,17 @@ dialog textarea { background: var(--surface-2); border: 0; border-radius: var(--
 dialog textarea:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .field { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
 
-/* segmented control: grey track, floating thumb ----------------------------- */
-.seg { background: var(--fill); border: 0; border-radius: 11px; padding: 2px; gap: 2px; }
-.seg button { border-radius: 9px; font-weight: 600; min-height: 30px; }
+/* segmented control: grey track, solid thumb -------------------------------- */
+.seg { background: var(--fill); border: 0; border-radius: 9px; padding: 2px; gap: 2px; }
+.seg button { border-radius: 7px; font-weight: 600; min-height: 30px; }
 .seg button:hover { color: var(--text); background: transparent; }
 .seg button[aria-pressed="true"] {
-  background: var(--surface-3); color: var(--text);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28), 0 0 1px rgba(0, 0, 0, 0.24);
+  background: #636366; color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 1px rgba(0, 0, 0, 0.2);
 }
 :root[data-theme="light"] .seg button[aria-pressed="true"] {
   background: #ffffff;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14), 0 0 1px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.1);
 }
 
 /* switch: the system toggle --------------------------------------------------- */
@@ -12192,10 +12190,10 @@ dialog textarea:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
 
 /* dialogs: sheets ---------------------------------------------------------------------- */
 dialog {
-  border: 0; border-radius: 20px; background: var(--surface);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5), 0 2px 10px rgba(0, 0, 0, 0.3);
+  border: 0; border-radius: 14px; background: var(--surface);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
-dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
 @media (prefers-reduced-motion: no-preference) {
   dialog[open] { animation: ios-sheet-in 240ms cubic-bezier(0.32, 0.72, 0.24, 1); }
   @keyframes ios-sheet-in {
@@ -12203,16 +12201,14 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px); -
     to { opacity: 1; transform: none; }
   }
 }
-.palette { border-radius: 20px; }
+.palette { border-radius: 14px; }
 .palette-item { border-radius: 10px; }
 .palette-kbd { border: 0; background: var(--fill); border-radius: 6px; }
 
-/* toasts: floating blurred banners ------------------------------------------------------- */
+/* toasts: solid banners --------------------------------------------------------------------- */
 .toast {
   border: 0; border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-2) 84%, transparent);
-  backdrop-filter: blur(18px) saturate(1.6);
-  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  background: var(--surface-2);
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
 }
 .toast-act { border: 0; border-radius: 8px; background: var(--fill); }
@@ -12221,9 +12217,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px); -
 /* drawer: same material as the sidebar ----------------------------------------------------- */
 .drawer {
   background: var(--rail-bg); color: var(--rail-text); border-right: 1px solid var(--rail-line);
-  backdrop-filter: blur(22px) saturate(1.7);
-  -webkit-backdrop-filter: blur(22px) saturate(1.7);
-  border-radius: 0 20px 20px 0;
+  border-radius: 0;
 }
 .drawer .rail-nav { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
 .drawer .rail-group { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
@@ -12233,11 +12227,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px); -
 
 /* sign-in: centred card on the black canvas, app-icon mark ----------------------------------- */
 .login-page {
-  background:
-    radial-gradient(900px 480px at 50% -8%, var(--accent-wash), transparent 62%),
-    var(--bg);
+  background: var(--bg);
 }
-.gate-card { padding: var(--sp-5); border-radius: 22px; }
+.gate-card { padding: var(--sp-5); border-radius: 16px; }
 .gate-mark { width: 44px; height: 44px; border-radius: 12px; }
 .gate-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .gate-toggle { border-radius: 8px; }
@@ -12278,7 +12270,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px); -
   dialog {
     width: 100vw; max-width: 100vw;
     margin: auto 0 0;
-    border-radius: 22px 22px 0 0;
+    border-radius: 12px 12px 0 0;
     max-height: 92dvh;
   }
   .palette { width: calc(100vw - 24px); }
