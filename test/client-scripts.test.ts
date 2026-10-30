@@ -44,16 +44,20 @@ describe("shipped client scripts", () => {
     expect(CLIENT_JS).toContain("var GX = {");
   });
 
-  test("console pages never call the raw-key route", () => {
+  test("console pages reach the raw key only via the gated material route, only for Copy", () => {
     for (const [name, html] of [
       ["keys", KEYS_HTML],
       ["key detail", KEY_DETAIL_HTML],
     ] as const) {
-      expect(html, `${name} has no raw route call`).not.toContain("/raw");
+      expect(html, `${name} has no legacy raw route call`).not.toContain("/raw");
       expect(html, `${name} has no reveal flag`).not.toContain("reveal=1");
+      expect(html, `${name} copies via the material route`).toContain("/material");
     }
-    expect(KEYS_HTML, "keys page brands the copy as masked").toContain("Copy the masked key");
-    expect(KEY_DETAIL_HTML, "key detail is masked only").toContain("masked only");
+    /* Ricki's order (2026-10-31) supersedes the old masked-copy policy:
+       Copy puts the WHOLE credential on the clipboard, fetched on demand
+       from the admin-gated route. Display stays masked everywhere. */
+    expect(KEYS_HTML, "keys page brands the copy as the full key").toContain("Copy the full API key");
+    expect(KEY_DETAIL_HTML, "key detail still displays masked only").toContain("masked only");
   });
 
   test("providerPool never collapses a provider to gemini", () => {
