@@ -1,5 +1,12 @@
 # OmniProxy
 
+> **Deprecated name:** This project was formerly developed under the
+> working name "GeminesX" (`geminesx`). That name was deprecated on
+> 2026-10-30 in favour of the single canonical name **OmniProxy**; the
+> canonical checkout path is `/workspaces/OmniProxy`. Do not use the old
+> name for new paths, scripts, configs, or docs. Mentions of it under
+> `docs/briefs/` and `docs/audits/` are historical records only.
+>
 Hono + Bun gateway that fronts pools of API keys from several providers —
 Gemini, ElevenLabs, WhatsToken, and any OpenAI-compatible upstream an operator
 plugs in. Deploys to Vercel (Node runtime: `vercel.json` uses `@vercel/node` on the esbuild bundle in `api/index.js`) or runs as a plain Bun process.
