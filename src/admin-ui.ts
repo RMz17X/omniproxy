@@ -230,8 +230,18 @@ const OVERVIEW_SCRIPT = `
     var cooling = pool.cooling || 0;
     var dead = pool.dead || 0;
     var total = pool.total || 0;
-    el.poolKpis.appendChild(GX.stat("Ready now", String(ready), total ? "of " + total + " in the pool" : "the pool is empty", ready ? "ok" : "bad"));
-    el.poolKpis.appendChild(GX.stat("Cooling", String(cooling), cooling ? "next free in " + GX.fmt.left(pool.soonestReadyMs) : "none parked", cooling ? "warn" : ""));
+    /* Ready and cooling are one fact about the pool — can it serve, and how
+       much of it is parked — so they share one card (Ricki's order): the
+       ready count is the figure, the cooling count leads the sub line. */
+    var coolingSub = cooling
+      ? cooling + " cooling · next free in " + GX.fmt.left(pool.soonestReadyMs)
+      : "0 cooling · none parked";
+    el.poolKpis.appendChild(GX.stat(
+      "Ready & cooling",
+      String(ready),
+      total ? coolingSub + " · of " + total + " in the pool" : "the pool is empty",
+      ready ? "ok" : "bad"
+    ));
     el.poolKpis.appendChild(GX.stat("Dead", String(dead), dead ? "revoked or out of quota" : "none retired", dead ? "bad" : ""));
     var t = tiers || { free: 0, paid: 0, pro: 0, unknown: 0 };
     var declared = (t.free || 0) + (t.paid || 0) + (t.pro || 0);
