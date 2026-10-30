@@ -404,6 +404,31 @@ export async function execute(
 
     const status = res.status;
 
+    if (status === 402) {
+      // 402 is an account verdict, never a request verdict: the credential
+      // authenticated but cannot pay (an exhausted trial, an empty
+      // balance). No model on the same key changes that, and no cooldown
+      // window revives it, so the key retires immediately as zero-quota
+      // instead of failing requests in rotation forever. (Cerebras free
+      // keys reach the pool in exactly this state: their /models probe
+      // authenticates fine, so only a serving attempt ever sees the 402.)
+      const body = await safeText(res);
+      quotaRefused.add(st.key);
+      const claimed = await markInvalid(st.key);
+      log("warn", "key.zero_quota", { path, key: maskKey(st.key), first: claimed, status });
+      if (attempts >= maxAttempts) {
+        return {
+          response: rebuild(res, body),
+          key: st.key,
+          attempts,
+          rotated,
+          quotaRefused: true,
+          quotaRefusedKeys: [...quotaRefused],
+        };
+      }
+      continue;
+    }
+
     if (status === 429) {
       counters.upstream429++;
       const body = await safeText(res);
