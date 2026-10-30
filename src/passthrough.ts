@@ -202,6 +202,51 @@ function tapUsage(
 }
 
 /**
+ * Multipart sibling of openaiWire for /audio/transcriptions: the body is
+ * a form (an audio file plus fields), not JSON, so it crosses as the
+ * parsed FormData with only `model` rewritten to the bare id. Rotation
+ * and verdicts are execute()'s, filtered to the provider's pool, exactly
+ * as on the JSON routes. The form is replayable, so key rotation can
+ * resend it verbatim — no duplex stream is involved.
+ */
+export async function openaiWireForm(
+  req: Request,
+  provider: Provider,
+  model: string,
+  form: FormData,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const base = baseUrlOf(provider);
+  if (model) form.set("model", model);
+  const result = await execute(
+    `${base}/audio/transcriptions`,
+    {
+      method: "POST",
+      headers: new Headers({ accept: "application/json" }),
+      body: form,
+    },
+    "/audio/transcriptions",
+    signal,
+    { provider: provider.id, model },
+  );
+  noteUsage(req, {
+    provider: provider.id,
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`,
+  });
+  if (result.response.status === 499) {
+    return new Response(JSON.stringify({ error: { type: "client_closed_request", message: "Client disconnected." } }), {
+      status: 499,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  return result.response;
+}
+
+/**
  * Normalised model list from an OpenAI-wire provider's /v1/models, for the
  * console's import action and the public /v1/models union.
  */

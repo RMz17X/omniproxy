@@ -6243,13 +6243,14 @@ var init_providers = __esm({
     init_config();
     init_db();
     init_log();
-    CAPABILITIES = ["llm", "tts", "image", "video", "embeddings"];
+    CAPABILITIES = ["llm", "tts", "image", "video", "embeddings", "stt"];
     CAPABILITY_LABEL = {
       llm: "LLM",
       tts: "TTS",
       image: "Image",
       video: "Video",
-      embeddings: "Embeddings"
+      embeddings: "Embeddings",
+      stt: "STT"
     };
     ELEVENLABS_KEY_SOURCE = "^sk_[a-fA-F0-9]{48}$";
     BUILTIN = [
@@ -6284,7 +6285,7 @@ var init_providers = __esm({
         id: "groq",
         label: "Groq",
         baseUrl: "https://api.groq.com/openai/v1",
-        capabilities: ["llm"],
+        capabilities: ["llm", "stt"],
         wire: "openai",
         /* `gsk_` plus 52 alphanumerics today. The prefix is distinctive, so the
            bounds stay loose: a stricter length would reject a real key the day
@@ -15239,6 +15240,27 @@ async function execute(url, init, path, signal, opts) {
           rotated
         };
       }
+      const mine = snap.byProvider[provider];
+      if (!mine || mine.ready + mine.cooling === 0) {
+        counters.poolExhausted++;
+        log("warn", "pool.exhausted_provider", {
+          path,
+          provider,
+          total: mine?.total ?? 0,
+          dead: mine?.dead ?? 0,
+          quotaExhausted: mine?.quota_exhausted ?? 0
+        });
+        return {
+          response: jsonError(
+            429,
+            "pool_exhausted",
+            `No available keys for provider \`${provider}\` right now.`
+          ),
+          key: "",
+          attempts,
+          rotated
+        };
+      }
       const wait = Math.max(120, Math.min(snap.soonestReadyMs || 500, 2e3));
       if (Date.now() + wait > deadline2 || signal?.aborted) {
         counters.poolExhausted++;
@@ -15281,7 +15303,7 @@ async function execute(url, init, path, signal, opts) {
           response: jsonError(
             429,
             "pool_exhausted",
-            `All ${snap.total} key${snap.total === 1 ? "" : "s"} are rate limited. Retry in ${Math.ceil(snap.soonestReadyMs / 1e3)}s.`
+            `All ${mine.total} key${mine.total === 1 ? "" : "s"} for provider \`${provider}\` are rate limited. Retry in ${Math.ceil(snap.soonestReadyMs / 1e3)}s.`
           ),
           key: "",
           attempts,
@@ -17754,6 +17776,36 @@ function tapUsage(upstream, onDone) {
       return upstream.cancel(reason);
     }
   });
+}
+async function openaiWireForm(req, provider, model, form, signal) {
+  const base = baseUrlOf(provider);
+  if (model) form.set("model", model);
+  const result = await execute(
+    `${base}/audio/transcriptions`,
+    {
+      method: "POST",
+      headers: new Headers({ accept: "application/json" }),
+      body: form
+    },
+    "/audio/transcriptions",
+    signal,
+    { provider: provider.id, model }
+  );
+  noteUsage(req, {
+    provider: provider.id,
+    model,
+    keyRaw: result.key,
+    attempts: result.attempts,
+    rotated: result.rotated,
+    errorCode: result.response.ok ? null : `http_${result.response.status}`
+  });
+  if (result.response.status === 499) {
+    return new Response(JSON.stringify({ error: { type: "client_closed_request", message: "Client disconnected." } }), {
+      status: 499,
+      headers: { "content-type": "application/json" }
+    });
+  }
+  return result.response;
 }
 async function openaiModelList(provider, rawKey) {
   const base = baseUrlOf(provider);
@@ -22367,6 +22419,32 @@ app.post("/v1/audio/speech", async (c) => {
   }
   return speech(c.req.raw, resolved.model);
 });
+app.post("/v1/audio/transcriptions", async (c) => {
+  let form;
+  try {
+    form = await c.req.raw.formData();
+  } catch {
+    return c.json(
+      { error: { message: "Expected a multipart form with an audio file and a model field." } },
+      400
+    );
+  }
+  const resolved = await resolveRoute(String(form.get("model") ?? ""), "stt");
+  if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
+  if (!await poolReady(resolved.provider)) {
+    return c.json(
+      { error: { message: `No available ${resolved.provider.label} API keys in pool.` } },
+      503
+    );
+  }
+  if (resolved.provider.wire !== "openai") {
+    return c.json(
+      { error: { message: `Provider \`${resolved.provider.id}\` does not serve transcriptions.` } },
+      400
+    );
+  }
+  return openaiWireForm(c.req.raw, resolved.provider, resolved.model, form, c.req.raw.signal);
+});
 app.post("/v1/embeddings", async (c) => {
   const resolved = await resolveRoute(await peekModel(c.req.raw), "embeddings");
   if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
@@ -22402,7 +22480,12 @@ app.post("/v1/images/generations", async (c) => {
   }
   return openaiWire(c.req.raw, resolved.provider, "images", resolved.model, c.req.raw.signal);
 });
-app.get("/v1/models", async (c) => {
+var modelUnionCache = null;
+var MODEL_UNION_TTL_MS = 6e4;
+async function modelUnionRows() {
+  if (modelUnionCache && Date.now() - modelUnionCache.at < MODEL_UNION_TTL_MS) {
+    return modelUnionCache;
+  }
   const rows = [];
   const census = {};
   try {
@@ -22453,10 +22536,33 @@ app.get("/v1/models", async (c) => {
   } catch {
     census.elevenlabs = 0;
   }
+  modelUnionCache = { at: Date.now(), rows, census };
+  return modelUnionCache;
+}
+app.get("/v1/models", async (c) => {
+  const { rows, census } = await modelUnionRows();
   if (rows.length === 0) {
     return c.json({ error: { message: "No provider can list models right now." } }, 503);
   }
   return c.json({ object: "list", data: rows, omniproxy: { providers: census } });
+});
+app.get("/v1/models/*", async (c) => {
+  const wanted = decodeURIComponent(new URL(c.req.url).pathname.slice("/v1/models/".length));
+  const { rows } = await modelUnionRows();
+  const hit = rows.find((r) => r.id === wanted) ?? rows.find((r) => typeof r.id === "string" && r.id.endsWith(`/${wanted}`));
+  if (!hit) {
+    return c.json(
+      {
+        error: {
+          message: `The model '${wanted}' does not exist`,
+          type: "invalid_request_error",
+          code: "model_not_found"
+        }
+      },
+      404
+    );
+  }
+  return c.json(hit);
 });
 app.all("/v1beta/models/*", (c) => geminiPassthrough(c.req.raw, new URL(c.req.url).pathname));
 var icoCache = null;

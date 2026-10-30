@@ -254,6 +254,37 @@ export async function execute(
           rotated,
         };
       }
+      // Scope the wait to the pool this request may draw from. The global
+      // census always holds hundreds of keys, so a request pinned to a
+      // provider whose own keys are all dead used to sleep out the whole
+      // maxWaitMs for a pick that could never succeed, then blame the
+      // global pool ("All 405 keys are rate limited"). Waiting is only
+      // ever for a cooldown to lapse: when the provider has no key ready
+      // and none cooling, fail at once. Keys that refused this model or
+      // its quota still read as ready in this census — their per-model
+      // verdicts reach the caller through the returns below, not by
+      // waiting — so this never short-circuits a model chain's tally.
+      const mine = snap.byProvider[provider];
+      if (!mine || mine.ready + mine.cooling === 0) {
+        counters.poolExhausted++;
+        log("warn", "pool.exhausted_provider", {
+          path,
+          provider,
+          total: mine?.total ?? 0,
+          dead: mine?.dead ?? 0,
+          quotaExhausted: mine?.quota_exhausted ?? 0,
+        });
+        return {
+          response: jsonError(
+            429,
+            "pool_exhausted",
+            `No available keys for provider \`${provider}\` right now.`,
+          ),
+          key: "",
+          attempts,
+          rotated,
+        };
+      }
       const wait = Math.max(120, Math.min(snap.soonestReadyMs || 500, 2_000));
       if (Date.now() + wait > deadline || signal?.aborted) {
         counters.poolExhausted++;
@@ -300,7 +331,7 @@ export async function execute(
           response: jsonError(
             429,
             "pool_exhausted",
-            `All ${snap.total} key${snap.total === 1 ? "" : "s"} are rate limited. Retry in ${Math.ceil(snap.soonestReadyMs / 1000)}s.`,
+            `All ${mine.total} key${mine.total === 1 ? "" : "s"} for provider \`${provider}\` are rate limited. Retry in ${Math.ceil(snap.soonestReadyMs / 1000)}s.`,
           ),
           key: "",
           attempts,

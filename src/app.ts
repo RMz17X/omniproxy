@@ -26,7 +26,7 @@ import { bodyJson } from "./body.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
 import { listElevenLabsInventory, serveElevenLabs, type ElevenLabsModel, type ElevenLabsVoice } from "./tts.ts";
 import { chatCompletions, embeddings, geminiModelRows } from "./openai.ts";
-import { openaiModelList, openaiWire } from "./passthrough.ts";
+import { openaiModelList, openaiWire, openaiWireForm } from "./passthrough.ts";
 import {
   allProviders,
   CAPABILITIES,
@@ -402,6 +402,39 @@ app.post("/v1/audio/speech", async (c) => {
   return speech(c.req.raw, resolved.model);
 });
 
+/**
+ * OpenAI-compatible speech-to-text. The body is multipart (an audio file
+ * plus fields), so the JSON peek cannot see the model: the form is the
+ * body, read exactly once here (body.ts explains why a second read is
+ * not an option), and the parsed form is what crosses to the upstream.
+ */
+app.post("/v1/audio/transcriptions", async (c) => {
+  let form: FormData;
+  try {
+    form = await c.req.raw.formData();
+  } catch {
+    return c.json(
+      { error: { message: "Expected a multipart form with an audio file and a model field." } },
+      400,
+    );
+  }
+  const resolved = await resolveRoute(String(form.get("model") ?? ""), "stt");
+  if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
+  if (!(await poolReady(resolved.provider))) {
+    return c.json(
+      { error: { message: `No available ${resolved.provider.label} API keys in pool.` } },
+      503,
+    );
+  }
+  if (resolved.provider.wire !== "openai") {
+    return c.json(
+      { error: { message: `Provider \`${resolved.provider.id}\` does not serve transcriptions.` } },
+      400,
+    );
+  }
+  return openaiWireForm(c.req.raw, resolved.provider, resolved.model, form, c.req.raw.signal);
+});
+
 app.post("/v1/embeddings", async (c) => {
   const resolved = await resolveRoute(await peekModel(c.req.raw), "embeddings");
   if (!resolved.ok) return c.json({ error: { message: resolved.message } }, resolved.status);
@@ -450,7 +483,26 @@ app.post("/v1/images/generations", async (c) => {
  * model by bare id and the router resolves the pool — or names the provider
  * explicitly as `provider/model`.
  */
-app.get("/v1/models", async (c) => {
+let modelUnionCache: {
+  at: number;
+  rows: Record<string, unknown>[];
+  census: Record<string, number>;
+} | null = null;
+const MODEL_UNION_TTL_MS = 60_000;
+
+/**
+ * The public model union across every provider, from live catalog reads.
+ * Cached briefly: /v1/models is the discovery call clients make most, and
+ * rebuilding it meant a keyed catalog fetch per provider on every hit
+ * (~1.8 s cold). The console keeps its own, fresher rows path.
+ */
+async function modelUnionRows(): Promise<{
+  rows: Record<string, unknown>[];
+  census: Record<string, number>;
+}> {
+  if (modelUnionCache && Date.now() - modelUnionCache.at < MODEL_UNION_TTL_MS) {
+    return modelUnionCache;
+  }
   const rows: Record<string, unknown>[] = [];
   const census: Record<string, number> = {};
 
@@ -516,11 +568,42 @@ app.get("/v1/models", async (c) => {
   } catch {
     census.elevenlabs = 0;
   }
+  modelUnionCache = { at: Date.now(), rows, census };
+  return modelUnionCache;
+}
 
+app.get("/v1/models", async (c) => {
+  const { rows, census } = await modelUnionRows();
   if (rows.length === 0) {
     return c.json({ error: { message: "No provider can list models right now." } }, 503);
   }
   return c.json({ object: "list", data: rows, omniproxy: { providers: census } });
+});
+
+/**
+ * Single-model retrieve, the other half of the models surface: SDKs call
+ * it to check one id before use. Ids are the published (prefixed) ones; a
+ * bare id also matches, on the first provider that publishes it.
+ */
+app.get("/v1/models/*", async (c) => {
+  const wanted = decodeURIComponent(new URL(c.req.url).pathname.slice("/v1/models/".length));
+  const { rows } = await modelUnionRows();
+  const hit =
+    rows.find((r) => r.id === wanted) ??
+    rows.find((r) => typeof r.id === "string" && r.id.endsWith(`/${wanted}`));
+  if (!hit) {
+    return c.json(
+      {
+        error: {
+          message: `The model '${wanted}' does not exist`,
+          type: "invalid_request_error",
+          code: "model_not_found",
+        },
+      },
+      404,
+    );
+  }
+  return c.json(hit);
 });
 
 /* ---------- native Gemini passthrough ---------- */

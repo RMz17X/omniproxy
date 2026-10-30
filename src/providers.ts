@@ -27,9 +27,9 @@ import { dbEnabled, sql } from "./db.ts";
 import { log } from "./log.ts";
 
 /** What a provider can be asked to do. A gateway route requires exactly one. */
-export type Capability = "llm" | "tts" | "image" | "video" | "embeddings";
+export type Capability = "llm" | "tts" | "image" | "video" | "embeddings" | "stt";
 
-export const CAPABILITIES: Capability[] = ["llm", "tts", "image", "video", "embeddings"];
+export const CAPABILITIES: Capability[] = ["llm", "tts", "image", "video", "embeddings", "stt"];
 
 export const CAPABILITY_LABEL: Record<Capability, string> = {
   llm: "LLM",
@@ -37,6 +37,7 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   image: "Image",
   video: "Video",
   embeddings: "Embeddings",
+  stt: "STT",
 };
 
 /**
@@ -126,7 +127,7 @@ const BUILTIN: Provider[] = [
     id: "groq",
     label: "Groq",
     baseUrl: "https://api.groq.com/openai/v1",
-    capabilities: ["llm"],
+    capabilities: ["llm", "stt"],
     wire: "openai",
     /* `gsk_` plus 52 alphanumerics today. The prefix is distinctive, so the
        bounds stay loose: a stricter length would reject a real key the day
