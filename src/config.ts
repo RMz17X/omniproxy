@@ -28,6 +28,11 @@ export const cfg = {
    * call time means the harness does not have to win a module-evaluation race
    * against this file.
    */
+  /** Gemini Live upstream base (WebSocket scheme). Read at call time,
+   *  like `upstream`, so tests and mirrors can redirect it by env. */
+  get liveUpstream(): string {
+    return process.env.GEMINI_LIVE_BASE_URL ?? "wss://generativelanguage.googleapis.com";
+  },
   get upstream(): string {
     return process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com";
   },

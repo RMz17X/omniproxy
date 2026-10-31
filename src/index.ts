@@ -1,4 +1,6 @@
+import type { Server } from "bun";
 import app from "./app.ts";
+import { liveHandshake, liveWebsocket, type LiveData } from "./live.ts";
 import { hydrate, storageMode } from "./pool.ts";
 import { cfg } from "./config.ts";
 
@@ -16,6 +18,14 @@ console.log(
 
 export default {
   port,
-  fetch: app.fetch,
   idleTimeout: 255,
+  async fetch(req: Request, server: Server<LiveData>): Promise<Response | undefined> {
+    // Gemini Live handshakes are intercepted before the Hono app: a
+    // WebSocket upgrade is not an HTTP route, and the serverless build
+    // (which never imports live.ts) keeps serving HTTP only.
+    const live = await liveHandshake(req, server);
+    if (live !== null) return live;
+    return app.fetch(req);
+  },
+  websocket: liveWebsocket,
 };
