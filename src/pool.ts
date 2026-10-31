@@ -566,10 +566,20 @@ export async function rawKeyById(id: string): Promise<string | null> {
  * A key may serve when nothing currently disqualifies it: not dead, not still
  * unproven, and past every known deadline.
  */
-function selectable(s: KeyState, t: number, model?: string, provider?: string): boolean {
+function selectable(
+  s: KeyState,
+  t: number,
+  model?: string,
+  provider?: string,
+  pacingExempt?: Set<string>,
+): boolean {
   if (provider && (s.provider || "gemini") !== provider) return false;
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
-  if (s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) return false;
+  // Pacing spaces out independent requests on one credential. A key a
+  // model chain has already attempted for THIS logical request is
+  // exempt: the chain is one ask, and re-picking the key for the next
+  // model is the fallback working as designed, not a second request.
+  if (!pacingExempt?.has(s.key) && s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) return false;
   // A per-model free-tier refusal disqualifies the pair only: another model
   // on the same credential is untouched, so the key stays in rotation.
   if (model && (s.modelRefusals[model] ?? 0) > t) return false;
@@ -622,16 +632,17 @@ export async function pick(
   exclude: Set<string> = new Set(),
   model?: string,
   provider?: string,
+  pacingExempt?: Set<string>,
 ): Promise<KeyState | null> {
   // Cheap local check first; only when this instance has nothing to hand out
   // do we spend a round trip on the durable source.
   const t = now();
-  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider));
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider, pacingExempt));
   if (ready.length === 0) {
     const pending = refreshFromDurable();
     if (pending) await pending;
     const t2 = now();
-    const retry = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t2, model, provider));
+    const retry = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t2, model, provider, pacingExempt));
     if (retry.length === 0) return null;
     retry.sort((a, b) => a.failures - b.failures || a.lastUsed - b.lastUsed);
     return retry[0];

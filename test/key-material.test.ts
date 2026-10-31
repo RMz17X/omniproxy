@@ -30,7 +30,7 @@ function install(fail: SqlResult<unknown> | null = null): void {
       table.set(String(params[0]), String(params[1]));
       return { ok: true, rows: [] };
     }
-    if (/^select id, raw_key from key_material/i.test(query)) {
+    if (/^select m\.id, m\.raw_key from key_material/i.test(query)) {
       const rows = [...table].map(([id, raw_key]) => ({ id, raw_key })) as T[];
       return { ok: true, rows };
     }

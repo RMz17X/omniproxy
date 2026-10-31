@@ -9,13 +9,17 @@ var __export = (target, all) => {
 };
 
 // src/config.ts
-var num, list, cfg, VOICE_MAP;
+var num, numAllowZero, list, cfg, VOICE_MAP;
 var init_config = __esm({
   "src/config.ts"() {
     "use strict";
     num = (v2, d) => {
       const n = Number(v2);
       return Number.isFinite(n) && n > 0 ? n : d;
+    };
+    numAllowZero = (v2, d) => {
+      const n = Number(v2);
+      return v2 !== void 0 && v2 !== "" && Number.isFinite(n) && n >= 0 ? n : d;
     };
     list = (v2, d) => {
       const fromEnv = (v2 ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -41,7 +45,7 @@ var init_config = __esm({
       /** per-key pacing, ENFORCED by pool.selectable(): a key whose lastUsed is
        *  inside this window is not selectable at all (not merely deprioritised
        *  by LRU). 4000ms == 15 RPM, the Gemini free-tier ceiling per project. */
-      rateWindowMs: num(process.env.KEY_RATE_WINDOW_MS, 4e3),
+      rateWindowMs: numAllowZero(process.env.KEY_RATE_WINDOW_MS, 4e3),
       /** cooldown applied on 429 / RESOURCE_EXHAUSTED */
       cooldownMs: num(process.env.KEY_COOLDOWN_MS, 6e4),
       /** cooldown applied on 5xx */
@@ -147,7 +151,7 @@ var init_config = __esm({
        * while staying well inside a serverless function's practical lifetime.
        * 0 disables the timer (the HTTP route still works).
        */
-      recheckIntervalMinutes: num(process.env.RECHECK_INTERVAL_MINUTES, 19),
+      recheckIntervalMinutes: numAllowZero(process.env.RECHECK_INTERVAL_MINUTES, 19),
       /**
        * How often public traffic may trigger a background re-check of due keys.
        * A serverless instance is frozen between requests, so the timer alone can
@@ -155,7 +159,7 @@ var init_config = __esm({
        * miss with a 429 unless traffic drives the probe. 0 disables the hook (the
        * timer and the HTTP route still work); tests set 0 to keep pools still.
        */
-      lazyRecheckMs: num(process.env.LAZY_RECHECK_MS, 6e4),
+      lazyRecheckMs: numAllowZero(process.env.LAZY_RECHECK_MS, 6e4),
       /** a key rejected as invalid is not re-probed more often than this */
       invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
       /**
@@ -6655,10 +6659,10 @@ async function rawKeyById(id) {
   const hit = [...local.values()].find((s) => keyId(s.key) === id);
   return hit ? hit.key : null;
 }
-function selectable(s, t, model, provider) {
+function selectable(s, t, model, provider, pacingExempt) {
   if (provider && (s.provider || "gemini") !== provider) return false;
   if (s.invalid || s.status === "dead" || s.status === "unverified") return false;
-  if (s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) return false;
+  if (!pacingExempt?.has(s.key) && s.lastUsed > 0 && t - s.lastUsed < cfg.rateWindowMs) return false;
   if (model && (s.modelRefusals[model] ?? 0) > t) return false;
   if (s.status === "quota_exhausted") return s.retryAfterAt > 0 && s.retryAfterAt <= t;
   return s.cooldownUntil <= t && s.retryAfterAt <= t;
@@ -6675,14 +6679,14 @@ function refreshFromDurable() {
   });
   return hydrating;
 }
-async function pick(exclude = /* @__PURE__ */ new Set(), model, provider) {
+async function pick(exclude = /* @__PURE__ */ new Set(), model, provider, pacingExempt) {
   const t = now();
-  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider));
+  const ready = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t, model, provider, pacingExempt));
   if (ready.length === 0) {
     const pending2 = refreshFromDurable();
     if (pending2) await pending2;
     const t2 = now();
-    const retry = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t2, model, provider));
+    const retry = [...local.values()].filter((s) => !exclude.has(s.key) && selectable(s, t2, model, provider, pacingExempt));
     if (retry.length === 0) return null;
     retry.sort((a2, b2) => a2.failures - b2.failures || a2.lastUsed - b2.lastUsed);
     return retry[0];
@@ -15229,7 +15233,7 @@ async function execute(url, init, path, signal, opts) {
   let rotated = false;
   if (signal?.aborted) return aborted();
   for (; ; ) {
-    let st = await pick(tried, opts?.model, provider);
+    let st = await pick(tried, opts?.model, provider, opts?.chainAttempted);
     if (!st && opts?.model) {
       const block = modelBlock(tried, opts.model, provider);
       if (block.kind === "model_refusal") {
@@ -15334,7 +15338,7 @@ async function execute(url, init, path, signal, opts) {
         };
       }
       await sleep(wait);
-      st = await pick(tried, opts?.model, provider);
+      st = await pick(tried, opts?.model, provider, opts?.chainAttempted);
     }
     if (attempts > 0) {
       rotated = true;
@@ -15351,6 +15355,7 @@ async function execute(url, init, path, signal, opts) {
     }
     attempts++;
     tried.add(st.key);
+    opts?.chainAttempted?.add(st.key);
     const headers = headersFor(new Headers(init.headers), st.key);
     const target = urlWithoutKey(url);
     const { signal: attempt, timeout } = attemptSignal(signal, opts?.timeoutMs ?? cfg.upstreamTimeoutMs);
@@ -15635,6 +15640,7 @@ async function executeWithFallback(models, build, signal, opts) {
   let lastModel = chain[0];
   const quotaRefusedBy = /* @__PURE__ */ new Map();
   let chainQuotaRefused = false;
+  const chainAttempted = /* @__PURE__ */ new Set();
   for (const [index, model] of chain.entries()) {
     if (index > 0) {
       const left = chainDeadline - Date.now();
@@ -15646,7 +15652,8 @@ async function executeWithFallback(models, build, signal, opts) {
       timeoutMs,
       deferQuotaRetire: true,
       model,
-      provider: opts?.provider
+      provider: opts?.provider,
+      chainAttempted
     });
     last = result;
     lastModel = model;
@@ -23272,6 +23279,10 @@ async function applyProbe(raw2, probe) {
       await markHealthy(raw2);
       return "revived";
     case "rate_limited":
+      if (probe.quota?.model && isModelScopedQuota(probe.quota)) {
+        await markModelRefused(raw2, probe.quota.model, probe.quota);
+        return "model_refused";
+      }
       await mark429(raw2, Math.max(cfg.cooldownMs, probe.retryAfterMs), probe.quota ?? null);
       return "cooling";
     case "zero_quota":
@@ -23470,7 +23481,7 @@ async function recheckDueKeys() {
     if (applied === "revived") revived++;
     else if (applied === "quota_exhausted") stillQuota++;
     else if (applied === "retired") retired++;
-    else if (applied !== "cooling") failed++;
+    else if (applied !== "cooling" && applied !== "model_refused") failed++;
     if (result.tierEvidence) await markValidatedPlan(raw2, result.tierEvidence);
     if (!k.planValidated) {
       const tier = await probeTier(raw2);

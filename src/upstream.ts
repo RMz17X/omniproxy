@@ -182,7 +182,16 @@ export async function execute(
   init: RequestInit & { method: string },
   path: string,
   signal?: AbortSignal,
-  opts?: { timeoutMs?: number; deferQuotaRetire?: boolean; model?: string; provider?: string },
+  opts?: {
+    timeoutMs?: number;
+    deferQuotaRetire?: boolean;
+    model?: string;
+    provider?: string;
+    /** Keys a model chain has already attempted for this one logical
+     *  request (owned by executeWithFallback). They are pacing-exempt
+     *  in pick() and this call adds every key it attempts to the set. */
+    chainAttempted?: Set<string>;
+  },
 ): Promise<ExecResult> {
   const tried = new Set<string>();
   const deadline = Date.now() + cfg.maxWaitMs;
@@ -212,7 +221,7 @@ export async function execute(
   for (;;) {
     // `provider` restricts selection to one pool: a request routed to
     // whatstoken must never be handed a Gemini credential (and vice versa).
-    let st = await pick(tried, opts?.model, provider);
+    let st = await pick(tried, opts?.model, provider, opts?.chainAttempted);
 
     // A live per-model refusal has no bounded reset to wait for (the deadline
     // is that model's next daily reset), so report a model verdict and let the
@@ -339,7 +348,7 @@ export async function execute(
         };
       }
       await sleep(wait);
-      st = await pick(tried, opts?.model, provider);
+      st = await pick(tried, opts?.model, provider, opts?.chainAttempted);
     }
 
     if (attempts > 0) {
@@ -357,6 +366,7 @@ export async function execute(
     }
     attempts++;
     tried.add(st.key);
+    opts?.chainAttempted?.add(st.key);
 
     const headers = headersFor(new Headers(init.headers), st.key);
     const target = urlWithoutKey(url);
@@ -744,6 +754,9 @@ export async function executeWithFallback(
    */
   const quotaRefusedBy = new Map<string, Set<string>>();
   let chainQuotaRefused = false;
+  // One logical request: keys attempted for an earlier model stay
+  // pickable for the next one (pacing governs BETWEEN requests).
+  const chainAttempted = new Set<string>();
 
   for (const [index, model] of chain.entries()) {
     if (index > 0) {
@@ -760,6 +773,7 @@ export async function executeWithFallback(
       deferQuotaRetire: true,
       model,
       provider: opts?.provider,
+      chainAttempted,
     });
     last = result;
     lastModel = model;

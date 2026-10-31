@@ -11,6 +11,16 @@ const num = (v: string | undefined, d: number) => {
   return Number.isFinite(n) && n > 0 ? n : d;
 };
 
+/** Like `num`, but 0 is a real value: the fields below document 0 as
+ *  "disabled" (their consumers check `<= 0`), and the strict helper
+ *  silently replaced it with the default — an operator setting
+ *  KEY_RATE_WINDOW_MS=0 or RECHECK_INTERVAL_MINUTES=0 got the default
+ *  behaviour while believing the feature was off. */
+const numAllowZero = (v: string | undefined, d: number) => {
+  const n = Number(v);
+  return v !== undefined && v !== "" && Number.isFinite(n) && n >= 0 ? n : d;
+};
+
 /** Comma-separated model list from env, else the code default. */
 const list = (v: string | undefined, d: string[]) => {
   const fromEnv = (v ?? "")
@@ -39,7 +49,7 @@ export const cfg = {
   /** per-key pacing, ENFORCED by pool.selectable(): a key whose lastUsed is
    *  inside this window is not selectable at all (not merely deprioritised
    *  by LRU). 4000ms == 15 RPM, the Gemini free-tier ceiling per project. */
-  rateWindowMs: num(process.env.KEY_RATE_WINDOW_MS, 4000),
+  rateWindowMs: numAllowZero(process.env.KEY_RATE_WINDOW_MS, 4000),
   /** cooldown applied on 429 / RESOURCE_EXHAUSTED */
   cooldownMs: num(process.env.KEY_COOLDOWN_MS, 60_000),
   /** cooldown applied on 5xx */
@@ -145,7 +155,7 @@ export const cfg = {
    * while staying well inside a serverless function's practical lifetime.
    * 0 disables the timer (the HTTP route still works).
    */
-  recheckIntervalMinutes: num(process.env.RECHECK_INTERVAL_MINUTES, 19),
+  recheckIntervalMinutes: numAllowZero(process.env.RECHECK_INTERVAL_MINUTES, 19),
   /**
    * How often public traffic may trigger a background re-check of due keys.
    * A serverless instance is frozen between requests, so the timer alone can
@@ -153,7 +163,7 @@ export const cfg = {
    * miss with a 429 unless traffic drives the probe. 0 disables the hook (the
    * timer and the HTTP route still work); tests set 0 to keep pools still.
    */
-  lazyRecheckMs: num(process.env.LAZY_RECHECK_MS, 60_000),
+  lazyRecheckMs: numAllowZero(process.env.LAZY_RECHECK_MS, 60_000),
   /** a key rejected as invalid is not re-probed more often than this */
   invalidRecheckFloorMinutes: num(process.env.INVALID_RECHECK_FLOOR_MINUTES, 1440),
   /**

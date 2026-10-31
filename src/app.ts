@@ -15,12 +15,13 @@
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { cfg } from "./config.ts";
-import { addKey, backfillMaterial, dropLocal, flushPoolWrites, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, hydrate, type KeyTier, type KeyView } from "./pool.ts";
+import { addKey, backfillMaterial, dropLocal, flushPoolWrites, KEY_TIERS, keyId, keyMaterialDurable, listKeys, mark429, markHealthy, markInvalid, markModelRefused, markQuotaExhausted, markSoftError, markUnverified, markValidatedPlan, pick, rawKeyById, removeKey, removeKeyById, forgetDead, setTierById, snapshot, tierCounts, hydrate, type KeyTier, type KeyView } from "./pool.ts";
 import { ADMIN_HTML } from "./admin-ui.ts";
 import { buildFaviconIco, FAVICON_SVG } from "./favicon.ts";
 import { MODELS_HTML } from "./models-ui.ts";
 import { catalogModels, discoveryDebug, listLiveModels, pricingMeta, testModel } from "./models.ts";
 import { probeKey, probeTier, verifyIngestKeys, type ProbeResult } from "./probe.ts";
+import { isModelScopedQuota } from "./verdict.ts";
 import { deflateSync } from "node:zlib";
 import { bodyJson , bodyBytes } from "./body.ts";
 import { geminiPassthrough, speech } from "./gemini.ts";
@@ -1556,6 +1557,17 @@ async function applyProbe(raw: string, probe: ProbeResult): Promise<string> {
       await markHealthy(raw);
       return "revived";
     case "rate_limited":
+      // A free-tier refusal that names one model is a verdict about the
+      // (key, model) pair, never about the credential — the same split
+      // the serving path applies to a 429. Parking the whole key for the
+      // body's reset (a per-model daily window runs to midnight) would
+      // mute every other model the key can still serve; worse, a recheck
+      // racing a live request would stomp the very chain that is using
+      // the key on its next model. Record the pair refusal instead.
+      if (probe.quota?.model && isModelScopedQuota(probe.quota)) {
+        await markModelRefused(raw, probe.quota.model, probe.quota);
+        return "model_refused";
+      }
       await mark429(raw, Math.max(cfg.cooldownMs, probe.retryAfterMs), probe.quota ?? null);
       return "cooling";
     case "zero_quota":
@@ -1875,7 +1887,7 @@ export async function recheckDueKeys(): Promise<{
     if (applied === "revived") revived++;
     else if (applied === "quota_exhausted") stillQuota++;
     else if (applied === "retired") retired++;
-    else if (applied !== "cooling") failed++;
+    else if (applied !== "cooling" && applied !== "model_refused") failed++;
     if (result.tierEvidence) await markValidatedPlan(raw, result.tierEvidence);
     // A key whose plan was never validated needs the tier probe: a healthy
     // key answers 200, and a 200 carries no tier marker at all. The tier
