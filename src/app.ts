@@ -523,6 +523,19 @@ async function modelUnionRows(): Promise<{
     census.gemini = 0;
   }
 
+  /* The synthetic Gemini TTS combo (cfg.ttsComboModel): no Google catalog
+     carries it, but it is servable — the speech route expands it to the
+     configured fallback chain — so it is published here for clients to
+     discover and select like any other model. Outside the try above on
+     purpose: a failed live catalog fetch must not unpublish the combo. */
+  rows.push({
+    id: `gemini/${cfg.ttsComboModel}`,
+    object: "model",
+    created: 1700000000,
+    owned_by: "gemini",
+    display_name: "Gemini TTS Combo (auto-fallback)",
+  });
+
   for (const provider of await allProviders()) {
     if (!provider.enabled || provider.wire !== "openai") continue;
     const st = await pick(new Set(), undefined, provider.id);

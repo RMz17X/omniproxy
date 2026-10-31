@@ -96,6 +96,24 @@ export const cfg = {
     "gemini-3.1-flash-lite",
     "gemini-3.8-flash",
   ]),
+  /**
+   * Gemini TTS combo: a synthetic model id a client can ask for instead of
+   * a concrete TTS model. The speech route expands it to `ttsComboChain`
+   * and runs the chat-proven model fallback over it, so one model's
+   * pool-wide quota death (2026-10-31: gemini-2.5-flash-preview-tts
+   * answered 429 model_zero_quota on every key while gemini-3.8-flash-tts
+   * still served) advances to the next model instead of muting the
+   * caller. The id keeps the `gemini` prefix, so model routing resolves
+   * it to the Gemini provider with no registry entry. Chain order is
+   * preference order; the env list wins so operations can reorder
+   * without a deploy.
+   */
+  ttsComboModel: process.env.TTS_COMBO_MODEL ?? "gemini-tts-combo",
+  ttsComboChain: list(process.env.TTS_COMBO_CHAIN, [
+    "gemini-3.8-flash-tts",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-2.5-pro-preview-tts",
+  ]),
   /** Probe chain; `PROBE_MODELS` wins over the code default. */
   probeModels: list(process.env.PROBE_MODELS, [
     "gemini-3.5-flash",

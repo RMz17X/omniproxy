@@ -9,7 +9,7 @@
 
 import { cfg, VOICE_MAP } from "./config.ts";
 import { bodyText } from "./body.ts";
-import { execute } from "./upstream.ts";
+import { execute, executeWithFallback } from "./upstream.ts";
 import { noteUsage } from "./ledger.ts";
 
 /**
@@ -120,21 +120,33 @@ export async function speech(req: Request, resolvedModel?: string): Promise<Resp
     },
   };
 
-  const path = `/v1beta/models/${model}:generateContent`;
-  const result = await execute(
-    `${up()}${path}`,
-    {
-      method: "POST",
-      headers: new Headers({
-        "content-type": "application/json",
-        accept: "application/json",
-      }),
-      body: JSON.stringify(payload),
-    },
-    path,
-    req.signal,
-    { model, provider: "gemini" },
-  );
+  const buildAttempt = (m: string) => {
+    const p = `/v1beta/models/${m}:generateContent`;
+    return {
+      url: `${up()}${p}`,
+      init: {
+        method: "POST",
+        headers: new Headers({
+          "content-type": "application/json",
+          accept: "application/json",
+        }),
+        body: JSON.stringify(payload),
+      },
+      path: p,
+    };
+  };
+  /* The combo id (cfg.ttsComboModel) expands to the configured TTS chain
+     and reuses the chat fallback runner: a model whose whole pool is out
+     of quota — or which refuses the model itself — advances to the next
+     chain entry with the key state untouched, and a key is retired only
+     when every chain model refused it. A concrete model id keeps the
+     single-model path, exactly as before. */
+  const combo = model === cfg.ttsComboModel;
+  const attempt = buildAttempt(model);
+  const result = combo
+    ? await executeWithFallback(cfg.ttsComboChain, buildAttempt, req.signal, { provider: "gemini" })
+    : await execute(attempt.url, attempt.init, attempt.path, req.signal, { model, provider: "gemini" });
+  const servedModel = (result as { model?: string }).model ?? model;
 
   if (result.response.status === 499) {
     return new Response(null, { status: 499 });
@@ -144,7 +156,7 @@ export async function speech(req: Request, resolvedModel?: string): Promise<Resp
   // text and the returned audio as two different meters, and this endpoint
   // never asks for usageMetadata. Record the attempt and the model only.
   noteUsage(req, {
-    model,
+    model: servedModel,
     provider: "gemini",
     keyRaw: result.key,
     attempts: result.attempts,
@@ -178,6 +190,7 @@ export async function speech(req: Request, resolvedModel?: string): Promise<Resp
     return new Response(new Uint8Array(pcm), {
       headers: {
         "content-type": "audio/L16",
+        "x-omniproxy-model": servedModel,
         "x-omniproxy-attempts": String(result.attempts),
       },
     });
@@ -188,6 +201,7 @@ export async function speech(req: Request, resolvedModel?: string): Promise<Resp
     headers: {
       "content-type": "audio/wav",
       "content-length": String(wav.byteLength),
+      "x-omniproxy-model": servedModel,
       "x-omniproxy-attempts": String(result.attempts),
       "x-omniproxy-rotated": result.rotated ? "1" : "0",
       "x-omniproxy-voice": voice,

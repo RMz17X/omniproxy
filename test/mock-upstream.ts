@@ -15,6 +15,7 @@
  * model only":
  *   key containing "zeroquota" -> 429 zero-quota on every model
  *   key containing "halfquota" -> 429 zero-quota on 3.5-flash only, 200 elsewhere
+ *   key containing "ttsquota"  -> 429 zero-quota on 3.8-flash-tts only, 200 elsewhere
  * Plan classification needs the two real 429 shapes plus a model that only a
  * paid project can reach:
  *   key containing "freequota" -> 429 QuotaFailure (no limit value) on every
@@ -130,6 +131,11 @@ const server = Bun.serve({
     }
     if (key.toLowerCase().includes("halfquota") && model.includes("3.5-flash")) {
       // Out of quota on one model only: the other models still serve it.
+      return q(429, zeroQuotaBody);
+    }
+    if (key.toLowerCase().includes("ttsquota") && model.includes("3.8-flash-tts")) {
+      // Out of quota on the lead TTS model only: a TTS combo chain must
+      // fall through to the next model, which still serves this key.
       return q(429, zeroQuotaBody);
     }
     // ---- plan shapes ----

@@ -98,6 +98,24 @@ var init_config = __esm({
         "gemini-3.1-flash-lite",
         "gemini-3.8-flash"
       ]),
+      /**
+       * Gemini TTS combo: a synthetic model id a client can ask for instead of
+       * a concrete TTS model. The speech route expands it to `ttsComboChain`
+       * and runs the chat-proven model fallback over it, so one model's
+       * pool-wide quota death (2026-10-31: gemini-2.5-flash-preview-tts
+       * answered 429 model_zero_quota on every key while gemini-3.8-flash-tts
+       * still served) advances to the next model instead of muting the
+       * caller. The id keeps the `gemini` prefix, so model routing resolves
+       * it to the Gemini provider with no registry entry. Chain order is
+       * preference order; the env list wins so operations can reorder
+       * without a deploy.
+       */
+      ttsComboModel: process.env.TTS_COMBO_MODEL ?? "gemini-tts-combo",
+      ttsComboChain: list(process.env.TTS_COMBO_CHAIN, [
+        "gemini-3.8-flash-tts",
+        "gemini-2.5-flash-preview-tts",
+        "gemini-2.5-pro-preview-tts"
+      ]),
       /** Probe chain; `PROBE_MODELS` wins over the code default. */
       probeModels: list(process.env.PROBE_MODELS, [
         "gemini-3.5-flash",
@@ -16911,26 +16929,30 @@ async function speech(req, resolvedModel) {
       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
     }
   };
-  const path = `/v1beta/models/${model}:generateContent`;
-  const result = await execute(
-    `${up()}${path}`,
-    {
-      method: "POST",
-      headers: new Headers({
-        "content-type": "application/json",
-        accept: "application/json"
-      }),
-      body: JSON.stringify(payload)
-    },
-    path,
-    req.signal,
-    { model, provider: "gemini" }
-  );
+  const buildAttempt = (m) => {
+    const p2 = `/v1beta/models/${m}:generateContent`;
+    return {
+      url: `${up()}${p2}`,
+      init: {
+        method: "POST",
+        headers: new Headers({
+          "content-type": "application/json",
+          accept: "application/json"
+        }),
+        body: JSON.stringify(payload)
+      },
+      path: p2
+    };
+  };
+  const combo = model === cfg.ttsComboModel;
+  const attempt = buildAttempt(model);
+  const result = combo ? await executeWithFallback(cfg.ttsComboChain, buildAttempt, req.signal, { provider: "gemini" }) : await execute(attempt.url, attempt.init, attempt.path, req.signal, { model, provider: "gemini" });
+  const servedModel = result.model ?? model;
   if (result.response.status === 499) {
     return new Response(null, { status: 499 });
   }
   noteUsage(req, {
-    model,
+    model: servedModel,
     provider: "gemini",
     keyRaw: result.key,
     attempts: result.attempts,
@@ -16959,6 +16981,7 @@ async function speech(req, resolvedModel) {
     return new Response(new Uint8Array(pcm), {
       headers: {
         "content-type": "audio/L16",
+        "x-omniproxy-model": servedModel,
         "x-omniproxy-attempts": String(result.attempts)
       }
     });
@@ -16968,6 +16991,7 @@ async function speech(req, resolvedModel) {
     headers: {
       "content-type": "audio/wav",
       "content-length": String(wav.byteLength),
+      "x-omniproxy-model": servedModel,
       "x-omniproxy-attempts": String(result.attempts),
       "x-omniproxy-rotated": result.rotated ? "1" : "0",
       "x-omniproxy-voice": voice
@@ -22509,6 +22533,13 @@ async function modelUnionRows() {
   } catch {
     census.gemini = 0;
   }
+  rows.push({
+    id: `gemini/${cfg.ttsComboModel}`,
+    object: "model",
+    created: 17e8,
+    owned_by: "gemini",
+    display_name: "Gemini TTS Combo (auto-fallback)"
+  });
   for (const provider of await allProviders()) {
     if (!provider.enabled || provider.wire !== "openai") continue;
     const st = await pick(/* @__PURE__ */ new Set(), void 0, provider.id);
